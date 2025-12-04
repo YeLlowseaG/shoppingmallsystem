@@ -205,24 +205,154 @@ gitee -> for pulling updates from Gitee
 
 ---
 
+### Session 8: Understanding Branch Concepts
+
+**Topic**: Explaining main vs dev branch workflow
+
+**Key Questions**:
+- User asked how to view dev branch on GitHub/Gitee
+- User asked what main branch is for and when to merge
+
+**Key Clarifications**:
+- **main branch** = Production version (stable, for clients)
+- **dev branch** = Development version (daily work, can have bugs)
+- Only merge dev to main when ready for client demo or release
+- Currently working on dev branch - correct approach ✅
+
+**Understanding Achieved**:
+- User now understands the parallel universe concept of branches
+- Clear on when to use dev (daily) vs main (releases)
+- No need to merge to main until v1.0 is ready
+
+**Links Provided**:
+- GitHub dev branch: https://github.com/YeLlowseaG/shoppingmallsystem/tree/dev
+- Gitee dev branch: https://gitee.com/lirenjie/shopping-mall-system/tree/dev
+
+---
+
+### Session 9: Business Process Analysis
+
+**Topic**: Identifying main business workflows for B2B mall system
+
+**Core Processes Identified**:
+
+**P0 - Critical Processes** (Must implement first):
+1. **User Registration Flow** - Distributor onboarding and admin approval
+2. **Product Publishing Flow** - Admin publishes products to platform
+3. **Purchase Order Flow** - Distributor browses, adds to cart, checks out, pays
+4. **Order Fulfillment Flow** - Admin processes order, ships, distributor receives
+5. **Payment Settlement Flow** - Online/offline payment, callback, status updates
+
+**P1 - Important Processes** (Second priority):
+6. **Prepayment Recharge Flow** - Distributor tops up account balance
+7. **Order Cancellation/Refund Flow** - Cancel unpaid orders, admin processes refunds
+8. **After-sales Processing Flow** - Return/exchange requests and handling
+
+**P2 - Enhancement Processes** (Third priority):
+9. **Product Favorites/Out-of-stock Registration Flow**
+10. **Batch Order Upload Flow** - Bulk order import via Excel/CSV
+
+**Key Insights**:
+- System has clear role separation: Platform Admin (manages products/orders) vs Distributors (purchase)
+- No supplier role - platform is the direct product source
+- Focus on B2B wholesale and distribution workflows
+
+---
+
+### Session 10: Development Strategy Discussion
+
+**Topic**: Choosing frontend-first development approach
+
+**User's Proposal**:
+- Build frontend page framework first, then implement functionality
+
+**Analysis & Decision**:
+
+**✅ Advantages of Frontend-First Approach**:
+1. **Quick client demos** - Show UI prototypes early for feedback
+2. **Parallel development** - One person frontend, one person backend
+3. **Reference website available** - Can mimic http://shop.jingvo.com/ structure
+4. **Clear API requirements** - Frontend defines what backend needs to provide
+
+**Recommended Development Flow**:
+
+**Phase 1: Build Frontend Framework (1-2 weeks)**
+- Set up Vue 3 + Vite + TypeScript + Element Plus
+- Implement static pages:
+  - Frontend (Distributor): Home, Product List, Product Detail, Cart, Checkout, Member Center, Orders
+  - Backend (Admin): Dashboard, Product Management, Order Management, Distributor Management
+- Use Mock.js for fake data
+
+**Phase 2: Build Backend Framework (Parallel, 1-2 weeks)**
+- Set up Node.js + Express + TypeScript
+- Design database schema (MySQL)
+- Implement core APIs (auth, products, cart basics)
+
+**Phase 3: Frontend-Backend Integration (2-3 weeks)**
+- Implement complete features one by one:
+  1. User login/registration
+  2. Product listing/details
+  3. Shopping cart
+  4. Order placement
+  5. Order management
+  6. Payment
+  ... (continue by priority)
+
+**Team Division Recommendation**:
+- **Option A (Recommended)**: Frontend/Backend split
+  - Person A: All frontend pages + API integration
+  - Person B: All backend APIs + database
+- **Option B**: Module-based split
+  - Person A: Frontend + Backend for Products & Cart
+  - Person B: Frontend + Backend for Orders & User
+
+**Decision**: ✅ Adopt frontend-first strategy with Option A division
+
+**Next Step**: Ready to scaffold frontend project
+
+---
+
 ## Action Items
 
 ### Immediate
-- [ ] User to decide: Start with infrastructure setup or specific module?
-- [ ] Confirm final tech stack choice
-- [ ] Create feature branch for first development task
+- [x] ~~Decide development strategy~~ → Frontend-first approach confirmed ✅
+- [x] ~~Analyze main business processes~~ → 10 core workflows identified ✅
+- [ ] Scaffold frontend project (Vue 3 + Vite + TypeScript + Element Plus)
+- [ ] Agree on team division of work (Person A: Frontend, Person B: Backend)
+- [ ] Create feature branch for frontend scaffolding
 
-### Short Term
-- [ ] Design database schema
-- [ ] Set up frontend project (Vue 3)
-- [ ] Set up backend project (Node.js)
-- [ ] Create basic project structure
+### Short Term (Phase 1: Frontend Framework - 1-2 weeks)
+- [ ] Set up Vue 3 project structure
+- [ ] Configure routing (Vue Router)
+- [ ] Configure state management (Pinia)
+- [ ] Set up Element Plus UI library
+- [ ] Create layout components (Header, Footer, Sidebar)
+- [ ] Implement static pages:
+  - [ ] Distributor Frontend: Home, Product List, Product Detail, Cart, Checkout, Member Center
+  - [ ] Admin Backend: Dashboard, Product Management, Order Management
+- [ ] Set up Mock.js for fake data
+
+### Short Term (Phase 2: Backend Framework - Parallel, 1-2 weeks)
+- [ ] Set up Node.js + Express + TypeScript project
+- [ ] Design database schema (MySQL)
+- [ ] Configure ORM (TypeORM/Sequelize)
+- [ ] Set up RESTful API structure
+- [ ] Implement basic authentication API
+- [ ] Implement basic product API
+- [ ] Set up API documentation (Swagger)
+
+### Medium Term (Phase 3: Integration - 2-3 weeks)
+- [ ] Integrate frontend with backend APIs
+- [ ] Implement P0 features (login, products, cart, orders, payment)
+- [ ] Implement P1 features (prepayment, refunds, after-sales)
+- [ ] Testing and bug fixes
 
 ### Long Term
-- [ ] Implement core modules sequentially
-- [ ] Regular team syncs and code reviews
-- [ ] Testing and optimization
+- [ ] Implement P2 enhancement features
+- [ ] Performance optimization
+- [ ] Security hardening
 - [ ] Deployment planning
+- [ ] Client demo preparation
 
 ---
 
@@ -243,5 +373,5 @@ gitee -> for pulling updates from Gitee
 
 ---
 
-**Last Updated**: 2025-12-04
-**Next Session**: TBD
+**Last Updated**: 2025-12-04 (Session 10)
+**Next Session**: Frontend project scaffolding
