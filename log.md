@@ -895,3 +895,241 @@
      - 便于区分前后端代码
      - 便于后续扩展其他模块（如移动端）
 - 后端代码目录已成功移动到backend/src/，项目结构更加规范和清晰
+
+### 阶段二：用户注册登录模块开发（任务4.1-4.9完成）
+- 已完成用户注册、登录、密码找回功能的前后端开发
+- 主要创建内容：
+  1. **后端实体类和DTO**：
+     - `User.java`：用户实体类（用户名、邮箱、密码、个人信息、用户等级、状态等）
+     - `UserAudit.java`：用户审核实体类（审核状态、审核意见、审核人等）
+     - `RegisterDTO.java`：注册DTO（包含所有必填和可选字段，带验证规则）
+     - `LoginDTO.java`：登录DTO（用户名、密码）
+     - `ForgotPasswordDTO.java`：忘记密码DTO（用户名）
+     - `UserInfoDTO.java`：用户信息DTO（用于更新用户信息）
+     - `LoginVO.java`：登录响应VO（Token和用户信息）
+     - `UserInfoVO.java`：用户信息VO（脱敏后的用户信息）
+  2. **后端Repository层**：
+     - `UserRepository.java`：用户数据访问接口（MyBatis Plus）
+     - `UserAuditRepository.java`：用户审核数据访问接口
+     - 配置MyBatis Plus Mapper扫描
+  3. **后端Service层**：
+     - `UserService.java`：用户服务接口
+     - `UserServiceImpl.java`：用户服务实现类
+       - 用户注册：验证用户名和邮箱唯一性、密码加密、创建审核记录
+       - 用户登录：验证用户名密码、检查用户状态、生成JWT Token
+       - 忘记密码：验证用户名存在性（待实现邮件发送）
+       - 获取用户信息：查询用户信息并脱敏处理
+       - 更新用户信息：更新用户基本信息
+       - 修改密码：验证旧密码、更新新密码
+  4. **后端Controller层**：
+     - `UserController.java`：用户控制器（采购者端）
+       - `/api/buyer/user/register`：用户注册接口
+       - `/api/buyer/user/login`：用户登录接口
+       - `/api/buyer/user/forgot-password`：忘记密码接口
+       - `/api/buyer/user/info`：获取用户信息接口
+       - `/api/buyer/user/info`（PUT）：更新用户信息接口
+       - `/api/buyer/user/password`：修改密码接口
+  5. **JWT认证配置**：
+     - `JwtAuthenticationInterceptor.java`：JWT认证拦截器
+       - 从请求头获取Token
+       - 验证Token有效性
+       - 将用户ID存储到request中
+       - 排除登录、注册、忘记密码等公开接口
+     - `WebMvcConfig.java`：Web MVC配置
+       - 注册JWT拦截器
+       - 配置拦截路径和排除路径
+  6. **MyBatis Plus自动填充**：
+     - `MyBatisPlusMetaObjectHandler.java`：自动填充创建时间和更新时间
+  7. **前端API接口** (`api/buyer/user.ts`)：
+     - 定义所有DTO和VO的TypeScript接口
+     - `register`：用户注册API
+     - `login`：用户登录API
+     - `forgotPassword`：忘记密码API
+     - `getUserInfo`：获取用户信息API
+     - `updateUserInfo`：更新用户信息API
+     - `changePassword`：修改密码API
+  8. **前端页面**：
+     - `RegisterAgreement.vue`：注册协议页面
+       - 展示会员注册协议内容
+       - 同意协议后跳转到注册表单
+       - 不同意返回上一页
+     - `Register.vue`：注册表单页面
+       - 所有必填字段（用户名、邮箱、密码、确认密码、姓名、性别、地区三级联动、地址、手机号、运营人员、验证码）
+       - 所有可选字段（出生日期、邮编、固定电话、安全问题、回答、旺旺）
+       - 表单验证（前后端双重验证）
+       - 地区三级联动选择
+       - 验证码功能（待实现后端接口）
+     - `Login.vue`：登录页面（已完善）
+       - 页面标题："已注册用户, 请登录"
+       - 说明文字："如果您已是本站会员, 请登录"
+       - 用户名和密码输入框
+       - 立即登录按钮
+       - 立即注册和忘记密码链接
+       - 集成登录API，保存Token和用户信息
+     - `ForgotPassword.vue`：忘记密码页面
+       - 页面标题："忘记密码？"
+       - 说明文字："如果忘记密码，请填写下面表单来重新获取密码"
+       - 用户名输入框
+       - 提交按钮
+       - 返回登录链接
+       - 错误处理（用户不存在提示）
+       - 成功提示（密码重置信息已发送到邮箱）
+  9. **前端路由配置**：
+     - 添加注册协议路由：`/register-agreement`
+     - 添加注册表单路由：`/register`
+     - 添加忘记密码路由：`/forgot-password`
+     - 所有路由配置了页面标题和权限要求
+  10. **前端状态管理更新**：
+      - 更新`UserInfo`接口，添加更多字段（gender、phone、status等）
+      - 登录成功后自动保存Token和用户信息到localStorage
+- 功能特点：
+  - ✅ 完整的用户注册流程（协议阅读 → 注册表单 → 提交审核）
+  - ✅ 用户登录功能（JWT Token认证）
+  - ✅ 密码找回功能（用户名验证，待实现邮件发送）
+  - ✅ 用户信息管理（查询、更新、密码修改）
+  - ✅ 前后端表单验证
+  - ✅ 数据脱敏处理（手机号、邮箱）
+  - ✅ 密码BCrypt加密存储
+  - ✅ JWT Token认证和拦截
+- 待完善功能：
+  - 验证码后端接口（图片验证码生成）
+  - 邮件发送功能（密码重置邮件）
+  - 用户信息管理页面（前端页面待创建）
+- 用户注册登录模块的核心功能已完成，可以进行前后端联调测试
+
+### 完善注册功能：图形验证码
+- 已完成图形验证码功能的开发
+- 主要创建内容：
+  1. **后端验证码工具类** (`CaptchaUtil.java`)：
+     - 使用Hutool的CaptchaUtil生成图片验证码
+     - 验证码字符集：数字+字母（排除易混淆字符：0、1、I、O）
+     - 验证码长度：4位
+     - 图片尺寸：120x40
+     - 生成Base64编码的图片
+     - 支持线段干扰
+  2. **验证码缓存配置** (`CacheConfig.java`)：
+     - 新增验证码专用缓存（`captchaCache`）
+     - 最大缓存条目数：10000
+     - 过期时间：5分钟
+  3. **验证码控制器** (`CaptchaController.java`)：
+     - `/api/common/captcha/generate`：生成验证码接口
+     - 返回验证码ID和Base64图片
+     - 将验证码存储到Caffeine缓存中
+     - `verifyCaptcha`方法：验证验证码（不区分大小写，一次性使用）
+  4. **注册DTO更新** (`RegisterDTO.java`)：
+     - 新增`captchaId`字段（验证码ID）
+     - 保留`captcha`字段（验证码值）
+  5. **注册Service更新** (`UserServiceImpl.java`)：
+     - 在注册方法开始处验证验证码
+     - 验证码错误或过期时抛出业务异常
+  6. **前端验证码API** (`api/common/captcha.ts`)：
+     - `generateCaptcha`：生成验证码接口
+     - 定义验证码响应类型
+  7. **注册页面更新** (`Register.vue`)：
+     - 集成验证码图片显示
+     - 点击验证码图片可刷新验证码
+     - 页面加载时自动获取验证码
+     - 验证码输入框支持回车提交
+     - 添加验证码ID字段到表单
+     - 表单验证包含验证码ID和验证码值
+     - 提交前验证验证码ID是否存在
+  8. **样式优化**：
+     - 验证码图片容器样式（边框、悬停效果）
+     - 验证码图片自适应显示
+- 功能特点：
+  - ✅ 图形验证码生成（4位数字+字母）
+  - ✅ Base64图片返回
+  - ✅ 验证码缓存存储（5分钟过期）
+  - ✅ 验证码验证（不区分大小写，一次性使用）
+  - ✅ 点击刷新验证码
+  - ✅ 页面加载自动获取验证码
+  - ✅ 验证码错误提示
+- 验证码流程：
+  1. 前端调用生成接口获取验证码ID和图片
+  2. 后端生成验证码并存储到缓存（key: captchaId, value: code）
+  3. 前端显示验证码图片
+  4. 用户输入验证码并提交注册
+  5. 后端从缓存中获取验证码进行验证
+  6. 验证成功后删除验证码（一次性使用）
+- 图形验证码功能已完成，注册功能更加安全可靠
+
+### 重构前端页面目录结构，按模块组织代码
+- 已完成前端 views 目录的重构，按功能模块划分目录结构
+- 主要修改内容：
+  1. **新的目录结构**：
+     - `views/auth/` - 认证相关模块
+       - `Login.vue` - 登录页面
+       - `Register.vue` - 注册页面
+       - `RegisterAgreement.vue` - 注册协议页面
+       - `ForgotPassword.vue` - 忘记密码页面
+     - `views/home/` - 首页模块
+       - `Index.vue` - 首页（原 Home.vue）
+  2. **文件迁移**：
+     - 将 `Login.vue`、`Register.vue`、`RegisterAgreement.vue`、`ForgotPassword.vue` 移动到 `auth/` 目录
+     - 将 `Home.vue` 移动到 `home/` 目录并重命名为 `Index.vue`
+     - 删除原 views 目录下的旧文件
+  3. **路由配置更新**：
+     - 更新 `router/index.ts` 中所有路由的导入路径
+     - 首页路由：`@/views/Home.vue` → `@/views/home/Index.vue`
+     - 登录路由：`@/views/Login.vue` → `@/views/auth/Login.vue`
+     - 注册协议路由：`@/views/RegisterAgreement.vue` → `@/views/auth/RegisterAgreement.vue`
+     - 注册路由：`@/views/Register.vue` → `@/views/auth/Register.vue`
+     - 忘记密码路由：`@/views/ForgotPassword.vue` → `@/views/auth/ForgotPassword.vue`
+  4. **目录结构优势**：
+     - ✅ 模块化：按功能模块划分，职责清晰
+     - ✅ 协作友好：不同开发者可并行开发不同模块，减少文件冲突
+     - ✅ 可扩展：新增模块只需新建目录，便于后续扩展（product、order、cart、user等）
+     - ✅ 维护性：定位文件更快，代码组织更清晰
+     - ✅ 符合最佳实践：与 Vue 项目常见结构一致
+  5. **后续开发规范**：
+     - 所有新页面必须按照模块目录结构创建
+     - 认证相关页面放在 `auth/` 目录
+     - 业务功能页面按模块创建对应目录（如 `product/`、`order/`、`cart/`、`user/` 等）
+     - 每个模块目录下的主页面建议命名为 `Index.vue`
+- 前端页面目录结构重构已完成，代码组织更加规范和清晰，便于多人协作开发
+
+### 重构前端为两个独立项目：采购者端和管理后台
+- 已完成前端代码重构，将单一前端项目拆分为两个独立项目
+- 主要修改内容：
+  1. **项目结构重构**：
+     - 将 `frontend` 项目更新为采购者端（buyer-frontend）
+       - 更新 `package.json` 名称：`shopping-mall-buyer-frontend`
+       - 更新 README 说明为采购者端
+       - 开发端口：3000
+     - 创建新的管理后台项目（admin-frontend）
+       - 项目名称：`shopping-mall-admin-frontend`
+       - 开发端口：3001（与采购者端区分）
+       - 完整的项目结构和配置文件
+  2. **管理后台项目结构**：
+     - `src/api/admin/` - 管理端API接口（待后端实现）
+     - `src/views/auth/` - 管理员登录页面
+     - `src/views/dashboard/` - 仪表盘页面
+     - `src/components/Layout/` - 管理后台布局组件
+     - `src/stores/admin/` - 管理员状态管理
+     - `src/router/` - 管理后台路由配置
+     - 路由前缀：`/admin/*`
+  3. **Token管理区分**：
+     - 采购者端：使用 `token`（localStorage）
+     - 管理后台：使用 `admin_token`（localStorage）
+     - 避免两个端的Token冲突
+  4. **Nginx配置更新**：
+     - 采购者端：`/` 路径，静态文件目录 `/usr/share/nginx/html/buyer`
+     - 管理后台：`/admin` 路径，静态文件目录 `/usr/share/nginx/html/admin`
+     - 支持两个前端项目独立部署
+  5. **项目特点**：
+     - ✅ 两个项目完全独立，可独立开发、构建、部署
+     - ✅ 各自有独立的依赖管理（package.json）
+     - ✅ 各自有独立的构建配置（vite.config.ts）
+     - ✅ 各自有独立的开发端口（3000 和 3001）
+     - ✅ 各自有独立的路由和状态管理
+     - ✅ Token存储区分，避免冲突
+  6. **部署说明**：
+     - 采购者端：构建后部署到 `/usr/share/nginx/html/buyer`
+     - 管理后台：构建后部署到 `/usr/share/nginx/html/admin`
+     - 访问地址：
+       - 采购者端：`http://localhost/` 或 `http://buyer.example.com`
+       - 管理后台：`http://localhost/admin` 或 `http://admin.example.com`
+  7. **待完善功能**：
+     - 管理后台登录API接口（待后端实现）
+     - 管理后台其他功能模块（商品管理、订单管理、用户管理等）
+- 前端项目重构已完成，两个项目完全独立，便于团队分工和独立管理

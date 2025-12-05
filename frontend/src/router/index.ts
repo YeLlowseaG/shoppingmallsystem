@@ -7,7 +7,7 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: () => import('@/views/Home.vue'),
+      component: () => import('@/views/home/Index.vue'),
       meta: {
         title: '首页'
       }
@@ -15,9 +15,36 @@ const router = createRouter({
     {
       path: '/login',
       name: 'login',
-      component: () => import('@/views/Login.vue'),
+      component: () => import('@/views/auth/Login.vue'),
       meta: {
         title: '登录',
+        requiresAuth: false
+      }
+    },
+    {
+      path: '/register-agreement',
+      name: 'register-agreement',
+      component: () => import('@/views/auth/RegisterAgreement.vue'),
+      meta: {
+        title: '注册协议',
+        requiresAuth: false
+      }
+    },
+    {
+      path: '/register',
+      name: 'register',
+      component: () => import('@/views/auth/Register.vue'),
+      meta: {
+        title: '用户注册',
+        requiresAuth: false
+      }
+    },
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('@/views/auth/ForgotPassword.vue'),
+      meta: {
+        title: '忘记密码',
         requiresAuth: false
       }
     }
