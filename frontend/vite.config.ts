@@ -11,10 +11,10 @@ export default defineConfig({
     }
   },
   server: {
-    port: 3000, // 采购者端开发端口
+    port: 3002, // 采购者端开发端口
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8081',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '')
       }
