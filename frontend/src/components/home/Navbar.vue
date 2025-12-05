@@ -313,7 +313,7 @@ const goToCategory = (categoryId: number) => {
 
         .sub-categories {
           position: fixed;
-          left: 270px;
+          left: 290px;
           top: 130px;
           width: 600px;
           height: 500px;
