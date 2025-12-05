@@ -77,8 +77,8 @@ public class UserServiceImpl implements UserService {
         user.setGender(registerDTO.getGender());
         user.setPhone(registerDTO.getPhone());
         user.setAddress(registerDTO.getAddress());
-        user.setUserLevel("普通");
-        user.setStatus("待审核");
+        user.setUserLevel(com.shoppingmall.common.constant.UserLevel.NORMAL);
+        user.setStatus(com.shoppingmall.common.constant.UserStatus.PENDING);
 
         // 构建地区JSON
         Map<String, String> regionMap = new HashMap<>();
@@ -98,7 +98,7 @@ public class UserServiceImpl implements UserService {
         // 创建审核记录
         UserAudit audit = new UserAudit();
         audit.setUserId(user.getId());
-        audit.setAuditStatus("待审核");
+        audit.setAuditStatus(com.shoppingmall.common.constant.AuditStatus.PENDING);
         userAuditRepository.insert(audit);
 
         log.info("用户注册成功: {}", user.getUsername());
@@ -112,16 +112,27 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.selectOne(wrapper);
 
         if (user == null) {
+            log.warn("用户登录失败：用户名不存在 - {}", loginDTO.getUsername());
             throw new BusinessException(401, "用户名或密码错误");
         }
 
+        // 记录调试信息
+        log.debug("用户登录验证 - 用户名: {}, 用户ID: {}, 状态: {}, 密码哈希长度: {}", 
+                loginDTO.getUsername(), user.getId(), user.getStatus(), 
+                user.getPassword() != null ? user.getPassword().length() : 0);
+
         // 验证密码
-        if (!EncryptUtil.bcryptMatches(loginDTO.getPassword(), user.getPassword())) {
+        boolean passwordMatches = EncryptUtil.bcryptMatches(loginDTO.getPassword(), user.getPassword());
+        if (!passwordMatches) {
+            log.warn("用户登录失败：密码错误 - 用户名: {}, 输入的密码: {}, 存储的密码哈希: {}", 
+                    loginDTO.getUsername(), loginDTO.getPassword(), 
+                    user.getPassword() != null ? user.getPassword().substring(0, Math.min(20, user.getPassword().length())) + "..." : "null");
             throw new BusinessException(401, "用户名或密码错误");
         }
 
         // 检查用户状态
-        if (!"已激活".equals(user.getStatus())) {
+        if (!com.shoppingmall.common.constant.UserStatus.ACTIVATED.equals(user.getStatus())) {
+            log.warn("用户登录失败：账户未激活 - 用户名: {}, 状态: {}", loginDTO.getUsername(), user.getStatus());
             throw new BusinessException(403, "账户未激活，请联系管理员审核");
         }
 

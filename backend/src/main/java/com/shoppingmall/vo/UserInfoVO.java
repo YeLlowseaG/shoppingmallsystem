@@ -42,14 +42,14 @@ public class UserInfoVO {
     private String phone;
 
     /**
-     * 用户等级
+     * 用户等级（0-普通，1-VIP，2-金牌）
      */
-    private String userLevel;
+    private Integer userLevel;
 
     /**
-     * 状态
+     * 状态（0-待审核，1-已激活，2-已禁用）
      */
-    private String status;
+    private Integer status;
 
     /**
      * 省份
