@@ -1,0 +1,12 @@
+# 生产环境配置
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/shopping_mall?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+
+logging:
+  level:
+    root: INFO
+    com.shoppingmall: INFO
+
