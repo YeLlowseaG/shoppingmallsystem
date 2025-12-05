@@ -19,12 +19,15 @@
       </div>
     </el-header>
     <el-container>
-      <el-aside width="200px">
+      <el-aside width="200px" class="sidebar-aside">
         <el-menu
           v-if="menuList && menuList.length > 0"
           :default-active="activeMenu"
           router
           class="sidebar-menu"
+          background-color="#304156"
+          text-color="#bfcbd9"
+          active-text-color="#409eff"
         >
           <template v-for="menu in menuList" :key="menu.id">
             <el-sub-menu v-if="menu.children && menu.children.length > 0" :index="getMenuPath(menu)">
@@ -131,6 +134,12 @@ onMounted(() => {
   height: 100vh;
 }
 
+/* 顶部栏样式 */
+:deep(.el-header) {
+  background-color: #304156;
+  padding: 0 20px;
+}
+
 .header-content {
   display: flex;
   justify-content: space-between;
@@ -141,7 +150,8 @@ onMounted(() => {
 h1 {
   margin: 0;
   font-size: 20px;
-  color: #333;
+  color: #fff;
+  font-weight: 500;
 }
 
 .header-right {
@@ -153,17 +163,50 @@ h1 {
   display: flex;
   align-items: center;
   cursor: pointer;
-  color: #333;
+  color: #bfcbd9;
+  gap: 8px;
+  transition: color 0.3s;
+}
+
+.admin-info:hover {
+  color: #fff;
+}
+
+/* 下拉菜单样式调整 */
+:deep(.el-dropdown-menu) {
+  background-color: #fff;
+}
+
+.sidebar-aside {
+  background-color: #304156;
 }
 
 .sidebar-menu {
   height: 100%;
+  border-right: none;
+}
+
+/* 菜单项悬停效果 */
+.sidebar-menu :deep(.el-menu-item:hover),
+.sidebar-menu :deep(.el-sub-menu__title:hover) {
+  background-color: #263445 !important;
+}
+
+/* 激活的菜单项 */
+.sidebar-menu :deep(.el-menu-item.is-active) {
+  background-color: #409eff !important;
+  color: #fff !important;
+}
+
+/* 子菜单项激活状态 */
+.sidebar-menu :deep(.el-menu-item.is-active) {
+  background-color: #409eff !important;
 }
 
 .no-menu-tip {
   padding: 20px;
   text-align: center;
-  color: #999;
+  color: #bfcbd9;
 }
 </style>
 
