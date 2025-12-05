@@ -544,5 +544,107 @@ Pushed to: Gitee
 
 ---
 
-**Last Updated**: 2025-12-05 (Session 12)
-**Next Session**: Backend product API development or product list page
+### Session 13: Guest Mode Discussion and Product List Page Planning
+
+**Topic**: Confirming guest mode support and planning product list page implementation
+
+**Guest Mode Clarification**:
+User emphasized that homepage should support **guest mode** (unauthenticated access)
+
+**Current Guest Mode Support** ✅:
+- ✅ Homepage accessible without login (`requiresAuth: false`)
+- ✅ TopBar shows different UI based on login status:
+  - Guest: Shows 【请登录】【免费注册】
+  - Logged in: Shows username + logout button
+- ✅ Search functionality available to guests
+- ✅ Product browsing available to guests
+
+**Guest Restrictions** (by design):
+- ❌ Cart operations require login
+- ❌ Checkout requires login
+- ❌ Order placement requires login
+
+**Decision**: Current implementation meets requirements for guest mode support
+
+**Product List Page Planning**:
+
+User decided to implement product list page next. Analyzed reference screenshot from competitor site.
+
+**Product List Page Structure**:
+```
+┌──────────────────────────────────────┐
+│ TopBar + Header + Navbar (reused)   │
+├──────────────────────────────────────┤
+│ Breadcrumb: 首页 > 类似(71)          │
+├──────────────────────────────────────┤
+│ Filters: 综合 价格↑ 价格↓ 销量 最新  │
+├──────────────────────────────────────┤
+│ ┌────┐ ┌────┐ ┌────┐ ┌────┐         │
+│ │ 1  │ │ 2  │ │ 3  │ │ 4  │         │
+│ └────┘ └────┘ └────┘ └────┘         │
+│ ┌────┐ ┌────┐ ┌────┐ ┌────┐         │
+│ │ 5  │ │ 6  │ │ 7  │ │ 8  │         │
+│ └────┘ └────┘ └────┘ └────┘         │
+│ (4 products per row, grid layout)    │
+├──────────────────────────────────────┤
+│ Pagination: < 1 2 3 4 ... >         │
+└──────────────────────────────────────┘
+```
+
+**Product Card Components**:
+- Product image
+- Product title
+- Current price (red)
+- Original price (strikethrough)
+- Add to cart button
+- Favorite/compare icons
+
+**Navigation Entry Points to Product List Page** (Mapped):
+
+1. **Header Search Box**
+   - User enters keyword → clicks search
+   - Route: `/products?keyword=xxx`
+
+2. **Navbar Main Navigation**
+   - Click "新品专区" → `/products?type=new`
+   - Click "虚姬-Angus" → `/products?brand=angus`
+   - Click "特惠区" → `/products?type=special`
+   - Click "实体店热销" → `/products?type=hot`
+
+3. **Navbar Category Mega Menu**
+   - Click any 3rd level category
+   - Route: `/products?categoryId=111`
+
+4. **CategoryFloor Title Bar**
+   - Click "1F 男用器具"
+   - Route: `/products?categoryId=1`
+
+5. **Banner Carousel** (optional)
+   - Click promotional banner
+   - Route: `/products?promotionId=xxx`
+
+**Query Parameters Support Required**:
+```typescript
+/products?keyword=xxx              // Keyword search
+/products?categoryId=1             // By category
+/products?brand=angus              // By brand
+/products?type=new                 // New arrivals
+/products?type=special             // Special offers
+/products?type=hot                 // Best sellers
+/products?minPrice=10&maxPrice=100 // Price range
+/products?sort=price_asc           // Sorting
+```
+
+**Priority Entry Points**:
+1. ✅ Search box (high usage)
+2. ✅ Category menu (core navigation)
+3. ✅ Main nav links (quick access)
+4. ⏸️ Floor titles (secondary)
+5. ⏸️ Banner clicks (promotional)
+
+**Next Step**: Implement product list page with filtering and pagination support
+
+---
+
+**Last Updated**: 2025-12-05 (Session 13)
+**Next Session**: Product list page implementation
