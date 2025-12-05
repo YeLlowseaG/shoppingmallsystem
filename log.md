@@ -1227,3 +1227,171 @@
   5. **文档版本记录**：
      - 新增v1.1版本记录：新增权限管理模块任务（9个任务）
 - 权限管理模块已添加到开发任务清单，作为P0核心功能，确保管理后台权限系统优先开发
+
+### 实现用户端登录页面功能，支持游客模式
+- 已完成用户端登录页面的开发，并调整路由守卫支持游客模式
+- 主要创建/修改内容：
+  1. **登录页面实现** (`frontend/src/views/auth/Login.vue`)：
+     - 页面标题："已注册用户, 请登录"
+     - 说明文字："如果您已是本站会员, 请登录"
+     - 登录表单：用户名和密码输入框（带图标、验证规则）
+     - 立即登录按钮（橙色渐变样式，支持加载状态）
+     - 立即注册和忘记密码链接
+     - 登录逻辑：调用登录API、保存Token和用户信息、跳转到原目标页面或首页
+     - 已登录用户自动跳转（避免重复登录）
+     - 支持回车键提交登录
+  2. **路由守卫优化** (`frontend/src/router/index.ts`)：
+     - 支持游客模式：默认允许访问所有页面（游客可以浏览商品列表、详情等）
+     - 只有明确标记 `requiresAuth: true` 的页面才需要登录
+     - 未登录用户访问需要登录的页面时，跳转到登录页并保存原目标路径（redirect参数）
+     - 已登录用户访问登录/注册页面时，自动跳转到首页
+     - 页面标题自动设置
+  3. **登录功能特点**：
+     - ✅ 完整的表单验证（用户名3-50字符、密码6-20字符）
+     - ✅ 登录成功后保存Token和用户信息到store和localStorage
+     - ✅ 支持跳转到原目标页面（通过redirect参数）
+     - ✅ 登录失败错误提示
+     - ✅ 加载状态显示
+     - ✅ 已登录用户自动跳转
+  4. **游客模式支持**：
+     - ✅ 默认允许访问所有页面（游客模式）
+     - ✅ 商品列表、详情等页面游客可以正常访问
+     - ✅ 只有需要登录的功能（如购物车、订单、会员中心等）才需要登录
+     - ✅ 符合普通商城的标准设计（游客浏览、登录购买）
+  5. **样式设计**：
+     - 渐变背景（紫色渐变）
+     - 白色卡片式登录框
+     - 橙色渐变登录按钮（符合需求文档要求）
+     - 响应式设计，支持移动端
+     - 悬停效果和过渡动画
+- 功能特点：
+  - ✅ 完整的登录页面实现（符合需求文档要求）
+  - ✅ 游客模式支持（默认允许访问，只有特定页面需要登录）
+  - ✅ 登录成功后的状态管理和跳转逻辑
+  - ✅ 用户体验优化（加载状态、错误提示、自动跳转）
+- 登录功能已完成，用户端登录、注册功能现在都可以进行测试了
+
+### 配置管理员JWT拦截器
+- 已完成管理员JWT拦截器的配置和实现
+- 主要创建/修改内容：
+  1. **管理员JWT拦截器** (`backend/src/main/java/com/shoppingmall/common/security/AdminJwtAuthenticationInterceptor.java`)：
+     - 专门用于管理后台API的JWT认证拦截器
+     - 排除管理员登录接口（/api/admin/user/login）
+     - 从请求头获取Token（Authorization: Bearer token）
+     - 验证Token有效性（使用JwtUtil）
+     - 验证管理员是否存在且状态正常（查询数据库）
+     - 检查管理员账号是否被禁用
+     - 将管理员ID和用户名存储到request中（adminId、adminUsername）
+     - 抛出业务异常（401未登录、403账号禁用）
+  2. **WebMvcConfig更新** (`backend/src/main/java/com/shoppingmall/common/config/WebMvcConfig.java`)：
+     - 注册两个独立的JWT拦截器：
+       - 采购者端拦截器：拦截 `/api/buyer/**` 路径
+         - 排除：登录、注册、忘记密码接口
+       - 管理员端拦截器：拦截 `/api/admin/**` 路径
+         - 排除：管理员登录接口
+     - 公共接口（/api/common/**）不需要拦截
+  3. **AdminUserController优化** (`backend/src/main/java/com/shoppingmall/controller/admin/AdminUserController.java`)：
+     - 移除JwtUtil依赖（不再需要手动解析Token）
+     - getAdminInfo方法改为从request.getAttribute("adminId")获取管理员ID
+     - 简化代码，统一使用拦截器中的adminId
+  4. **AdminUserServiceImpl优化** (`backend/src/main/java/com/shoppingmall/service/permission/impl/AdminUserServiceImpl.java`)：
+     - 新增getCurrentAdminId()方法，从拦截器中获取当前管理员ID
+     - 新增管理员时自动设置creatorId（创建人ID）
+  5. **拦截器特点**：
+     - ✅ 独立的拦截器：采购者端和管理端使用不同的拦截器，互不干扰
+     - ✅ 数据库验证：不仅验证Token，还验证管理员是否存在和状态
+     - ✅ 安全性：账号被禁用时无法访问API
+     - ✅ 统一管理：所有管理员API统一通过拦截器验证
+     - ✅ 自动注入：拦截器自动将adminId注入到request中，Controller直接使用
+  6. **拦截流程**：
+     1. 请求到达 `/api/admin/**` 路径
+     2. 拦截器检查是否为登录接口，如果是则放行
+     3. 从请求头获取Token
+     4. 验证Token有效性
+     5. 从Token中解析管理员ID
+     6. 查询数据库验证管理员是否存在、是否被删除、是否被禁用
+     7. 将管理员ID和用户名存储到request中
+     8. 放行请求，Controller可以直接使用adminId
+  7. **异常处理**：
+     - Token不存在：抛出401异常（未登录，请先登录）
+     - Token无效或过期：抛出401异常（Token已过期，请重新登录）
+     - 管理员不存在：抛出401异常（管理员不存在或已被删除）
+     - 账号被禁用：抛出403异常（账号已被禁用）
+     - 所有异常由GlobalExceptionHandler统一处理，返回标准格式的Result
+- 功能特点：
+  - ✅ 完整的JWT认证拦截器（专门用于管理后台）
+  - ✅ 数据库状态验证（确保管理员账号正常）
+  - ✅ 自动注入管理员ID（简化Controller代码）
+  - ✅ 与采购者端拦截器完全独立（互不干扰）
+  - ✅ 统一的异常处理（返回标准错误响应）
+- 管理员JWT拦截器已配置完成，所有管理后台API现在都受到JWT认证保护
+
+### 优化：将pom.xml移动到backend目录
+- 已完成pom.xml文件的迁移和配置优化
+- 主要修改内容：
+  1. **文件迁移**：
+     - 将 `pom.xml` 从项目根目录移动到 `backend/pom.xml`
+     - 删除根目录的旧 `pom.xml` 文件
+  2. **路径配置修改**：
+     - `<sourceDirectory>`：从 `backend/src/main/java` 改为 `src/main/java`
+     - `<testSourceDirectory>`：从 `backend/src/test/java` 改为 `src/test/java`
+     - `<resources>`：从 `backend/src/main/resources` 改为 `src/main/resources`
+     - `<testResources>`：从 `backend/src/test/resources` 改为 `src/test/resources`
+  3. **添加Spring Boot Parent配置**：
+     - 在 `<modelVersion>` 之后添加 `<parent>` 配置
+     - 使用 `spring-boot-starter-parent` 3.1.5 版本
+     - 提供依赖版本管理和默认插件配置
+  4. **优化效果**：
+     - ✅ 项目结构更清晰：pom.xml与源代码在同一目录
+     - ✅ 符合Maven标准约定：标准Maven项目结构
+     - ✅ 运行更方便：直接在backend目录运行Maven命令
+     - ✅ 避免路径混乱：不需要在根目录配置backend路径
+     - ✅ 修复启动问题：添加parent后spring-boot-maven-plugin可以正常工作
+  5. **运行方式**：
+     - 现在需要在 `backend` 目录下运行：
+     ```powershell
+     cd D:\my project\java-project\shangdan\ShoppingMallSystem\backend
+     mvn spring-boot:run
+     ```
+- pom.xml已成功迁移到backend目录，项目结构更加规范和清晰
+
+### 修复数据源配置问题并添加启动成功日志
+- 已完成数据源配置问题的修复和启动成功日志的添加
+- 主要修改内容：
+  1. **数据源配置修复**：
+     - 创建 `DataSourceConfig.java`：手动配置Druid数据源Bean，确保使用Druid而不是HikariCP
+     - 在启动类中排除 `DataSourceAutoConfiguration`，避免Spring Boot自动配置HikariCP
+     - 修复 `DataSourceConfig.java` 中的导入错误（javax.sql.DataSource）
+     - 移除错误的自动配置排除项（com.zaxxer.hikari.HikariDataSource）
+  2. **启动成功日志** (`ShoppingMallApplication.java`)：
+     - 实现 `CommandLineRunner` 接口，在服务启动成功后输出日志
+     - 添加中英文启动成功日志：
+       - "后端服务启动成功！Backend service started successfully!"
+       - 本地访问地址（Local access URL）
+       - 外部访问地址（External access URL）
+       - Swagger文档地址（Swagger API docs）
+     - 自动获取服务器IP地址和端口号
+     - 使用日志框架输出，格式美观（带分隔线）
+  3. **配置优化**：
+     - 确保Druid数据源正确配置和使用
+     - 排除H2数据库自动配置
+     - 手动配置Druid数据源，避免Spring Boot默认使用HikariCP
+  4. **日志特点**：
+     - ✅ 中英文双语日志（便于国际化）
+     - ✅ 自动获取IP和端口（无需手动配置）
+     - ✅ 美观的日志格式（带分隔线）
+     - ✅ 包含所有重要访问地址（本地、外部、Swagger）
+  5. **启动日志示例**：
+     ```
+     =================================================================
+     后端服务启动成功！Backend service started successfully!
+     =================================================================
+     本地访问地址: http://localhost:8080/
+     Local access URL: http://localhost:8080/
+     外部访问地址: http://192.168.1.100:8080/
+     External access URL: http://192.168.1.100:8080/
+     Swagger文档地址: http://localhost:8080/swagger-ui.html
+     Swagger API docs: http://localhost:8080/swagger-ui.html
+     =================================================================
+     ```
+- 数据源配置问题已修复，启动成功日志已添加，服务启动后会显示清晰的访问地址信息

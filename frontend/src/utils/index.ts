@@ -60,3 +60,4 @@ export const maskEmail = (email: string): string => {
   return prefix.substring(0, 2) + '***@' + suffix
 }
 
+
