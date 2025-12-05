@@ -50,5 +50,25 @@ public class UserInfoVO {
      * 状态
      */
     private String status;
+
+    /**
+     * 省份
+     */
+    private String province;
+
+    /**
+     * 城市
+     */
+    private String city;
+
+    /**
+     * 区县
+     */
+    private String district;
+
+    /**
+     * 详细地址
+     */
+    private String address;
 }
 

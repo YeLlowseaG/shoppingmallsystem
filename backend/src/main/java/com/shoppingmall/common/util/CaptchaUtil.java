@@ -1,6 +1,5 @@
 package com.shoppingmall.common.util;
 
-import cn.hutool.captcha.CaptchaUtil;
 import cn.hutool.captcha.LineCaptcha;
 import cn.hutool.captcha.generator.RandomGenerator;
 import cn.hutool.core.util.RandomUtil;
@@ -51,7 +50,7 @@ public class CaptchaUtil {
             RandomGenerator randomGenerator = new RandomGenerator(CODE_CHARS, CODE_LENGTH);
             
             // 创建线段干扰的验证码
-            LineCaptcha lineCaptcha = CaptchaUtil.createLineCaptcha(IMAGE_WIDTH, IMAGE_HEIGHT);
+            LineCaptcha lineCaptcha = cn.hutool.captcha.CaptchaUtil.createLineCaptcha(IMAGE_WIDTH, IMAGE_HEIGHT);
             lineCaptcha.setGenerator(randomGenerator);
             
             // 设置字体
