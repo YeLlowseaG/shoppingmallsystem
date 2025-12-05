@@ -74,18 +74,29 @@ const handleLogin = async () => {
         })
         adminStore.setToken(response.token)
         adminStore.setAdminInfo(response.adminInfo)
-        adminStore.setMenus(response.menus || [])
-        adminStore.setPermissions(response.permissions || [])
         
-        // 动态添加路由
-        if (response.menus && response.menus.length > 0) {
-          addRoutes(response.menus)
+        // 设置菜单和权限（确保是数组，即使是空数组）
+        const menus = response.menus || []
+        const permissions = response.permissions || []
+        adminStore.setMenus(menus)
+        adminStore.setPermissions(permissions)
+        
+        // 检查用户是否有角色和权限
+        if (menus.length === 0 || permissions.length === 0) {
+          // 没有权限时，只显示一个警告消息，不显示"登录成功"
+          ElMessage.warning('您还没有分配角色，请联系管理员分配角色和权限')
+          // 跳转到dashboard，但dashboard会检查权限，如果没有权限会显示友好提示
+          router.push('/admin/dashboard')
+        } else {
+          // 有权限时，显示成功消息并跳转
+          ElMessage.success('登录成功')
+          // 动态添加路由
+          addRoutes(menus)
+          router.push('/admin/dashboard')
         }
-        
-        ElMessage.success('登录成功')
-        router.push('/admin/dashboard')
       } catch (error: any) {
-        ElMessage.error(error.message || '登录失败')
+        // 错误提示已在响应拦截器中处理，这里不需要重复显示
+        console.error('登录失败:', error)
       } finally {
         loading.value = false
       }

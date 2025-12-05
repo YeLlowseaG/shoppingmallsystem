@@ -21,6 +21,7 @@
     <el-container>
       <el-aside width="200px">
         <el-menu
+          v-if="menuList && menuList.length > 0"
           :default-active="activeMenu"
           router
           class="sidebar-menu"
@@ -52,6 +53,9 @@
             </el-menu-item>
           </template>
         </el-menu>
+        <div v-else class="no-menu-tip">
+          <el-empty description="您还没有分配角色，请联系管理员" :image-size="80" />
+        </div>
       </el-aside>
       <el-main>
         <router-view />
@@ -93,13 +97,18 @@ const loadAdminInfo = async () => {
   try {
     const info = await getAdminInfo()
     adminStore.setAdminInfo(info)
-    // 如果菜单为空，重新加载菜单
+    // 注意：菜单和权限应该从登录接口获取，这里只更新用户信息
+    // 如果菜单为空，说明用户没有分配角色，这是正常的
     if (!adminStore.menus || adminStore.menus.length === 0) {
-      // 从登录响应中获取菜单，这里需要重新获取
-      // 实际应该从登录接口返回的menus中获取
+      console.warn('用户没有分配角色，菜单列表为空')
     }
   } catch (error: any) {
     ElMessage.error(error.message || '加载失败')
+    // 如果获取用户信息失败，可能是token过期，跳转到登录页
+    if (error.message?.includes('未授权') || error.message?.includes('401')) {
+      adminStore.logout()
+      router.push('/admin/login')
+    }
   }
 }
 
@@ -149,6 +158,12 @@ h1 {
 
 .sidebar-menu {
   height: 100%;
+}
+
+.no-menu-tip {
+  padding: 20px;
+  text-align: center;
+  color: #999;
 }
 </style>
 

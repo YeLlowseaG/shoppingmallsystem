@@ -273,12 +273,16 @@ public class AdminUserServiceImpl implements AdminUserService {
                 new LambdaQueryWrapper<AdminRole>().eq(AdminRole::getAdminId, adminUser.getId())
         );
         List<RoleVO> roles = new ArrayList<>();
-        for (AdminRole adminRole : adminRoles) {
-            Role role = roleRepository.selectById(adminRole.getRoleId());
-            if (role != null) {
-                RoleVO roleVO = new RoleVO();
-                BeanUtils.copyProperties(role, roleVO);
-                roles.add(roleVO);
+        if (adminRoles != null && !adminRoles.isEmpty()) {
+            for (AdminRole adminRole : adminRoles) {
+                if (adminRole.getRoleId() != null) {
+                    Role role = roleRepository.selectById(adminRole.getRoleId());
+                    if (role != null && role.getDeleted() == 0) {
+                        RoleVO roleVO = new RoleVO();
+                        BeanUtils.copyProperties(role, roleVO);
+                        roles.add(roleVO);
+                    }
+                }
             }
         }
         vo.setRoles(roles);

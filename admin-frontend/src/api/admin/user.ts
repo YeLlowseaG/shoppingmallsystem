@@ -38,7 +38,7 @@ export interface MenuVO {
   id: number
   parentId?: number
   menuName: string
-  menuType: string
+  menuType: number // 0-目录，1-菜单，2-按钮
   path?: string
   component?: string
   icon?: string
