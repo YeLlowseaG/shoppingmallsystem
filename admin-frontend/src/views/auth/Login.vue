@@ -100,7 +100,7 @@ const handleLogin = async () => {
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background: #f5f5f5;
+  background: #2c2c2c;
 }
 
 .login-box {

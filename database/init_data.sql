@@ -45,7 +45,7 @@ INSERT INTO `product_category` (`parent_id`, `category_name`, `level`, `sort_ord
 -- 注意：实际使用时需要替换为真实的BCrypt加密密码
 -- 可以使用在线工具或Java代码生成：BCrypt.hashpw("admin123", BCrypt.gensalt())
 INSERT INTO `sys_admin_user` (`username`, `password`, `real_name`, `email`, `phone`, `status`) VALUES
-('admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iwy8pLN6', '超级管理员', 'admin@shoppingmall.com', '13800138000', 1);
+('admin', '$2a$10$GYcMnv3gVVlUEl3fyNcRSesIAMtiajUc2s7puY0y4Msk1sCSOgVGi', '超级管理员', 'admin@shoppingmall.com', '13800138000', 1);
 
 -- ============================================
 -- 3. 初始化角色
