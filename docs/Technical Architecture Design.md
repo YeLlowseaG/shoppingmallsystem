@@ -214,7 +214,8 @@ shopping-mall-system/
 │       │   │   │   ├── payment/       # 支付服务
 │       │   │   │   ├── logistics/     # 物流服务
 │       │   │   │   ├── marketing/    # 营销服务
-│       │   │   │   └── statistics/    # 统计服务
+│       │   │   │   ├── statistics/    # 统计服务
+│       │   │   │   └── permission/    # 权限服务（管理员用户、角色、菜单）
 │       │   │   ├── repository/        # 数据访问层
 │       │   │   │   ├── user/          # 用户数据访问
 │       │   │   │   ├── product/       # 商品数据访问
@@ -509,6 +510,68 @@ shopping-mall-frontend/
 - user_id: 用户ID
 - product_id: 商品ID
 - notify_when_available: 到货通知
+- create_time: 创建时间
+```
+
+#### 4.2.7 权限管理相关表
+
+**管理员用户表 (sys_admin_user)**
+```sql
+- id: 主键
+- username: 用户名（唯一）
+- password: 密码（BCrypt加密）
+- real_name: 真实姓名
+- email: 邮箱
+- phone: 手机号
+- status: 状态（启用/禁用）
+- last_login_time: 最后登录时间
+- last_login_ip: 最后登录IP
+- create_time: 创建时间
+- update_time: 更新时间
+- creator_id: 创建人ID
+```
+
+**角色表 (sys_role)**
+```sql
+- id: 主键
+- role_code: 角色编码（唯一，如：ADMIN、OPERATOR）
+- role_name: 角色名称（如：超级管理员、运营人员）
+- description: 角色描述
+- status: 状态（启用/禁用）
+- sort_order: 排序
+- create_time: 创建时间
+- update_time: 更新时间
+```
+
+**菜单表 (sys_menu)**
+```sql
+- id: 主键
+- parent_id: 父菜单ID（0表示顶级菜单）
+- menu_name: 菜单名称
+- menu_type: 菜单类型（目录/菜单/按钮）
+- path: 路由路径
+- component: 组件路径
+- icon: 图标
+- permission: 权限标识（如：admin:user:list）
+- sort_order: 排序
+- status: 状态（启用/禁用）
+- create_time: 创建时间
+- update_time: 更新时间
+```
+
+**管理员角色关联表 (sys_admin_role)**
+```sql
+- id: 主键
+- admin_id: 管理员ID
+- role_id: 角色ID
+- create_time: 创建时间
+```
+
+**角色菜单关联表 (sys_role_menu)**
+```sql
+- id: 主键
+- role_id: 角色ID
+- menu_id: 菜单ID
 - create_time: 创建时间
 ```
 
