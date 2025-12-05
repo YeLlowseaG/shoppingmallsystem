@@ -1491,3 +1491,29 @@
      - ✅ 代码更规范（使用常量类管理状态值）
      - ✅ 类型安全（Integer类型避免字符串拼写错误）
 - 所有状态和类型字段已从中文改为数字，代码和数据库结构已同步更新
+
+### 修改服务端口配置
+- 已完成前后端服务端口的修改
+- 主要修改内容：
+  1. **后端API端口** (`backend/src/main/resources/application.yml`)：
+     - 从 8080 改为 8081
+  2. **用户前台前端端口** (`frontend/vite.config.ts`)：
+     - 从 3000 改为 3002
+     - API代理目标从 `http://localhost:8080` 改为 `http://localhost:8081`
+  3. **管理后台前端端口** (`admin-frontend/vite.config.ts`)：
+     - 从 3001 改为 3003
+     - API代理目标从 `http://localhost:8080` 改为 `http://localhost:8081`
+  4. **Nginx配置** (`config/nginx/nginx.conf`)：
+     - API反向代理从 `http://localhost:8080` 改为 `http://localhost:8081`
+     - Swagger文档代理从 `http://localhost:8080` 改为 `http://localhost:8081`
+  5. **启动类默认端口** (`ShoppingMallApplication.java`)：
+     - 默认端口从 8080 改为 8081
+  6. **文档更新** (`FRONTEND_PROJECTS.md`)：
+     - 更新所有端口说明（3000→3002，3001→3003）
+  7. **修复编译错误**：
+     - 修复 `BcryptDebugController.java` 中的Result类导入路径（从 `com.shoppingmall.common.result` 改为 `com.shoppingmall.common.util`）
+- 新的端口配置：
+  - 后端API：8081
+  - 用户前台前端：3002
+  - 管理后台前端：3003
+- 所有端口配置已更新完成，前后端服务可以正常启动和访问
