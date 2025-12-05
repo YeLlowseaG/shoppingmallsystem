@@ -32,6 +32,24 @@ const router = createRouter({
           meta: {
             title: '仪表盘'
           }
+        },
+        {
+          path: '/admin/product/category',
+          name: 'product-category',
+          component: () => import('@/views/product/CategoryManage.vue'),
+          meta: {
+            title: '商品分类管理',
+            requiresAuth: true
+          }
+        },
+        {
+          path: '/admin/product/list',
+          name: 'product-list',
+          component: () => import('@/views/product/ProductManage.vue'),
+          meta: {
+            title: '商品管理',
+            requiresAuth: true
+          }
         }
       ]
     }
