@@ -9,7 +9,8 @@ const router = createRouter({
       name: 'home',
       component: () => import('@/views/home/Index.vue'),
       meta: {
-        title: '首页'
+        title: '首页',
+        requiresAuth: false
       }
     },
     {
