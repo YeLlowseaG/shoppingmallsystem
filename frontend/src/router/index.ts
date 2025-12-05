@@ -57,6 +57,15 @@ const router = createRouter({
         title: '商品列表',
         requiresAuth: false
       }
+    },
+    {
+      path: '/products/:id',
+      name: 'product-detail',
+      component: () => import('@/views/products/Detail.vue'),
+      meta: {
+        title: '商品详情',
+        requiresAuth: false
+      }
     }
   ]
 })

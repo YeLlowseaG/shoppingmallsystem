@@ -100,7 +100,7 @@ const formatSales = (sales?: number) => {
 // 跳转到商品详情
 const goToDetail = () => {
   router.push({
-    path: `/product/${props.product.id}`
+    path: `/products/${props.product.id}`
   })
 }
 
