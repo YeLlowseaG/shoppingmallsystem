@@ -9,7 +9,8 @@ const router = createRouter({
       name: 'home',
       component: () => import('@/views/home/Index.vue'),
       meta: {
-        title: '首页'
+        title: '首页',
+        requiresAuth: false
       }
     },
     {
@@ -45,6 +46,15 @@ const router = createRouter({
       component: () => import('@/views/auth/ForgotPassword.vue'),
       meta: {
         title: '忘记密码',
+        requiresAuth: false
+      }
+    },
+    {
+      path: '/products',
+      name: 'products',
+      component: () => import('@/views/products/List.vue'),
+      meta: {
+        title: '商品列表',
         requiresAuth: false
       }
     }
