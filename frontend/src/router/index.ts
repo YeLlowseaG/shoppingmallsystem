@@ -57,12 +57,21 @@ const router = createRouter({
         title: '商品列表',
         requiresAuth: false
       }
+    },
+    {
+      path: '/member',
+      name: 'member',
+      component: () => import('@/views/member/Index.vue'),
+      meta: {
+        title: '会员中心',
+        requiresAuth: true
+      }
     }
   ]
 })
 
 // 路由守卫
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   const userStore = useUserStore()
   
   // 设置页面标题

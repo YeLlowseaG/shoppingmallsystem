@@ -12,8 +12,11 @@
         <el-form-item label="用户名">
           <el-input v-model="searchForm.username" placeholder="请输入用户名" clearable />
         </el-form-item>
+        <el-form-item label="手机号">
+          <el-input v-model="searchForm.phone" placeholder="请输入手机号" clearable />
+        </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
+          <el-select v-model="searchForm.status" placeholder="请选择状态" clearable style="width: 150px">
             <el-option label="全部" :value="undefined" />
             <el-option label="待审核" :value="0" />
             <el-option label="已激活" :value="1" />
@@ -21,7 +24,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="等级">
-          <el-select v-model="searchForm.userLevel" placeholder="请选择等级" clearable>
+          <el-select v-model="searchForm.userLevel" placeholder="请选择等级" clearable style="width: 150px">
             <el-option label="全部" :value="undefined" />
             <el-option label="普通" :value="0" />
             <el-option label="VIP" :value="1" />
@@ -162,6 +165,7 @@ const buyerList = ref<BuyerVO[]>([])
 
 const searchForm = reactive({
   username: '',
+  phone: '',
   status: undefined as number | undefined,
   userLevel: undefined as number | undefined
 })
@@ -188,6 +192,7 @@ const loadBuyerList = async () => {
       page: pagination.page,
       pageSize: pagination.pageSize,
       username: searchForm.username || undefined,
+      phone: searchForm.phone || undefined,
       status: searchForm.status,
       userLevel: searchForm.userLevel
     })
@@ -209,6 +214,7 @@ const handleSearch = () => {
 // 重置
 const handleReset = () => {
   searchForm.username = ''
+  searchForm.phone = ''
   searchForm.status = undefined
   searchForm.userLevel = undefined
   handleSearch()
@@ -349,4 +355,5 @@ onMounted(() => {
   justify-content: flex-end;
 }
 </style>
+
 

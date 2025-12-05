@@ -155,6 +155,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void forgotPassword(ForgotPasswordDTO forgotPasswordDTO) {
+        // 验证至少填写邮箱或手机号之一
+        if ((forgotPasswordDTO.getEmail() == null || forgotPasswordDTO.getEmail().trim().isEmpty()) &&
+            (forgotPasswordDTO.getPhone() == null || forgotPasswordDTO.getPhone().trim().isEmpty())) {
+            throw new BusinessException(400, "请至少填写邮箱或手机号之一");
+        }
+
         // 查询用户
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getUsername, forgotPasswordDTO.getUsername());
@@ -164,11 +170,43 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(404, "该用户不存在！");
         }
 
-        // TODO: 发送密码重置邮件到用户邮箱
-        // 这里暂时只记录日志，后续实现邮件发送功能
-        log.info("用户{}申请密码重置，邮箱: {}", user.getUsername(), user.getEmail());
+        // 验证邮箱或手机号是否匹配
+        boolean emailMatch = false;
+        boolean phoneMatch = false;
+
+        if (forgotPasswordDTO.getEmail() != null && !forgotPasswordDTO.getEmail().trim().isEmpty()) {
+            if (user.getEmail() != null && user.getEmail().equals(forgotPasswordDTO.getEmail().trim())) {
+                emailMatch = true;
+            }
+        }
+
+        if (forgotPasswordDTO.getPhone() != null && !forgotPasswordDTO.getPhone().trim().isEmpty()) {
+            if (user.getPhone() != null && user.getPhone().equals(forgotPasswordDTO.getPhone().trim())) {
+                phoneMatch = true;
+            }
+        }
+
+        // 如果填写了邮箱但邮箱不匹配，或者填写了手机号但手机号不匹配
+        if ((forgotPasswordDTO.getEmail() != null && !forgotPasswordDTO.getEmail().trim().isEmpty() && !emailMatch) ||
+            (forgotPasswordDTO.getPhone() != null && !forgotPasswordDTO.getPhone().trim().isEmpty() && !phoneMatch)) {
+            throw new BusinessException(400, "您填写的邮箱或手机号与注册时的不一致，请重新填写");
+        }
+
+        // 至少有一个匹配才能继续
+        if (!emailMatch && !phoneMatch) {
+            throw new BusinessException(400, "您填写的邮箱或手机号与注册时的不一致，请重新填写");
+        }
+
+        // TODO: 发送密码重置邮件到用户邮箱或手机
+        // 这里暂时只记录日志，后续实现邮件/短信发送功能
+        if (emailMatch) {
+            log.info("用户{}申请密码重置，邮箱: {}", user.getUsername(), user.getEmail());
+        }
+        if (phoneMatch) {
+            log.info("用户{}申请密码重置，手机号: {}", user.getUsername(), user.getPhone());
+        }
         
-        // 实际应该发送邮件，这里先抛出异常提示需要实现邮件功能
+        // 实际应该发送邮件或短信，这里先抛出异常提示需要实现邮件/短信功能
         // throw new BusinessException(500, "密码重置功能暂未实现，请联系管理员");
     }
 

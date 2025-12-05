@@ -39,12 +39,15 @@ public class BuyerServiceImpl implements BuyerService {
     private final ObjectMapper objectMapper;
 
     @Override
-    public Page<BuyerVO> getBuyerList(Integer page, Integer pageSize, String username, Integer status, Integer userLevel) {
+    public Page<BuyerVO> getBuyerList(Integer page, Integer pageSize, String username, String phone, Integer status, Integer userLevel) {
         Page<User> userPage = new Page<>(page, pageSize);
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         
         if (username != null && !username.trim().isEmpty()) {
             wrapper.like(User::getUsername, username);
+        }
+        if (phone != null && !phone.trim().isEmpty()) {
+            wrapper.like(User::getPhone, phone);
         }
         if (status != null) {
             wrapper.eq(User::getStatus, status);
@@ -154,12 +157,22 @@ public class BuyerServiceImpl implements BuyerService {
     }
 
     @Override
-    public Page<BuyerVO> getPendingAuditList(Integer page, Integer pageSize) {
+    public Page<BuyerVO> getPendingAuditList(Integer page, Integer pageSize, String username, String realName, String phone) {
         Page<User> userPage = new Page<>(page, pageSize);
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getStatus, UserStatus.PENDING);
-        wrapper.orderByDesc(User::getCreateTime);
         
+        if (username != null && !username.trim().isEmpty()) {
+            wrapper.like(User::getUsername, username);
+        }
+        if (realName != null && !realName.trim().isEmpty()) {
+            wrapper.like(User::getRealName, realName);
+        }
+        if (phone != null && !phone.trim().isEmpty()) {
+            wrapper.like(User::getPhone, phone);
+        }
+        
+        wrapper.orderByDesc(User::getCreateTime);
         Page<User> result = userRepository.selectPage(userPage, wrapper);
         
         Page<BuyerVO> voPage = new Page<>(page, pageSize, result.getTotal());
@@ -256,4 +269,5 @@ public class BuyerServiceImpl implements BuyerService {
         return vo;
     }
 }
+
 

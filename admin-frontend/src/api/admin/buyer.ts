@@ -45,6 +45,7 @@ export const getBuyerList = (params: {
   page?: number
   pageSize?: number
   username?: string
+  phone?: string
   status?: number
   userLevel?: number
 }): Promise<any> => {
@@ -96,7 +97,11 @@ export const auditBuyer = (id: number, data: BuyerDTO): Promise<void> => {
 export const getPendingAuditList = (params: {
   page?: number
   pageSize?: number
+  username?: string
+  realName?: string
+  phone?: string
 }): Promise<any> => {
   return request.get('/api/admin/buyer/audit/list', { params })
 }
+
 

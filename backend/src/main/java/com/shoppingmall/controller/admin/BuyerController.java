@@ -32,10 +32,11 @@ public class BuyerController {
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize,
             @RequestParam(required = false) String username,
+            @RequestParam(required = false) String phone,
             @RequestParam(required = false) Integer status,
             @RequestParam(required = false) Integer userLevel
     ) {
-        Page<BuyerVO> result = buyerService.getBuyerList(page, pageSize, username, status, userLevel);
+        Page<BuyerVO> result = buyerService.getBuyerList(page, pageSize, username, phone, status, userLevel);
         return Result.success(result);
     }
 
@@ -104,10 +105,14 @@ public class BuyerController {
     @GetMapping("/audit/list")
     public Result<Page<BuyerVO>> getPendingAuditList(
             @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer pageSize
+            @RequestParam(defaultValue = "10") Integer pageSize,
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) String realName,
+            @RequestParam(required = false) String phone
     ) {
-        Page<BuyerVO> result = buyerService.getPendingAuditList(page, pageSize);
+        Page<BuyerVO> result = buyerService.getPendingAuditList(page, pageSize, username, realName, phone);
         return Result.success(result);
     }
 }
+
 

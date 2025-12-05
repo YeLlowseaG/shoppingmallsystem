@@ -23,3 +23,4 @@ public class UserStatus {
     public static final Integer DISABLED = 2;
 }
 
+

@@ -42,6 +42,8 @@ export interface LoginDTO {
  */
 export interface ForgotPasswordDTO {
   username: string
+  email?: string
+  phone?: string
 }
 
 /**

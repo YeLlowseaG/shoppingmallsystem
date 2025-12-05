@@ -7,6 +7,23 @@
         </div>
       </template>
 
+      <!-- 搜索栏 -->
+      <el-form :inline="true" :model="searchForm" class="search-form">
+        <el-form-item label="用户名">
+          <el-input v-model="searchForm.username" placeholder="请输入用户名" clearable />
+        </el-form-item>
+        <el-form-item label="姓名">
+          <el-input v-model="searchForm.realName" placeholder="请输入姓名" clearable />
+        </el-form-item>
+        <el-form-item label="手机号">
+          <el-input v-model="searchForm.phone" placeholder="请输入手机号" clearable />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="handleReset">重置</el-button>
+        </el-form-item>
+      </el-form>
+
       <!-- 待审核采购者列表 -->
       <el-table :data="auditList" v-loading="loading" border>
         <el-table-column prop="username" label="用户名" width="150" />
@@ -118,6 +135,12 @@ import type { BuyerVO, BuyerDTO } from '@/api/admin/buyer'
 const loading = ref(false)
 const auditList = ref<BuyerVO[]>([])
 
+const searchForm = reactive({
+  username: '',
+  realName: '',
+  phone: ''
+})
+
 const pagination = reactive({
   page: 1,
   pageSize: 10,
@@ -151,7 +174,10 @@ const loadAuditList = async () => {
   try {
     const response = await getPendingAuditList({
       page: pagination.page,
-      pageSize: pagination.pageSize
+      pageSize: pagination.pageSize,
+      username: searchForm.username || undefined,
+      realName: searchForm.realName || undefined,
+      phone: searchForm.phone || undefined
     })
     auditList.value = response.records || []
     pagination.total = response.total || 0
@@ -160,6 +186,20 @@ const loadAuditList = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// 搜索
+const handleSearch = () => {
+  pagination.page = 1
+  loadAuditList()
+}
+
+// 重置
+const handleReset = () => {
+  searchForm.username = ''
+  searchForm.realName = ''
+  searchForm.phone = ''
+  handleSearch()
 }
 
 // 查看详情
@@ -275,10 +315,15 @@ onMounted(() => {
   align-items: center;
 }
 
+.search-form {
+  margin-bottom: 20px;
+}
+
 .pagination {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
 }
 </style>
+
 

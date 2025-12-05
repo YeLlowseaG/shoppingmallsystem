@@ -18,11 +18,12 @@ public interface BuyerService {
      * @param page     页码
      * @param pageSize 每页数量
      * @param username 用户名（可选）
+     * @param phone    手机号（可选）
      * @param status   状态（可选）
      * @param userLevel 用户等级（可选）
      * @return 采购者列表
      */
-    Page<BuyerVO> getBuyerList(Integer page, Integer pageSize, String username, Integer status, Integer userLevel);
+    Page<BuyerVO> getBuyerList(Integer page, Integer pageSize, String username, String phone, Integer status, Integer userLevel);
 
     /**
      * 根据ID获取采购者信息
@@ -71,8 +72,12 @@ public interface BuyerService {
      *
      * @param page     页码
      * @param pageSize 每页数量
+     * @param username 用户名（可选）
+     * @param realName 姓名（可选）
+     * @param phone    手机号（可选）
      * @return 待审核采购者列表
      */
-    Page<BuyerVO> getPendingAuditList(Integer page, Integer pageSize);
+    Page<BuyerVO> getPendingAuditList(Integer page, Integer pageSize, String username, String realName, String phone);
 }
+
 
