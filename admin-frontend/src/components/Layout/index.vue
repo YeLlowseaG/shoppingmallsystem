@@ -25,10 +25,32 @@
           router
           class="sidebar-menu"
         >
-          <el-menu-item index="/admin/dashboard">
-            <el-icon><HomeFilled /></el-icon>
-            <span>仪表盘</span>
-          </el-menu-item>
+          <template v-for="menu in menuList" :key="menu.id">
+            <el-sub-menu v-if="menu.children && menu.children.length > 0" :index="getMenuPath(menu)">
+              <template #title>
+                <el-icon v-if="menu.icon">
+                  <component :is="menu.icon" />
+                </el-icon>
+                <span>{{ menu.menuName }}</span>
+              </template>
+              <el-menu-item
+                v-for="child in menu.children"
+                :key="child.id"
+                :index="getMenuPath(child)"
+              >
+                <el-icon v-if="child.icon">
+                  <component :is="child.icon" />
+                </el-icon>
+                <span>{{ child.menuName }}</span>
+              </el-menu-item>
+            </el-sub-menu>
+            <el-menu-item v-else :index="getMenuPath(menu)">
+              <el-icon v-if="menu.icon">
+                <component :is="menu.icon" />
+              </el-icon>
+              <span>{{ menu.menuName }}</span>
+            </el-menu-item>
+          </template>
         </el-menu>
       </el-aside>
       <el-main>
@@ -39,11 +61,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminStore } from '@/stores/admin/user'
 import { ElMessage } from 'element-plus'
-import { HomeFilled, User } from '@element-plus/icons-vue'
+import { User, HomeFilled } from '@element-plus/icons-vue'
+import { getAdminInfo } from '@/api/admin/user'
+import { addRoutes } from '@/router'
+import type { MenuVO } from '@/api/admin/user'
 
 const route = useRoute()
 const router = useRouter()
@@ -51,11 +76,45 @@ const adminStore = useAdminStore()
 
 const activeMenu = computed(() => route.path)
 
+const menuList = computed(() => {
+  return adminStore.menus || []
+})
+
+// 获取菜单路径
+const getMenuPath = (menu: MenuVO): string => {
+  if (menu.path) {
+    return menu.path.startsWith('/') ? menu.path : `/admin/${menu.path}`
+  }
+  return `/admin/menu-${menu.id}`
+}
+
+// 加载管理员信息和菜单
+const loadAdminInfo = async () => {
+  try {
+    const info = await getAdminInfo()
+    adminStore.setAdminInfo(info)
+    // 如果菜单为空，重新加载菜单
+    if (!adminStore.menus || adminStore.menus.length === 0) {
+      // 从登录响应中获取菜单，这里需要重新获取
+      // 实际应该从登录接口返回的menus中获取
+    }
+  } catch (error: any) {
+    ElMessage.error(error.message || '加载失败')
+  }
+}
+
 const handleLogout = () => {
   adminStore.logout()
   ElMessage.success('退出登录成功')
   router.push('/admin/login')
 }
+
+onMounted(() => {
+  adminStore.init()
+  if (adminStore.isLoggedIn() && (!adminStore.menus || adminStore.menus.length === 0)) {
+    loadAdminInfo()
+  }
+})
 </script>
 
 <style scoped>

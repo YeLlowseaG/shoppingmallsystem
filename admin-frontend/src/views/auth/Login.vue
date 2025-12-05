@@ -37,6 +37,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminStore } from '@/stores/admin/user'
 import { ElMessage, FormInstance, FormRules } from 'element-plus'
+import { addRoutes } from '@/router'
 
 const router = useRouter()
 const adminStore = useAdminStore()
@@ -62,23 +63,32 @@ const rules: FormRules = {
 const handleLogin = async () => {
   if (!loginFormRef.value) return
 
-  await loginFormRef.value.validate((valid) => {
+  await loginFormRef.value.validate(async (valid) => {
     if (valid) {
       loading.value = true
-      // TODO: 调用管理员登录API
-      // 暂时模拟登录
-      setTimeout(() => {
-        adminStore.setToken('mock_admin_token')
-        adminStore.setAdminInfo({
-          id: 1,
+      try {
+        const { adminLogin } = await import('@/api/admin/user')
+        const response = await adminLogin({
           username: loginForm.username,
-          email: 'admin@example.com',
-          role: 'admin'
+          password: loginForm.password
         })
+        adminStore.setToken(response.token)
+        adminStore.setAdminInfo(response.adminInfo)
+        adminStore.setMenus(response.menus || [])
+        adminStore.setPermissions(response.permissions || [])
+        
+        // 动态添加路由
+        if (response.menus && response.menus.length > 0) {
+          addRoutes(response.menus)
+        }
+        
         ElMessage.success('登录成功')
         router.push('/admin/dashboard')
+      } catch (error: any) {
+        ElMessage.error(error.message || '登录失败')
+      } finally {
         loading.value = false
-      }, 1000)
+      }
     }
   })
 }

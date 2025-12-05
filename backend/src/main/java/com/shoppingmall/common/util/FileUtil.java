@@ -1,6 +1,5 @@
 package com.shoppingmall.common.util;
 
-import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import org.springframework.web.multipart.MultipartFile;
 

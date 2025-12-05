@@ -1,6 +1,5 @@
 package com.shoppingmall.common.util;
 
-import cn.hutool.core.date.DateUtil;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
@@ -35,7 +34,7 @@ public class DateUtil {
      * @return 格式化后的字符串
      */
     public static String formatDateTime(Date date) {
-        return DateUtil.formatDateTime(date);
+        return cn.hutool.core.date.DateUtil.formatDateTime(date);
     }
 
     /**
@@ -46,7 +45,7 @@ public class DateUtil {
      * @return 格式化后的字符串
      */
     public static String formatDateTime(Date date, String format) {
-        return DateUtil.format(date, format);
+        return cn.hutool.core.date.DateUtil.format(date, format);
     }
 
     /**
@@ -77,7 +76,7 @@ public class DateUtil {
      * @return Date对象
      */
     public static Date parseDateTime(String dateStr) {
-        return DateUtil.parseDateTime(dateStr);
+        return cn.hutool.core.date.DateUtil.parseDateTime(dateStr);
     }
 
     /**
@@ -88,7 +87,7 @@ public class DateUtil {
      * @return Date对象
      */
     public static Date parseDateTime(String dateStr, String format) {
-        return DateUtil.parse(dateStr, format);
+        return cn.hutool.core.date.DateUtil.parse(dateStr, format);
     }
 
     /**
@@ -97,7 +96,7 @@ public class DateUtil {
      * @return 当前日期时间字符串
      */
     public static String now() {
-        return DateUtil.now();
+        return cn.hutool.core.date.DateUtil.now();
     }
 
     /**
@@ -106,7 +105,7 @@ public class DateUtil {
      * @return 当前日期字符串
      */
     public static String today() {
-        return DateUtil.today();
+        return cn.hutool.core.date.DateUtil.today();
     }
 
     /**

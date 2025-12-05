@@ -1,7 +1,7 @@
 package com.shoppingmall.common.config;
 
-import com.github.ben-manes.caffeine.cache.Cache;
-import com.github.ben-manes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

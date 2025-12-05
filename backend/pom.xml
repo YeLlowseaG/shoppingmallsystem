@@ -5,6 +5,13 @@
          http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.1.5</version>
+        <relativePath/>
+    </parent>
+
     <groupId>com.shoppingmall</groupId>
     <artifactId>shopping-mall-system</artifactId>
     <version>1.0.0-SNAPSHOT</version>
@@ -40,8 +47,33 @@
         
         <!-- 其他 -->
         <commons-lang3.version>3.13.0</commons-lang3.version>
-        <swagger.version>2.2.15</swagger.version>
+        <swagger.version>2.2.0</swagger.version>
     </properties>
+
+    <repositories>
+        <repository>
+            <id>aliyun-public</id>
+            <name>Aliyun Public Repository</name>
+            <url>https://maven.aliyun.com/repository/public</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>central</id>
+            <name>Maven Central Repository</name>
+            <url>https://repo1.maven.org/maven2</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
 
     <dependencies>
         <!-- Spring Boot Starter Web -->
@@ -104,6 +136,11 @@
             <artifactId>caffeine</artifactId>
             <version>${caffeine.version}</version>
         </dependency>
+        <!-- Spring Cache支持 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
+        </dependency>
 
         <!-- JWT -->
         <dependency>
@@ -145,16 +182,16 @@
     </dependencies>
 
     <build>
-        <sourceDirectory>backend/src/main/java</sourceDirectory>
-        <testSourceDirectory>backend/src/test/java</testSourceDirectory>
+        <sourceDirectory>src/main/java</sourceDirectory>
+        <testSourceDirectory>src/test/java</testSourceDirectory>
         <resources>
             <resource>
-                <directory>backend/src/main/resources</directory>
+                <directory>src/main/resources</directory>
             </resource>
         </resources>
         <testResources>
             <testResource>
-                <directory>backend/src/test/resources</directory>
+                <directory>src/test/resources</directory>
             </testResource>
         </testResources>
         <plugins>
@@ -178,9 +215,19 @@
                 <configuration>
                     <source>${java.version}</source>
                     <target>${java.version}</target>
-                    <encoding>${project.build.sourceEncoding}</encoding>
+                    <encoding>UTF-8</encoding>
+                    <fork>true</fork>
+                    <executable>javac</executable>
+                    <compilerArgs>
+                        <arg>-encoding</arg>
+                        <arg>UTF-8</arg>
+                        <arg>-J-Dfile.encoding=UTF-8</arg>
+                        <arg>-J-Duser.language=en</arg>
+                        <arg>-J-Duser.country=US</arg>
+                    </compilerArgs>
                 </configuration>
             </plugin>
         </plugins>
     </build>
 </project>
+
