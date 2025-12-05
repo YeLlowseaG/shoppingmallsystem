@@ -1,6 +1,6 @@
-# B2B成人用品采购平台 - 采购者端前端
+# B2B成人用品采购平台 - 管理后台前端
 
-> 采购者（Buyer）使用的前台系统
+> 平台管理员（Admin）使用的后台管理系统
 
 ## 技术栈
 
@@ -17,12 +17,17 @@
 ## 项目结构
 
 ```
-frontend/
+admin-frontend/
 ├── src/
-│   ├── api/              # API接口定义
+│   ├── api/              # API接口定义（admin目录）
 │   ├── assets/           # 静态资源
 │   ├── components/       # 公共组件
 │   ├── views/            # 页面组件
+│   │   ├── auth/         # 认证页面
+│   │   ├── dashboard/    # 仪表盘
+│   │   ├── product/      # 商品管理
+│   │   ├── order/        # 订单管理
+│   │   └── user/         # 用户管理
 │   ├── stores/           # 状态管理
 │   ├── router/           # 路由配置
 │   ├── utils/            # 工具函数
@@ -43,7 +48,7 @@ frontend/
 # 安装依赖
 npm install
 
-# 启动开发服务器
+# 启动开发服务器（端口3001）
 npm run dev
 
 # 构建生产版本
@@ -57,4 +62,9 @@ npm run preview
 
 - Node.js >= 18.x
 - npm >= 9.x
+
+## 端口说明
+
+- 开发端口：3001（与采购者端3000区分）
+- API代理：http://localhost:8080
 

@@ -7,6 +7,9 @@ export interface UserInfo {
   email?: string
   realName?: string
   userLevel?: string
+  gender?: number
+  phone?: string
+  status?: string
   [key: string]: any
 }
 

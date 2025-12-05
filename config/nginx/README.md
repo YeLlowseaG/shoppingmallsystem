@@ -9,7 +9,12 @@
 ### 1. 前端静态文件服务
 
 - 监听端口：80
-- 静态文件目录：`/usr/share/nginx/html`（Linux）或 `D:/nginx/html`（Windows）
+- **采购者端**：
+  - 路径：`/`（根路径）
+  - 静态文件目录：`/usr/share/nginx/html/buyer`（Linux）或 `D:/nginx/html/buyer`（Windows）
+- **管理后台**：
+  - 路径：`/admin`
+  - 静态文件目录：`/usr/share/nginx/html/admin`（Linux）或 `D:/nginx/html/admin`（Windows）
 - 支持Vue Router的History模式（try_files配置）
 - 静态资源缓存30天
 
@@ -56,7 +61,8 @@
    - Linux：`/data/uploads/`
 
 2. **前端静态文件目录**：
-   - 将前端构建后的`dist`目录内容复制到Nginx静态文件目录
+   - **采购者端**：将 `buyer-frontend` 构建后的`dist`目录内容复制到 `/usr/share/nginx/html/buyer`
+   - **管理后台**：将 `admin-frontend` 构建后的`dist`目录内容复制到 `/usr/share/nginx/html/admin`
    - 或修改配置指向实际的前端文件目录
 
 3. **后端服务地址**：

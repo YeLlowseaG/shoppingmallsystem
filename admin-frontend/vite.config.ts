@@ -11,7 +11,7 @@ export default defineConfig({
     }
   },
   server: {
-    port: 3000, // 采购者端开发端口
+    port: 3001, // 管理后台开发端口
     proxy: {
       '/api': {
         target: 'http://localhost:8080',

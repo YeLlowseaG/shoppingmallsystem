@@ -28,5 +28,16 @@ public class CacheConfig {
                 .recordStats()                          // 启用统计
                 .build();
     }
+
+    /**
+     * 验证码缓存（5分钟过期）
+     */
+    @Bean("captchaCache")
+    public Cache<String, String> captchaCache() {
+        return Caffeine.newBuilder()
+                .maximumSize(10000)                    // 最大缓存条目数
+                .expireAfterWrite(5, TimeUnit.MINUTES) // 写入后5分钟过期
+                .build();
+    }
 }
 
