@@ -2,7 +2,7 @@
   <div class="category-floor">
     <div class="container">
       <!-- 分类标题栏 -->
-      <div class="floor-title" :style="{ background: titleColor }">
+      <div class="floor-title" :style="{ background: titleColor }" @click="goToCategory">
         {{ floorNumber }} {{ categoryName }}
       </div>
 
@@ -81,12 +81,21 @@ interface Props {
   bigAdImage: string
   sideProducts: Product[]
   bottomProducts: Product[]
+  categoryId?: number
 }
 
 const props = defineProps<Props>()
 
+// 跳转到分类列表页
+const goToCategory = () => {
+  if (props.categoryId) {
+    router.push(`/products?categoryId=${props.categoryId}`)
+  }
+}
+
+// 跳转到商品详情页
 const goToProduct = (id: number) => {
-  router.push(`/products/${id}`)
+  router.push(`/product/${id}`)
 }
 </script>
 
@@ -109,6 +118,12 @@ const goToProduct = (id: number) => {
     font-size: 18px;
     font-weight: bold;
     margin-bottom: 2px;
+    cursor: pointer;
+    transition: opacity 0.3s;
+
+    &:hover {
+      opacity: 0.9;
+    }
   }
 
   .top-row {

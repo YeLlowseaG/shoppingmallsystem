@@ -5,7 +5,12 @@
       <div class="brand-area">
         <div class="title">品牌专区</div>
         <div class="brand-grid">
-          <div v-for="brand in brands" :key="brand.id" class="brand-item">
+          <div
+            v-for="brand in brands"
+            :key="brand.id"
+            class="brand-item"
+            @click="goToBrand(brand.name)"
+          >
             <img :src="brand.logo" :alt="brand.name" />
           </div>
         </div>
@@ -19,6 +24,7 @@
           :src="ad.image"
           :alt="ad.title"
           class="ad-image"
+          @click="goToPromotion(ad.id)"
         />
       </div>
     </div>
@@ -27,6 +33,9 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 const brands = ref([
   { id: 1, name: '虚姬', logo: 'https://via.placeholder.com/120x60/FF6B9D/ffffff?text=虚姬' },
@@ -51,6 +60,22 @@ const ads = ref([
   { id: 1, title: '好货来袭', image: 'https://via.placeholder.com/280x220/6C5CE7/ffffff?text=好货来袭' },
   { id: 2, title: '敬请期待', image: 'https://via.placeholder.com/280x220/FF6B9D/ffffff?text=敬请期待' }
 ])
+
+// 跳转到品牌商品列表页
+const goToBrand = (brandName: string) => {
+  router.push({
+    path: '/products',
+    query: { brand: brandName }
+  })
+}
+
+// 跳转到促销活动页
+const goToPromotion = (adId: number) => {
+  router.push({
+    path: '/products',
+    query: { promotionId: `ad-${adId}` }
+  })
+}
 </script>
 
 <style scoped lang="scss">

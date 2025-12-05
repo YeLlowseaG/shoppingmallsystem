@@ -48,6 +48,15 @@ const router = createRouter({
         title: '忘记密码',
         requiresAuth: false
       }
+    },
+    {
+      path: '/products',
+      name: 'products',
+      component: () => import('@/views/products/List.vue'),
+      meta: {
+        title: '商品列表',
+        requiresAuth: false
+      }
     }
   ]
 })
