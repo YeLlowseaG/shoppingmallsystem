@@ -1,5 +1,14 @@
 <template>
   <div class="product-detail">
+    <!-- 顶部提示条 -->
+    <TopBar />
+
+    <!-- Logo + 搜索 + 联系方式 -->
+    <Header />
+
+    <!-- 主导航 + 全部分类 -->
+    <Navbar />
+
     <!-- 面包屑导航 -->
     <div class="breadcrumb">
       <div class="container">
@@ -247,6 +256,9 @@ import {
   Star
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import TopBar from '@/components/home/TopBar.vue'
+import Header from '@/components/home/Header.vue'
+import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
 
 const route = useRoute()
