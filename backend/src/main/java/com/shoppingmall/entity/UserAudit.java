@@ -27,9 +27,9 @@ public class UserAudit {
     private Long userId;
 
     /**
-     * 审核状态（待审核/已通过/已拒绝）
+     * 审核状态（0-待审核，1-已通过，2-已拒绝）
      */
-    private String auditStatus;
+    private Integer auditStatus;
 
     /**
      * 审核意见

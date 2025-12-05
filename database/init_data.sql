@@ -60,17 +60,17 @@ INSERT INTO `sys_role` (`role_code`, `role_name`, `description`, `status`, `sort
 -- 4. 初始化菜单（最多2层，只到页面层级）
 -- ============================================
 
--- 4.1 一级菜单（目录）
+-- 4.1 一级菜单（目录，menu_type=0）
 INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `path`, `component`, `icon`, `permission`, `sort_order`, `status`) VALUES
-(0, '首页', '目录', '/dashboard', 'Layout', 'HomeFilled', NULL, 1, 1),
-(0, '商品管理', '目录', '/product', 'Layout', 'Goods', NULL, 2, 1),
-(0, '订单管理', '目录', '/order', 'Layout', 'Document', NULL, 3, 1),
-(0, '库存管理', '目录', '/stock', 'Layout', 'Box', NULL, 4, 1),
-(0, '采购者管理', '目录', '/buyer', 'Layout', 'User', NULL, 5, 1),
-(0, '营销管理', '目录', '/marketing', 'Layout', 'Promotion', NULL, 6, 1),
-(0, '数据统计', '目录', '/statistics', 'Layout', 'DataAnalysis', NULL, 7, 1),
-(0, '系统设置', '目录', '/system', 'Layout', 'Setting', NULL, 8, 1),
-(0, '权限管理', '目录', '/permission', 'Layout', 'Lock', NULL, 9, 1);
+(0, '首页', 0, '/dashboard', 'Layout', 'HomeFilled', NULL, 1, 1),
+(0, '商品管理', 0, '/product', 'Layout', 'Goods', NULL, 2, 1),
+(0, '订单管理', 0, '/order', 'Layout', 'Document', NULL, 3, 1),
+(0, '库存管理', 0, '/stock', 'Layout', 'Box', NULL, 4, 1),
+(0, '采购者管理', 0, '/buyer', 'Layout', 'User', NULL, 5, 1),
+(0, '营销管理', 0, '/marketing', 'Layout', 'Promotion', NULL, 6, 1),
+(0, '数据统计', 0, '/statistics', 'Layout', 'DataAnalysis', NULL, 7, 1),
+(0, '系统设置', 0, '/system', 'Layout', 'Setting', NULL, 8, 1),
+(0, '权限管理', 0, '/permission', 'Layout', 'Lock', NULL, 9, 1);
 
 -- 获取一级菜单ID
 SET @menu_dashboard = (SELECT id FROM sys_menu WHERE menu_name = '首页' AND parent_id = 0);
@@ -83,58 +83,58 @@ SET @menu_statistics = (SELECT id FROM sys_menu WHERE menu_name = '数据统计'
 SET @menu_system = (SELECT id FROM sys_menu WHERE menu_name = '系统设置' AND parent_id = 0);
 SET @menu_permission = (SELECT id FROM sys_menu WHERE menu_name = '权限管理' AND parent_id = 0);
 
--- 4.2 二级菜单（页面）
+-- 4.2 二级菜单（页面，menu_type=1）
 -- 首页
 INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `path`, `component`, `icon`, `permission`, `sort_order`, `status`) VALUES
-(@menu_dashboard, '数据概览', '菜单', 'index', 'dashboard/Index', 'DataLine', 'admin:dashboard:view', 1, 1);
+(@menu_dashboard, '数据概览', 1, 'index', 'dashboard/Index', 'DataLine', 'admin:dashboard:view', 1, 1);
 
 -- 商品管理
 INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `path`, `component`, `icon`, `permission`, `sort_order`, `status`) VALUES
-(@menu_product, '商品列表', '菜单', 'list', 'product/List', 'List', 'admin:product:list', 1, 1),
-(@menu_product, '商品发布', '菜单', 'add', 'product/Add', 'Plus', 'admin:product:add', 2, 1),
-(@menu_product, '商品分类', '菜单', 'category', 'product/Category', 'Menu', 'admin:product:category', 3, 1);
+(@menu_product, '商品列表', 1, 'list', 'product/List', 'List', 'admin:product:list', 1, 1),
+(@menu_product, '商品发布', 1, 'add', 'product/Add', 'Plus', 'admin:product:add', 2, 1),
+(@menu_product, '商品分类', 1, 'category', 'product/Category', 'Menu', 'admin:product:category', 3, 1);
 
 -- 订单管理
 INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `path`, `component`, `icon`, `permission`, `sort_order`, `status`) VALUES
-(@menu_order, '订单列表', '菜单', 'list', 'order/List', 'List', 'admin:order:list', 1, 1);
+(@menu_order, '订单列表', 1, 'list', 'order/List', 'List', 'admin:order:list', 1, 1);
 
 -- 库存管理
 INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `path`, `component`, `icon`, `permission`, `sort_order`, `status`) VALUES
-(@menu_stock, '库存列表', '菜单', 'list', 'stock/List', 'List', 'admin:stock:list', 1, 1),
-(@menu_stock, '库存预警', '菜单', 'warning', 'stock/Warning', 'Warning', 'admin:stock:warning', 2, 1),
-(@menu_stock, '库存调整', '菜单', 'adjust', 'stock/Adjust', 'Edit', 'admin:stock:adjust', 3, 1),
-(@menu_stock, '库存统计', '菜单', 'statistics', 'stock/Statistics', 'DataAnalysis', 'admin:stock:statistics', 4, 1);
+(@menu_stock, '库存列表', 1, 'list', 'stock/List', 'List', 'admin:stock:list', 1, 1),
+(@menu_stock, '库存预警', 1, 'warning', 'stock/Warning', 'Warning', 'admin:stock:warning', 2, 1),
+(@menu_stock, '库存调整', 1, 'adjust', 'stock/Adjust', 'Edit', 'admin:stock:adjust', 3, 1),
+(@menu_stock, '库存统计', 1, 'statistics', 'stock/Statistics', 'DataAnalysis', 'admin:stock:statistics', 4, 1);
 
 -- 采购者管理
 INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `path`, `component`, `icon`, `permission`, `sort_order`, `status`) VALUES
-(@menu_buyer, '采购者列表', '菜单', 'list', 'buyer/List', 'List', 'admin:buyer:list', 1, 1),
-(@menu_buyer, '采购者审核', '菜单', 'audit', 'buyer/Audit', 'Check', 'admin:buyer:audit', 2, 1),
-(@menu_buyer, '等级管理', '菜单', 'level', 'buyer/Level', 'Star', 'admin:buyer:level', 3, 1);
+(@menu_buyer, '采购者列表', 1, 'list', 'buyer/List', 'List', 'admin:buyer:list', 1, 1),
+(@menu_buyer, '采购者审核', 1, 'audit', 'buyer/Audit', 'Check', 'admin:buyer:audit', 2, 1),
+(@menu_buyer, '等级管理', 1, 'level', 'buyer/Level', 'Star', 'admin:buyer:level', 3, 1);
 
 -- 营销管理
 INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `path`, `component`, `icon`, `permission`, `sort_order`, `status`) VALUES
-(@menu_marketing, '促销活动', '菜单', 'promotion', 'marketing/Promotion', 'Promotion', 'admin:marketing:promotion', 1, 1),
-(@menu_marketing, '价格策略', '菜单', 'price', 'marketing/Price', 'Money', 'admin:marketing:price', 2, 1);
+(@menu_marketing, '促销活动', 1, 'promotion', 'marketing/Promotion', 'Promotion', 'admin:marketing:promotion', 1, 1),
+(@menu_marketing, '价格策略', 1, 'price', 'marketing/Price', 'Money', 'admin:marketing:price', 2, 1);
 
 -- 数据统计
 INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `path`, `component`, `icon`, `permission`, `sort_order`, `status`) VALUES
-(@menu_statistics, '销售统计', '菜单', 'sales', 'statistics/Sales', 'TrendCharts', 'admin:statistics:sales', 1, 1),
-(@menu_statistics, '订单统计', '菜单', 'order', 'statistics/Order', 'Document', 'admin:statistics:order', 2, 1),
-(@menu_statistics, '商品统计', '菜单', 'product', 'statistics/Product', 'Goods', 'admin:statistics:product', 3, 1),
-(@menu_statistics, '采购者统计', '菜单', 'buyer', 'statistics/Buyer', 'User', 'admin:statistics:buyer', 4, 1);
+(@menu_statistics, '销售统计', 1, 'sales', 'statistics/Sales', 'TrendCharts', 'admin:statistics:sales', 1, 1),
+(@menu_statistics, '订单统计', 1, 'order', 'statistics/Order', 'Document', 'admin:statistics:order', 2, 1),
+(@menu_statistics, '商品统计', 1, 'product', 'statistics/Product', 'Goods', 'admin:statistics:product', 3, 1),
+(@menu_statistics, '采购者统计', 1, 'buyer', 'statistics/Buyer', 'User', 'admin:statistics:buyer', 4, 1);
 
 -- 系统设置（一级菜单下的二级菜单）
 INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `path`, `component`, `icon`, `permission`, `sort_order`, `status`) VALUES
-(@menu_system, '基础配置', '菜单', 'basic', 'system/Basic', 'Setting', 'admin:system:basic', 1, 1),
-(@menu_system, '支付配置', '菜单', 'payment', 'system/Payment', 'CreditCard', 'admin:system:payment', 2, 1),
-(@menu_system, '物流配置', '菜单', 'logistics', 'system/Logistics', 'Truck', 'admin:system:logistics', 3, 1),
-(@menu_system, '通知设置', '菜单', 'notification', 'system/Notification', 'Bell', 'admin:system:notification', 4, 1);
+(@menu_system, '基础配置', 1, 'basic', 'system/Basic', 'Setting', 'admin:system:basic', 1, 1),
+(@menu_system, '支付配置', 1, 'payment', 'system/Payment', 'CreditCard', 'admin:system:payment', 2, 1),
+(@menu_system, '物流配置', 1, 'logistics', 'system/Logistics', 'Truck', 'admin:system:logistics', 3, 1),
+(@menu_system, '通知设置', 1, 'notification', 'system/Notification', 'Bell', 'admin:system:notification', 4, 1);
 
 -- 权限管理（一级菜单下的二级菜单）
 INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `path`, `component`, `icon`, `permission`, `sort_order`, `status`) VALUES
-(@menu_permission, '用户管理', '菜单', 'user', 'permission/User', 'User', 'admin:permission:user:list', 1, 1),
-(@menu_permission, '角色管理', '菜单', 'role', 'permission/Role', 'UserFilled', 'admin:permission:role:list', 2, 1),
-(@menu_permission, '菜单管理', '菜单', 'menu', 'permission/Menu', 'Menu', 'admin:permission:menu:list', 3, 1);
+(@menu_permission, '用户管理', 1, 'user', 'permission/User', 'User', 'admin:permission:user:list', 1, 1),
+(@menu_permission, '角色管理', 1, 'role', 'permission/Role', 'UserFilled', 'admin:permission:role:list', 2, 1),
+(@menu_permission, '菜单管理', 1, 'menu', 'permission/Menu', 'Menu', 'admin:permission:menu:list', 3, 1);
 
 -- ============================================
 -- 5. 分配管理员角色

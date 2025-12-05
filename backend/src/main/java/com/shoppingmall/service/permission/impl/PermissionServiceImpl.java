@@ -64,10 +64,11 @@ public class PermissionServiceImpl implements PermissionService {
         }
 
         // 获取所有菜单（只获取目录和菜单类型，不包含按钮）
+        // menuType: 0-目录，1-菜单，2-按钮
         List<Menu> menus = menuRepository.selectList(
                 new LambdaQueryWrapper<Menu>()
                         .in(Menu::getId, menuIds)
-                        .in(Menu::getMenuType, "目录", "菜单")
+                        .in(Menu::getMenuType, 0, 1)
                         .eq(Menu::getStatus, 1)
                         .eq(Menu::getDeleted, 0)
                         .orderByAsc(Menu::getSortOrder)

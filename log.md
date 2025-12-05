@@ -1395,3 +1395,99 @@
      =================================================================
      ```
 - 数据源配置问题已修复，启动成功日志已添加，服务启动后会显示清晰的访问地址信息
+
+### 创建采购者测试用户数据
+- 已创建采购者测试用户数据文件 `database/test_user_data.sql`
+- 主要创建内容：
+  1. **测试用户1（buyer1）**：
+     - 用户名：buyer1
+     - 密码：123456（BCrypt加密）
+     - 邮箱：buyer1@test.com
+     - 手机号：13800138001
+     - 真实姓名：测试采购者1
+     - 性别：1（男）
+     - 地区：广东省深圳市南山区
+     - 详细地址：科技园南区
+     - 用户等级：普通
+     - 状态：已激活（可以直接登录）
+  2. **测试用户2（buyer2）**：
+     - 用户名：buyer2
+     - 密码：123456（BCrypt加密）
+     - 邮箱：buyer2@test.com
+     - 手机号：13800138002
+     - 真实姓名：测试采购者2
+     - 性别：0（女）
+     - 地区：北京市北京市朝阳区
+     - 详细地址：建国路88号
+     - 用户等级：VIP
+     - 状态：已激活（可以直接登录）
+  3. **用户审核记录**：
+     - 为两个测试用户自动创建审核记录
+     - 审核状态：已通过
+     - 审核意见：测试用户，自动通过审核
+  4. **使用说明**：
+     - 执行SQL脚本后，可以使用这两个测试账号登录用户端
+     - 如果密码验证失败，可以使用Java代码或在线工具重新生成BCrypt hash
+     - 两个用户状态均为"已激活"，可以直接用于登录测试
+- 测试用户数据已创建完成，可用于用户端登录功能测试
+
+### 将状态和类型字段从中文改为数字
+- 已完成所有表的状态和类型字段从中文改为数字的改造
+- 主要修改内容：
+  1. **数据库表结构修改** (`database/schema.sql`)：
+     - `sys_user.status`: VARCHAR(20) → TINYINT（0-待审核，1-已激活，2-已禁用）
+     - `sys_user.user_level`: VARCHAR(20) → TINYINT（0-普通，1-VIP，2-金牌）
+     - `sys_user_audit.audit_status`: VARCHAR(20) → TINYINT（0-待审核，1-已通过，2-已拒绝）
+     - `product.status`: VARCHAR(20) → TINYINT（0-下架，1-上架）
+     - `product_price.user_level`: VARCHAR(20) → TINYINT（0-普通，1-VIP，2-金牌）
+     - `order.order_status`: VARCHAR(20) → TINYINT（0-待付款，1-已付款未发货，2-已发货，3-已完成，4-已取消，5-已退款，6-已退货）
+     - `order.payment_method`: VARCHAR(50) → VARCHAR(20)（ALIPAY-支付宝，WECHAT-微信，PRE_DEPOSIT-预存款，OFFLINE-线下支付）
+     - `order.payment_status`: VARCHAR(20) → TINYINT（0-未支付，1-已支付，2-已退款）
+     - `pre_deposit_detail.type`: VARCHAR(20) → TINYINT（1-充值，2-消费，3-退款）
+     - `pre_deposit_detail.status`: VARCHAR(20) → TINYINT（0-待审核，1-已通过，2-已拒绝）
+     - `payment_record.payment_method`: VARCHAR(50) → VARCHAR(20)（ALIPAY-支付宝，WECHAT-微信，PRE_DEPOSIT-预存款，OFFLINE-线下支付）
+     - `payment_record.payment_status`: VARCHAR(20) → TINYINT（0-待支付，1-已支付，2-已退款，3-已失败）
+     - `message.message_type`: VARCHAR(20) → TINYINT（0-普通，1-系统，2-订单，3-其他）
+     - `sys_menu.menu_type`: VARCHAR(20) → TINYINT（0-目录，1-菜单，2-按钮）
+  2. **创建状态常量类**：
+     - `UserStatus.java`: 用户状态常量（0-待审核，1-已激活，2-已禁用）
+     - `AuditStatus.java`: 审核状态常量（0-待审核，1-已通过，2-已拒绝）
+     - `ProductStatus.java`: 商品状态常量（0-下架，1-上架）
+     - `OrderStatus.java`: 订单状态常量（0-待付款，1-已付款未发货，2-已发货，3-已完成，4-已取消，5-已退款，6-已退货）
+     - `PaymentStatus.java`: 支付状态常量（0-未支付/待支付，1-已支付，2-已退款，3-已失败）
+     - `PaymentMethod.java`: 支付方式常量（ALIPAY-支付宝，WECHAT-微信，PRE_DEPOSIT-预存款，OFFLINE-线下支付）
+     - `DepositType.java`: 预存款类型常量（1-充值，2-消费，3-退款）
+     - `MessageType.java`: 消息类型常量（0-普通，1-系统，2-订单，3-其他）
+     - `MenuType.java`: 菜单类型常量（0-目录，1-菜单，2-按钮）
+     - `UserLevel.java`: 用户等级常量（0-普通，1-VIP，2-金牌）
+  3. **实体类修改**：
+     - `User.java`: status和userLevel字段类型从String改为Integer
+     - `UserAudit.java`: auditStatus字段类型从String改为Integer
+     - `Menu.java`: menuType字段类型从String改为Integer
+     - `UserInfoVO.java`: status和userLevel字段类型从String改为Integer
+     - `UserInfoDTO.java`: status和userLevel字段类型从String改为Integer
+     - `MenuVO.java`: menuType字段类型从String改为Integer
+  4. **Service层修改**：
+     - `UserServiceImpl.java`: 
+       - 注册时设置`user.setUserLevel(UserLevel.NORMAL)`
+       - 注册时设置`user.setStatus(UserStatus.PENDING)`
+       - 创建审核记录时设置`audit.setAuditStatus(AuditStatus.PENDING)`
+       - 登录验证时使用`UserStatus.ACTIVATED.equals(user.getStatus())`
+     - `PermissionServiceImpl.java`: 
+       - 菜单查询时使用`.in(Menu::getMenuType, 0, 1)`替代`.in(Menu::getMenuType, "目录", "菜单")`
+  5. **初始化数据脚本修改** (`database/init_data.sql`)：
+     - 菜单类型从"目录"、"菜单"改为0、1
+     - 所有菜单插入语句的menu_type字段值改为数字
+  6. **测试数据脚本修改** (`database/test_user_data.sql`)：
+     - 用户等级从"普通"、"VIP"改为0、1
+     - 用户状态从"已激活"改为1
+     - 审核状态从"已通过"改为1
+     - 更新相关注释说明
+  7. **修改优势**：
+     - ✅ 数据库存储更高效（TINYINT比VARCHAR占用空间更小）
+     - ✅ 查询性能更好（数字比较比字符串比较快）
+     - ✅ 避免中文编码问题
+     - ✅ 便于国际化（前端可以根据数字显示不同语言）
+     - ✅ 代码更规范（使用常量类管理状态值）
+     - ✅ 类型安全（Integer类型避免字符串拼写错误）
+- 所有状态和类型字段已从中文改为数字，代码和数据库结构已同步更新
