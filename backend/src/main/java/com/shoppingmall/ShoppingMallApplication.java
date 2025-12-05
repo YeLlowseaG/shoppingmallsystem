@@ -32,7 +32,7 @@ public class ShoppingMallApplication implements CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
         String host = InetAddress.getLocalHost().getHostAddress();
-        String port = environment.getProperty("server.port", "8080");
+        String port = environment.getProperty("server.port", "8081");
         String contextPath = environment.getProperty("server.servlet.context-path", "/");
         
         log.info("=================================================================");
