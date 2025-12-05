@@ -421,7 +421,6 @@
   - 提供开发注意事项和规范
   - 适合2人小团队快速开发
 
-<<<<<<< HEAD
 ### 创建简化任务清单
 - 创建了 `docs/Development Task List.md`，基于详细TODO列表生成简化版任务清单
 - 主要内容包括：
@@ -448,9 +447,431 @@
      - 不覆盖原详细TODO列表
 - 修改原因：提供简化版任务清单，方便快速查看整体开发进度，详细实现细节仍参考原TODO列表
 
-=======
-<<<<<<< HEAD
->>>>>>> 91f21dc (新增todo list)
-=======
->>>>>>> 91f21dc36c3cde9f56525a9cef3814a27d919f54
->>>>>>> e488f3e4ed0f58a6b60ce2f72442b474a3855d98
+### 阶段一：创建后端Maven单模块项目结构（任务1.1）
+- 创建了完整的Maven多模块项目结构，符合技术架构设计文档
+- 主要创建内容：
+  1. **父POM文件** (`pom.xml`)：
+     - 定义项目基本信息（groupId、artifactId、version）
+     - 配置Java版本为17
+     - 配置Spring Boot 3.1.5版本
+     - 配置所有依赖版本（MyBatis Plus、MySQL、Druid、Hutool、Lombok、Caffeine、JWT等）
+     - 定义所有子模块
+  2. **公共模块** (`shopping-mall-common`)：
+     - `common-core`：核心工具类模块（Hutool、Lombok、Apache Commons）
+     - `common-security`：安全相关模块（JWT、加密等）
+     - `common-exception`：异常处理模块（Spring Web）
+     - `common-config`：配置类模块（Caffeine缓存配置等）
+  3. **数据模型模块** (`shopping-mall-model`)：
+     - 包含Entity、DTO、VO类
+     - 依赖MyBatis Plus、Lombok、Jackson
+  4. **数据访问模块** (`shopping-mall-repository`)：
+     - 依赖数据模型模块
+     - 配置MyBatis Plus、MySQL、Druid连接池
+  5. **业务服务模块** (`shopping-mall-service`)：
+     - 依赖数据访问模块和公共模块
+     - 配置Spring AOP支持事务管理
+  6. **API接口模块** (`shopping-mall-api`)：
+     - 主启动模块，包含Spring Boot启动类
+     - 依赖业务服务模块和公共模块
+     - 配置Spring Web、Validation、Swagger/OpenAPI
+     - 配置Spring Boot Maven插件
+  7. **配置文件**：
+     - `application.yml`：主配置文件（数据源、MyBatis Plus、文件上传、日志等）
+     - `application-dev.yml`：开发环境配置
+     - `application-prod.yml`：生产环境配置
+  8. **其他文件**：
+     - `.gitignore`：Git忽略文件配置
+     - 创建Spring Boot启动类 `ShoppingMallApplication.java`
+- 项目结构符合技术架构设计文档中的模块划分方案
+- 所有依赖版本统一管理，便于后续维护
+
+### 将多模块结构改为单模块结构
+- 根据2人小团队的实际需求，将Maven多模块项目结构改为单模块结构
+- 主要修改内容：
+  1. **技术架构文档更新** (`docs/Technical Architecture Design.md`)：
+     - 更新3.1节"后端模块划分"，从多模块结构改为单模块结构
+     - 单模块结构通过包（package）组织代码，实现分层架构
+     - 目录结构：common（公共模块）、controller（控制器层）、service（服务层）、repository（数据访问层）、entity/dto/vo（数据模型）
+     - 说明单模块结构的优势：结构简单、开发效率高、适合小团队快速开发
+  2. **文档总结部分更新**：
+     - 将"模块化设计"改为"单模块设计，结构简单，适合小团队快速开发"
+     - 添加"通过包结构实现分层，代码组织清晰"说明
+     - 后续优化方向中添加"重构为多模块结构"选项
+  3. **单模块结构优势**：
+     - ✅ 结构简单，适合2人小团队快速开发
+     - ✅ 代码组织清晰，通过包结构实现分层
+     - ✅ 开发效率高，无需处理模块间依赖
+     - ✅ 构建部署简单，直接打包即可
+     - ✅ 后续如需扩展，可重构为多模块结构
+- 修改原因：2人小团队更适合单模块结构，开发效率更高，结构更简单，后续可根据需要重构为多模块
+
+### 阶段一：创建后端Maven单模块项目结构（任务1.1完成）
+- 已完成单模块Maven项目结构的创建
+- 主要创建内容：
+  1. **单模块POM文件** (`pom.xml`)：
+     - 改为jar打包方式（单模块）
+     - 整合所有依赖到一个pom.xml文件
+     - 包含Spring Boot、MyBatis Plus、MySQL、Druid、Hutool、Lombok、Caffeine、JWT、Swagger等依赖
+     - 配置Spring Boot Maven插件和编译插件
+  2. **项目目录结构**：
+     - `src/main/java/com/shoppingmall/` - 主代码目录
+       - `ShoppingMallApplication.java` - Spring Boot启动类
+       - `common/` - 公共模块（util、security、exception、config）
+       - `controller/` - 控制器层（buyer、admin）
+       - `service/` - 服务层
+       - `repository/` - 数据访问层
+       - `entity/` - 实体类
+       - `dto/` - 数据传输对象
+       - `vo/` - 视图对象
+     - `src/main/resources/` - 资源文件目录
+       - `application.yml` - 主配置文件
+       - `application-dev.yml` - 开发环境配置
+       - `application-prod.yml` - 生产环境配置
+       - `mapper/` - MyBatis Mapper XML目录
+     - `src/test/java/com/shoppingmall/` - 测试代码目录
+  3. **配置文件**：
+     - 数据源配置（Druid连接池）
+     - MyBatis Plus配置
+     - 文件上传配置
+     - 日志配置
+     - 文件存储配置
+     - Swagger配置
+  4. **清理工作**：
+     - 删除多模块目录（shopping-mall-api、shopping-mall-common等）
+     - 保留单模块结构
+- 项目结构符合技术架构设计文档中的单模块方案
+- 所有依赖统一管理，结构简单清晰，适合2人小团队快速开发
+
+### 阶段一：配置Spring Boot基础框架和依赖（任务1.2完成）
+- 已完成Spring Boot基础框架配置
+- 主要创建内容：
+  1. **统一响应封装** (`Result.java`)：
+     - 统一API响应格式（code、message、data、timestamp）
+     - 提供成功和失败的静态方法
+     - 支持泛型，可返回任意类型数据
+  2. **异常处理**：
+     - `GlobalExceptionHandler`：全局异常处理器
+       - 处理参数校验异常（MethodArgumentNotValidException、BindException）
+       - 处理业务异常（BusinessException）
+       - 处理运行时异常和其他异常
+     - `BusinessException`：业务异常类
+       - 支持自定义错误码和错误消息
+  3. **跨域配置** (`CorsConfig.java`)：
+     - 配置CORS过滤器
+     - 允许所有域名、请求头、请求方法
+     - 支持携带凭证
+     - 设置预检请求缓存时间
+  4. **MyBatis Plus配置** (`MyBatisPlusConfig.java`)：
+     - 配置分页插件
+     - 支持MySQL数据库分页
+  5. **缓存配置** (`CacheConfig.java`)：
+     - 配置Caffeine本地缓存
+     - 最大缓存条目数：10000
+     - 写入后10分钟过期
+     - 访问后5分钟过期
+     - 启用统计功能
+  6. **Swagger配置** (`SwaggerConfig.java`)：
+     - 配置OpenAPI文档
+     - 设置API文档标题、版本、描述等信息
+- 所有配置类已创建完成，基础框架已搭建好
+
+### 阶段一：开发公共工具类（任务1.3完成）
+- 已完成公共工具类的开发
+- 主要创建内容：
+  1. **日期工具类** (`DateUtil.java`)：
+     - 日期时间格式化（支持Date和LocalDateTime）
+     - 日期时间解析
+     - 获取当前日期时间、日期
+     - 获取时间戳（秒、毫秒）
+     - 基于Hutool实现
+  2. **字符串工具类** (`StringUtil.java`)：
+     - 字符串判空（isEmpty、isNotEmpty、isBlank、isNotBlank）
+     - 字符串处理（trim、trimAll、substring、truncate）
+     - 字符串脱敏（手机号、邮箱、姓名）
+     - 驼峰和下划线转换
+     - 基于Apache Commons Lang3和Hutool实现
+  3. **加密工具类** (`EncryptUtil.java`)：
+     - BCrypt密码加密和验证（用于用户密码）
+     - MD5加密
+     - SHA256加密
+     - AES加密和解密
+     - 基于Hutool实现
+  4. **JWT工具类** (`JwtUtil.java`)：
+     - 生成Token（支持用户ID和用户名）
+     - 从Token中获取Claims、用户ID、用户名
+     - 验证Token有效性
+     - 刷新Token
+     - 支持自定义密钥和过期时间（通过配置文件）
+     - 基于JJWT实现
+  5. **文件工具类** (`FileUtil.java`)：
+     - 保存文件（支持自动创建目录、按日期分类）
+     - 保存图片文件（带类型验证）
+     - 删除文件
+     - 获取文件扩展名
+     - 判断文件类型（图片、文档）
+     - 生成唯一文件名（UUID）
+     - 格式化文件大小
+     - 验证文件大小
+  6. **配置文件更新**：
+     - 添加JWT配置（secret、expiration）
+- 所有工具类已创建完成，提供了常用的工具方法，便于后续业务开发使用
+
+### 阶段一：创建前端Vue3项目（任务1.4完成）
+- 已完成前端Vue3项目的基础结构创建
+- 主要创建内容：
+  1. **项目配置文件**：
+     - `package.json`：项目配置和依赖管理
+       - Vue 3.3.x、TypeScript、Vite 5.x
+       - Element Plus 2.x、Vue Router 4.x、Pinia 2.x
+       - Axios、Day.js、ECharts等
+     - `vite.config.ts`：Vite构建配置
+       - 路径别名配置（@指向src）
+       - 开发服务器配置（端口3000）
+       - 代理配置（/api代理到后端8080端口）
+       - 生产构建配置
+     - `tsconfig.json`：TypeScript配置
+       - 严格模式
+       - 路径别名支持
+       - ES2020目标
+     - `.eslintrc.cjs`：ESLint代码规范配置
+  2. **项目入口文件**：
+     - `index.html`：HTML模板
+     - `src/main.ts`：应用入口文件
+       - 注册Element Plus和图标
+       - 配置Pinia状态管理
+       - 配置Vue Router
+       - 挂载应用
+     - `src/App.vue`：根组件
+  3. **基础目录结构**：
+     - `src/api/`：API接口定义目录
+     - `src/assets/`：静态资源目录
+     - `src/components/`：公共组件目录
+     - `src/views/`：页面组件目录
+     - `src/stores/`：状态管理目录
+     - `src/router/`：路由配置目录
+     - `src/utils/`：工具函数目录
+     - `src/types/`：TypeScript类型定义目录
+     - `src/styles/`：样式文件目录
+     - `public/`：公共文件目录
+  4. **示例文件**：
+     - `src/router/index.ts`：路由配置示例
+     - `src/views/Home.vue`：首页示例
+  5. **其他文件**：
+     - `.gitignore`：Git忽略文件配置
+     - `README.md`：项目说明文档
+- 前端项目基础结构已创建完成，可以开始开发具体功能
+
+### 阶段一：搭建前端项目结构和公共组件（任务1.5完成）
+- 已完成前端项目结构和公共组件的搭建
+- 主要创建内容：
+  1. **请求封装** (`utils/request.ts`)：
+     - 基于Axios封装HTTP请求
+     - 请求拦截器（添加Token）
+     - 响应拦截器（统一处理响应、错误处理）
+     - 支持401自动跳转登录
+     - 错误消息提示
+  2. **状态管理** (`stores/`)：
+     - `user.ts`：用户状态管理
+       - Token管理（设置、清除）
+       - 用户信息管理
+       - 登录状态判断
+       - 退出登录
+     - `cart.ts`：购物车状态管理
+       - 购物车商品管理（添加、移除、更新数量）
+       - 购物车统计（总数量、总金额）
+       - 清空购物车
+  3. **工具函数** (`utils/index.ts`)：
+     - 日期时间格式化（基于Day.js）
+     - 金额格式化
+     - 文件大小格式化
+     - 手机号脱敏
+     - 邮箱脱敏
+  4. **类型定义** (`types/index.ts`)：
+     - API响应接口
+     - 分页请求参数
+     - 分页响应数据
+  5. **公共组件** (`components/Layout/index.vue`)：
+     - 布局组件（Header、Sidebar、Main）
+     - 用户信息展示
+     - 退出登录功能
+     - 侧边栏菜单
+
+### 阶段一：配置前端路由、状态管理、请求封装（任务1.6完成）
+- 已完成前端路由、状态管理、请求封装的配置
+- 主要创建内容：
+  1. **路由配置** (`router/index.ts`)：
+     - Vue Router配置
+     - 路由守卫（登录验证、页面标题设置）
+     - 路由懒加载
+  2. **登录页面** (`views/Login.vue`)：
+     - 登录表单（用户名、密码）
+     - 表单验证
+     - 登录逻辑（待接入API）
+  3. **环境变量类型定义** (`env.d.ts`)：
+     - Vite环境变量类型定义
+     - Vue组件类型定义
+- 前端基础框架已搭建完成，包含路由、状态管理、请求封装等核心功能
+
+### 阶段一：创建数据库和所有业务表结构（任务2.1完成）
+- 已完成数据库和所有业务表的SQL建表脚本
+- 主要创建内容：
+  1. **数据库创建脚本** (`docs/database/schema.sql`)：
+     - 创建数据库 `shopping_mall`
+     - 字符集：utf8mb4，排序规则：utf8mb4_general_ci
+  2. **用户相关表**：
+     - `sys_user`：用户表（用户名、邮箱、密码、个人信息、用户等级、状态等）
+     - `sys_user_audit`：用户审核表（审核状态、审核意见、审核人等）
+     - `user_address`：收货地址表（收货人信息、地址信息、是否默认地址等）
+  3. **商品相关表**：
+     - `product_category`：商品分类表（支持三级分类，父分类ID、分类级别、排序等）
+     - `product`：商品表（商品编码、名称、分类、图片、描述、价格、库存、销量等）
+     - `product_price`：商品价格表（不同用户等级的价格、阶梯价格）
+     - `product_stock`：商品库存表（可用库存、锁定库存、总库存、预警阈值）
+  4. **订单相关表**：
+     - `order`：订单表（订单号、用户、金额、状态、支付信息、收货地址、配送信息等）
+     - `order_item`：订单商品表（订单商品明细，包含快照信息）
+     - `order_logistics`：订单物流表（物流公司、物流单号、物流跟踪信息）
+  5. **购物车表**：
+     - `cart`：购物车表（用户ID、商品ID、数量）
+  6. **支付相关表**：
+     - `pre_deposit`：预存款表（余额、可用余额、冻结余额）
+     - `pre_deposit_detail`：预存款明细表（充值、消费、退款记录）
+     - `payment_record`：支付记录表（支付流水、支付方式、支付状态、回调数据）
+  7. **其他表**：
+     - `message`：站内消息表（发送人、接收人、消息内容、消息类型、已读状态）
+     - `product_favorite`：商品收藏表（用户ID、商品ID）
+     - `out_of_stock_registration`：缺货登记表（用户ID、商品ID、到货通知）
+  8. **表设计特点**：
+     - 所有表使用utf8mb4字符集，支持emoji
+     - 使用逻辑删除（deleted字段）
+     - 自动维护创建时间和更新时间
+     - JSON字段存储复杂结构数据
+     - 金额字段使用DECIMAL(10,2)精确到分
+     - 合理的索引设计（主键、唯一索引、普通索引）
+  9. **数据库文档** (`docs/database/README.md`)：
+     - 数据库信息说明
+     - 表结构说明
+     - 使用说明和注意事项
+- 所有业务表结构已创建完成，符合需求分析和技术架构设计
+
+### 阶段一：设计并创建数据库索引（任务2.2完成）
+- 已完成数据库索引设计和优化
+- 主要创建内容：
+  1. **索引优化脚本** (`docs/database/indexes.sql`)：
+     - 订单表复合索引（用户ID+状态+时间，用于订单查询和统计）
+     - 商品表复合索引（分类ID+状态+销量，用于商品列表查询）
+     - 消息表复合索引（接收人ID+已读状态+时间，用于消息查询）
+     - 预存款明细表复合索引（用户ID+类型+时间，用于明细查询）
+     - 商品价格表复合索引（商品ID+用户等级，用于价格查询）
+  2. **索引设计原则**：
+     - 主键索引：所有表都有主键索引
+     - 唯一索引：用户名、邮箱、订单号、商品编码等唯一字段
+     - 普通索引：外键字段、状态字段、时间字段等常用查询字段
+     - 复合索引：多字段组合查询场景
+  3. **索引优化**：
+     - 根据实际查询场景设计复合索引
+     - 避免过度索引，平衡查询性能和写入性能
+- 数据库索引设计已完成，支持高效的查询操作
+
+### 阶段一：初始化基础数据（任务2.3完成）
+- 已完成基础数据的初始化脚本
+- 主要创建内容：
+  1. **初始化数据脚本** (`docs/database/init_data.sql`)：
+     - 商品分类数据：一级分类和二级分类示例数据
+       - 一级分类：情趣用品、健康护理、情趣内衣、其他
+       - 二级分类：男用器具、女用器具、润滑剂、安全套等
+     - 平台管理员账号：默认管理员账号（admin）
+       - 用户名：admin
+       - 邮箱：admin@shoppingmall.com
+       - 密码：需要替换为真实的BCrypt加密密码
+       - 状态：已激活
+  2. **数据说明**：
+     - 分类数据为示例数据，可根据实际业务调整
+     - 管理员密码需要在部署时生成真实的BCrypt加密值
+     - 可根据需要添加更多初始化数据
+- 基础数据初始化脚本已创建完成，便于系统部署和测试
+
+### 优化：整合索引脚本到表结构文件
+- 将索引优化脚本整合到表结构文件中，便于统一管理
+- 主要修改内容：
+  1. **整合索引到schema.sql**：
+     - 将`indexes.sql`中的复合索引添加到`schema.sql`文件末尾
+     - 删除独立的`indexes.sql`文件
+     - 现在只需执行一个`schema.sql`文件即可创建所有表结构和索引
+  2. **更新文档**：
+     - 更新`README.md`，移除对`indexes.sql`的引用
+     - 添加索引说明章节，详细说明基础索引和复合索引
+  3. **优化效果**：
+     - 简化部署流程，只需执行两个SQL文件（schema.sql和init_data.sql）
+     - 统一管理，表结构和索引在一个文件中，便于维护
+- 索引脚本已成功整合到表结构文件中
+
+### 阶段一：配置本地文件存储和上传功能（任务3.1完成）
+- 已完成本地文件存储和上传功能的配置
+- 主要创建内容：
+  1. **文件上传配置类** (`FileUploadConfig.java`)：
+     - 读取application.yml中的文件上传配置
+     - 配置项：上传路径、最大文件大小、允许的文件类型、图片路径、文档路径
+  2. **文件上传工具类** (`FileUploadUtil.java`)：
+     - 上传图片文件（带类型和大小验证）
+     - 上传文档文件（带类型和大小验证）
+     - 通用文件上传方法
+     - 文件删除功能
+     - 自动创建日期目录（yyyy/MM格式）
+     - 生成唯一文件名（UUID）
+     - 返回相对路径（用于数据库存储）
+  3. **文件上传控制器** (`FileUploadController.java`)：
+     - `/api/common/upload/image`：上传图片接口
+     - `/api/common/upload/document`：上传文档接口
+     - `/api/common/upload/file`：删除文件接口
+  4. **配置文件更新**：
+     - 更新application.yml中的文件上传配置
+     - 支持更多文档类型（doc、docx、xls、xlsx）
+- 文件上传功能已配置完成，支持图片和文档的上传、删除操作
+
+### 阶段一：配置Nginx静态文件服务和反向代理（任务3.2完成）
+- 已完成Nginx配置文件的创建
+- 主要创建内容：
+  1. **Nginx配置文件** (`docs/nginx/nginx.conf`)：
+     - 前端静态文件服务（端口80）
+       - 支持Vue Router的History模式
+       - 静态资源缓存30天
+     - 文件上传目录服务（/uploads/）
+       - 只允许访问图片和文档文件
+       - 禁止访问可执行文件
+       - 缓存30天
+     - API反向代理（/api/）
+       - 代理到后端服务（localhost:8080）
+       - 支持WebSocket
+       - 超时设置60秒
+     - Swagger文档代理（可选）
+  2. **Nginx配置文档** (`docs/nginx/README.md`)：
+     - 配置功能说明
+     - Windows和Linux部署说明
+     - 注意事项和常用命令
+  3. **配置特点**：
+     - Gzip压缩启用
+     - 文件上传大小限制50MB
+     - 安全配置（禁止访问可执行文件）
+     - 性能优化（缓存、压缩）
+- Nginx配置文件已创建完成，支持前端静态文件服务、文件访问和API反向代理
+
+### 优化：移动Nginx配置文件到config目录
+- 将Nginx配置文件从`docs/nginx/`移动到`config/nginx/`目录
+- 主要修改内容：
+  1. **目录结构调整**：
+     - 创建`config/nginx/`目录
+     - 将`nginx.conf`和`README.md`移动到新目录
+     - 删除`docs/nginx/`目录
+  2. **优化原因**：
+     - `docs/`目录应该只存放文档，不应该存放配置文件
+     - `config/`目录专门用于存放配置文件，结构更清晰
+     - 便于后续扩展其他部署配置（Docker、Kubernetes等）
+  3. **新的目录结构**：
+     ```
+     config/
+     └── nginx/
+         ├── nginx.conf
+         └── README.md
+     ```
+- Nginx配置文件已移动到更合适的位置，项目结构更加规范

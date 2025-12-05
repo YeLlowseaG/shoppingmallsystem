@@ -189,37 +189,54 @@ Utils层 (工具函数)
 
 ### 3.1 后端模块划分
 
-基于Spring Boot的多模块Maven项目结构：
+基于Spring Boot的单模块Maven项目结构（适合小团队快速开发）：
 
 ```
 shopping-mall-system/
-├── shopping-mall-common/          # 公共模块
-│   ├── common-core/              # 核心工具类
-│   ├── common-security/         # 安全相关
-│   ├── common-exception/         # 异常处理
-│   └── common-config/           # 配置类
-├── shopping-mall-api/            # API接口模块
-│   ├── buyer-api/                # 采购者端API
-│   └── admin-api/                # 管理端API
-├── shopping-mall-service/        # 业务服务模块
-│   ├── user-service/             # 用户服务
-│   ├── product-service/          # 商品服务
-│   ├── order-service/            # 订单服务
-│   ├── payment-service/           # 支付服务
-│   ├── logistics-service/         # 物流服务
-│   ├── marketing-service/         # 营销服务
-│   └── statistics-service/        # 统计服务
-├── shopping-mall-repository/     # 数据访问模块
-│   ├── user-repository/          # 用户数据访问
-│   ├── product-repository/       # 商品数据访问
-│   ├── order-repository/          # 订单数据访问
-│   └── ...
-├── shopping-mall-model/           # 数据模型模块
-│   ├── entity/                    # 实体类
-│   ├── dto/                       # 数据传输对象
-│   └── vo/                        # 视图对象
-└── shopping-mall-gateway/         # 网关模块（可选）
+├── pom.xml                        # Maven配置文件
+├── src/
+│   ├── main/
+│   │   ├── java/com/shoppingmall/
+│   │   │   ├── ShoppingMallApplication.java  # Spring Boot启动类
+│   │   │   ├── common/            # 公共模块
+│   │   │   │   ├── util/          # 核心工具类（日期、字符串、加密等）
+│   │   │   │   ├── security/      # 安全相关（JWT、加密等）
+│   │   │   │   ├── exception/     # 异常处理
+│   │   │   │   └── config/        # 配置类（缓存、文件上传等）
+│   │   │   ├── controller/        # 控制器层
+│   │   │   │   ├── buyer/         # 采购者端API
+│   │   │   │   └── admin/         # 管理端API
+│   │   │   ├── service/           # 业务服务层
+│   │   │   │   ├── user/          # 用户服务
+│   │   │   │   ├── product/       # 商品服务
+│   │   │   │   ├── order/         # 订单服务
+│   │   │   │   ├── payment/       # 支付服务
+│   │   │   │   ├── logistics/     # 物流服务
+│   │   │   │   ├── marketing/    # 营销服务
+│   │   │   │   └── statistics/    # 统计服务
+│   │   │   ├── repository/        # 数据访问层
+│   │   │   │   ├── user/          # 用户数据访问
+│   │   │   │   ├── product/       # 商品数据访问
+│   │   │   │   ├── order/         # 订单数据访问
+│   │   │   │   └── ...
+│   │   │   ├── entity/           # 实体类
+│   │   │   ├── dto/               # 数据传输对象
+│   │   │   └── vo/                # 视图对象
+│   │   └── resources/
+│   │       ├── application.yml    # 主配置文件
+│   │       ├── application-dev.yml # 开发环境配置
+│   │       ├── application-prod.yml # 生产环境配置
+│   │       └── mapper/            # MyBatis Mapper XML
+│   └── test/                      # 测试代码
+└── docs/                          # 文档目录
 ```
+
+**单模块结构的优势**：
+- ✅ 结构简单，适合2人小团队快速开发
+- ✅ 代码组织清晰，通过包结构实现分层
+- ✅ 开发效率高，无需处理模块间依赖
+- ✅ 构建部署简单，直接打包即可
+- ✅ 后续如需扩展，可重构为多模块结构
 
 ### 3.2 前端模块划分
 
@@ -1126,7 +1143,8 @@ router.beforeEach((to, from, next) => {
 
 **核心特点**:
 - ✅ 前后端分离，职责清晰
-- ✅ 模块化设计，易于维护
+- ✅ 单模块设计，结构简单，适合小团队快速开发
+- ✅ 通过包结构实现分层，代码组织清晰
 - ✅ 安全可靠，性能优化
 - ✅ 可扩展，可维护
 - ✅ 标准化开发流程
@@ -1137,6 +1155,7 @@ router.beforeEach((to, from, next) => {
 - 消息队列集成（RabbitMQ/Kafka）
 - 搜索引擎集成（Elasticsearch）
 - 容器化部署（Docker + K8s）
+- 重构为多模块结构（当团队规模扩大或需要更细粒度管理时）
 - 微服务化改造（Spring Cloud，当系统规模扩大时）
 
 ---
