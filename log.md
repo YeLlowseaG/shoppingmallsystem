@@ -875,3 +875,23 @@
          └── README.md
      ```
 - Nginx配置文件已移动到更合适的位置，项目结构更加规范
+
+### 优化：将后端代码目录从src改为backend/src
+- 将后端源代码目录从`src/`移动到`backend/src/`，使项目结构更清晰
+- 主要修改内容：
+  1. **修改pom.xml配置**：
+     - 添加`<sourceDirectory>backend/src/main/java</sourceDirectory>`
+     - 添加`<testSourceDirectory>backend/src/test/java</testSourceDirectory>`
+     - 添加`<resources>`配置指向`backend/src/main/resources`
+     - 添加`<testResources>`配置指向`backend/src/test/resources`
+  2. **移动目录结构**：
+     - 创建`backend/`目录
+     - 将`src/`目录移动到`backend/src/`
+  3. **更新技术架构文档**：
+     - 更新项目结构说明，反映新的目录结构
+     - 明确区分`backend/`和`frontend/`目录
+  4. **优化效果**：
+     - 项目结构更清晰：`backend/`和`frontend/`在同一层级
+     - 便于区分前后端代码
+     - 便于后续扩展其他模块（如移动端）
+- 后端代码目录已成功移动到backend/src/，项目结构更加规范和清晰

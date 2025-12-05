@@ -194,41 +194,43 @@ Utils层 (工具函数)
 ```
 shopping-mall-system/
 ├── pom.xml                        # Maven配置文件
-├── src/
-│   ├── main/
-│   │   ├── java/com/shoppingmall/
-│   │   │   ├── ShoppingMallApplication.java  # Spring Boot启动类
-│   │   │   ├── common/            # 公共模块
-│   │   │   │   ├── util/          # 核心工具类（日期、字符串、加密等）
-│   │   │   │   ├── security/      # 安全相关（JWT、加密等）
-│   │   │   │   ├── exception/     # 异常处理
-│   │   │   │   └── config/        # 配置类（缓存、文件上传等）
-│   │   │   ├── controller/        # 控制器层
-│   │   │   │   ├── buyer/         # 采购者端API
-│   │   │   │   └── admin/         # 管理端API
-│   │   │   ├── service/           # 业务服务层
-│   │   │   │   ├── user/          # 用户服务
-│   │   │   │   ├── product/       # 商品服务
-│   │   │   │   ├── order/         # 订单服务
-│   │   │   │   ├── payment/       # 支付服务
-│   │   │   │   ├── logistics/     # 物流服务
-│   │   │   │   ├── marketing/    # 营销服务
-│   │   │   │   └── statistics/    # 统计服务
-│   │   │   ├── repository/        # 数据访问层
-│   │   │   │   ├── user/          # 用户数据访问
-│   │   │   │   ├── product/       # 商品数据访问
-│   │   │   │   ├── order/         # 订单数据访问
-│   │   │   │   └── ...
-│   │   │   ├── entity/           # 实体类
-│   │   │   ├── dto/               # 数据传输对象
-│   │   │   └── vo/                # 视图对象
-│   │   └── resources/
-│   │       ├── application.yml    # 主配置文件
-│   │       ├── application-dev.yml # 开发环境配置
-│   │       ├── application-prod.yml # 生产环境配置
-│   │       └── mapper/            # MyBatis Mapper XML
-│   └── test/                      # 测试代码
-└── docs/                          # 文档目录
+├── backend/                       # 后端代码目录
+│   └── src/
+│       ├── main/
+│       │   ├── java/com/shoppingmall/
+│       │   │   ├── ShoppingMallApplication.java  # Spring Boot启动类
+│       │   │   ├── common/            # 公共模块
+│       │   │   │   ├── util/          # 核心工具类（日期、字符串、加密等）
+│       │   │   │   ├── security/      # 安全相关（JWT、加密等）
+│       │   │   │   ├── exception/     # 异常处理
+│       │   │   │   └── config/        # 配置类（缓存、文件上传等）
+│       │   │   ├── controller/        # 控制器层
+│       │   │   │   ├── buyer/         # 采购者端API
+│       │   │   │   └── admin/         # 管理端API
+│       │   │   ├── service/           # 业务服务层
+│       │   │   │   ├── user/          # 用户服务
+│       │   │   │   ├── product/       # 商品服务
+│       │   │   │   ├── order/         # 订单服务
+│       │   │   │   ├── payment/       # 支付服务
+│       │   │   │   ├── logistics/     # 物流服务
+│       │   │   │   ├── marketing/    # 营销服务
+│       │   │   │   └── statistics/    # 统计服务
+│       │   │   ├── repository/        # 数据访问层
+│       │   │   │   ├── user/          # 用户数据访问
+│       │   │   │   ├── product/       # 商品数据访问
+│       │   │   │   ├── order/         # 订单数据访问
+│       │   │   │   └── ...
+│       │   │   ├── entity/           # 实体类
+│       │   │   ├── dto/               # 数据传输对象
+│       │   │   └── vo/                # 视图对象
+│       │   └── resources/
+│       │       ├── application.yml    # 主配置文件
+│       │       ├── application-dev.yml # 开发环境配置
+│       │       ├── application-prod.yml # 生产环境配置
+│       │       └── mapper/            # MyBatis Mapper XML
+│       └── test/                      # 测试代码
+├── frontend/                        # 前端代码目录
+└── docs/                            # 文档目录
 ```
 
 **单模块结构的优势**：
