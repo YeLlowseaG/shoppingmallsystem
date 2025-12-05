@@ -232,28 +232,8 @@
       </div>
     </div>
 
-    <!-- 底部保障横幅 -->
-    <div class="guarantee-banner">
-      <div class="container">
-        <div class="guarantee-item">
-          <el-icon size="40"><CircleCheck /></el-icon>
-          <span>正品保障</span>
-        </div>
-        <div class="guarantee-item">
-          <el-icon size="40"><Van /></el-icon>
-          <span>海外直邮</span>
-        </div>
-        <div class="guarantee-item">
-          <el-icon size="40"><User /></el-icon>
-          <span>本土直邮</span>
-        </div>
-        <div class="guarantee-item">
-          <el-icon size="40"><PriceTag /></el-icon>
-          <span>全球网价</span>
-        </div>
-        <el-button type="danger" round class="detail-btn">查看详情</el-button>
-      </div>
-    </div>
+    <!-- 底部 -->
+    <Footer />
   </div>
 </template>
 
@@ -264,13 +244,10 @@ import {
   Document,
   Warning,
   ShoppingCart,
-  Star,
-  CircleCheck,
-  Van,
-  User,
-  PriceTag
+  Star
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import Footer from '@/components/home/Footer.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -710,42 +687,6 @@ const submitReview = () => {
         margin-left: 10px;
         color: #999;
         font-size: 12px;
-      }
-    }
-  }
-
-  // 底部保障横幅
-  .guarantee-banner {
-    background: linear-gradient(135deg, #e4393c 0%, #c82333 100%);
-    padding: 30px 0;
-    margin-top: 20px;
-
-    .container {
-      display: flex;
-      align-items: center;
-      justify-content: space-around;
-    }
-
-    .guarantee-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-      color: #fff;
-      font-size: 16px;
-      font-weight: bold;
-    }
-
-    .detail-btn {
-      background: #fff;
-      color: #e4393c;
-      border: none;
-      padding: 12px 40px;
-      font-size: 16px;
-      font-weight: bold;
-
-      &:hover {
-        background: #f5f5f5;
       }
     }
   }
