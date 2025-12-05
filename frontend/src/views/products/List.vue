@@ -90,6 +90,53 @@ import ProductCard from '@/components/products/ProductCard.vue'
 const route = useRoute()
 const router = useRouter()
 
+// 分类映射表（用于面包屑导航显示分类名称）
+const categoryMap: Record<number, string> = {
+  // 一级分类
+  1: '男用器具',
+  2: '女用器具',
+  3: '避孕润滑',
+  4: '情趣内衣',
+  5: '护理保健',
+  6: '喷剂助情',
+  7: '其他情趣',
+  // 二级分类
+  11: '女用器具',
+  12: '女用器具',
+  21: '震动跳蛋',
+  31: '润滑液',
+  41: '连体衣',
+  51: '保健食品',
+  61: '男用喷剂',
+  71: 'SM系列',
+  // 三级分类
+  111: '飞机杯',
+  112: '助勃锻炼',
+  113: '充气娃娃',
+  121: '震动棒',
+  122: '跳蛋',
+  123: '潮吹AV棒',
+  211: '情趣跳蛋',
+  212: '震动棒',
+  213: '潮吹AV棒',
+  311: '润滑液',
+  312: '安全套',
+  313: '排卵测孕',
+  314: '口杯液',
+  411: '连体衣',
+  412: '激情T裤',
+  413: '三点式',
+  511: '保健食品',
+  512: '清洗抑菌',
+  513: '按摩精油',
+  611: '男用喷剂',
+  612: '情欲提升',
+  613: '香水诱惑',
+  711: 'SM系列',
+  712: '情趣跳逗',
+  713: '后庭刺激'
+}
+
 // 加载状态
 const loading = ref(false)
 
@@ -139,7 +186,9 @@ const pageTitle = computed(() => {
     return '热销专区'
   }
   if (filters.value.categoryId) {
-    return '商品分类'
+    const categoryId = Number(filters.value.categoryId)
+    const categoryName = categoryMap[categoryId]
+    return categoryName || '商品分类'
   }
   if (filters.value.brand) {
     return `品牌: ${filters.value.brand}`
