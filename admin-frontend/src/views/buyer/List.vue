@@ -62,13 +62,6 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="auditStatusName" label="审核状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="getAuditStatusTagType(row.auditStatus)">
-              {{ row.auditStatusName }}
-            </el-tag>
-          </template>
-        </el-table-column>
         <el-table-column prop="createTime" label="注册时间" width="180" />
         <el-table-column label="操作" width="250" fixed="right">
           <template #default="{ row }">
@@ -122,11 +115,6 @@
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusTagType(currentBuyer.status)">
             {{ currentBuyer.statusName }}
-          </el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="审核状态">
-          <el-tag :type="getAuditStatusTagType(currentBuyer.auditStatus)">
-            {{ currentBuyer.auditStatusName }}
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="地区" :span="2">

@@ -143,16 +143,15 @@ const handleSubmit = async () => {
           }, 2000)
         })
         .catch((error) => {
+          // 错误提示已在响应拦截器中处理，这里不需要重复显示
+          // 但需要处理特殊业务逻辑（如跳转）
           if (error.message && error.message.includes('不存在')) {
-            ElMessage.error('该用户不存在！')
+            // 用户不存在时，响应拦截器已显示错误，这里只处理跳转逻辑
             setTimeout(() => {
               router.push('/login')
             }, 2000)
-          } else if (error.message && error.message.includes('不匹配')) {
-            ElMessage.error('您填写的邮箱或手机号与注册时的不一致，请重新填写')
-          } else {
-            ElMessage.error(error.message || '操作失败')
           }
+          console.error('密码重置失败:', error)
         })
         .finally(() => {
           loading.value = false

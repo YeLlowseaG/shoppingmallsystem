@@ -8,8 +8,6 @@ import com.shoppingmall.common.util.StringUtil;
 import com.shoppingmall.controller.common.CaptchaController;
 import com.shoppingmall.dto.*;
 import com.shoppingmall.entity.User;
-import com.shoppingmall.entity.UserAudit;
-import com.shoppingmall.repository.user.UserAuditRepository;
 import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.service.user.UserService;
 import com.shoppingmall.vo.LoginVO;
@@ -36,7 +34,6 @@ import java.util.Map;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
-    private final UserAuditRepository userAuditRepository;
     private final JwtUtil jwtUtil;
     private final ObjectMapper objectMapper;
     private final CaptchaController captchaController;
@@ -78,7 +75,8 @@ public class UserServiceImpl implements UserService {
         user.setPhone(registerDTO.getPhone());
         user.setAddress(registerDTO.getAddress());
         user.setUserLevel(com.shoppingmall.common.constant.UserLevel.NORMAL);
-        user.setStatus(com.shoppingmall.common.constant.UserStatus.PENDING);
+        // 注册后直接激活，无需审核
+        user.setStatus(com.shoppingmall.common.constant.UserStatus.ACTIVATED);
 
         // 设置出生日期（从年、月、日组合）
         if (registerDTO.getBirthYear() != null && registerDTO.getBirthMonth() != null && registerDTO.getBirthDay() != null) {
@@ -117,13 +115,8 @@ public class UserServiceImpl implements UserService {
         // 保存用户
         userRepository.insert(user);
 
-        // 创建审核记录
-        UserAudit audit = new UserAudit();
-        audit.setUserId(user.getId());
-        audit.setAuditStatus(com.shoppingmall.common.constant.AuditStatus.PENDING);
-        userAuditRepository.insert(audit);
-
-        log.info("用户注册成功: {}", user.getUsername());
+        // 注册后直接激活，不再创建审核记录
+        log.info("用户注册成功并自动激活: {}", user.getUsername());
     }
 
     @Override
@@ -152,10 +145,10 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(401, "用户名或密码错误");
         }
 
-        // 检查用户状态
-        if (!com.shoppingmall.common.constant.UserStatus.ACTIVATED.equals(user.getStatus())) {
-            log.warn("用户登录失败：账户未激活 - 用户名: {}, 状态: {}", loginDTO.getUsername(), user.getStatus());
-            throw new BusinessException(403, "账户未激活，请联系管理员审核");
+        // 检查用户状态（只检查是否禁用，不再检查是否激活）
+        if (com.shoppingmall.common.constant.UserStatus.DISABLED.equals(user.getStatus())) {
+            log.warn("用户登录失败：账户已禁用 - 用户名: {}, 状态: {}", loginDTO.getUsername(), user.getStatus());
+            throw new BusinessException(403, "账户已禁用，请联系管理员");
         }
 
         // 生成Token

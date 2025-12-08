@@ -544,7 +544,8 @@ const refreshCaptcha = async () => {
     registerForm.captchaId = response.captchaId
     registerForm.captcha = '' // 清空验证码输入
   } catch (error: any) {
-    ElMessage.error(error.message || '获取验证码失败')
+    // 错误提示已在响应拦截器中处理，这里不需要重复显示
+    console.error('获取验证码失败:', error)
   } finally {
     captchaLoading.value = false
   }
@@ -571,15 +572,16 @@ const handleRegister = async () => {
       loading.value = true
       registerApi(registerForm)
         .then(() => {
-          ElMessage.success('注册成功，请等待管理员审核')
+          ElMessage.success('注册成功，账户已激活，可以立即使用')
           router.push('/login')
         })
         .catch((error) => {
-          ElMessage.error(error.message || '注册失败')
+          // 错误提示已在响应拦截器中处理，这里不需要重复显示
           // 验证码错误时刷新验证码
           if (error.message && (error.message.includes('验证码') || error.message.includes('captcha'))) {
             refreshCaptcha()
           }
+          console.error('注册失败:', error)
         })
         .finally(() => {
           loading.value = false
