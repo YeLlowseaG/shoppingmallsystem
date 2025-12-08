@@ -29,36 +29,39 @@
             </div>
           </div>
 
-          <!-- 支付方式选择 -->
+          <!-- 选择支付方式 -->
           <div class="payment-section">
-            <div class="payment-options">
+            <div class="section-header">
+              <h3 class="section-title">
+                选择支付方式
+                <el-button type="text" class="modify-link" @click="showPaymentOptions = !showPaymentOptions">
+                  {{ showPaymentOptions ? '收起' : '修改' }}
+                </el-button>
+              </h3>
+            </div>
+            <div class="payment-info">
+              <div v-if="!showPaymentOptions" class="info-item">
+                <span class="info-label">支付方式：</span>
+                <span class="info-value">{{ selectedPaymentMethod.name }}</span>
+              </div>
+            </div>
+
+            <!-- 支付方式选择列表（展开显示） -->
+            <div v-if="showPaymentOptions" class="payment-methods-list">
               <div class="payment-radio-group">
-                <div 
-                  class="payment-radio" 
-                  :class="{ 'is-checked': selectedPaymentMethod === 'pre_deposit' }"
-                  @click="selectedPaymentMethod = 'pre_deposit'"
+                <div
+                  v-for="method in paymentMethods"
+                  :key="method.id"
+                  class="payment-radio"
+                  :class="{ 'is-checked': selectedPaymentMethodId === method.id }"
+                  @click="selectedPaymentMethodId = method.id"
                 >
-                  <span class="payment-icon">{{ selectedPaymentMethod === 'pre_deposit' ? '●' : '○' }}</span>
-                  <span class="payment-name">预存款支付</span>
-                  <span class="payment-desc">商店预存款支付</span>
-                </div>
-                <div 
-                  class="payment-radio" 
-                  :class="{ 'is-checked': selectedPaymentMethod === 'wechat' }"
-                  @click="selectedPaymentMethod = 'wechat'"
-                >
-                  <span class="payment-icon">{{ selectedPaymentMethod === 'wechat' ? '●' : '○' }}</span>
-                  <span class="payment-name">微信支付</span>
-                  <span class="payment-desc">微信支付</span>
-                </div>
-                <div 
-                  class="payment-radio" 
-                  :class="{ 'is-checked': selectedPaymentMethod === 'alipay' }"
-                  @click="selectedPaymentMethod = 'alipay'"
-                >
-                  <span class="payment-icon">{{ selectedPaymentMethod === 'alipay' ? '●' : '○' }}</span>
-                  <span class="payment-name">支付宝</span>
-                  <span class="payment-desc">电脑端支付宝支付</span>
+                  <span class="payment-icon">{{ selectedPaymentMethodId === method.id ? '●' : '○' }}</span>
+                  <span class="payment-name">{{ method.name }}</span>
+                  <span class="payment-desc">{{ method.description }}</span>
+                  <span v-if="method.id === 'pre_deposit'" class="deposit-balance">
+                    预存款余额：¥{{ depositBalance.toFixed(2) }}
+                  </span>
                 </div>
               </div>
             </div>
@@ -105,43 +108,78 @@ const route = useRoute()
 // 订单编号（从路由参数或订单信息获取）
 const orderNumber = ref('20251208115856')
 
-// 选中的支付方式（默认支付宝）
-const selectedPaymentMethod = ref('alipay')
-
 // 支付金额（从订单信息获取）
 const totalAmount = ref(6.5)
 
+// 支付方式相关
+const showPaymentOptions = ref(false)
+const selectedPaymentMethodId = ref('alipay')
+
+// 预存款余额（模拟数据，后续从后端获取）
+const depositBalance = ref(0.00)
+
+// 支付方式列表
+const paymentMethods = ref([
+  {
+    id: 'pre_deposit',
+    name: '预存款支付',
+    description: '商店预存款支付'
+  },
+  {
+    id: 'wechat',
+    name: '微信支付',
+    description: '微信支付'
+  },
+  {
+    id: 'alipay',
+    name: '支付宝',
+    description: '电脑端支付宝支付'
+  }
+])
+
+// 当前选中的支付方式
+const selectedPaymentMethod = computed(() => {
+  return paymentMethods.value.find(m => m.id === selectedPaymentMethodId.value) || paymentMethods.value[2]
+})
+
 // 查看订单详情
 const handleViewDetail = () => {
-  // TODO: 跳转到订单详情页面
-  ElMessage.info('查看订单详情功能待实现')
+  router.push({
+    path: '/order/detail',
+    query: {
+      orderNumber: orderNumber.value,
+      amount: totalAmount.value.toFixed(2)
+    }
+  })
 }
 
 // 立即付款
 const handlePayNow = () => {
-  if (!selectedPaymentMethod.value) {
+  if (!selectedPaymentMethodId.value) {
     ElMessage.warning('请选择支付方式')
     return
   }
 
-  // TODO: 调用支付API
-  ElMessage.success('正在跳转到支付页面...')
+  // 模拟支付过程
+  ElMessage.info('正在处理支付...')
   
-  // 根据选择的支付方式跳转到对应的支付网关
-  switch (selectedPaymentMethod.value) {
-    case 'alipay':
-      // TODO: 跳转到支付宝支付页面
-      console.log('跳转到支付宝支付')
-      break
-    case 'wechat':
-      // TODO: 跳转到微信支付页面
-      console.log('跳转到微信支付')
-      break
-    case 'pre_deposit':
-      // TODO: 使用预存款支付
-      console.log('使用预存款支付')
-      break
-  }
+  // 模拟支付API调用，延迟1秒后返回支付成功
+  setTimeout(() => {
+    // 模拟支付成功
+    ElMessage.success('支付成功！')
+    
+    // 延迟跳转到订单详情页面
+    setTimeout(() => {
+      router.push({
+        path: '/order/detail',
+        query: {
+          orderNumber: orderNumber.value,
+          amount: totalAmount.value.toFixed(2),
+          paymentStatus: 'success'
+        }
+      })
+    }, 1000)
+  }, 1000)
 }
 
 onMounted(() => {
@@ -151,6 +189,13 @@ onMounted(() => {
   }
   if (route.query.amount) {
     totalAmount.value = parseFloat(route.query.amount as string)
+  }
+  // 从路由参数获取支付方式，如果存在则设置为选中
+  if (route.query.paymentMethod) {
+    const paymentMethod = route.query.paymentMethod as string
+    if (paymentMethods.value.some(m => m.id === paymentMethod)) {
+      selectedPaymentMethodId.value = paymentMethod
+    }
   }
 })
 </script>
@@ -232,66 +277,118 @@ onMounted(() => {
 
 // 支付方式选择
 .payment-section {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
   margin-bottom: 30px;
   padding-bottom: 30px;
   border-bottom: 1px solid #e5e5e5;
-}
 
-.payment-options {
-  flex: 1;
+  .section-header {
+    margin-bottom: 15px;
 
-  .payment-radio-group {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
+    .section-title {
+      font-size: 16px;
+      font-weight: bold;
+      color: #333;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
 
-    .payment-radio {
+      .modify-link {
+        color: #e4393c;
+        font-size: 14px;
+        padding: 0;
+        font-weight: normal;
+      }
+    }
+  }
+
+  .payment-info {
+    .info-item {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 10px 0;
-      cursor: pointer;
-      transition: all 0.3s;
+      margin-bottom: 10px;
 
-      &:hover {
-        .payment-name {
-          color: #e4393c;
-        }
-      }
-
-      .payment-icon {
-        font-size: 18px;
-        color: #999;
-        width: 20px;
-        text-align: center;
-        display: inline-block;
-        transition: color 0.3s;
-      }
-
-      .payment-name {
+      .info-label {
         font-size: 14px;
         color: #333;
-        font-weight: 500;
-        transition: color 0.3s;
+        min-width: 120px;
       }
 
-      .payment-desc {
-        font-size: 12px;
-        color: #999;
-        margin-left: 5px;
+      .info-value {
+        font-size: 14px;
+        color: #666;
       }
+    }
+  }
 
-      // 选中状态
-      &.is-checked {
+  .payment-methods-list {
+    margin-top: 15px;
+    padding: 0;
+    overflow: visible;
+
+    .payment-radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      padding: 0;
+      margin: 0;
+      width: 100%;
+
+      .payment-radio {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 0;
+        cursor: pointer;
+        transition: all 0.3s;
+
+        &:hover {
+          .payment-name {
+            color: #e4393c;
+          }
+        }
+
         .payment-icon {
-          color: #e4393c;
+          font-size: 18px;
+          color: #999;
+          width: 20px;
+          text-align: center;
+          display: inline-block;
+          transition: color 0.3s;
         }
 
         .payment-name {
-          color: #e4393c;
+          font-size: 14px;
+          color: #333;
+          font-weight: 500;
+          transition: color 0.3s;
+        }
+
+        .payment-desc {
+          font-size: 12px;
+          color: #999;
+          margin-left: 5px;
+        }
+
+        .deposit-balance {
+          font-size: 14px;
+          color: #ff8c00;
+          margin-left: auto;
+          padding: 4px 8px;
+          background-color: #fffacd;
+          border-radius: 2px;
+        }
+
+        // 选中状态
+        &.is-checked {
+          .payment-icon {
+            color: #e4393c;
+          }
+
+          .payment-name {
+            color: #e4393c;
+          }
         }
       }
     }
@@ -300,7 +397,7 @@ onMounted(() => {
 
 .payment-amount {
   text-align: right;
-  margin-left: 40px;
+  margin-top: 20px;
 
   .amount-label {
     font-size: 14px;

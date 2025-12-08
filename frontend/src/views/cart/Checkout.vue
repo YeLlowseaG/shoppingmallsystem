@@ -54,28 +54,43 @@
             <div class="address-selection">
               <div class="address-label">确认收货地址：</div>
               <div class="address-list">
-                <el-radio-group v-model="selectedAddressId" class="address-radio-group">
-                  <el-radio
+                <div class="address-radio-group">
+                  <label
                     v-for="address in addressList"
                     :key="address.id"
-                    :label="address.id"
-                    class="address-radio"
+                    class="address-radio-item"
                   >
-                    <div class="address-content">
-                      <span class="address-region">{{ address.region }}</span>
-                      <span class="address-detail">{{ address.detailAddress }}</span>
-                      <span class="address-recipient">
-                        (收货人:{{ address.receiverName }} 手机:{{ address.receiverPhone }} 邮编:{{ address.zipCode }})
-                      </span>
-                      <el-button type="text" class="edit-link" @click="handleEditAddress(address)">
-                        编辑
-                      </el-button>
-                    </div>
-                  </el-radio>
-                  <el-radio label="other" class="address-radio">
-                    <span class="other-address-text">其他收货地址</span>
-                  </el-radio>
-                </el-radio-group>
+                    <input
+                      type="radio"
+                      :value="address.id"
+                      v-model="selectedAddressId"
+                      class="address-radio-input"
+                    />
+                    <span class="address-radio-label">
+                      <div class="address-content">
+                        <span class="address-region">{{ address.region }}</span>
+                        <span class="address-detail">{{ address.detailAddress }}</span>
+                        <span class="address-recipient">
+                          (收货人:{{ address.receiverName }} 手机:{{ address.receiverPhone }} 邮编:{{ address.zipCode }})
+                        </span>
+                        <el-button type="text" class="edit-link" @click="handleEditAddress(address)">
+                          编辑
+                        </el-button>
+                      </div>
+                    </span>
+                  </label>
+                  <label class="address-radio-item">
+                    <input
+                      type="radio"
+                      value="other"
+                      v-model="selectedAddressId"
+                      class="address-radio-input"
+                    />
+                    <span class="address-radio-label">
+                      <span class="other-address-text">其他收货地址</span>
+                    </span>
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -206,9 +221,7 @@
             <div class="section-header">
               <h3 class="section-title">
                 选择配送方式
-                <el-button type="text" class="modify-link" @click="showShippingOptions = !showShippingOptions">
-                  {{ showShippingOptions ? '收起' : '修改' }}
-                </el-button>
+                <el-button type="text" class="modify-link" @click="showShippingDialog = true">修改</el-button>
               </h3>
             </div>
             <div class="shipping-info">
@@ -218,39 +231,59 @@
               </div>
               <div class="info-item">
                 <span class="info-label">运费：</span>
-                <span class="info-value">+¥{{ selectedShippingMethod.price.toFixed(2) }}</span>
+                <span class="info-value shipping-fee">+¥{{ selectedShippingMethod.price.toFixed(2) }}</span>
               </div>
             </div>
+          </div>
 
-            <!-- 配送方式选择列表（展开显示） -->
-            <div v-if="showShippingOptions" class="shipping-methods-list">
-              <el-radio-group v-model="selectedShippingMethodId" class="shipping-radio-group">
-                <el-radio
+          <!-- 配送方式选择对话框 -->
+          <el-dialog
+            v-model="showShippingDialog"
+            title="选择配送方式"
+            width="800px"
+            class="shipping-dialog"
+          >
+            <div class="shipping-methods-list">
+              <div class="shipping-radio-group">
+                <label
                   v-for="method in shippingMethods"
                   :key="method.id"
-                  :label="method.id"
-                  class="shipping-radio"
+                  class="shipping-radio-item"
                 >
-                  <div class="shipping-method-content">
-                    <div class="method-header">
-                      <span class="method-name">{{ method.name }}</span>
-                      <span class="method-price">+¥{{ method.price.toFixed(2) }}</span>
+                  <input
+                    type="radio"
+                    :value="method.id"
+                    v-model="selectedShippingMethodId"
+                    class="shipping-radio-input"
+                  />
+                  <span class="shipping-radio-label">
+                    <div class="shipping-method-content">
+                      <div class="method-header">
+                        <span class="method-name">{{ method.name }}</span>
+                        <span class="method-price">+¥{{ method.price.toFixed(2) }}</span>
+                      </div>
+                      <div v-if="method.description" class="method-description">
+                        {{ method.description }}
+                      </div>
                     </div>
-                    <div v-if="method.description" class="method-description">
-                      {{ method.description }}
-                    </div>
-                  </div>
-                </el-radio>
-              </el-radio-group>
+                  </span>
+                </label>
+              </div>
             </div>
-          </div>
+            <template #footer>
+              <el-button @click="showShippingDialog = false">取消</el-button>
+              <el-button type="danger" @click="handleConfirmShipping">确定</el-button>
+            </template>
+          </el-dialog>
 
           <!-- 选择支付方式 -->
           <div class="checkout-section">
             <div class="section-header">
               <h3 class="section-title">
                 选择支付方式
-                <el-button type="text" class="modify-link">修改</el-button>
+                <el-button type="text" class="modify-link" @click="showPaymentOptions = !showPaymentOptions">
+                  {{ showPaymentOptions ? '收起' : '修改' }}
+                </el-button>
               </h3>
             </div>
             <div class="payment-info">
@@ -260,21 +293,29 @@
                   <el-option label="人民币" value="CNY" />
                 </el-select>
               </div>
-              <div class="payment-methods">
-                <el-radio-group v-model="paymentMethod" class="payment-radio-group">
-                  <el-radio label="pre_deposit" class="payment-radio">
-                    <span class="payment-name">预存款支付</span>
-                    <span class="payment-desc">商店预存款支付</span>
-                  </el-radio>
-                  <el-radio label="wechat" class="payment-radio">
-                    <span class="payment-name">微信支付</span>
-                    <span class="payment-desc">微信支付</span>
-                  </el-radio>
-                  <el-radio label="alipay" class="payment-radio">
-                    <span class="payment-name">支付宝</span>
-                    <span class="payment-desc">电脑端支付宝支付</span>
-                  </el-radio>
-                </el-radio-group>
+              <div v-if="!showPaymentOptions" class="info-item">
+                <span class="info-label">支付方式：</span>
+                <span class="info-value">{{ selectedPaymentMethod.name }}</span>
+              </div>
+            </div>
+
+            <!-- 支付方式选择列表（展开显示） -->
+            <div v-if="showPaymentOptions" class="payment-methods-list">
+              <div class="payment-radio-group">
+                <div
+                  v-for="method in paymentMethods"
+                  :key="method.id"
+                  class="payment-radio"
+                  :class="{ 'is-checked': paymentMethod === method.id }"
+                  @click="paymentMethod = method.id"
+                >
+                  <span class="payment-icon">{{ paymentMethod === method.id ? '●' : '○' }}</span>
+                  <span class="payment-name">{{ method.name }}</span>
+                  <span class="payment-desc">{{ method.description }}</span>
+                  <span v-if="method.id === 'pre_deposit' && paymentMethod === 'pre_deposit'" class="deposit-balance">
+                    预存款余额：¥{{ depositBalance.toFixed(2) }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -433,11 +474,38 @@ const orderRemarks = ref('')
 // 支付币别
 const paymentCurrency = ref('CNY')
 
-// 支付方式
+// 支付方式相关
+const showPaymentOptions = ref(false)
 const paymentMethod = ref('alipay')
+// 预存款余额（模拟数据，后续从后端获取）
+const depositBalance = ref(0.00)
+
+// 支付方式列表
+const paymentMethods = ref([
+  {
+    id: 'pre_deposit',
+    name: '预存款支付',
+    description: '商店预存款支付'
+  },
+  {
+    id: 'wechat',
+    name: '微信支付',
+    description: '微信支付'
+  },
+  {
+    id: 'alipay',
+    name: '支付宝',
+    description: '电脑端支付宝支付'
+  }
+])
+
+// 当前选中的支付方式
+const selectedPaymentMethod = computed(() => {
+  return paymentMethods.value.find(m => m.id === paymentMethod.value) || paymentMethods.value[2]
+})
 
 // 配送方式相关
-const showShippingOptions = ref(false)
+const showShippingDialog = ref(false)
 const selectedShippingMethodId = ref('free_shipping')
 
 // 配送方式列表（模拟数据，后续从API获取）
@@ -576,10 +644,11 @@ const handleEditAddress = (address: any) => {
   }
 }
 
-// 配送方式选择后自动更新（通过computed）
-watch(selectedShippingMethodId, () => {
+// 确认配送方式
+const handleConfirmShipping = () => {
+  showShippingDialog.value = false
   // 配送费用会自动更新（通过computed）
-})
+}
 
 // 返回购物车
 const handleBackToCart = () => {
@@ -603,12 +672,13 @@ const handlePlaceOrder = async () => {
   // 模拟订单编号
   const orderNumber = '20251208115856'
   
-  // 跳转到支付页面，传递订单信息
+  // 跳转到支付页面，传递订单信息和支付方式
   router.push({
     path: '/order/payment',
     query: {
       orderNumber: orderNumber,
-      amount: totalAmount.value.toFixed(2)
+      amount: totalAmount.value.toFixed(2),
+      paymentMethod: paymentMethod.value
     }
   })
 }
@@ -772,65 +842,71 @@ const handlePlaceOrder = async () => {
       flex-direction: column;
       gap: 10px;
 
-      .address-radio {
+      .address-radio-item {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         padding: 10px 0;
         margin: 0;
         height: auto;
         line-height: 1.5;
+        cursor: pointer;
 
-        :deep(.el-radio__input) {
-          margin-top: 0;
+        .address-radio-input {
+          margin: 0;
+          margin-right: 8px;
+          margin-top: 2px;
           flex-shrink: 0;
+          width: 16px;
+          height: 16px;
+          cursor: pointer;
         }
 
-        :deep(.el-radio__label) {
-          padding-left: 8px;
+        .address-radio-label {
           flex: 1;
-          display: flex;
-          align-items: center;
+          display: block;
           text-align: left;
-        }
+          width: 100%;
 
-        .address-content {
-          display: flex;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 5px;
-          flex: 1;
-          line-height: 1.6;
-          text-align: left;
+          .address-content {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 5px;
+            flex: 1;
+            line-height: 1.6;
+            text-align: left;
 
-          .address-region {
+            .address-region {
+              font-size: 14px;
+              color: #333;
+              font-weight: 500;
+            }
+
+            .address-detail {
+              font-size: 14px;
+              color: #333;
+            }
+
+            .address-recipient {
+              font-size: 14px;
+              color: #666;
+            }
+
+            .edit-link {
+              color: #e4393c;
+              font-size: 14px;
+              padding: 0;
+              margin-left: 10px;
+            }
+          }
+
+          .other-address-text {
             font-size: 14px;
             color: #333;
-            font-weight: 500;
+            text-align: left;
+            display: block;
+            width: 100%;
           }
-
-          .address-detail {
-            font-size: 14px;
-            color: #333;
-          }
-
-          .address-recipient {
-            font-size: 14px;
-            color: #666;
-          }
-
-          .edit-link {
-            color: #e4393c;
-            font-size: 14px;
-            padding: 0;
-            margin-left: 10px;
-          }
-        }
-
-        // 确保"其他收货地址"选项也左对齐
-        .other-address-text {
-          font-size: 14px;
-          color: #333;
-          text-align: left;
         }
       }
     }
@@ -941,109 +1017,112 @@ const handlePlaceOrder = async () => {
     .info-value {
       font-size: 14px;
       color: #666;
+
+      &.shipping-fee {
+        color: #e4393c;
+      }
     }
   }
 }
 
-// 配送方式选择列表（展开显示）
-.shipping-methods-list {
-  margin-top: 20px;
-  padding: 0;
-  overflow: visible;
+// 配送方式选择对话框
+.shipping-dialog {
+  :deep(.el-dialog__body) {
+    padding: 20px;
+    background: #f5f5f5;
+  }
 
-  .shipping-radio-group {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+  .shipping-methods-list {
     padding: 0;
     margin: 0;
+    overflow: visible;
 
-    .shipping-radio {
-      display: block;
+    .shipping-radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
       padding: 0;
       margin: 0;
-      height: auto;
-      border: 1px solid #e5e5e5;
-      border-radius: 4px;
-      transition: all 0.3s;
-      background: #fff;
-      min-height: 50px;
 
-      &:hover {
-        border-color: #e4393c;
-        background: #fff5f5;
-      }
-
-      :deep(.el-radio) {
+      .shipping-radio-item {
         display: flex;
         align-items: flex-start;
-        width: 100%;
+        padding: 8px 0;
         margin: 0;
-        padding: 0;
-        white-space: normal;
-        height: 100%;
-      }
+        height: auto;
+        line-height: 1.5;
+        cursor: pointer;
 
-      :deep(.el-radio__input) {
-        margin-top: 15px;
-        margin-left: 12px;
-        margin-right: 0;
-        flex-shrink: 0;
-        width: auto;
-      }
-
-      :deep(.el-radio__input.is-checked .el-radio__inner) {
-        background-color: #409eff;
-        border-color: #409eff;
-      }
-
-      :deep(.el-radio__label) {
-        padding: 12px 12px 12px 8px !important;
-        flex: 1;
-        width: auto;
-        display: block;
-        margin-left: 0 !important;
-        padding-left: 8px !important;
-      }
-
-      .shipping-method-content {
-        width: 100%;
-        text-align: left;
-        padding-right: 12px;
-        padding-left: 0;
-        margin: 0;
-
-        .method-header {
-          display: flex;
-          align-items: center;
-          justify-content: flex-start;
-          margin-bottom: 5px;
-          gap: 10px;
-          padding: 0;
-          margin-left: 0;
-
-          .method-name {
-            font-size: 14px;
-            color: #333;
-            font-weight: 500;
-          }
-
-          .method-price {
-            font-size: 14px;
-            color: #333;
-            font-weight: normal;
-          }
+        .shipping-radio-input {
+          margin: 0;
+          margin-right: 8px;
+          margin-top: 2px;
+          flex-shrink: 0;
+          width: 16px;
+          height: 16px;
+          cursor: pointer;
         }
 
-        .method-description {
-          font-size: 12px;
-          color: #666;
-          line-height: 1.6;
-          margin-top: 3px;
-          word-break: break-all;
+        .shipping-radio-label {
+          flex: 1;
+          display: block;
           text-align: left;
-          padding-left: 0;
-          margin-left: 0;
+          width: 100%;
+
+          .shipping-method-content {
+            width: 100%;
+            max-width: 100%;
+            text-align: left;
+            padding-right: 0;
+            padding-left: 0;
+            margin: 0;
+            box-sizing: border-box;
+
+            .method-header {
+              display: flex;
+              align-items: flex-start;
+              justify-content: flex-start;
+              margin-bottom: 4px;
+              gap: 8px;
+              padding: 0;
+              margin: 0;
+              line-height: 1.5;
+
+              .method-name {
+                font-size: 14px;
+                color: #333;
+                font-weight: normal;
+                margin: 0;
+                padding: 0;
+              }
+
+              .method-price {
+                font-size: 14px;
+                color: #e4393c;
+                font-weight: normal;
+                margin: 0;
+                padding: 0;
+              }
+            }
+
+            .method-description {
+              font-size: 12px;
+              color: #e4393c;
+              line-height: 1.6;
+              margin-top: 2px;
+              margin-left: 0;
+              margin-bottom: 0;
+              padding: 0;
+              word-break: normal !important;
+              word-wrap: break-word !important;
+              overflow-wrap: break-word !important;
+              white-space: normal !important;
+              text-align: left;
+              display: block;
+              width: 100%;
+              box-sizing: border-box;
+            }
+          }
         }
       }
     }
@@ -1055,51 +1134,88 @@ const handlePlaceOrder = async () => {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
 
     .info-label {
       font-size: 14px;
       color: #333;
       min-width: 120px;
     }
+
+    .info-value {
+      font-size: 14px;
+      color: #666;
+    }
   }
+}
 
-  .payment-methods {
-    margin-top: 10px;
+// 支付方式选择列表（独立样式，不在 .payment-info 内）
+.payment-methods-list {
+  margin-top: 15px;
+  padding: 0;
+  overflow: visible;
 
-    .payment-radio-group {
+  .payment-radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+
+    .payment-radio {
       display: flex;
-      flex-direction: column;
-      gap: 8px;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      cursor: pointer;
+      transition: all 0.3s;
 
-      .payment-radio {
-        display: flex;
-        align-items: flex-start;
-        padding: 8px 0;
-        margin: 0;
-        height: auto;
-        line-height: 1.5;
-
-        :deep(.el-radio__input) {
-          margin-top: 3px;
+      &:hover {
+        .payment-name {
+          color: #e4393c;
         }
+      }
 
-        :deep(.el-radio__label) {
-          padding-left: 8px;
-          display: flex;
-          flex-direction: column;
-          gap: 3px;
+      .payment-icon {
+        font-size: 18px;
+        color: #999;
+        width: 20px;
+        text-align: center;
+        display: inline-block;
+        transition: color 0.3s;
+      }
+
+      .payment-name {
+        font-size: 14px;
+        color: #333;
+        font-weight: 500;
+        transition: color 0.3s;
+      }
+
+      .payment-desc {
+        font-size: 12px;
+        color: #999;
+        margin-left: 5px;
+      }
+
+      .deposit-balance {
+        font-size: 14px;
+        color: #ff8c00;
+        margin-left: auto;
+        padding: 4px 8px;
+        background-color: #fffacd;
+        border-radius: 2px;
+      }
+
+      // 选中状态
+      &.is-checked {
+        .payment-icon {
+          color: #e4393c;
         }
 
         .payment-name {
-          font-size: 14px;
-          color: #333;
-          font-weight: 500;
-        }
-
-        .payment-desc {
-          font-size: 12px;
-          color: #999;
+          color: #e4393c;
         }
       }
     }

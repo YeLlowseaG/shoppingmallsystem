@@ -129,6 +129,15 @@ const router = createRouter({
         title: '订单支付',
         requiresAuth: true
       }
+    },
+    {
+      path: '/order/detail',
+      name: 'order-detail',
+      component: () => import('@/views/order/Detail.vue'),
+      meta: {
+        title: '订单详情',
+        requiresAuth: true
+      }
     }
   ]
 })
