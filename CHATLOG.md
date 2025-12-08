@@ -764,5 +764,253 @@ Commit: ab13030
 
 ---
 
-**Last Updated**: 2025-12-05 (Session 14)
-**Next Session**: Product detail page or backend API integration
+### Session 15: Backend Service Configuration and Startup
+
+**Topic**: Configuring and starting backend service, fixing database connection issues, testing APIs
+
+**Context**: Session continued from context limit. Previous sessions completed frontend homepage and product list pages. Now focusing on backend service startup.
+
+**Problem 1: H2 Driver Error**
+
+**Initial Issue**:
+Backend service failed to start with error:
+```
+java.lang.ClassNotFoundException: org.h2.Driver
+```
+
+Despite MySQL driver being configured in `application.yml`, Spring Boot was attempting to load H2 driver.
+
+**Root Cause Analysis**:
+1. ✅ MySQL driver dependency present in pom.xml
+2. ✅ MySQL configuration correct in application.yml
+3. ✅ No H2 dependency in pom.xml
+4. ❌ **Druid connection pool dependency conflicting with HikariCP**
+
+**Solution**:
+Removed Druid dependency from pom.xml:
+```xml
+<!-- Removed from pom.xml -->
+<druid.version>1.2.18</druid.version>
+<dependency>
+    <groupId>com.alibaba</groupId>
+    <artifactId>druid-spring-boot-3-starter</artifactId>
+</dependency>
+```
+
+Updated application.yml to use HikariCP (Spring Boot default):
+```yaml
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/chengren_shopping_mall?...
+    username: root
+    password: 12345678
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 60000
+```
+
+**Problem 2: Unknown Database Error**
+
+**Error**:
+```
+java.sql.SQLSyntaxErrorException: Unknown database 'chengren_shopping_mall'
+```
+
+**Solution**:
+1. ✅ Executed `schema.sql` to create database and tables
+2. ✅ Executed `init_data.sql` to import initial data
+
+```bash
+mysql -uroot -p12345678 < database/schema.sql
+mysql -uroot -p12345678 chengren_shopping_mall < database/init_data.sql
+```
+
+**Problem 3: 401 Unauthorized for Product APIs**
+
+**Issue**:
+Guest users couldn't access product listing APIs - received 401 error
+
+**Solution**:
+Modified JWT authentication configuration to allow anonymous access to buyer product APIs:
+
+```java
+// WebMvcConfig.java
+@Override
+public void addInterceptors(InterceptorRegistry registry) {
+    registry.addInterceptor(jwtAuthenticationInterceptor)
+            .addPathPatterns("/api/**")
+            .excludePathPatterns(
+                    "/api/buyer/user/login",
+                    "/api/buyer/user/register",
+                    "/api/buyer/user/forgot-password",
+                    "/api/buyer/product/**",           // ✅ Added
+                    "/api/buyer/product-category/**",  // ✅ Added
+                    "/api/common/**"
+            );
+}
+```
+
+**Backend Service Successfully Started**:
+- ✅ Running on port 8080
+- ✅ MySQL connection working
+- ✅ HikariCP connection pool configured
+- ✅ Spring Boot 3.1.5 + Java 17 LTS
+- ✅ MyBatis Plus 3.5.4.1 operational
+
+**API Testing Results**:
+
+1. **Product Page API** ✅
+```bash
+GET /api/buyer/product/page?current=1&size=10
+Response: 200 OK
+{
+  "code": 200,
+  "message": "获取成功",
+  "data": {
+    "records": [],
+    "total": 0,
+    "current": 1,
+    "size": 10
+  }
+}
+```
+Note: Empty records because no products with "上架" status in database yet
+
+2. **Product Category Tree API** ✅
+```bash
+GET /api/buyer/product-category/tree
+Response: 200 OK
+{
+  "code": 200,
+  "message": "获取成功",
+  "data": [
+    {
+      "id": 1,
+      "categoryName": "情趣用品",
+      "children": [
+        {"id": 5, "categoryName": "男用器具"},
+        {"id": 6, "categoryName": "女用器具"},
+        {"id": 7, "categoryName": "润滑剂"},
+        {"id": 8, "categoryName": "安全套"}
+      ]
+    },
+    // ... more categories
+  ]
+}
+```
+
+**Database Initialization Complete**:
+- ✅ Database: `chengren_shopping_mall` created
+- ✅ Tables: All tables created via schema.sql
+- ✅ Initial data: Categories, admin users imported
+- ✅ Category structure:
+  - 情趣用品 (男用器具、女用器具、润滑剂、安全套)
+  - 健康护理 (护理用品、清洁用品)
+  - 情趣内衣 (女士内衣、男士内衣)
+  - 其他
+
+**Admin Frontend Configuration**:
+
+**Issue**: Admin frontend not yet running
+
+**Solution**:
+1. ✅ Found admin frontend at `/admin-frontend`
+2. ✅ Installed dependencies: `npm install`
+3. ✅ Started dev server: `npm run dev`
+4. ✅ Admin frontend running on port **3001**
+
+Admin frontend configuration (vite.config.ts):
+```typescript
+server: {
+  port: 3001,  // Admin backend port
+  proxy: {
+    '/api': {
+      target: 'http://localhost:8080',
+      changeOrigin: true
+    }
+  }
+}
+```
+
+**Current Running Services**:
+1. ✅ **Backend API**: http://localhost:8080
+2. ✅ **Buyer Frontend**: http://localhost:3000 (from previous session)
+3. ✅ **Admin Frontend**: http://localhost:3001 ✨ NEW
+
+**Files Modified**:
+- `pom.xml` - Removed Druid dependency
+- `backend/src/main/resources/application.yml` - Updated MySQL password, simplified datasource config
+- `backend/src/main/resources/application-dev.yml` - Updated MySQL password
+- `backend/src/main/java/com/shoppingmall/common/config/WebMvcConfig.java` - Added anonymous access for product APIs
+
+**Documents Created**:
+- ✅ `CHANGELOG.md` - Detailed changelog of backend configuration and fixes
+
+**Commits**:
+```bash
+feat: 配置后端服务启动并修复数据库连接问题
+
+主要修改:
+- 移除Druid连接池依赖,解决与HikariCP的冲突
+- 更新MySQL数据库密码配置
+- 修改JWT认证配置,允许匿名访问买家端商品接口
+- 修复Controller Bean命名冲突
+- 创建数据库并导入初始数据
+- 添加更新日志文档
+
+Commit: f09c761
+Branch: feature/yellow-modules
+Status: Committed locally, not yet pushed (network issue)
+```
+
+**Git Status**:
+- ✅ Local changes committed
+- ✅ Fetched latest from origin/dev and origin/main
+- ✅ Feature branch up to date with dev branch
+- ⏸️ Push to remote interrupted due to network issue
+
+**Remote Updates Reviewed**:
+From `origin/dev` branch (jie's work):
+- Port configuration changes (前后端服务端口修改)
+- Product list page implementation (商品列表页)
+- Table design modifications (表设计修改-字典方式改为非中文)
+- Guest mode and product list page planning documentation
+
+**Technical Stack Confirmed**:
+- Java 17 LTS (OpenJDK Eclipse Temurin 17.0.17)
+- Spring Boot 3.1.5
+- MyBatis Plus 3.5.4.1
+- MySQL 8.0.33
+- HikariCP connection pool
+- Maven 3.9.11
+- Vue 3 + Vite (Frontend)
+- Element Plus (Admin UI)
+
+**Problems Solved**:
+1. ✅ H2 Driver ClassNotFoundException - Removed Druid dependency conflict
+2. ✅ Database not found - Created database and imported data
+3. ✅ 401 Unauthorized for guest users - Added anonymous access configuration
+4. ✅ Admin frontend not accessible - Installed dependencies and started server
+
+**Current Status**:
+- ✅ Backend service running and healthy
+- ✅ Product and category APIs tested and working
+- ✅ Admin frontend accessible
+- ✅ Database fully initialized with categories
+- ✅ Guest mode working for product browsing
+- ⏸️ Awaiting network stability to push commits
+
+**Next Steps**:
+1. Push local commits to remote when network is stable
+2. Integrate frontend product list page with real backend APIs
+3. Implement product detail page API integration
+4. Test admin frontend product management features
+5. Add sample products to database for testing
+6. Continue with shopping cart module
+
+---
+
+**Last Updated**: 2025-12-06 (Session 15)
+**Next Session**: Frontend-backend API integration for product pages
