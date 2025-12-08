@@ -70,6 +70,15 @@
         <el-descriptions-item label="性别">
           {{ currentBuyer.gender === 1 ? '男' : currentBuyer.gender === 0 ? '女' : '-' }}
         </el-descriptions-item>
+        <el-descriptions-item label="出生日期">
+          {{ currentBuyer.birthday || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="固定电话">
+          {{ currentBuyer.fixedPhone || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="运营人员">
+          {{ currentBuyer.operator || '-' }}
+        </el-descriptions-item>
         <el-descriptions-item label="等级">
           <el-tag :type="getLevelTagType(currentBuyer.userLevel)">
             {{ currentBuyer.userLevelName }}
@@ -88,7 +97,19 @@
         <el-descriptions-item label="地区" :span="2">
           {{ getRegionText(currentBuyer) }}
         </el-descriptions-item>
-        <el-descriptions-item label="详细地址" :span="2">{{ currentBuyer.address }}</el-descriptions-item>
+        <el-descriptions-item label="详细地址" :span="2">{{ currentBuyer.address || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="邮编">
+          {{ currentBuyer.zipCode || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="安全问题">
+          {{ currentBuyer.securityQuestion || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="安全问题答案">
+          {{ currentBuyer.securityAnswer || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="旺旺账号">
+          {{ currentBuyer.wangwang || '-' }}
+        </el-descriptions-item>
         <el-descriptions-item label="审核意见" :span="2">{{ currentBuyer.auditComment || '-' }}</el-descriptions-item>
         <el-descriptions-item label="注册时间">{{ currentBuyer.createTime }}</el-descriptions-item>
         <el-descriptions-item label="更新时间">{{ currentBuyer.updateTime }}</el-descriptions-item>
@@ -109,12 +130,12 @@
             {{ auditForm.auditStatus === 1 ? '通过' : '拒绝' }}
           </el-tag>
         </el-form-item>
-        <el-form-item label="审核意见" prop="auditComment">
+        <el-form-item label="审核意见">
           <el-input
             v-model="auditForm.auditComment"
             type="textarea"
             :rows="4"
-            placeholder="请输入审核意见"
+            placeholder="请输入审核意见（选填）"
           />
         </el-form-item>
       </el-form>
@@ -158,10 +179,7 @@ const auditForm = reactive<BuyerDTO>({
 })
 
 const auditRules: FormRules = {
-  auditComment: [
-    { required: true, message: '请输入审核意见', trigger: 'blur' },
-    { min: 5, message: '审核意见至少5个字符', trigger: 'blur' }
-  ]
+  // 审核意见改为非必填，无字符长度限制
 }
 
 const auditTitle = computed(() => {

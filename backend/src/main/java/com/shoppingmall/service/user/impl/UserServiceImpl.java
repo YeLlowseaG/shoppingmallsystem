@@ -80,6 +80,28 @@ public class UserServiceImpl implements UserService {
         user.setUserLevel(com.shoppingmall.common.constant.UserLevel.NORMAL);
         user.setStatus(com.shoppingmall.common.constant.UserStatus.PENDING);
 
+        // 设置出生日期（从年、月、日组合）
+        if (registerDTO.getBirthYear() != null && registerDTO.getBirthMonth() != null && registerDTO.getBirthDay() != null) {
+            try {
+                java.time.LocalDate birthday = java.time.LocalDate.of(
+                    registerDTO.getBirthYear(),
+                    registerDTO.getBirthMonth(),
+                    registerDTO.getBirthDay()
+                );
+                user.setBirthday(birthday);
+            } catch (Exception e) {
+                log.warn("出生日期格式错误: {}-{}-{}", registerDTO.getBirthYear(), registerDTO.getBirthMonth(), registerDTO.getBirthDay(), e);
+            }
+        }
+
+        // 设置其他可选字段
+        user.setOperator(registerDTO.getOperator());
+        user.setFixedPhone(registerDTO.getFixedPhone());
+        user.setZipCode(registerDTO.getZipCode());
+        user.setSecurityQuestion(registerDTO.getSecurityQuestion());
+        user.setSecurityAnswer(registerDTO.getSecurityAnswer());
+        user.setWangwang(registerDTO.getWangwang());
+
         // 构建地区JSON
         Map<String, String> regionMap = new HashMap<>();
         regionMap.put("province", registerDTO.getProvince());

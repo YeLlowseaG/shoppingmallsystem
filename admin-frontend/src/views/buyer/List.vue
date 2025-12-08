@@ -105,6 +105,15 @@
         <el-descriptions-item label="性别">
           {{ currentBuyer.gender === 1 ? '男' : currentBuyer.gender === 0 ? '女' : '-' }}
         </el-descriptions-item>
+        <el-descriptions-item label="出生日期">
+          {{ currentBuyer.birthday || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="固定电话">
+          {{ currentBuyer.fixedPhone || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="运营人员">
+          {{ currentBuyer.operator || '-' }}
+        </el-descriptions-item>
         <el-descriptions-item label="等级">
           <el-tag :type="getLevelTagType(currentBuyer.userLevel)">
             {{ currentBuyer.userLevelName }}
@@ -123,7 +132,19 @@
         <el-descriptions-item label="地区" :span="2">
           {{ getRegionText(currentBuyer) }}
         </el-descriptions-item>
-        <el-descriptions-item label="详细地址" :span="2">{{ currentBuyer.address }}</el-descriptions-item>
+        <el-descriptions-item label="详细地址" :span="2">{{ currentBuyer.address || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="邮编">
+          {{ currentBuyer.zipCode || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="安全问题">
+          {{ currentBuyer.securityQuestion || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="安全问题答案">
+          {{ currentBuyer.securityAnswer || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="旺旺账号">
+          {{ currentBuyer.wangwang || '-' }}
+        </el-descriptions-item>
         <el-descriptions-item label="审核意见" :span="2">{{ currentBuyer.auditComment || '-' }}</el-descriptions-item>
         <el-descriptions-item label="注册时间">{{ currentBuyer.createTime }}</el-descriptions-item>
         <el-descriptions-item label="更新时间">{{ currentBuyer.updateTime }}</el-descriptions-item>

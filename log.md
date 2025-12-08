@@ -2,6 +2,106 @@
 
 ## 2025-01-XX
 
+### 修改审核页面，审核意见改为非必填
+- 更新了 `admin-frontend/src/views/buyer/Audit.vue`，修改审核意见的验证规则
+- 主要修改内容：
+  1. **移除验证规则**：
+     - 移除了 `required: true` 必填校验
+     - 移除了 `min: 5` 最小长度校验
+     - 审核意见现在完全可选，可以为空
+  2. **更新表单项**：
+     - 移除了 `prop="auditComment"` 属性，不再进行表单验证
+     - 更新占位符文本为"请输入审核意见（选填）"，明确提示用户该字段为可选
+- 功能特点：
+  - ✅ 审核意见现在是非必填字段
+  - ✅ 可以提交空的审核意见
+  - ✅ 用户界面更友好，明确标注为选填
+
+### 更新采购者列表和审核页面，展示新增字段信息
+- 更新了 `backend/src/main/java/com/shoppingmall/vo/BuyerVO.java`，添加新字段到VO对象
+- 更新了 `admin-frontend/src/api/admin/buyer.ts`，更新前端BuyerVO接口定义
+- 更新了 `admin-frontend/src/views/buyer/List.vue`，在详情对话框中展示新字段
+- 更新了 `admin-frontend/src/views/buyer/Audit.vue`，在详情对话框中展示新字段
+- 主要修改内容：
+  1. **BuyerVO后端更新**：
+     - 添加 `birthday` (LocalDate) - 出生日期
+     - 添加 `operator` (String) - 运营人员
+     - 添加 `fixedPhone` (String) - 固定电话
+     - 添加 `zipCode` (String) - 邮编
+     - 添加 `securityQuestion` (String) - 安全问题
+     - 添加 `securityAnswer` (String) - 安全问题答案
+     - 添加 `wangwang` (String) - 旺旺账号
+  2. **前端接口定义更新**：
+     - 在 `BuyerVO` 接口中添加所有新字段的类型定义
+  3. **采购者列表页面（List.vue）**：
+     - 在详情对话框中添加新字段展示：
+       - 出生日期
+       - 固定电话
+       - 运营人员
+       - 邮编
+       - 安全问题
+       - 安全问题答案
+       - 旺旺账号
+  4. **审核页面（Audit.vue）**：
+     - 在详情对话框中添加相同的新字段展示
+     - 确保审核时能看到完整的用户注册信息
+- 功能特点：
+  - ✅ 所有新增字段都能在详情页面中正确展示
+  - ✅ 字段为空时显示 "-" 占位符
+  - ✅ 字段展示布局合理，使用2列布局
+  - ✅ 向后兼容，不影响现有功能
+
+### 完善用户注册功能，添加所有缺失字段的保存
+- 创建了数据库迁移文件 `database/migration_add_user_fields.sql`，添加用户表缺失字段
+- 更新了 `backend/src/main/java/com/shoppingmall/entity/User.java`，添加新字段
+- 更新了 `backend/src/main/java/com/shoppingmall/service/user/impl/UserServiceImpl.java`，完善注册方法保存所有字段
+- 主要修改内容：
+  1. **数据库表结构扩展**：
+     - 添加 `operator` VARCHAR(50) - 运营人员
+     - 添加 `birthday` DATE - 出生日期（由年、月、日组合）
+     - 添加 `zip_code` VARCHAR(10) - 邮编
+     - 添加 `fixed_phone` VARCHAR(20) - 固定电话
+     - 添加 `security_question` VARCHAR(255) - 安全问题
+     - 添加 `security_answer` VARCHAR(255) - 安全问题答案
+     - 添加 `wangwang` VARCHAR(50) - 旺旺账号
+  2. **User实体类更新**：
+     - 添加 `birthday` (LocalDate) 字段
+     - 添加 `operator` (String) 字段
+     - 添加 `fixedPhone` (String) 字段
+     - 添加 `zipCode` (String) 字段
+     - 添加 `securityQuestion` (String) 字段
+     - 添加 `securityAnswer` (String) 字段
+     - 添加 `wangwang` (String) 字段
+  3. **注册服务方法完善**：
+     - 将 `birthYear`, `birthMonth`, `birthDay` 组合转换为 `birthday` (LocalDate)
+     - 保存 `operator` 运营人员字段
+     - 保存 `fixedPhone` 固定电话字段
+     - 保存 `zipCode` 邮编字段
+     - 保存 `securityQuestion` 安全问题字段
+     - 保存 `securityAnswer` 安全问题答案字段
+     - 保存 `wangwang` 旺旺账号字段
+  4. **字段映射说明**：
+     - 前端发送的22个字段中，除了 `confirmPassword`, `captchaId`, `captcha` 这三个验证字段外，其余19个字段全部保存到数据库
+     - `province`, `city`, `district` 组合保存到 `region` JSON字段
+     - `birthYear`, `birthMonth`, `birthDay` 组合转换为 `birthday` DATE字段
+- 功能特点：
+  - ✅ 所有前端提交的注册字段都能正确保存到数据库
+  - ✅ 出生日期字段自动组合和验证
+  - ✅ 向后兼容，新字段为可选字段，不影响现有数据
+
+### 修复注册协议页面分点格式问题
+- 更新了 `frontend/src/views/auth/Register.vue`，修复了注册协议页面中"一、二、三"等分点与内容分行显示的问题
+- 问题原因：
+  - 原来的结构是 `<strong>一、</strong>` 和 `<p>内容</p>` 分开，导致它们分行显示
+  - `p` 标签有 `margin-top: 8px` 和 `text-indent: 2em`，增加了不必要的间距
+- 修复方案：
+  - 将 `<strong>` 标签移到 `<p>` 标签内部，使"一、"和内容在同一行显示
+  - 移除了 `p` 标签的 `margin-top`，避免不必要的间距
+  - 移除了 `text-indent`，因为"一、"已经作为内容的一部分，不需要额外缩进
+  - 调整了样式结构，使 `strong` 样式嵌套在 `p` 内部
+
+## 2025-01-XX
+
 ### 修复登录页面重复错误提示问题
 - 更新了 `frontend/src/views/auth/Login.vue`，修复了登录失败时错误提示重复显示的问题
 - 问题原因：

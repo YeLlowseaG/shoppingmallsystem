@@ -11,11 +11,18 @@ export interface BuyerVO {
   email: string
   realName?: string
   gender?: number
+  birthday?: string
   phone?: string
+  fixedPhone?: string
+  operator?: string
   province?: string
   city?: string
   district?: string
   address?: string
+  zipCode?: string
+  securityQuestion?: string
+  securityAnswer?: string
+  wangwang?: string
   userLevel: number
   userLevelName?: string
   status: number
