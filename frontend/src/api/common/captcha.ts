@@ -16,3 +16,4 @@ export const generateCaptcha = (): Promise<CaptchaResponse> => {
   return request.get('/api/common/captcha/generate')
 }
 
+

@@ -8,6 +8,7 @@ import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 
 import App from './App.vue'
 import router from './router'
+import { useAdminStore } from './stores/admin/user'
 
 const app = createApp(App)
 
@@ -21,6 +22,10 @@ app.use(router)
 app.use(ElementPlus, {
   locale: zhCn
 })
+
+// 初始化store
+const adminStore = useAdminStore()
+adminStore.init()
 
 app.mount('#app')
 

@@ -1133,3 +1133,387 @@
      - 管理后台登录API接口（待后端实现）
      - 管理后台其他功能模块（商品管理、订单管理、用户管理等）
 - 前端项目重构已完成，两个项目完全独立，便于团队分工和独立管理
+
+### 补充管理员权限管理系统设计方案
+- 已完成管理员权限管理系统（RBAC）的设计方案，同步到技术和需求文档
+- 主要补充内容：
+  1. **需求分析文档更新** (`docs/Requirements AnalysisV1.0.md`)：
+     - 在"2. 用户角色与权限体系"中新增"2.1.3 管理员权限体系（RBAC）"
+       - 权限模型说明（基于角色的访问控制）
+       - 权限组成（用户、角色、菜单、权限标识）
+       - 权限分配流程（4个步骤）
+     - 在"3. 核心功能模块"中新增"3.10 权限管理模块（管理后台）"
+       - 3.10.1 用户管理（管理员用户列表、新增/编辑/删除、启用/禁用、重置密码、查看详情）
+       - 3.10.2 角色管理（角色列表、新增/编辑/删除、启用/禁用、查看详情）
+       - 3.10.3 菜单管理（菜单树形列表、新增/编辑/删除、启用/禁用、菜单排序、查看详情）
+       - 3.10.4 权限控制机制（前端权限控制、后端权限控制）
+     - 在"4.2 平台管理后台页面结构"中新增"4.2.9 权限管理页面"
+       - 4.2.9.1 用户管理页面（用户列表页、新增/编辑用户页、用户详情页）
+       - 4.2.9.2 角色管理页面（角色列表页、新增/编辑角色页、角色详情页）
+       - 4.2.9.3 菜单管理页面（菜单树形列表页、新增/编辑菜单页、菜单详情页）
+  2. **技术架构文档更新** (`docs/Technical Architecture Design.md`)：
+     - 在"4.2 核心数据表设计"中新增"4.2.7 权限管理相关表"
+       - sys_admin_user（管理员用户表）
+       - sys_role（角色表）
+       - sys_menu（菜单表）
+       - sys_admin_role（管理员角色关联表）
+       - sys_role_menu（角色菜单关联表）
+     - 在"5.3.2 权限控制"中补充RBAC权限模型说明
+       - RBAC权限模型说明（用户→角色→菜单→权限标识）
+       - 后端权限控制（基于角色和权限标识的注解示例）
+       - 权限验证流程（6个步骤）
+       - 前端路由守卫（管理后台路由守卫、权限验证）
+       - 前端菜单动态生成（根据权限过滤菜单）
+       - 按钮权限控制（v-if指令控制按钮显示）
+     - 在"3.1 后端模块划分"中补充权限服务模块
+       - service/permission/（权限服务：管理员用户、角色、菜单）
+  3. **数据库表结构更新** (`database/schema.sql`)：
+     - 新增管理员用户表（sys_admin_user）
+       - 字段：id、username、password、real_name、email、phone、status、last_login_time、last_login_ip、creator_id等
+       - 索引：username唯一索引、status索引、email索引
+     - 新增角色表（sys_role）
+       - 字段：id、role_code、role_name、description、status、sort_order等
+       - 索引：role_code唯一索引、status索引
+     - 新增菜单表（sys_menu）
+       - 字段：id、parent_id、menu_name、menu_type、path、component、icon、permission、sort_order、status等
+       - 索引：parent_id索引、menu_type索引、status索引、permission唯一索引
+     - 新增管理员角色关联表（sys_admin_role）
+       - 字段：id、admin_id、role_id、create_time
+       - 索引：admin_id和role_id联合唯一索引
+     - 新增角色菜单关联表（sys_role_menu）
+       - 字段：id、role_id、menu_id、create_time
+       - 索引：role_id和menu_id联合唯一索引
+     - 新增权限管理表复合索引
+       - 菜单表：idx_parent_status_sort（用于菜单树查询）
+       - 管理员角色关联表：idx_admin_create（用于查询管理员的所有角色）
+       - 角色菜单关联表：idx_role_create（用于查询角色的所有菜单）
+  4. **权限管理系统特点**：
+     - ✅ RBAC权限模型：基于角色的访问控制
+     - ✅ 灵活的权限分配：一个用户可拥有多个角色，一个角色可拥有多个菜单权限
+     - ✅ 细粒度权限控制：通过权限标识控制按钮和接口访问
+     - ✅ 动态菜单生成：根据用户权限动态生成侧边栏菜单
+     - ✅ 前后端双重权限验证：前端路由守卫 + 后端接口权限验证
+  5. **权限控制流程**：
+     1. 创建角色并分配菜单权限
+     2. 创建管理员用户并分配角色
+     3. 管理员登录后根据角色动态加载菜单
+     4. 前端路由和后端接口根据权限标识进行权限控制
+- 权限管理系统设计方案已同步到技术和需求文档，为后续开发提供完整的指导
+
+### 更新开发任务清单：新增权限管理模块任务
+- 已完成开发任务清单的更新，新增权限管理模块开发任务
+- 主要修改内容：
+  1. **新增权限管理模块**（阶段二：P0核心功能开发）：
+     - 9.1 后端：管理员用户管理接口（增删改查、启用/禁用、重置密码、分配角色）
+     - 9.2 后端：角色管理接口（增删改查、启用/禁用、分配菜单权限）
+     - 9.3 后端：菜单管理接口（增删改查、启用/禁用、菜单树查询、排序）
+     - 9.4 后端：权限验证接口（获取用户权限、菜单权限、权限标识验证）
+     - 9.5 后端：管理员登录接口（JWT Token生成、权限信息返回）
+     - 9.6 前端：用户管理页面（列表、新增/编辑、详情、角色分配）
+     - 9.7 前端：角色管理页面（列表、新增/编辑、详情、菜单权限分配）
+     - 9.8 前端：菜单管理页面（树形列表、新增/编辑、详情、拖拽排序）
+     - 9.9 前端：权限控制实现（路由守卫、动态菜单生成、按钮权限控制）
+  2. **任务编号调整**：
+     - 原"9. 收货地址管理"调整为"10. 收货地址管理"
+     - 原"10-20"模块编号依次后移为"11-21"
+     - 原"21-24"测试与优化任务调整为"22-25"
+     - 原"25-29"开发规范任务调整为"26-30"
+  3. **任务统计更新**：
+     - 阶段二任务数：25个 → 34个（新增9个权限管理任务）
+     - 总任务数：71个 → 80个
+     - 预计时间：12-18周 → 13-19周（3.25-4.75个月）
+  4. **优先级说明更新**：
+     - P0核心功能说明中补充：包含权限管理模块，管理后台基础功能
+  5. **文档版本记录**：
+     - 新增v1.1版本记录：新增权限管理模块任务（9个任务）
+- 权限管理模块已添加到开发任务清单，作为P0核心功能，确保管理后台权限系统优先开发
+
+### 实现用户端登录页面功能，支持游客模式
+- 已完成用户端登录页面的开发，并调整路由守卫支持游客模式
+- 主要创建/修改内容：
+  1. **登录页面实现** (`frontend/src/views/auth/Login.vue`)：
+     - 页面标题："已注册用户, 请登录"
+     - 说明文字："如果您已是本站会员, 请登录"
+     - 登录表单：用户名和密码输入框（带图标、验证规则）
+     - 立即登录按钮（橙色渐变样式，支持加载状态）
+     - 立即注册和忘记密码链接
+     - 登录逻辑：调用登录API、保存Token和用户信息、跳转到原目标页面或首页
+     - 已登录用户自动跳转（避免重复登录）
+     - 支持回车键提交登录
+  2. **路由守卫优化** (`frontend/src/router/index.ts`)：
+     - 支持游客模式：默认允许访问所有页面（游客可以浏览商品列表、详情等）
+     - 只有明确标记 `requiresAuth: true` 的页面才需要登录
+     - 未登录用户访问需要登录的页面时，跳转到登录页并保存原目标路径（redirect参数）
+     - 已登录用户访问登录/注册页面时，自动跳转到首页
+     - 页面标题自动设置
+  3. **登录功能特点**：
+     - ✅ 完整的表单验证（用户名3-50字符、密码6-20字符）
+     - ✅ 登录成功后保存Token和用户信息到store和localStorage
+     - ✅ 支持跳转到原目标页面（通过redirect参数）
+     - ✅ 登录失败错误提示
+     - ✅ 加载状态显示
+     - ✅ 已登录用户自动跳转
+  4. **游客模式支持**：
+     - ✅ 默认允许访问所有页面（游客模式）
+     - ✅ 商品列表、详情等页面游客可以正常访问
+     - ✅ 只有需要登录的功能（如购物车、订单、会员中心等）才需要登录
+     - ✅ 符合普通商城的标准设计（游客浏览、登录购买）
+  5. **样式设计**：
+     - 渐变背景（紫色渐变）
+     - 白色卡片式登录框
+     - 橙色渐变登录按钮（符合需求文档要求）
+     - 响应式设计，支持移动端
+     - 悬停效果和过渡动画
+- 功能特点：
+  - ✅ 完整的登录页面实现（符合需求文档要求）
+  - ✅ 游客模式支持（默认允许访问，只有特定页面需要登录）
+  - ✅ 登录成功后的状态管理和跳转逻辑
+  - ✅ 用户体验优化（加载状态、错误提示、自动跳转）
+- 登录功能已完成，用户端登录、注册功能现在都可以进行测试了
+
+### 配置管理员JWT拦截器
+- 已完成管理员JWT拦截器的配置和实现
+- 主要创建/修改内容：
+  1. **管理员JWT拦截器** (`backend/src/main/java/com/shoppingmall/common/security/AdminJwtAuthenticationInterceptor.java`)：
+     - 专门用于管理后台API的JWT认证拦截器
+     - 排除管理员登录接口（/api/admin/user/login）
+     - 从请求头获取Token（Authorization: Bearer token）
+     - 验证Token有效性（使用JwtUtil）
+     - 验证管理员是否存在且状态正常（查询数据库）
+     - 检查管理员账号是否被禁用
+     - 将管理员ID和用户名存储到request中（adminId、adminUsername）
+     - 抛出业务异常（401未登录、403账号禁用）
+  2. **WebMvcConfig更新** (`backend/src/main/java/com/shoppingmall/common/config/WebMvcConfig.java`)：
+     - 注册两个独立的JWT拦截器：
+       - 采购者端拦截器：拦截 `/api/buyer/**` 路径
+         - 排除：登录、注册、忘记密码接口
+       - 管理员端拦截器：拦截 `/api/admin/**` 路径
+         - 排除：管理员登录接口
+     - 公共接口（/api/common/**）不需要拦截
+  3. **AdminUserController优化** (`backend/src/main/java/com/shoppingmall/controller/admin/AdminUserController.java`)：
+     - 移除JwtUtil依赖（不再需要手动解析Token）
+     - getAdminInfo方法改为从request.getAttribute("adminId")获取管理员ID
+     - 简化代码，统一使用拦截器中的adminId
+  4. **AdminUserServiceImpl优化** (`backend/src/main/java/com/shoppingmall/service/permission/impl/AdminUserServiceImpl.java`)：
+     - 新增getCurrentAdminId()方法，从拦截器中获取当前管理员ID
+     - 新增管理员时自动设置creatorId（创建人ID）
+  5. **拦截器特点**：
+     - ✅ 独立的拦截器：采购者端和管理端使用不同的拦截器，互不干扰
+     - ✅ 数据库验证：不仅验证Token，还验证管理员是否存在和状态
+     - ✅ 安全性：账号被禁用时无法访问API
+     - ✅ 统一管理：所有管理员API统一通过拦截器验证
+     - ✅ 自动注入：拦截器自动将adminId注入到request中，Controller直接使用
+  6. **拦截流程**：
+     1. 请求到达 `/api/admin/**` 路径
+     2. 拦截器检查是否为登录接口，如果是则放行
+     3. 从请求头获取Token
+     4. 验证Token有效性
+     5. 从Token中解析管理员ID
+     6. 查询数据库验证管理员是否存在、是否被删除、是否被禁用
+     7. 将管理员ID和用户名存储到request中
+     8. 放行请求，Controller可以直接使用adminId
+  7. **异常处理**：
+     - Token不存在：抛出401异常（未登录，请先登录）
+     - Token无效或过期：抛出401异常（Token已过期，请重新登录）
+     - 管理员不存在：抛出401异常（管理员不存在或已被删除）
+     - 账号被禁用：抛出403异常（账号已被禁用）
+     - 所有异常由GlobalExceptionHandler统一处理，返回标准格式的Result
+- 功能特点：
+  - ✅ 完整的JWT认证拦截器（专门用于管理后台）
+  - ✅ 数据库状态验证（确保管理员账号正常）
+  - ✅ 自动注入管理员ID（简化Controller代码）
+  - ✅ 与采购者端拦截器完全独立（互不干扰）
+  - ✅ 统一的异常处理（返回标准错误响应）
+- 管理员JWT拦截器已配置完成，所有管理后台API现在都受到JWT认证保护
+
+### 优化：将pom.xml移动到backend目录
+- 已完成pom.xml文件的迁移和配置优化
+- 主要修改内容：
+  1. **文件迁移**：
+     - 将 `pom.xml` 从项目根目录移动到 `backend/pom.xml`
+     - 删除根目录的旧 `pom.xml` 文件
+  2. **路径配置修改**：
+     - `<sourceDirectory>`：从 `backend/src/main/java` 改为 `src/main/java`
+     - `<testSourceDirectory>`：从 `backend/src/test/java` 改为 `src/test/java`
+     - `<resources>`：从 `backend/src/main/resources` 改为 `src/main/resources`
+     - `<testResources>`：从 `backend/src/test/resources` 改为 `src/test/resources`
+  3. **添加Spring Boot Parent配置**：
+     - 在 `<modelVersion>` 之后添加 `<parent>` 配置
+     - 使用 `spring-boot-starter-parent` 3.1.5 版本
+     - 提供依赖版本管理和默认插件配置
+  4. **优化效果**：
+     - ✅ 项目结构更清晰：pom.xml与源代码在同一目录
+     - ✅ 符合Maven标准约定：标准Maven项目结构
+     - ✅ 运行更方便：直接在backend目录运行Maven命令
+     - ✅ 避免路径混乱：不需要在根目录配置backend路径
+     - ✅ 修复启动问题：添加parent后spring-boot-maven-plugin可以正常工作
+  5. **运行方式**：
+     - 现在需要在 `backend` 目录下运行：
+     ```powershell
+     cd D:\my project\java-project\shangdan\ShoppingMallSystem\backend
+     mvn spring-boot:run
+     ```
+- pom.xml已成功迁移到backend目录，项目结构更加规范和清晰
+
+### 修复数据源配置问题并添加启动成功日志
+- 已完成数据源配置问题的修复和启动成功日志的添加
+- 主要修改内容：
+  1. **数据源配置修复**：
+     - 创建 `DataSourceConfig.java`：手动配置Druid数据源Bean，确保使用Druid而不是HikariCP
+     - 在启动类中排除 `DataSourceAutoConfiguration`，避免Spring Boot自动配置HikariCP
+     - 修复 `DataSourceConfig.java` 中的导入错误（javax.sql.DataSource）
+     - 移除错误的自动配置排除项（com.zaxxer.hikari.HikariDataSource）
+  2. **启动成功日志** (`ShoppingMallApplication.java`)：
+     - 实现 `CommandLineRunner` 接口，在服务启动成功后输出日志
+     - 添加中英文启动成功日志：
+       - "后端服务启动成功！Backend service started successfully!"
+       - 本地访问地址（Local access URL）
+       - 外部访问地址（External access URL）
+       - Swagger文档地址（Swagger API docs）
+     - 自动获取服务器IP地址和端口号
+     - 使用日志框架输出，格式美观（带分隔线）
+  3. **配置优化**：
+     - 确保Druid数据源正确配置和使用
+     - 排除H2数据库自动配置
+     - 手动配置Druid数据源，避免Spring Boot默认使用HikariCP
+  4. **日志特点**：
+     - ✅ 中英文双语日志（便于国际化）
+     - ✅ 自动获取IP和端口（无需手动配置）
+     - ✅ 美观的日志格式（带分隔线）
+     - ✅ 包含所有重要访问地址（本地、外部、Swagger）
+  5. **启动日志示例**：
+     ```
+     =================================================================
+     后端服务启动成功！Backend service started successfully!
+     =================================================================
+     本地访问地址: http://localhost:8080/
+     Local access URL: http://localhost:8080/
+     外部访问地址: http://192.168.1.100:8080/
+     External access URL: http://192.168.1.100:8080/
+     Swagger文档地址: http://localhost:8080/swagger-ui.html
+     Swagger API docs: http://localhost:8080/swagger-ui.html
+     =================================================================
+     ```
+- 数据源配置问题已修复，启动成功日志已添加，服务启动后会显示清晰的访问地址信息
+
+### 创建采购者测试用户数据
+- 已创建采购者测试用户数据文件 `database/test_user_data.sql`
+- 主要创建内容：
+  1. **测试用户1（buyer1）**：
+     - 用户名：buyer1
+     - 密码：123456（BCrypt加密）
+     - 邮箱：buyer1@test.com
+     - 手机号：13800138001
+     - 真实姓名：测试采购者1
+     - 性别：1（男）
+     - 地区：广东省深圳市南山区
+     - 详细地址：科技园南区
+     - 用户等级：普通
+     - 状态：已激活（可以直接登录）
+  2. **测试用户2（buyer2）**：
+     - 用户名：buyer2
+     - 密码：123456（BCrypt加密）
+     - 邮箱：buyer2@test.com
+     - 手机号：13800138002
+     - 真实姓名：测试采购者2
+     - 性别：0（女）
+     - 地区：北京市北京市朝阳区
+     - 详细地址：建国路88号
+     - 用户等级：VIP
+     - 状态：已激活（可以直接登录）
+  3. **用户审核记录**：
+     - 为两个测试用户自动创建审核记录
+     - 审核状态：已通过
+     - 审核意见：测试用户，自动通过审核
+  4. **使用说明**：
+     - 执行SQL脚本后，可以使用这两个测试账号登录用户端
+     - 如果密码验证失败，可以使用Java代码或在线工具重新生成BCrypt hash
+     - 两个用户状态均为"已激活"，可以直接用于登录测试
+- 测试用户数据已创建完成，可用于用户端登录功能测试
+
+### 将状态和类型字段从中文改为数字
+- 已完成所有表的状态和类型字段从中文改为数字的改造
+- 主要修改内容：
+  1. **数据库表结构修改** (`database/schema.sql`)：
+     - `sys_user.status`: VARCHAR(20) → TINYINT（0-待审核，1-已激活，2-已禁用）
+     - `sys_user.user_level`: VARCHAR(20) → TINYINT（0-普通，1-VIP，2-金牌）
+     - `sys_user_audit.audit_status`: VARCHAR(20) → TINYINT（0-待审核，1-已通过，2-已拒绝）
+     - `product.status`: VARCHAR(20) → TINYINT（0-下架，1-上架）
+     - `product_price.user_level`: VARCHAR(20) → TINYINT（0-普通，1-VIP，2-金牌）
+     - `order.order_status`: VARCHAR(20) → TINYINT（0-待付款，1-已付款未发货，2-已发货，3-已完成，4-已取消，5-已退款，6-已退货）
+     - `order.payment_method`: VARCHAR(50) → VARCHAR(20)（ALIPAY-支付宝，WECHAT-微信，PRE_DEPOSIT-预存款，OFFLINE-线下支付）
+     - `order.payment_status`: VARCHAR(20) → TINYINT（0-未支付，1-已支付，2-已退款）
+     - `pre_deposit_detail.type`: VARCHAR(20) → TINYINT（1-充值，2-消费，3-退款）
+     - `pre_deposit_detail.status`: VARCHAR(20) → TINYINT（0-待审核，1-已通过，2-已拒绝）
+     - `payment_record.payment_method`: VARCHAR(50) → VARCHAR(20)（ALIPAY-支付宝，WECHAT-微信，PRE_DEPOSIT-预存款，OFFLINE-线下支付）
+     - `payment_record.payment_status`: VARCHAR(20) → TINYINT（0-待支付，1-已支付，2-已退款，3-已失败）
+     - `message.message_type`: VARCHAR(20) → TINYINT（0-普通，1-系统，2-订单，3-其他）
+     - `sys_menu.menu_type`: VARCHAR(20) → TINYINT（0-目录，1-菜单，2-按钮）
+  2. **创建状态常量类**：
+     - `UserStatus.java`: 用户状态常量（0-待审核，1-已激活，2-已禁用）
+     - `AuditStatus.java`: 审核状态常量（0-待审核，1-已通过，2-已拒绝）
+     - `ProductStatus.java`: 商品状态常量（0-下架，1-上架）
+     - `OrderStatus.java`: 订单状态常量（0-待付款，1-已付款未发货，2-已发货，3-已完成，4-已取消，5-已退款，6-已退货）
+     - `PaymentStatus.java`: 支付状态常量（0-未支付/待支付，1-已支付，2-已退款，3-已失败）
+     - `PaymentMethod.java`: 支付方式常量（ALIPAY-支付宝，WECHAT-微信，PRE_DEPOSIT-预存款，OFFLINE-线下支付）
+     - `DepositType.java`: 预存款类型常量（1-充值，2-消费，3-退款）
+     - `MessageType.java`: 消息类型常量（0-普通，1-系统，2-订单，3-其他）
+     - `MenuType.java`: 菜单类型常量（0-目录，1-菜单，2-按钮）
+     - `UserLevel.java`: 用户等级常量（0-普通，1-VIP，2-金牌）
+  3. **实体类修改**：
+     - `User.java`: status和userLevel字段类型从String改为Integer
+     - `UserAudit.java`: auditStatus字段类型从String改为Integer
+     - `Menu.java`: menuType字段类型从String改为Integer
+     - `UserInfoVO.java`: status和userLevel字段类型从String改为Integer
+     - `UserInfoDTO.java`: status和userLevel字段类型从String改为Integer
+     - `MenuVO.java`: menuType字段类型从String改为Integer
+  4. **Service层修改**：
+     - `UserServiceImpl.java`: 
+       - 注册时设置`user.setUserLevel(UserLevel.NORMAL)`
+       - 注册时设置`user.setStatus(UserStatus.PENDING)`
+       - 创建审核记录时设置`audit.setAuditStatus(AuditStatus.PENDING)`
+       - 登录验证时使用`UserStatus.ACTIVATED.equals(user.getStatus())`
+     - `PermissionServiceImpl.java`: 
+       - 菜单查询时使用`.in(Menu::getMenuType, 0, 1)`替代`.in(Menu::getMenuType, "目录", "菜单")`
+  5. **初始化数据脚本修改** (`database/init_data.sql`)：
+     - 菜单类型从"目录"、"菜单"改为0、1
+     - 所有菜单插入语句的menu_type字段值改为数字
+  6. **测试数据脚本修改** (`database/test_user_data.sql`)：
+     - 用户等级从"普通"、"VIP"改为0、1
+     - 用户状态从"已激活"改为1
+     - 审核状态从"已通过"改为1
+     - 更新相关注释说明
+  7. **修改优势**：
+     - ✅ 数据库存储更高效（TINYINT比VARCHAR占用空间更小）
+     - ✅ 查询性能更好（数字比较比字符串比较快）
+     - ✅ 避免中文编码问题
+     - ✅ 便于国际化（前端可以根据数字显示不同语言）
+     - ✅ 代码更规范（使用常量类管理状态值）
+     - ✅ 类型安全（Integer类型避免字符串拼写错误）
+- 所有状态和类型字段已从中文改为数字，代码和数据库结构已同步更新
+
+### 修改服务端口配置
+- 已完成前后端服务端口的修改
+- 主要修改内容：
+  1. **后端API端口** (`backend/src/main/resources/application.yml`)：
+     - 从 8080 改为 8081
+  2. **用户前台前端端口** (`frontend/vite.config.ts`)：
+     - 从 3000 改为 3002
+     - API代理目标从 `http://localhost:8080` 改为 `http://localhost:8081`
+  3. **管理后台前端端口** (`admin-frontend/vite.config.ts`)：
+     - 从 3001 改为 3003
+     - API代理目标从 `http://localhost:8080` 改为 `http://localhost:8081`
+  4. **Nginx配置** (`config/nginx/nginx.conf`)：
+     - API反向代理从 `http://localhost:8080` 改为 `http://localhost:8081`
+     - Swagger文档代理从 `http://localhost:8080` 改为 `http://localhost:8081`
+  5. **启动类默认端口** (`ShoppingMallApplication.java`)：
+     - 默认端口从 8080 改为 8081
+  6. **文档更新** (`FRONTEND_PROJECTS.md`)：
+     - 更新所有端口说明（3000→3002，3001→3003）
+  7. **修复编译错误**：
+     - 修复 `BcryptDebugController.java` 中的Result类导入路径（从 `com.shoppingmall.common.result` 改为 `com.shoppingmall.common.util`）
+- 新的端口配置：
+  - 后端API：8081
+  - 用户前台前端：3002
+  - 管理后台前端：3003
+- 所有端口配置已更新完成，前后端服务可以正常启动和访问

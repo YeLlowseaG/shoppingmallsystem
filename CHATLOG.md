@@ -646,5 +646,371 @@ User decided to implement product list page next. Analyzed reference screenshot 
 
 ---
 
-**Last Updated**: 2025-12-05 (Session 13)
-**Next Session**: Product list page implementation
+---
+
+### Session 14: Navbar Three-Level Category Floating Panel Implementation
+
+**Topic**: Implementing and debugging three-level category navigation floating panel
+
+**Context**: Continued from Session 13, implementing product list page and all navigation entry points
+
+**Problem Identified**:
+User reported that the three-level category floating panel was not displaying when hovering over category items in the navbar dropdown menu.
+
+**Root Cause Analysis**:
+1. ✅ Mouse events (`@mouseenter`) were firing correctly (verified via console logs)
+2. ✅ Data structure was correct (category.children existed with proper nesting)
+3. ✅ Vue reactive state (`hoveredCategory`) was updating correctly
+4. ❌ **CSS positioning issue**: Using `position: absolute` with `left: 220px; top: 0` failed because parent element's positioning context was preventing correct display
+
+**Solution Process**:
+
+**Step 1: CSS Positioning Fix**
+- Changed from `position: absolute` to `position: fixed`
+- This made the panel position relative to viewport instead of parent
+- Panel became visible but needed position adjustment
+
+**Step 2: Layout Optimization**
+- Implemented two-column grid layout: `grid-template-columns: 1fr 1fr`
+- Changed third-level items from horizontal wrap to vertical column display
+- Removed second-level category titles to show only third-level items directly
+- Result: Clean, organized layout similar to competitor reference
+
+**Step 3: Interaction Bug Fixes**
+1. **Panel flickering issue**: Panel would disappear when moving mouse between categories
+   - Problem: `mouseleave` with 100ms timeout was clearing `hoveredCategory` too quickly
+   - Solution: Removed `@mouseleave` from category items, only clear on panel mouseleave
+
+2. **Panel overlap issue**: Floating panel overlapped with dropdown menu (visible white edge over black background)
+   - Problem: `left: 270px` was too close to menu width of 220px
+   - Solution: Adjusted to `left: 290px` for proper spacing
+
+**Final Implementation**:
+```scss
+.sub-categories {
+  position: fixed;
+  left: 290px;        // Adjusted for no overlap
+  top: 130px;
+  width: 600px;
+  height: 500px;
+  background: #fff;
+  z-index: 9999;
+  display: grid;
+  grid-template-columns: 1fr 1fr;  // Two-column layout
+  gap: 20px 40px;
+  align-content: start;
+}
+```
+
+**Navigation Entry Points Implemented**:
+1. ✅ **Navbar category dropdown** → `/products?categoryId={id}`
+   - Three-level category menu with hover interaction
+   - All category levels clickable
+2. ✅ **Header search box** → `/products?keyword={keyword}`
+3. ✅ **Main navigation links**:
+   - 新品专区 → `/products?type=new`
+   - 虚姬-Angus → `/products?brand=angus`
+   - 特惠区 → `/products?type=special`
+   - 实体店热销 → `/products?type=hot`
+4. ✅ **Brand section clicks** → `/products?brand={brandName}`
+
+**Technical Highlights**:
+- Vue 3 `v-show` directive for conditional rendering
+- Reactive hover state management
+- CSS Grid for responsive layout
+- Mouse event handling with proper timing
+- Fixed positioning for reliable display
+
+**Category Mapping**:
+- Added comprehensive category ID → name mapping in product list page
+- Breadcrumb navigation now shows specific category names instead of generic "商品分类"
+- Mapping includes all three levels: 一级 (7 categories) → 二级 (7 categories) → 三级 (21 categories)
+
+**Commits**:
+```bash
+# Commit 1
+feat: 实现导航栏三级分类悬浮面板
+- 添加分类点击导航功能，支持一级、二级、三级分类跳转
+- 实现三级分类悬浮面板，使用网格布局分两列显示
+- 优化悬浮面板交互，支持鼠标悬停切换不同分类
+- 商品列表页添加分类映射表，面包屑导航显示具体分类名称
+- 使用 fixed 定位确保悬浮面板稳定显示
+Commit: 49a8e46
+
+# Commit 2
+fix: 调整悬浮面板位置避免与下拉菜单重叠
+- 将悬浮面板 left 位置从 270px 调整为 290px
+- 增加与下拉菜单之间的间距，避免视觉重叠
+Commit: ab13030
+```
+
+**Current Status**:
+- ✅ Three-level category navigation fully functional
+- ✅ All navigation entry points implemented and working
+- ✅ Breadcrumb navigation shows proper category names
+- ✅ Smooth hover interactions without flickering
+- ✅ Clean two-column layout for category items
+- ✅ Code committed to feature/yellow-modules branch
+
+**Files Modified**:
+- `frontend/src/components/home/Navbar.vue` - Category navigation with floating panel
+- `frontend/src/views/products/List.vue` - Category mapping for breadcrumbs
+
+**Next Steps**:
+1. Implement product detail page
+2. Connect product list to real backend API (replace mock data)
+3. Continue with shopping cart module
+4. Get code review from jie before merging to dev
+
+---
+
+### Session 15: Backend Service Configuration and Startup
+
+**Topic**: Configuring and starting backend service, fixing database connection issues, testing APIs
+
+**Context**: Session continued from context limit. Previous sessions completed frontend homepage and product list pages. Now focusing on backend service startup.
+
+**Problem 1: H2 Driver Error**
+
+**Initial Issue**:
+Backend service failed to start with error:
+```
+java.lang.ClassNotFoundException: org.h2.Driver
+```
+
+Despite MySQL driver being configured in `application.yml`, Spring Boot was attempting to load H2 driver.
+
+**Root Cause Analysis**:
+1. ✅ MySQL driver dependency present in pom.xml
+2. ✅ MySQL configuration correct in application.yml
+3. ✅ No H2 dependency in pom.xml
+4. ❌ **Druid connection pool dependency conflicting with HikariCP**
+
+**Solution**:
+Removed Druid dependency from pom.xml:
+```xml
+<!-- Removed from pom.xml -->
+<druid.version>1.2.18</druid.version>
+<dependency>
+    <groupId>com.alibaba</groupId>
+    <artifactId>druid-spring-boot-3-starter</artifactId>
+</dependency>
+```
+
+Updated application.yml to use HikariCP (Spring Boot default):
+```yaml
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/chengren_shopping_mall?...
+    username: root
+    password: 12345678
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 60000
+```
+
+**Problem 2: Unknown Database Error**
+
+**Error**:
+```
+java.sql.SQLSyntaxErrorException: Unknown database 'chengren_shopping_mall'
+```
+
+**Solution**:
+1. ✅ Executed `schema.sql` to create database and tables
+2. ✅ Executed `init_data.sql` to import initial data
+
+```bash
+mysql -uroot -p12345678 < database/schema.sql
+mysql -uroot -p12345678 chengren_shopping_mall < database/init_data.sql
+```
+
+**Problem 3: 401 Unauthorized for Product APIs**
+
+**Issue**:
+Guest users couldn't access product listing APIs - received 401 error
+
+**Solution**:
+Modified JWT authentication configuration to allow anonymous access to buyer product APIs:
+
+```java
+// WebMvcConfig.java
+@Override
+public void addInterceptors(InterceptorRegistry registry) {
+    registry.addInterceptor(jwtAuthenticationInterceptor)
+            .addPathPatterns("/api/**")
+            .excludePathPatterns(
+                    "/api/buyer/user/login",
+                    "/api/buyer/user/register",
+                    "/api/buyer/user/forgot-password",
+                    "/api/buyer/product/**",           // ✅ Added
+                    "/api/buyer/product-category/**",  // ✅ Added
+                    "/api/common/**"
+            );
+}
+```
+
+**Backend Service Successfully Started**:
+- ✅ Running on port 8080
+- ✅ MySQL connection working
+- ✅ HikariCP connection pool configured
+- ✅ Spring Boot 3.1.5 + Java 17 LTS
+- ✅ MyBatis Plus 3.5.4.1 operational
+
+**API Testing Results**:
+
+1. **Product Page API** ✅
+```bash
+GET /api/buyer/product/page?current=1&size=10
+Response: 200 OK
+{
+  "code": 200,
+  "message": "获取成功",
+  "data": {
+    "records": [],
+    "total": 0,
+    "current": 1,
+    "size": 10
+  }
+}
+```
+Note: Empty records because no products with "上架" status in database yet
+
+2. **Product Category Tree API** ✅
+```bash
+GET /api/buyer/product-category/tree
+Response: 200 OK
+{
+  "code": 200,
+  "message": "获取成功",
+  "data": [
+    {
+      "id": 1,
+      "categoryName": "情趣用品",
+      "children": [
+        {"id": 5, "categoryName": "男用器具"},
+        {"id": 6, "categoryName": "女用器具"},
+        {"id": 7, "categoryName": "润滑剂"},
+        {"id": 8, "categoryName": "安全套"}
+      ]
+    },
+    // ... more categories
+  ]
+}
+```
+
+**Database Initialization Complete**:
+- ✅ Database: `chengren_shopping_mall` created
+- ✅ Tables: All tables created via schema.sql
+- ✅ Initial data: Categories, admin users imported
+- ✅ Category structure:
+  - 情趣用品 (男用器具、女用器具、润滑剂、安全套)
+  - 健康护理 (护理用品、清洁用品)
+  - 情趣内衣 (女士内衣、男士内衣)
+  - 其他
+
+**Admin Frontend Configuration**:
+
+**Issue**: Admin frontend not yet running
+
+**Solution**:
+1. ✅ Found admin frontend at `/admin-frontend`
+2. ✅ Installed dependencies: `npm install`
+3. ✅ Started dev server: `npm run dev`
+4. ✅ Admin frontend running on port **3001**
+
+Admin frontend configuration (vite.config.ts):
+```typescript
+server: {
+  port: 3001,  // Admin backend port
+  proxy: {
+    '/api': {
+      target: 'http://localhost:8080',
+      changeOrigin: true
+    }
+  }
+}
+```
+
+**Current Running Services**:
+1. ✅ **Backend API**: http://localhost:8080
+2. ✅ **Buyer Frontend**: http://localhost:3000 (from previous session)
+3. ✅ **Admin Frontend**: http://localhost:3001 ✨ NEW
+
+**Files Modified**:
+- `pom.xml` - Removed Druid dependency
+- `backend/src/main/resources/application.yml` - Updated MySQL password, simplified datasource config
+- `backend/src/main/resources/application-dev.yml` - Updated MySQL password
+- `backend/src/main/java/com/shoppingmall/common/config/WebMvcConfig.java` - Added anonymous access for product APIs
+
+**Documents Created**:
+- ✅ `CHANGELOG.md` - Detailed changelog of backend configuration and fixes
+
+**Commits**:
+```bash
+feat: 配置后端服务启动并修复数据库连接问题
+
+主要修改:
+- 移除Druid连接池依赖,解决与HikariCP的冲突
+- 更新MySQL数据库密码配置
+- 修改JWT认证配置,允许匿名访问买家端商品接口
+- 修复Controller Bean命名冲突
+- 创建数据库并导入初始数据
+- 添加更新日志文档
+
+Commit: f09c761
+Branch: feature/yellow-modules
+Status: Committed locally, not yet pushed (network issue)
+```
+
+**Git Status**:
+- ✅ Local changes committed
+- ✅ Fetched latest from origin/dev and origin/main
+- ✅ Feature branch up to date with dev branch
+- ⏸️ Push to remote interrupted due to network issue
+
+**Remote Updates Reviewed**:
+From `origin/dev` branch (jie's work):
+- Port configuration changes (前后端服务端口修改)
+- Product list page implementation (商品列表页)
+- Table design modifications (表设计修改-字典方式改为非中文)
+- Guest mode and product list page planning documentation
+
+**Technical Stack Confirmed**:
+- Java 17 LTS (OpenJDK Eclipse Temurin 17.0.17)
+- Spring Boot 3.1.5
+- MyBatis Plus 3.5.4.1
+- MySQL 8.0.33
+- HikariCP connection pool
+- Maven 3.9.11
+- Vue 3 + Vite (Frontend)
+- Element Plus (Admin UI)
+
+**Problems Solved**:
+1. ✅ H2 Driver ClassNotFoundException - Removed Druid dependency conflict
+2. ✅ Database not found - Created database and imported data
+3. ✅ 401 Unauthorized for guest users - Added anonymous access configuration
+4. ✅ Admin frontend not accessible - Installed dependencies and started server
+
+**Current Status**:
+- ✅ Backend service running and healthy
+- ✅ Product and category APIs tested and working
+- ✅ Admin frontend accessible
+- ✅ Database fully initialized with categories
+- ✅ Guest mode working for product browsing
+- ⏸️ Awaiting network stability to push commits
+
+**Next Steps**:
+1. Push local commits to remote when network is stable
+2. Integrate frontend product list page with real backend APIs
+3. Implement product detail page API integration
+4. Test admin frontend product management features
+5. Add sample products to database for testing
+6. Continue with shopping cart module
+
+---
+
+**Last Updated**: 2025-12-06 (Session 15)
+**Next Session**: Frontend-backend API integration for product pages

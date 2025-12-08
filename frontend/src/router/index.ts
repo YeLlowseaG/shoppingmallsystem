@@ -79,10 +79,20 @@ router.beforeEach((to, from, next) => {
     document.title = `${to.meta.title} - B2B成人用品采购平台`
   }
 
-  // 检查是否需要登录
-  if (to.meta.requiresAuth !== false && !userStore.isLoggedIn()) {
-    next('/login')
-  } else {
+  // 游客模式：默认允许访问，只有明确标记 requiresAuth: true 的页面才需要登录
+  // 如果页面需要登录但用户未登录，跳转到登录页并保存原目标路径
+  if (to.meta.requiresAuth === true && !userStore.isLoggedIn()) {
+    next({
+      path: '/login',
+      query: { redirect: to.fullPath }
+    })
+  } 
+  // 如果已登录用户访问登录/注册页面，跳转到首页
+  else if ((to.path === '/login' || to.path === '/register') && userStore.isLoggedIn()) {
+    next('/')
+  } 
+  // 其他情况正常访问（支持游客模式）
+  else {
     next()
   }
 })
