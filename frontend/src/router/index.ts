@@ -66,6 +66,69 @@ const router = createRouter({
         title: '会员中心',
         requiresAuth: true
       }
+    },
+    {
+      path: '/member/settings/password',
+      name: 'member-password',
+      component: () => import('@/views/member/Password.vue'),
+      meta: {
+        title: '修改密码',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/member/settings/profile',
+      name: 'member-profile',
+      component: () => import('@/views/member/Profile.vue'),
+      meta: {
+        title: '个人信息',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/member/settings/address',
+      name: 'member-address',
+      component: () => import('@/views/member/Address.vue'),
+      meta: {
+        title: '收货地址',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/member/settings/address/edit',
+      name: 'member-address-edit',
+      component: () => import('@/views/member/AddressEdit.vue'),
+      meta: {
+        title: '收货地址',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/cart',
+      name: 'cart',
+      component: () => import('@/views/cart/Index.vue'),
+      meta: {
+        title: '购物车',
+        requiresAuth: false
+      }
+    },
+    {
+      path: '/cart/checkout',
+      name: 'checkout',
+      component: () => import('@/views/cart/Checkout.vue'),
+      meta: {
+        title: '填写购物信息',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/order/payment',
+      name: 'order-payment',
+      component: () => import('@/views/order/Payment.vue'),
+      meta: {
+        title: '订单支付',
+        requiresAuth: true
+      }
     }
   ]
 })

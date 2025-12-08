@@ -247,9 +247,10 @@ public class UserServiceImpl implements UserService {
             }
         }
 
-        // 脱敏处理
-        userInfo.setPhone(StringUtil.maskPhone(user.getPhone()));
-        userInfo.setEmail(StringUtil.maskEmail(user.getEmail()));
+        // 注意：个人信息页面需要完整信息用于编辑，所以不进行脱敏处理
+        // 如果需要脱敏，可以在其他接口中处理
+        userInfo.setPhone(user.getPhone());
+        userInfo.setEmail(user.getEmail());
 
         return userInfo;
     }
@@ -269,11 +270,35 @@ public class UserServiceImpl implements UserService {
         if (userInfoDTO.getGender() != null) {
             user.setGender(userInfoDTO.getGender());
         }
+        if (StringUtil.isNotBlank(userInfoDTO.getEmail())) {
+            user.setEmail(userInfoDTO.getEmail());
+        }
         if (StringUtil.isNotBlank(userInfoDTO.getPhone())) {
             user.setPhone(userInfoDTO.getPhone());
         }
         if (StringUtil.isNotBlank(userInfoDTO.getAddress())) {
             user.setAddress(userInfoDTO.getAddress());
+        }
+        if (userInfoDTO.getBirthday() != null) {
+            user.setBirthday(userInfoDTO.getBirthday());
+        }
+        if (StringUtil.isNotBlank(userInfoDTO.getZipCode())) {
+            user.setZipCode(userInfoDTO.getZipCode());
+        }
+        if (StringUtil.isNotBlank(userInfoDTO.getFixedPhone())) {
+            user.setFixedPhone(userInfoDTO.getFixedPhone());
+        }
+        if (StringUtil.isNotBlank(userInfoDTO.getSecurityQuestion())) {
+            user.setSecurityQuestion(userInfoDTO.getSecurityQuestion());
+        }
+        if (StringUtil.isNotBlank(userInfoDTO.getSecurityAnswer())) {
+            user.setSecurityAnswer(userInfoDTO.getSecurityAnswer());
+        }
+        if (StringUtil.isNotBlank(userInfoDTO.getWangwang())) {
+            user.setWangwang(userInfoDTO.getWangwang());
+        }
+        if (StringUtil.isNotBlank(userInfoDTO.getOperator())) {
+            user.setOperator(userInfoDTO.getOperator());
         }
 
         // 更新地区信息
