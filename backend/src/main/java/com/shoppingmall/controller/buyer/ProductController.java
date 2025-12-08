@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
  * @author ShoppingMall Team
  * @date 2025-12-06
  */
-@RestController
+@RestController("buyerProductController")
 @RequestMapping("/api/buyer/product")
 @RequiredArgsConstructor
 public class ProductController {

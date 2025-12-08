@@ -26,6 +26,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/buyer/user/login",
                         "/api/buyer/user/register",
                         "/api/buyer/user/forgot-password",
+                        "/api/buyer/product/**",
+                        "/api/buyer/product-category/**",
                         "/api/common/**"
                 );
     }

@@ -14,7 +14,7 @@ import java.util.List;
  * @author ShoppingMall Team
  * @date 2025-12-06
  */
-@RestController
+@RestController("buyerProductCategoryController")
 @RequestMapping("/api/buyer/product-category")
 @RequiredArgsConstructor
 public class ProductCategoryController {

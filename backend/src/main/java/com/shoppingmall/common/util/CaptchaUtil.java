@@ -55,10 +55,11 @@ public class CaptchaUtil {
             
             // 设置字体
             lineCaptcha.setFont(new Font("Arial", Font.BOLD, 28));
-            
-            // 生成验证码
-            String code = lineCaptcha.generateCode();
-            
+
+            // 生成验证码并获取验证码文本
+            lineCaptcha.createCode();
+            String code = lineCaptcha.getCode();
+
             // 转换为Base64
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             lineCaptcha.write(outputStream);
