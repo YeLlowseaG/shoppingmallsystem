@@ -89,7 +89,8 @@ const activeMenu = computed(() => {
   if (path.includes('/settings/profile')) return 'settings/profile'
   if (path.includes('/settings/password')) return 'settings/password'
   if (path.includes('/settings/address')) return 'settings/address'
-  if (path.includes('/transaction')) return 'transaction/orders'
+  if (path.includes('/favorites/products')) return 'favorites/products'
+  if (path.includes('/transaction/orders')) return 'transaction/orders'
   return ''
 })
 
@@ -100,8 +101,8 @@ const handleMenuSelect = (index: string) => {
     'settings/profile': '/member/settings/profile',
     'settings/password': '/member/settings/password',
     'settings/address': '/member/settings/address',
-    'transaction/orders': '/member',
-    'favorites/products': '/member',
+    'transaction/orders': '/member/transaction/orders',
+    'favorites/products': '/member/favorites/products',
     'favorites/out-of-stock': '/member',
     'messages/comments': '/member',
     'deposit/balance': '/member',

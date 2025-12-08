@@ -90,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import TopBar from '@/components/home/TopBar.vue'
@@ -99,33 +99,26 @@ import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
 import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
 import MemberSidebar from '@/components/member/MemberSidebar.vue'
+import { getAddressList, deleteAddress, setDefaultAddress, type AddressVO } from '@/api/buyer/address'
 
 const router = useRouter()
 
 // 未读消息数量
 const unreadMessageCount = ref(0)
 
-// 收货地址列表（模拟数据，后续从后端获取）
-const addressList = ref([
-  {
-    id: 1,
-    recipient: '刘明辉',
-    address: '陕西省西安市雁塔区科技路徐家庄西南口148号',
-    phone: '',
-    mobile: '18829634981',
-    zipCode: '100000',
-    isDefault: false
-  },
-  {
-    id: 2,
-    recipient: '黄连丰',
-    address: '北京市朝阳区建国路88号',
-    phone: '010-12345678',
-    mobile: '13800138000',
-    zipCode: '100000',
-    isDefault: false
+// 收货地址列表
+const addressList = ref<AddressVO[]>([])
+
+// 加载收货地址列表
+const loadAddressList = async () => {
+  try {
+    const data = await getAddressList()
+    addressList.value = data
+  } catch (error: any) {
+    console.error('加载收货地址列表失败:', error)
+    ElMessage.error(error.message || '加载收货地址列表失败')
   }
-])
+}
 
 // 菜单选择逻辑已移至 MemberSidebar 组件中
 
@@ -135,38 +128,47 @@ const handleAddAddress = () => {
 }
 
 // 修改收货地址
-const handleEditAddress = (row: any) => {
+const handleEditAddress = (row: AddressVO) => {
   router.push(`/member/settings/address/edit?id=${row.id}`)
 }
 
 // 删除收货地址
-const handleDeleteAddress = async (_row: any) => {
+const handleDeleteAddress = async (row: AddressVO) => {
   try {
     await ElMessageBox.confirm('确定要删除该收货地址吗？', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     })
-    // TODO: 调用后端API删除
+    await deleteAddress(row.id)
     ElMessage.success('删除成功')
     // 重新加载列表
-    // loadAddressList()
-  } catch {
-    // 用户取消删除
+    loadAddressList()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      console.error('删除收货地址失败:', error)
+      ElMessage.error(error.message || '删除失败')
+    }
   }
 }
 
 // 设为默认
-const handleSetDefault = async (_row: any) => {
+const handleSetDefault = async (row: AddressVO) => {
   try {
-    // TODO: 调用后端API设置默认地址
+    await setDefaultAddress(row.id)
     ElMessage.success('设置成功')
     // 重新加载列表
-    // loadAddressList()
-  } catch (error) {
+    loadAddressList()
+  } catch (error: any) {
     console.error('设置默认地址失败:', error)
+    ElMessage.error(error.message || '设置失败')
   }
 }
+
+// 初始化加载数据
+onMounted(() => {
+  loadAddressList()
+})
 </script>
 
 <style scoped lang="scss">

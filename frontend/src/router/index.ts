@@ -104,6 +104,24 @@ const router = createRouter({
       }
     },
     {
+      path: '/member/transaction/orders',
+      name: 'member-orders',
+      component: () => import('@/views/member/Orders.vue'),
+      meta: {
+        title: '我的订单',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/member/favorites/products',
+      name: 'member-favorites',
+      component: () => import('@/views/member/Favorites.vue'),
+      meta: {
+        title: '商品收藏',
+        requiresAuth: true
+      }
+    },
+    {
       path: '/cart',
       name: 'cart',
       component: () => import('@/views/cart/Index.vue'),
@@ -136,6 +154,15 @@ const router = createRouter({
       component: () => import('@/views/order/Detail.vue'),
       meta: {
         title: '订单详情',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/order/message',
+      name: 'order-message',
+      component: () => import('@/views/order/OrderMessage.vue'),
+      meta: {
+        title: '订单消息',
         requiresAuth: true
       }
     }

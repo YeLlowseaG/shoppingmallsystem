@@ -50,7 +50,7 @@
                 </el-form-item>
 
                 <!-- 姓名 -->
-                <el-form-item prop="recipient">
+                <el-form-item prop="recipient" class="form-item-inline">
                   <table class="form-table">
                     <tr>
                       <td class="label-cell">
@@ -69,7 +69,7 @@
                 </el-form-item>
 
                 <!-- 电话 -->
-                <el-form-item prop="phone">
+                <el-form-item prop="phone" class="form-item-inline">
                   <table class="form-table">
                     <tr>
                       <td class="label-cell">
@@ -82,14 +82,13 @@
                           class="form-input"
                           clearable
                         />
-                        <span class="form-hint">其中联系电话和联系手机必须填写一项</span>
                       </td>
                     </tr>
                   </table>
                 </el-form-item>
 
                 <!-- 手机 -->
-                <el-form-item prop="mobile">
+                <el-form-item prop="mobile" class="form-item-inline">
                   <table class="form-table">
                     <tr>
                       <td class="label-cell">
@@ -164,7 +163,7 @@
                 </el-form-item>
 
                 <!-- 地址 -->
-                <el-form-item prop="address">
+                <el-form-item prop="address" class="form-item-inline">
                   <table class="form-table">
                     <tr>
                       <td class="label-cell">
@@ -245,6 +244,7 @@ import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
 import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
 import MemberSidebar from '@/components/member/MemberSidebar.vue'
+import { getAddressById, addAddress, updateAddress, type AddressDTO } from '@/api/buyer/address'
 
 const router = useRouter()
 const route = useRoute()
@@ -367,11 +367,30 @@ const handleSave = async () => {
 
       loading.value = true
       try {
-        // TODO: 调用后端API保存收货地址
-        ElMessage.success(isEdit.value ? '修改成功' : '新增成功')
+        const addressDTO: AddressDTO = {
+          recipient: addressForm.recipient,
+          phone: addressForm.phone || undefined,
+          mobile: addressForm.mobile || undefined,
+          province: addressForm.province,
+          city: addressForm.city,
+          district: addressForm.district,
+          address: addressForm.address,
+          zipCode: addressForm.zipCode || undefined,
+          isDefault: addressForm.isDefault
+        }
+
+        if (isEdit.value) {
+          const addressId = Number(route.query.id)
+          await updateAddress(addressId, addressDTO)
+          ElMessage.success('修改成功')
+        } else {
+          await addAddress(addressDTO)
+          ElMessage.success('新增成功')
+        }
         router.push('/member/settings/address')
       } catch (error: any) {
         console.error('保存收货地址失败:', error)
+        ElMessage.error(error.message || '保存失败')
       } finally {
         loading.value = false
       }
@@ -389,14 +408,31 @@ const loadAddressData = async () => {
   if (!isEdit.value) return
 
   try {
-    const addressId = route.query.id as string
-    // TODO: 调用后端API获取收货地址详情
-    // const addressData = await getAddressById(addressId)
+    const addressId = Number(route.query.id)
+    const addressData = await getAddressById(addressId)
+    
     // 填充表单数据
-    // addressForm.recipient = addressData.recipient
-    // ...
-  } catch (error) {
+    addressForm.recipient = addressData.recipient || ''
+    addressForm.phone = addressData.phone || ''
+    addressForm.mobile = addressData.mobile || ''
+    addressForm.province = addressData.province || ''
+    addressForm.city = addressData.city || ''
+    addressForm.district = addressData.district || ''
+    addressForm.address = addressData.address || ''
+    addressForm.zipCode = addressData.zipCode || ''
+    addressForm.isDefault = addressData.isDefault || false
+
+    // 加载地区数据
+    if (addressForm.province) {
+      handleProvinceChange()
+      if (addressForm.city) {
+        handleCityChange()
+      }
+    }
+  } catch (error: any) {
     console.error('加载收货地址失败:', error)
+    ElMessage.error(error.message || '加载收货地址失败')
+    router.push('/member/settings/address')
   }
 }
 
@@ -450,6 +486,28 @@ onMounted(() => {
             margin-bottom: 4px;
           }
 
+          // 内联布局的表单项，错误信息显示在右侧
+          :deep(.form-item-inline) {
+            .el-form-item__content {
+              display: flex;
+              align-items: center;
+              flex-wrap: wrap;
+            }
+
+            .el-form-item__error {
+              position: static !important;
+              padding-top: 0 !important;
+              margin-top: 0 !important;
+              margin-left: 10px !important;
+              color: #f56c6c;
+              font-size: 12px;
+              line-height: 1;
+              display: inline-block;
+              flex: 1;
+              min-width: 200px;
+            }
+          }
+
           .form-table {
             width: 100%;
             border-collapse: collapse;
@@ -473,15 +531,13 @@ onMounted(() => {
             .input-cell {
               padding: 2px 0;
               vertical-align: middle;
+              display: flex;
+              align-items: center;
+              gap: 10px;
 
               .form-input {
                 width: 300px;
-              }
-
-              .form-hint {
-                font-size: 12px;
-                color: #999;
-                margin-left: 10px;
+                flex-shrink: 0;
               }
 
               .region-selectors {
