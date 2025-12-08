@@ -437,7 +437,7 @@ const paymentCurrency = ref('CNY')
 const paymentMethod = ref('alipay')
 
 // 配送方式相关
-const showShippingDialog = ref(false)
+const showShippingOptions = ref(false)
 const selectedShippingMethodId = ref('free_shipping')
 
 // 配送方式列表（模拟数据，后续从API获取）
@@ -576,11 +576,10 @@ const handleEditAddress = (address: any) => {
   }
 }
 
-// 确认配送方式
-const handleConfirmShipping = () => {
-  showShippingDialog.value = false
+// 配送方式选择后自动更新（通过computed）
+watch(selectedShippingMethodId, () => {
   // 配送费用会自动更新（通过computed）
-}
+})
 
 // 返回购物车
 const handleBackToCart = () => {
@@ -946,112 +945,105 @@ const handlePlaceOrder = async () => {
   }
 }
 
-// 配送方式选择对话框
-.shipping-dialog {
-  :deep(.el-dialog__body) {
-    padding: 20px;
-  }
+// 配送方式选择列表（展开显示）
+.shipping-methods-list {
+  margin-top: 20px;
+  padding: 0;
+  overflow: visible;
 
-  .shipping-methods-list {
-    // 移除滚动条限制，让内容自然显示
-    overflow: visible;
+  .shipping-radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
     padding: 0;
     margin: 0;
 
-    .shipping-radio-group {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
+    .shipping-radio {
+      display: block;
       padding: 0;
       margin: 0;
+      height: auto;
+      border: 1px solid #e5e5e5;
+      border-radius: 4px;
+      transition: all 0.3s;
+      background: #fff;
+      min-height: 50px;
 
-      .shipping-radio {
-        display: block;
-        padding: 0;
+      &:hover {
+        border-color: #e4393c;
+        background: #fff5f5;
+      }
+
+      :deep(.el-radio) {
+        display: flex;
+        align-items: flex-start;
+        width: 100%;
         margin: 0;
-        height: auto;
-        border: 1px solid #e5e5e5;
-        border-radius: 4px;
-        transition: all 0.3s;
-        background: #fff;
-        min-height: 50px;
+        padding: 0;
+        white-space: normal;
+        height: 100%;
+      }
 
-        &:hover {
-          border-color: #e4393c;
-          background: #fff5f5;
-        }
+      :deep(.el-radio__input) {
+        margin-top: 15px;
+        margin-left: 12px;
+        margin-right: 0;
+        flex-shrink: 0;
+        width: auto;
+      }
 
-        :deep(.el-radio) {
+      :deep(.el-radio__input.is-checked .el-radio__inner) {
+        background-color: #409eff;
+        border-color: #409eff;
+      }
+
+      :deep(.el-radio__label) {
+        padding: 12px 12px 12px 8px !important;
+        flex: 1;
+        width: auto;
+        display: block;
+        margin-left: 0 !important;
+        padding-left: 8px !important;
+      }
+
+      .shipping-method-content {
+        width: 100%;
+        text-align: left;
+        padding-right: 12px;
+        padding-left: 0;
+        margin: 0;
+
+        .method-header {
           display: flex;
-          align-items: flex-start;
-          width: 100%;
-          margin: 0;
+          align-items: center;
+          justify-content: flex-start;
+          margin-bottom: 5px;
+          gap: 10px;
           padding: 0;
-          white-space: normal;
-          height: 100%;
+          margin-left: 0;
+
+          .method-name {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+          }
+
+          .method-price {
+            font-size: 14px;
+            color: #333;
+            font-weight: normal;
+          }
         }
 
-        :deep(.el-radio__input) {
-          margin-top: 15px;
-          margin-left: 12px;
-          margin-right: 0;
-          flex-shrink: 0;
-          width: auto;
-        }
-
-        :deep(.el-radio__input.is-checked .el-radio__inner) {
-          background-color: #409eff;
-          border-color: #409eff;
-        }
-
-        :deep(.el-radio__label) {
-          padding: 12px 12px 12px 8px !important;
-          flex: 1;
-          width: auto;
-          display: block;
-          margin-left: 0 !important;
-          padding-left: 8px !important;
-        }
-
-        .shipping-method-content {
-          width: 100%;
+        .method-description {
+          font-size: 12px;
+          color: #666;
+          line-height: 1.6;
+          margin-top: 3px;
+          word-break: break-all;
           text-align: left;
-          padding-right: 12px;
           padding-left: 0;
-          margin: 0;
-
-          .method-header {
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            margin-bottom: 5px;
-            gap: 10px;
-            padding: 0;
-            margin-left: 0;
-
-            .method-name {
-              font-size: 14px;
-              color: #333;
-              font-weight: 500;
-            }
-
-            .method-price {
-              font-size: 14px;
-              color: #333;
-              font-weight: normal;
-            }
-          }
-
-          .method-description {
-            font-size: 12px;
-            color: #666;
-            line-height: 1.6;
-            margin-top: 3px;
-            word-break: break-all;
-            text-align: left;
-            padding-left: 0;
-            margin-left: 0;
-          }
+          margin-left: 0;
         }
       }
     }
