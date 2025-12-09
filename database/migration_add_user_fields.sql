@@ -27,3 +27,4 @@ ADD COLUMN `wangwang` VARCHAR(50) DEFAULT NULL COMMENT '旺旺账号' AFTER `sec
 --   AND TABLE_NAME = 'sys_user' 
 --   AND COLUMN_NAME IN ('operator', 'birthday', 'zip_code', 'fixed_phone', 'security_question', 'security_answer', 'wangwang');
 
+
