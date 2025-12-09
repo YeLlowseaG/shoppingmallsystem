@@ -4,22 +4,22 @@
     <div class="service-bar">
       <div class="container">
         <div class="service-item">
-          <el-icon class="icon"><Check /></el-icon>
-          <span>正品保障</span>
+          <div class="icon-circle">正</div>
+          <span>正品货源</span>
         </div>
         <div class="service-item">
-          <el-icon class="icon"><Location /></el-icon>
-          <span>国内发货</span>
+          <span class="icon-text">✈</span>
+          <span>海外直邮</span>
         </div>
         <div class="service-item">
-          <el-icon class="icon"><Lock /></el-icon>
-          <span>安全支付</span>
+          <span class="icon-text">👤</span>
+          <span>本土客服</span>
         </div>
         <div class="service-item">
-          <el-icon class="icon"><Medal /></el-icon>
-          <span>金牌服务</span>
+          <span class="icon-text">💰</span>
+          <span>全球同价</span>
         </div>
-        <el-button type="danger" class="contact-btn">联系我们</el-button>
+        <el-button type="danger" class="contact-btn">查看详情</el-button>
       </div>
     </div>
 
@@ -31,55 +31,37 @@
           <div class="links">
             <div class="link-group">
               <h4>购物指南</h4>
-              <a href="#">新手上路</a>
-              <a href="#">会员介绍</a>
-              <a href="#">购物流程</a>
-              <a href="#">网站协议</a>
+              <a href="#">体贴的售后服务</a>
+              <a href="#">网站使用条款</a>
+              <a href="#">网站免责声明</a>
+              <a href="#">简单的购物流程</a>
             </div>
             <div class="link-group">
-              <h4>配送方式</h4>
-              <a href="#">上门自提</a>
-              <a href="#">快递运输</a>
-              <a href="#">配送服务查询</a>
-              <a href="#">配送费收取标准</a>
+              <h4>新手上路</h4>
+              <a href="#">顾客必读</a>
+              <a href="#">会员等级折扣</a>
+              <a href="#">订单的几种状态</a>
+              <a href="#">积分奖励计划</a>
             </div>
             <div class="link-group">
-              <h4>支付方式</h4>
-              <a href="#">货到付款</a>
-              <a href="#">在线支付</a>
-              <a href="#">分期付款</a>
-              <a href="#">邮局汇款</a>
+              <h4>购物条款</h4>
+              <a href="#">会员注册协议</a>
+              <a href="#">隐私保护政策</a>
             </div>
             <div class="link-group">
-              <h4>售后服务</h4>
-              <a href="#">售后政策</a>
-              <a href="#">价格保护</a>
-              <a href="#">退款说明</a>
-              <a href="#">返修/退换货</a>
+              <h4>支付/配送方式</h4>
+              <a href="#">支付方式</a>
+              <a href="#">配送方式</a>
+              <a href="#">订单何时出库？</a>
+              <a href="#">网上支付小贴士</a>
             </div>
             <div class="link-group">
-              <h4>关于我们</h4>
-              <a href="#">公司简介</a>
-              <a href="#">加入我们</a>
-              <a href="#">联系我们</a>
-              <a href="#">关于我们</a>
+              <h4>备案号</h4>
+              <a href="#">粤ICP备11098444号</a>
+              <a href="#">粤深械网备202005070014</a>
+              <a href="#">粤深食药监械经营备20151274号</a>
             </div>
           </div>
-
-          <!-- 右侧联系信息 -->
-          <div class="contact">
-            <h4>联系我们</h4>
-            <p>服务热线：400-166-1683</p>
-            <p>咨询热线：13049338552</p>
-            <p>官方微信：扫描二维码关注我们</p>
-          </div>
-        </div>
-
-        <!-- 版权信息 -->
-        <div class="copyright">
-          <p>© 2023JINGVO版权所有</p>
-          <p>粤ICP备20123459号</p>
-          <p>粤公网安备21231234号</p>
         </div>
       </div>
     </div>
@@ -87,15 +69,15 @@
 </template>
 
 <script setup lang="ts">
-import { Check, Location, Lock, Medal } from '@element-plus/icons-vue'
+// 暂时移除图标导入，如果图标不存在会导致页面空白
+// import { LocationFilled, UserFilled, Wallet } from '@element-plus/icons-vue'
 </script>
 
 <style scoped lang="scss">
 .footer {
   .service-bar {
-    background: #f5f5f5;
+    background: #e4393c;
     padding: 20px 0;
-    border-top: 1px solid #eee;
 
     .container {
       max-width: 1200px;
@@ -109,15 +91,34 @@ import { Check, Location, Lock, Medal } from '@element-plus/icons-vue'
         display: flex;
         align-items: center;
         gap: 8px;
-        color: #666;
+        color: #fff;
+
+        .icon-circle {
+          width: 30px;
+          height: 30px;
+          border-radius: 50%;
+          background: #fff;
+          color: #e4393c;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+          font-weight: bold;
+        }
 
         .icon {
           font-size: 24px;
-          color: #e4393c;
+          color: #fff;
+        }
+
+        .icon-text {
+          font-size: 20px;
+          color: #fff;
         }
 
         span {
           font-size: 14px;
+          color: #fff;
         }
       }
 
@@ -145,7 +146,7 @@ import { Check, Location, Lock, Medal } from '@element-plus/icons-vue'
 
       .links {
         display: flex;
-        gap: 60px;
+        gap: 40px;
 
         .link-group {
           h4 {
@@ -170,31 +171,6 @@ import { Check, Location, Lock, Medal } from '@element-plus/icons-vue'
         }
       }
 
-      .contact {
-        h4 {
-          font-size: 16px;
-          font-weight: bold;
-          margin-bottom: 15px;
-        }
-
-        p {
-          font-size: 13px;
-          color: #999;
-          margin-bottom: 8px;
-        }
-      }
-    }
-
-    .copyright {
-      border-top: 1px solid #444;
-      padding-top: 20px;
-      text-align: center;
-
-      p {
-        font-size: 12px;
-        color: #666;
-        margin-bottom: 5px;
-      }
     }
   }
 }

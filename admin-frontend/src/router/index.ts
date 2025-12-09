@@ -31,12 +31,12 @@ const router = createRouter({
           name: 'admin-dashboard',
           component: () => import('@/views/dashboard/Index.vue'),
           meta: {
-            title: '数据概览',
-            permission: 'admin:dashboard:view'
+            title: '数据概览'
+            // dashboard不需要权限，所有已登录用户都可以访问
           }
         },
         {
-          path: 'permission/user',
+          path: 'user',
           name: 'admin-permission-user',
           component: () => import('@/views/permission/User.vue'),
           meta: {
@@ -45,7 +45,7 @@ const router = createRouter({
           }
         },
         {
-          path: 'permission/role',
+          path: 'role',
           name: 'admin-permission-role',
           component: () => import('@/views/permission/Role.vue'),
           meta: {
@@ -54,7 +54,7 @@ const router = createRouter({
           }
         },
         {
-          path: 'permission/menu',
+          path: 'menu',
           name: 'admin-permission-menu',
           component: () => import('@/views/permission/Menu.vue'),
           meta: {
@@ -63,21 +63,39 @@ const router = createRouter({
           }
         },
         {
-          path: '/admin/product/category',
-          name: 'product-category',
+          path: 'product/category',
+          name: 'admin-product-category',
           component: () => import('@/views/product/CategoryManage.vue'),
           meta: {
             title: '商品分类管理',
-            requiresAuth: true
+            permission: 'admin:product:category:list'
           }
         },
         {
-          path: '/admin/product/list',
-          name: 'product-list',
+          path: 'product/list',
+          name: 'admin-product-list',
           component: () => import('@/views/product/ProductManage.vue'),
           meta: {
             title: '商品管理',
-            requiresAuth: true
+            permission: 'admin:product:list'
+          }
+        },
+        {
+          path: 'buyer/list',
+          name: 'admin-buyer-list',
+          component: () => import('@/views/buyer/List.vue'),
+          meta: {
+            title: '采购者列表',
+            permission: 'admin:buyer:list'
+          }
+        },
+        {
+          path: 'buyer/audit',
+          name: 'admin-buyer-audit',
+          component: () => import('@/views/buyer/Audit.vue'),
+          meta: {
+            title: '采购者审核',
+            permission: 'admin:buyer:audit'
           }
         }
       ]
@@ -89,7 +107,7 @@ const router = createRouter({
 export const addRoutes = (menus: MenuVO[]) => {
   const buildRoutes = (menuList: MenuVO[], parentPath = '/admin') => {
     menuList.forEach(menu => {
-      if (menu.menuType === '菜单' && menu.path && menu.component) {
+      if (menu.menuType === 1 && menu.path && menu.component) {
         const route = {
           path: menu.path.startsWith('/') ? menu.path : `${parentPath}/${menu.path}`,
           name: `admin-${menu.permission?.replace(/:/g, '-')}`,
@@ -131,11 +149,27 @@ router.beforeEach(async (to, from, next) => {
     return
   }
 
-  // 检查权限
-  if (to.meta.permission && adminStore.permissions) {
+  // 检查权限（需要权限的页面）
+  if (to.meta.permission) {
+    // 如果没有权限列表或权限列表为空，说明用户没有分配角色
+    if (!adminStore.permissions || adminStore.permissions.length === 0) {
+      // 如果用户已登录但没有权限，显示友好提示，但不退出登录
+      // 允许访问dashboard页面，在页面上显示提示信息
+      if (to.path === '/admin/dashboard') {
+        // dashboard页面允许访问，在页面上显示提示
+        next()
+        return
+      }
+      // 其他需要权限的页面，显示提示并跳转到dashboard
+      ElMessage.warning('您还没有分配角色，请联系管理员分配角色和权限')
+      next('/admin/dashboard')
+      return
+    }
+    
+    // 检查是否有具体权限
     const hasPermission = adminStore.permissions.includes(to.meta.permission as string)
     if (!hasPermission) {
-      ElMessage.error('无权限访问')
+      ElMessage.warning('无权限访问该页面')
       next('/admin/dashboard')
       return
     }

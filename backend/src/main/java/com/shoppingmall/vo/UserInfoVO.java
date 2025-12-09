@@ -2,6 +2,8 @@ package com.shoppingmall.vo;
 
 import lombok.Data;
 
+import java.time.LocalDate;
+
 /**
  * 用户信息VO
  *
@@ -65,6 +67,46 @@ public class UserInfoVO {
      * 区县
      */
     private String district;
+
+    /**
+     * 详细地址
+     */
+    private String address;
+
+    /**
+     * 出生日期
+     */
+    private LocalDate birthday;
+
+    /**
+     * 邮编
+     */
+    private String zipCode;
+
+    /**
+     * 固定电话
+     */
+    private String fixedPhone;
+
+    /**
+     * 安全问题
+     */
+    private String securityQuestion;
+
+    /**
+     * 安全问题答案
+     */
+    private String securityAnswer;
+
+    /**
+     * 旺旺账号
+     */
+    private String wangwang;
+
+    /**
+     * 运营人员
+     */
+    private String operator;
 }
 
 

@@ -3,6 +3,7 @@ package com.shoppingmall.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -47,9 +48,24 @@ public class User {
     private Integer gender;
 
     /**
+     * 出生日期
+     */
+    private LocalDate birthday;
+
+    /**
      * 手机号
      */
     private String phone;
+
+    /**
+     * 固定电话
+     */
+    private String fixedPhone;
+
+    /**
+     * 运营人员
+     */
+    private String operator;
 
     /**
      * 地区（JSON格式：{"province":"省","city":"市","district":"区"}）
@@ -60,6 +76,26 @@ public class User {
      * 详细地址
      */
     private String address;
+
+    /**
+     * 邮编
+     */
+    private String zipCode;
+
+    /**
+     * 安全问题
+     */
+    private String securityQuestion;
+
+    /**
+     * 安全问题答案
+     */
+    private String securityAnswer;
+
+    /**
+     * 旺旺账号
+     */
+    private String wangwang;
 
     /**
      * 用户等级（0-普通，1-VIP，2-金牌）

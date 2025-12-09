@@ -8,8 +8,6 @@ import com.shoppingmall.common.util.StringUtil;
 import com.shoppingmall.controller.common.CaptchaController;
 import com.shoppingmall.dto.*;
 import com.shoppingmall.entity.User;
-import com.shoppingmall.entity.UserAudit;
-import com.shoppingmall.repository.user.UserAuditRepository;
 import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.service.user.UserService;
 import com.shoppingmall.vo.LoginVO;
@@ -36,7 +34,6 @@ import java.util.Map;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
-    private final UserAuditRepository userAuditRepository;
     private final JwtUtil jwtUtil;
     private final ObjectMapper objectMapper;
     private final CaptchaController captchaController;
@@ -78,7 +75,30 @@ public class UserServiceImpl implements UserService {
         user.setPhone(registerDTO.getPhone());
         user.setAddress(registerDTO.getAddress());
         user.setUserLevel(com.shoppingmall.common.constant.UserLevel.NORMAL);
-        user.setStatus(com.shoppingmall.common.constant.UserStatus.PENDING);
+        // 注册后直接激活，无需审核
+        user.setStatus(com.shoppingmall.common.constant.UserStatus.ACTIVATED);
+
+        // 设置出生日期（从年、月、日组合）
+        if (registerDTO.getBirthYear() != null && registerDTO.getBirthMonth() != null && registerDTO.getBirthDay() != null) {
+            try {
+                java.time.LocalDate birthday = java.time.LocalDate.of(
+                    registerDTO.getBirthYear(),
+                    registerDTO.getBirthMonth(),
+                    registerDTO.getBirthDay()
+                );
+                user.setBirthday(birthday);
+            } catch (Exception e) {
+                log.warn("出生日期格式错误: {}-{}-{}", registerDTO.getBirthYear(), registerDTO.getBirthMonth(), registerDTO.getBirthDay(), e);
+            }
+        }
+
+        // 设置其他可选字段
+        user.setOperator(registerDTO.getOperator());
+        user.setFixedPhone(registerDTO.getFixedPhone());
+        user.setZipCode(registerDTO.getZipCode());
+        user.setSecurityQuestion(registerDTO.getSecurityQuestion());
+        user.setSecurityAnswer(registerDTO.getSecurityAnswer());
+        user.setWangwang(registerDTO.getWangwang());
 
         // 构建地区JSON
         Map<String, String> regionMap = new HashMap<>();
@@ -95,13 +115,8 @@ public class UserServiceImpl implements UserService {
         // 保存用户
         userRepository.insert(user);
 
-        // 创建审核记录
-        UserAudit audit = new UserAudit();
-        audit.setUserId(user.getId());
-        audit.setAuditStatus(com.shoppingmall.common.constant.AuditStatus.PENDING);
-        userAuditRepository.insert(audit);
-
-        log.info("用户注册成功: {}", user.getUsername());
+        // 注册后直接激活，不再创建审核记录
+        log.info("用户注册成功并自动激活: {}", user.getUsername());
     }
 
     @Override
@@ -130,10 +145,10 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(401, "用户名或密码错误");
         }
 
-        // 检查用户状态
-        if (!com.shoppingmall.common.constant.UserStatus.ACTIVATED.equals(user.getStatus())) {
-            log.warn("用户登录失败：账户未激活 - 用户名: {}, 状态: {}", loginDTO.getUsername(), user.getStatus());
-            throw new BusinessException(403, "账户未激活，请联系管理员审核");
+        // 检查用户状态（只检查是否禁用，不再检查是否激活）
+        if (com.shoppingmall.common.constant.UserStatus.DISABLED.equals(user.getStatus())) {
+            log.warn("用户登录失败：账户已禁用 - 用户名: {}, 状态: {}", loginDTO.getUsername(), user.getStatus());
+            throw new BusinessException(403, "账户已禁用，请联系管理员");
         }
 
         // 生成Token
@@ -155,6 +170,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void forgotPassword(ForgotPasswordDTO forgotPasswordDTO) {
+        // 验证至少填写邮箱或手机号之一
+        if ((forgotPasswordDTO.getEmail() == null || forgotPasswordDTO.getEmail().trim().isEmpty()) &&
+            (forgotPasswordDTO.getPhone() == null || forgotPasswordDTO.getPhone().trim().isEmpty())) {
+            throw new BusinessException(400, "请至少填写邮箱或手机号之一");
+        }
+
         // 查询用户
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getUsername, forgotPasswordDTO.getUsername());
@@ -164,11 +185,43 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(404, "该用户不存在！");
         }
 
-        // TODO: 发送密码重置邮件到用户邮箱
-        // 这里暂时只记录日志，后续实现邮件发送功能
-        log.info("用户{}申请密码重置，邮箱: {}", user.getUsername(), user.getEmail());
+        // 验证邮箱或手机号是否匹配
+        boolean emailMatch = false;
+        boolean phoneMatch = false;
+
+        if (forgotPasswordDTO.getEmail() != null && !forgotPasswordDTO.getEmail().trim().isEmpty()) {
+            if (user.getEmail() != null && user.getEmail().equals(forgotPasswordDTO.getEmail().trim())) {
+                emailMatch = true;
+            }
+        }
+
+        if (forgotPasswordDTO.getPhone() != null && !forgotPasswordDTO.getPhone().trim().isEmpty()) {
+            if (user.getPhone() != null && user.getPhone().equals(forgotPasswordDTO.getPhone().trim())) {
+                phoneMatch = true;
+            }
+        }
+
+        // 如果填写了邮箱但邮箱不匹配，或者填写了手机号但手机号不匹配
+        if ((forgotPasswordDTO.getEmail() != null && !forgotPasswordDTO.getEmail().trim().isEmpty() && !emailMatch) ||
+            (forgotPasswordDTO.getPhone() != null && !forgotPasswordDTO.getPhone().trim().isEmpty() && !phoneMatch)) {
+            throw new BusinessException(400, "您填写的邮箱或手机号与注册时的不一致，请重新填写");
+        }
+
+        // 至少有一个匹配才能继续
+        if (!emailMatch && !phoneMatch) {
+            throw new BusinessException(400, "您填写的邮箱或手机号与注册时的不一致，请重新填写");
+        }
+
+        // TODO: 发送密码重置邮件到用户邮箱或手机
+        // 这里暂时只记录日志，后续实现邮件/短信发送功能
+        if (emailMatch) {
+            log.info("用户{}申请密码重置，邮箱: {}", user.getUsername(), user.getEmail());
+        }
+        if (phoneMatch) {
+            log.info("用户{}申请密码重置，手机号: {}", user.getUsername(), user.getPhone());
+        }
         
-        // 实际应该发送邮件，这里先抛出异常提示需要实现邮件功能
+        // 实际应该发送邮件或短信，这里先抛出异常提示需要实现邮件/短信功能
         // throw new BusinessException(500, "密码重置功能暂未实现，请联系管理员");
     }
 
@@ -194,9 +247,10 @@ public class UserServiceImpl implements UserService {
             }
         }
 
-        // 脱敏处理
-        userInfo.setPhone(StringUtil.maskPhone(user.getPhone()));
-        userInfo.setEmail(StringUtil.maskEmail(user.getEmail()));
+        // 注意：个人信息页面需要完整信息用于编辑，所以不进行脱敏处理
+        // 如果需要脱敏，可以在其他接口中处理
+        userInfo.setPhone(user.getPhone());
+        userInfo.setEmail(user.getEmail());
 
         return userInfo;
     }
@@ -216,11 +270,35 @@ public class UserServiceImpl implements UserService {
         if (userInfoDTO.getGender() != null) {
             user.setGender(userInfoDTO.getGender());
         }
+        if (StringUtil.isNotBlank(userInfoDTO.getEmail())) {
+            user.setEmail(userInfoDTO.getEmail());
+        }
         if (StringUtil.isNotBlank(userInfoDTO.getPhone())) {
             user.setPhone(userInfoDTO.getPhone());
         }
         if (StringUtil.isNotBlank(userInfoDTO.getAddress())) {
             user.setAddress(userInfoDTO.getAddress());
+        }
+        if (userInfoDTO.getBirthday() != null) {
+            user.setBirthday(userInfoDTO.getBirthday());
+        }
+        if (StringUtil.isNotBlank(userInfoDTO.getZipCode())) {
+            user.setZipCode(userInfoDTO.getZipCode());
+        }
+        if (StringUtil.isNotBlank(userInfoDTO.getFixedPhone())) {
+            user.setFixedPhone(userInfoDTO.getFixedPhone());
+        }
+        if (StringUtil.isNotBlank(userInfoDTO.getSecurityQuestion())) {
+            user.setSecurityQuestion(userInfoDTO.getSecurityQuestion());
+        }
+        if (StringUtil.isNotBlank(userInfoDTO.getSecurityAnswer())) {
+            user.setSecurityAnswer(userInfoDTO.getSecurityAnswer());
+        }
+        if (StringUtil.isNotBlank(userInfoDTO.getWangwang())) {
+            user.setWangwang(userInfoDTO.getWangwang());
+        }
+        if (StringUtil.isNotBlank(userInfoDTO.getOperator())) {
+            user.setOperator(userInfoDTO.getOperator());
         }
 
         // 更新地区信息

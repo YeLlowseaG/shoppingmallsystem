@@ -25,7 +25,7 @@
                 <component :is="data.icon" />
               </el-icon>
               {{ data.menuName }}
-              <el-tag size="small" style="margin-left: 10px;">{{ data.menuType }}</el-tag>
+              <el-tag size="small" style="margin-left: 10px;">{{ data.menuType === 0 ? '目录' : data.menuType === 1 ? '菜单' : '按钮' }}</el-tag>
               <el-tag v-if="data.permission" size="small" type="info" style="margin-left: 5px;">
                 {{ data.permission }}
               </el-tag>
@@ -63,7 +63,7 @@
             <el-option label="顶级菜单" :value="0" />
             <template v-for="menu in flatMenuList" :key="menu.id">
               <el-option
-                v-if="menu.menuType === '目录' && menu.id !== form.id"
+                v-if="menu.menuType === 0 && menu.id !== form.id"
                 :label="menu.menuName"
                 :value="menu.id"
               />
@@ -72,17 +72,17 @@
         </el-form-item>
         <el-form-item label="菜单类型" prop="menuType">
           <el-radio-group v-model="form.menuType">
-            <el-radio label="目录">目录</el-radio>
-            <el-radio label="菜单">菜单</el-radio>
+            <el-radio :label="0">目录</el-radio>
+            <el-radio :label="1">菜单</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="菜单名称" prop="menuName">
           <el-input v-model="form.menuName" placeholder="请输入菜单名称" />
         </el-form-item>
-        <el-form-item label="路由路径" prop="path" v-if="form.menuType === '菜单'">
+        <el-form-item label="路由路径" prop="path" v-if="form.menuType === 1">
           <el-input v-model="form.path" placeholder="请输入路由路径" />
         </el-form-item>
-        <el-form-item label="组件路径" prop="component" v-if="form.menuType === '菜单'">
+        <el-form-item label="组件路径" prop="component" v-if="form.menuType === 1">
           <el-input v-model="form.component" placeholder="请输入组件路径" />
         </el-form-item>
         <el-form-item label="图标" prop="icon">
@@ -135,7 +135,7 @@ const form = reactive({
   id: undefined as number | undefined,
   parentId: undefined as number | undefined,
   menuName: '',
-  menuType: '目录',
+  menuType: 0, // 0-目录，1-菜单
   path: '',
   component: '',
   icon: '',
@@ -150,7 +150,7 @@ const rules: FormRules = {
   path: [
     { required: true, message: '请输入路由路径', trigger: 'blur' },
     { validator: (rule, value, callback) => {
-        if (form.menuType === '菜单' && !value) {
+        if (form.menuType === 1 && !value) {
           callback(new Error('菜单类型必须填写路由路径'))
         } else {
           callback()
@@ -195,7 +195,7 @@ const handleAdd = () => {
     id: undefined,
     parentId: undefined,
     menuName: '',
-    menuType: '目录',
+    menuType: 0, // 0-目录
     path: '',
     component: '',
     icon: '',
@@ -214,7 +214,7 @@ const handleAddChild = (parent: MenuVO) => {
     id: undefined,
     parentId: parent.id,
     menuName: '',
-    menuType: '菜单',
+    menuType: 1, // 1-菜单
     path: '',
     component: '',
     icon: '',

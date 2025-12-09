@@ -1,6 +1,22 @@
 <template>
   <div class="dashboard">
     <h1>数据概览</h1>
+    
+    <!-- 如果没有权限，显示提示信息 -->
+    <el-alert
+      v-if="!hasPermissions"
+      type="warning"
+      :closable="false"
+      show-icon
+      style="margin-bottom: 20px;"
+    >
+      <template #title>
+        <span>您还没有分配角色，请联系管理员分配角色和权限</span>
+      </template>
+    </el-alert>
+    
+    <!-- 有权限时显示数据统计 -->
+    <template v-if="hasPermissions">
     <el-row :gutter="20" class="stats-row">
       <el-col :span="6">
         <el-card class="stat-card">
@@ -74,12 +90,21 @@
         </el-card>
       </el-col>
     </el-row>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { useAdminStore } from '@/stores/admin/user'
 import { Document, Money, Clock, Warning } from '@element-plus/icons-vue'
+
+const adminStore = useAdminStore()
+
+// 检查用户是否有权限
+const hasPermissions = computed(() => {
+  return adminStore.permissions && adminStore.permissions.length > 0
+})
 
 const stats = ref({
   todayOrders: 0,

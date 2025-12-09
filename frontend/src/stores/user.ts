@@ -14,8 +14,14 @@ export interface UserInfo {
 }
 
 export const useUserStore = defineStore('user', () => {
-  const token = ref<string>(localStorage.getItem('token') || '')
-  const userInfo = ref<UserInfo | null>(null)
+  // 从localStorage初始化token和用户信息
+  const initToken = localStorage.getItem('token') || ''
+  const initUserInfo = localStorage.getItem('userInfo')
+  
+  const token = ref<string>(initToken)
+  const userInfo = ref<UserInfo | null>(
+    initUserInfo ? JSON.parse(initUserInfo) : null
+  )
 
   // 设置token
   const setToken = (newToken: string) => {
@@ -32,11 +38,13 @@ export const useUserStore = defineStore('user', () => {
   // 设置用户信息
   const setUserInfo = (info: UserInfo) => {
     userInfo.value = info
+    localStorage.setItem('userInfo', JSON.stringify(info))
   }
 
   // 清除用户信息
   const clearUserInfo = () => {
     userInfo.value = null
+    localStorage.removeItem('userInfo')
   }
 
   // 退出登录
@@ -45,9 +53,9 @@ export const useUserStore = defineStore('user', () => {
     clearUserInfo()
   }
 
-  // 是否已登录
+  // 是否已登录（同时检查token和用户信息）
   const isLoggedIn = () => {
-    return !!token.value
+    return !!token.value && !!userInfo.value
   }
 
   return {

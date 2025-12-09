@@ -28,3 +28,7 @@ public class MessageType {
     public static final Integer OTHER = 3;
 }
 
+
+
+
+

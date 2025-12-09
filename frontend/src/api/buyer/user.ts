@@ -42,6 +42,8 @@ export interface LoginDTO {
  */
 export interface ForgotPasswordDTO {
   username: string
+  email?: string
+  phone?: string
 }
 
 /**
@@ -51,10 +53,18 @@ export interface UserInfoDTO {
   realName?: string
   gender?: number
   phone?: string
+  email?: string
   province?: string
   city?: string
   district?: string
   address?: string
+  birthday?: string
+  zipCode?: string
+  fixedPhone?: string
+  securityQuestion?: string
+  securityAnswer?: string
+  wangwang?: string
+  operator?: string
 }
 
 /**
@@ -77,6 +87,17 @@ export interface UserInfoVO {
   phone: string
   userLevel: string
   status: string
+  province?: string
+  city?: string
+  district?: string
+  address?: string
+  birthday?: string
+  zipCode?: string
+  fixedPhone?: string
+  securityQuestion?: string
+  securityAnswer?: string
+  wangwang?: string
+  operator?: string
 }
 
 /**
