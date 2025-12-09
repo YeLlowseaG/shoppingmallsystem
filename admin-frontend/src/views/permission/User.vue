@@ -17,7 +17,7 @@
           <el-input v-model="searchForm.username" placeholder="请输入用户名" clearable />
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
+          <el-select v-model="searchForm.status" placeholder="请选择状态" clearable style="width: 180px">
             <el-option label="全部" :value="undefined" />
             <el-option label="启用" :value="1" />
             <el-option label="禁用" :value="0" />
@@ -37,9 +37,12 @@
         <el-table-column prop="phone" label="手机号" width="130" />
         <el-table-column label="角色" width="200">
           <template #default="{ row }">
-            <el-tag v-for="role in row.roles" :key="role.id" style="margin-right: 5px;">
-              {{ role.roleName }}
-            </el-tag>
+            <template v-if="row.roles && row.roles.length > 0">
+              <el-tag v-for="role in row.roles" :key="role.id" style="margin-right: 5px;">
+                {{ role.roleName }}
+              </el-tag>
+            </template>
+            <span v-else style="color: #999;">未分配角色</span>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="100">

@@ -19,11 +19,15 @@
       </div>
     </el-header>
     <el-container>
-      <el-aside width="200px">
+      <el-aside width="200px" class="sidebar-aside">
         <el-menu
+          v-if="menuList && menuList.length > 0"
           :default-active="activeMenu"
           router
           class="sidebar-menu"
+          background-color="#304156"
+          text-color="#bfcbd9"
+          active-text-color="#409eff"
         >
           <template v-for="menu in menuList" :key="menu.id">
             <el-sub-menu v-if="menu.children && menu.children.length > 0" :index="getMenuPath(menu)">
@@ -52,6 +56,9 @@
             </el-menu-item>
           </template>
         </el-menu>
+        <div v-else class="no-menu-tip">
+          <el-empty description="您还没有分配角色，请联系管理员" :image-size="80" />
+        </div>
       </el-aside>
       <el-main>
         <router-view />
@@ -93,13 +100,18 @@ const loadAdminInfo = async () => {
   try {
     const info = await getAdminInfo()
     adminStore.setAdminInfo(info)
-    // 如果菜单为空，重新加载菜单
+    // 注意：菜单和权限应该从登录接口获取，这里只更新用户信息
+    // 如果菜单为空，说明用户没有分配角色，这是正常的
     if (!adminStore.menus || adminStore.menus.length === 0) {
-      // 从登录响应中获取菜单，这里需要重新获取
-      // 实际应该从登录接口返回的menus中获取
+      console.warn('用户没有分配角色，菜单列表为空')
     }
   } catch (error: any) {
     ElMessage.error(error.message || '加载失败')
+    // 如果获取用户信息失败，可能是token过期，跳转到登录页
+    if (error.message?.includes('未授权') || error.message?.includes('401')) {
+      adminStore.logout()
+      router.push('/admin/login')
+    }
   }
 }
 
@@ -122,6 +134,12 @@ onMounted(() => {
   height: 100vh;
 }
 
+/* 顶部栏样式 */
+:deep(.el-header) {
+  background-color: #304156;
+  padding: 0 20px;
+}
+
 .header-content {
   display: flex;
   justify-content: space-between;
@@ -132,7 +150,8 @@ onMounted(() => {
 h1 {
   margin: 0;
   font-size: 20px;
-  color: #333;
+  color: #fff;
+  font-weight: 500;
 }
 
 .header-right {
@@ -144,11 +163,50 @@ h1 {
   display: flex;
   align-items: center;
   cursor: pointer;
-  color: #333;
+  color: #bfcbd9;
+  gap: 8px;
+  transition: color 0.3s;
+}
+
+.admin-info:hover {
+  color: #fff;
+}
+
+/* 下拉菜单样式调整 */
+:deep(.el-dropdown-menu) {
+  background-color: #fff;
+}
+
+.sidebar-aside {
+  background-color: #304156;
 }
 
 .sidebar-menu {
   height: 100%;
+  border-right: none;
+}
+
+/* 菜单项悬停效果 */
+.sidebar-menu :deep(.el-menu-item:hover),
+.sidebar-menu :deep(.el-sub-menu__title:hover) {
+  background-color: #263445 !important;
+}
+
+/* 激活的菜单项 */
+.sidebar-menu :deep(.el-menu-item.is-active) {
+  background-color: #409eff !important;
+  color: #fff !important;
+}
+
+/* 子菜单项激活状态 */
+.sidebar-menu :deep(.el-menu-item.is-active) {
+  background-color: #409eff !important;
+}
+
+.no-menu-tip {
+  padding: 20px;
+  text-align: center;
+  color: #bfcbd9;
 }
 </style>
 

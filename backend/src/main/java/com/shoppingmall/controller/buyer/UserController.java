@@ -29,7 +29,7 @@ public class UserController {
     @PostMapping("/register")
     public Result<?> register(@Valid @RequestBody RegisterDTO registerDTO) {
         userService.register(registerDTO);
-        return Result.success("注册成功，请等待管理员审核");
+        return Result.success("注册成功，账户已激活，可以立即使用");
     }
 
     /**

@@ -1,236 +1,396 @@
 <template>
-  <div class="register-container">
-    <div class="register-box">
-      <h2>用户注册</h2>
-      <p class="welcome-text">尊敬的用户，欢迎您注册成为本网站用户</p>
-      
-      <el-form
-        ref="registerFormRef"
-        :model="registerForm"
-        :rules="rules"
-        label-width="120px"
-        class="register-form"
-      >
-        <!-- 必填字段 -->
-        <el-form-item label="用户名" prop="username">
-          <el-input
-            v-model="registerForm.username"
-            placeholder="请输入用户名（3-50个字符）"
-            prefix-icon="User"
-          />
-        </el-form-item>
+  <div class="register-page">
+    <!-- 顶部提示条 -->
+    <TopBar />
 
-        <el-form-item label="电子邮箱" prop="email">
-          <el-input
-            v-model="registerForm.email"
-            placeholder="请输入邮箱"
-            prefix-icon="Message"
-          />
-        </el-form-item>
+    <!-- Logo + 搜索 + 联系方式 -->
+    <Header />
 
-        <el-form-item label="密码" prop="password">
-          <el-input
-            v-model="registerForm.password"
-            type="password"
-            placeholder="请输入密码（6-20个字符）"
-            prefix-icon="Lock"
-            show-password
-          />
-        </el-form-item>
+    <!-- 主导航 + 全部分类 -->
+    <Navbar />
 
-        <el-form-item label="确认密码" prop="confirmPassword">
-          <el-input
-            v-model="registerForm.confirmPassword"
-            type="password"
-            placeholder="请再次输入密码"
-            prefix-icon="Lock"
-            show-password
-          />
-        </el-form-item>
+    <!-- 主内容区域 -->
+    <div class="register-content">
+      <div class="container">
+        <h2 class="page-title">用户注册</h2>
+        <p class="welcome-text">欢迎来到我们网站,如果您是新用户,请填写下面的表单进行注册</p>
 
-        <el-form-item label="姓名" prop="realName">
-          <el-input
-            v-model="registerForm.realName"
-            placeholder="请输入真实姓名"
-          />
-        </el-form-item>
+        <!-- 协议同意步骤 -->
+        <div v-if="!agreed" class="agreement-box">
+          <h3 class="agreement-title">会员注册协议</h3>
+          <div class="agreement-content">
+            <p>欢迎您光临，如果您准备注册成我们的会员，请认真阅读此协议。注册后，则视为您同意我们的协议，协议内容如下：</p>
+            
+            <div class="agreement-item">
+              <p><strong>一、</strong>只有注册会员才可以在商店上进行购物、订单查询等。请记住您的会员用户名。它是您在的唯一识别，您的任何投诉、问题、购买记录，均采用这个会员用户名处理。而且，您再次光临本站购物会有很大的方便，许多信息不必重新输入。</p>
+            </div>
 
-        <el-form-item label="性别" prop="gender">
-          <el-radio-group v-model="registerForm.gender">
-            <el-radio :label="0">女</el-radio>
-            <el-radio :label="1">男</el-radio>
-          </el-radio-group>
-        </el-form-item>
+            <div class="agreement-item">
+              <p><strong>二、</strong>会员用户名可以是您便于记忆的任何代号比如网名。不过，在注册用户的时候，我们建议您务必输入您的真实信息，这样有利于准确发货、提供各项服务、必要时迅速与您联系。拥有强大的后台保密程序，我们绝对保证您的注册信息的安全和保密性。</p>
+            </div>
 
-        <el-form-item label="地区" required>
-          <el-row :gutter="10">
-            <el-col :span="8">
-              <el-select v-model="registerForm.province" placeholder="省份" @change="handleProvinceChange">
-                <el-option
-                  v-for="province in provinces"
-                  :key="province.value"
-                  :label="province.label"
-                  :value="province.value"
-                />
-              </el-select>
-            </el-col>
-            <el-col :span="8">
-              <el-select v-model="registerForm.city" placeholder="城市" :disabled="!registerForm.province" @change="handleCityChange">
-                <el-option
-                  v-for="city in cities"
-                  :key="city.value"
-                  :label="city.label"
-                  :value="city.value"
-                />
-              </el-select>
-            </el-col>
-            <el-col :span="8">
-              <el-select v-model="registerForm.district" placeholder="区县" :disabled="!registerForm.city">
-                <el-option
-                  v-for="district in districts"
-                  :key="district.value"
-                  :label="district.label"
-                  :value="district.value"
-                />
-              </el-select>
-            </el-col>
-          </el-row>
-        </el-form-item>
+            <div class="agreement-item">
+              <p><strong>三、</strong>我们保证所售商品的质量，不售假冒伪劣产品。如有质量问题，请联系客服。</p>
+            </div>
 
-        <el-form-item label="联系地址" prop="address">
-          <el-input
-            v-model="registerForm.address"
-            placeholder="请输入详细地址"
-            type="textarea"
-            :rows="2"
-          />
-        </el-form-item>
+            <div class="agreement-item">
+              <p><strong>四、</strong>我们在收到您的汇款后，会及时发货。售出商品若有质量问题，除人为损坏外，未经穿着、洗涤无污损的商品，包换。</p>
+            </div>
 
-        <el-form-item label="移动电话" prop="phone">
-          <el-input
-            v-model="registerForm.phone"
-            placeholder="请输入手机号码"
-            prefix-icon="Phone"
-          />
-        </el-form-item>
+            <div class="agreement-item">
+              <p><strong>五、</strong>未经许可不得擅自转载、使用本站商品资料、图片，发现必究。</p>
+            </div>
+          </div>
+          <div class="agreement-actions">
+            <el-button class="agree-button" size="large" @click="handleAgree">同意</el-button>
+          </div>
+        </div>
 
-        <el-form-item label="运营人员" prop="operator">
-          <el-input
-            v-model="registerForm.operator"
-            placeholder="请输入运营人员信息"
-          />
-        </el-form-item>
+        <!-- 注册表单 -->
+        <div v-else class="register-form-box">
+          <el-form
+            ref="registerFormRef"
+            :model="registerForm"
+            :rules="rules"
+            label-width="0"
+            class="register-form"
+          >
+            <!-- 用户名 -->
+            <el-form-item prop="username">
+              <div class="form-row">
+                <div class="form-label">
+                  <span class="required">*</span>用户名:
+                </div>
+                <div class="form-input-wrapper">
+                  <el-input
+                    v-model="registerForm.username"
+                    placeholder="请输入用户名"
+                    class="form-input"
+                  />
+                </div>
+              </div>
+            </el-form-item>
 
-        <el-form-item label="验证码" prop="captcha">
-          <el-row :gutter="10">
-            <el-col :span="12">
-              <el-input
-                v-model="registerForm.captcha"
-                placeholder="请输入验证码"
-                @keyup.enter="handleRegister"
-              />
-            </el-col>
-            <el-col :span="12">
-              <div class="captcha-image-container" @click="refreshCaptcha">
-                <img
-                  v-if="captchaImage"
-                  :src="captchaImage"
-                  alt="验证码"
-                  class="captcha-image"
-                />
+            <!-- 电子邮箱 -->
+            <el-form-item prop="email">
+              <div class="form-row">
+                <div class="form-label">
+                  <span class="required">*</span>电子邮箱:
+                </div>
+                <div class="form-input-wrapper">
+                  <el-input
+                    v-model="registerForm.email"
+                    placeholder="请输入邮箱"
+                    class="form-input"
+                  />
+                </div>
+              </div>
+            </el-form-item>
+
+            <!-- 密码 -->
+            <el-form-item prop="password">
+              <div class="form-row">
+                <div class="form-label">
+                  <span class="required">*</span>密码:
+                </div>
+                <div class="form-input-wrapper">
+                  <el-input
+                    v-model="registerForm.password"
+                    type="password"
+                    placeholder="请输入密码"
+                    class="form-input"
+                    show-password
+                  />
+                </div>
+              </div>
+            </el-form-item>
+
+            <!-- 确认密码 -->
+            <el-form-item prop="confirmPassword">
+              <div class="form-row">
+                <div class="form-label">
+                  <span class="required">*</span>确认密码:
+                </div>
+                <div class="form-input-wrapper">
+                  <el-input
+                    v-model="registerForm.confirmPassword"
+                    type="password"
+                    placeholder="请再次输入密码"
+                    class="form-input"
+                    show-password
+                  />
+                </div>
+              </div>
+            </el-form-item>
+
+            <!-- 姓名 -->
+            <el-form-item prop="realName">
+              <div class="form-row">
+                <div class="form-label">
+                  <span class="required">*</span>姓名:
+                </div>
+                <div class="form-input-wrapper">
+                  <el-input
+                    v-model="registerForm.realName"
+                    placeholder="请输入真实姓名"
+                    class="form-input"
+                  />
+                </div>
+              </div>
+            </el-form-item>
+
+            <!-- 性别 -->
+            <el-form-item prop="gender">
+              <div class="form-row">
+                <div class="form-label">
+                  <span class="required">*</span>性别:
+                </div>
+                <div class="form-input-wrapper">
+                  <el-radio-group v-model="registerForm.gender">
+                    <el-radio :label="1">男</el-radio>
+                    <el-radio :label="0">女</el-radio>
+                  </el-radio-group>
+                </div>
+              </div>
+            </el-form-item>
+
+            <!-- 出生日期 -->
+            <div class="form-row">
+              <div class="form-label">出生日期:</div>
+              <div class="form-input-wrapper">
+                <div class="date-selectors">
+                  <el-select v-model="registerForm.birthYear" placeholder="请选择" class="date-select">
+                    <el-option
+                      v-for="year in years"
+                      :key="year"
+                      :label="year"
+                      :value="year"
+                    />
+                  </el-select>
+                  <el-select v-model="registerForm.birthMonth" placeholder="请选择" class="date-select">
+                    <el-option
+                      v-for="month in months"
+                      :key="month"
+                      :label="month"
+                      :value="month"
+                    />
+                  </el-select>
+                  <el-select v-model="registerForm.birthDay" placeholder="请选择" class="date-select">
+                    <el-option
+                      v-for="day in days"
+                      :key="day"
+                      :label="day"
+                      :value="day"
+                    />
+                  </el-select>
+                </div>
+              </div>
+            </div>
+
+            <!-- 地区 -->
+            <div class="form-row">
+              <div class="form-label">
+                <span class="required">*</span>地区:
+              </div>
+              <div class="form-input-wrapper">
+                <div class="region-selectors">
+                  <el-select v-model="registerForm.province" placeholder="请选择..." class="region-select" @change="handleProvinceChange">
+                    <el-option
+                      v-for="province in provinces"
+                      :key="province.value"
+                      :label="province.label"
+                      :value="province.value"
+                    />
+                  </el-select>
+                  <el-select v-model="registerForm.city" placeholder="请选择..." class="region-select" :disabled="!registerForm.province" @change="handleCityChange">
+                    <el-option
+                      v-for="city in cities"
+                      :key="city.value"
+                      :label="city.label"
+                      :value="city.value"
+                    />
+                  </el-select>
+                  <el-select v-model="registerForm.district" placeholder="请选择..." class="region-select" :disabled="!registerForm.city">
+                    <el-option
+                      v-for="district in districts"
+                      :key="district.value"
+                      :label="district.label"
+                      :value="district.value"
+                    />
+                  </el-select>
+                </div>
+              </div>
+            </div>
+
+            <!-- 联系地址 -->
+            <el-form-item prop="address">
+              <div class="form-row">
+                <div class="form-label">
+                  <span class="required">*</span>联系地址:
+                </div>
+                <div class="form-input-wrapper">
+                  <el-input
+                    v-model="registerForm.address"
+                    placeholder="请输入详细地址"
+                    type="textarea"
+                    :rows="2"
+                    class="form-textarea"
+                  />
+                </div>
+              </div>
+            </el-form-item>
+
+            <!-- 邮编 -->
+            <div class="form-row">
+              <div class="form-label">邮编:</div>
+              <div class="form-input-wrapper">
+                <el-input v-model="registerForm.zipCode" placeholder="请输入邮编" class="form-input" />
+              </div>
+            </div>
+
+            <!-- 移动电话 -->
+            <el-form-item prop="phone">
+              <div class="form-row">
+                <div class="form-label">
+                  <span class="required">*</span>移动电话:
+                </div>
+                <div class="form-input-wrapper">
+                  <el-input
+                    v-model="registerForm.phone"
+                    placeholder="请输入手机号码"
+                    class="form-input"
+                  />
+                </div>
+              </div>
+            </el-form-item>
+
+            <!-- 固定电话 -->
+            <div class="form-row">
+              <div class="form-label">固定电话:</div>
+              <div class="form-input-wrapper">
+                <el-input v-model="registerForm.fixedPhone" placeholder="请输入固定电话" class="form-input" />
+              </div>
+            </div>
+
+            <!-- 安全问题 -->
+            <div class="form-row">
+              <div class="form-label">安全问题:</div>
+              <div class="form-input-wrapper">
+                <el-input v-model="registerForm.securityQuestion" placeholder="用于找回密码" class="form-input" />
+              </div>
+            </div>
+
+            <!-- 回答 -->
+            <div class="form-row">
+              <div class="form-label">回答:</div>
+              <div class="form-input-wrapper">
+                <el-input v-model="registerForm.securityAnswer" placeholder="安全问题答案" class="form-input" />
+              </div>
+            </div>
+
+            <!-- 旺旺 -->
+            <div class="form-row">
+              <div class="form-label">旺旺:</div>
+              <div class="form-input-wrapper">
+                <el-input v-model="registerForm.wangwang" placeholder="请输入旺旺账号" class="form-input" />
+              </div>
+            </div>
+
+            <!-- 运营人员 -->
+            <el-form-item prop="operator">
+              <div class="form-row">
+                <div class="form-label">
+                  <span class="required">*</span>运营人员:
+                </div>
+                <div class="form-input-wrapper">
+                  <el-input
+                    v-model="registerForm.operator"
+                    placeholder="请输入运营人员信息"
+                    class="form-input"
+                  />
+                </div>
+              </div>
+            </el-form-item>
+
+            <!-- 验证码 -->
+            <el-form-item prop="captcha">
+              <div class="form-row">
+                <div class="form-label">
+                  <span class="required">*</span>验证码:
+                </div>
+                <div class="form-input-wrapper">
+                  <div class="captcha-container">
+                    <div class="captcha-image-box" @click="refreshCaptcha">
+                      <img
+                        v-if="captchaImage"
+                        :src="captchaImage"
+                        alt="验证码"
+                        class="captcha-image"
+                      />
+                      <div v-else class="captcha-placeholder">
+                        <el-button
+                          @click="refreshCaptcha"
+                          :loading="captchaLoading"
+                          size="small"
+                        >
+                          获取验证码
+                        </el-button>
+                      </div>
+                    </div>
+                    <el-input
+                      v-model="registerForm.captcha"
+                      placeholder="请输入验证码"
+                      class="captcha-input"
+                      @keyup.enter="handleRegister"
+                    />
+                  </div>
+                </div>
+              </div>
+            </el-form-item>
+
+            <!-- 提交按钮 -->
+            <div class="form-row">
+              <div class="form-label"></div>
+              <div class="form-input-wrapper">
                 <el-button
-                  v-else
-                  @click="refreshCaptcha"
-                  :loading="captchaLoading"
-                  style="width: 100%"
+                  :loading="loading"
+                  @click="handleRegister"
+                  class="register-button"
                 >
-                  获取验证码
+                  立即注册
                 </el-button>
               </div>
-            </el-col>
-          </el-row>
-        </el-form-item>
+            </div>
 
-        <!-- 可选字段 -->
-        <el-divider>可选信息</el-divider>
-
-        <el-form-item label="出生日期">
-          <el-row :gutter="10">
-            <el-col :span="8">
-              <el-select v-model="registerForm.birthYear" placeholder="年">
-                <el-option
-                  v-for="year in years"
-                  :key="year"
-                  :label="year"
-                  :value="year"
-                />
-              </el-select>
-            </el-col>
-            <el-col :span="8">
-              <el-select v-model="registerForm.birthMonth" placeholder="月">
-                <el-option
-                  v-for="month in months"
-                  :key="month"
-                  :label="month"
-                  :value="month"
-                />
-              </el-select>
-            </el-col>
-            <el-col :span="8">
-              <el-select v-model="registerForm.birthDay" placeholder="日">
-                <el-option
-                  v-for="day in days"
-                  :key="day"
-                  :label="day"
-                  :value="day"
-                />
-              </el-select>
-            </el-col>
-          </el-row>
-        </el-form-item>
-
-        <el-form-item label="邮编">
-          <el-input v-model="registerForm.zipCode" placeholder="请输入邮编" />
-        </el-form-item>
-
-        <el-form-item label="固定电话">
-          <el-input v-model="registerForm.fixedPhone" placeholder="请输入固定电话" />
-        </el-form-item>
-
-        <el-form-item label="安全问题">
-          <el-input v-model="registerForm.securityQuestion" placeholder="用于找回密码" />
-        </el-form-item>
-
-        <el-form-item label="回答">
-          <el-input v-model="registerForm.securityAnswer" placeholder="安全问题答案" />
-        </el-form-item>
-
-        <el-form-item label="旺旺">
-          <el-input v-model="registerForm.wangwang" placeholder="请输入旺旺账号" />
-        </el-form-item>
-
-        <el-form-item>
-          <el-button type="primary" :loading="loading" @click="handleRegister" style="width: 100%">
-            立即注册
-          </el-button>
-        </el-form-item>
-
-        <el-form-item>
-          <div class="login-link">
-            已有账号？<el-link type="primary" @click="goToLogin">立即登录</el-link>
-          </div>
-        </el-form-item>
-      </el-form>
+            <!-- 登录链接 -->
+            <div class="form-row">
+              <div class="form-label"></div>
+              <div class="form-input-wrapper">
+                <div class="login-link">
+                  已有账号？<el-link type="primary" @click="goToLogin">立即登录</el-link>
+                </div>
+              </div>
+            </div>
+          </el-form>
+        </div>
+      </div>
     </div>
+
+    <!-- 底部 -->
+    <Footer />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, FormInstance, FormRules } from 'element-plus'
 import { register as registerApi, type RegisterDTO } from '@/api/buyer/user'
 import { generateCaptcha } from '@/api/common/captcha'
+import TopBar from '@/components/home/TopBar.vue'
+import Header from '@/components/home/Header.vue'
+import Navbar from '@/components/home/Navbar.vue'
+import Footer from '@/components/home/Footer.vue'
 
 const router = useRouter()
 
@@ -238,6 +398,7 @@ const registerFormRef = ref<FormInstance>()
 const loading = ref(false)
 const captchaLoading = ref(false)
 const captchaImage = ref('')
+const agreed = ref(false)
 
 const registerForm = reactive<RegisterDTO>({
   username: '',
@@ -265,7 +426,7 @@ const registerForm = reactive<RegisterDTO>({
 })
 
 // 验证规则
-const validateConfirmPassword = (rule: any, value: any, callback: any) => {
+const validateConfirmPassword = (_rule: any, value: any, callback: any) => {
   if (value !== registerForm.password) {
     callback(new Error('两次输入的密码不一致'))
   } else {
@@ -367,6 +528,13 @@ const days = computed(() => {
   return Array.from({ length: daysInMonth }, (_, i) => i + 1)
 })
 
+// 同意协议
+const handleAgree = () => {
+  agreed.value = true
+  // 同意后获取验证码
+  refreshCaptcha()
+}
+
 // 刷新验证码
 const refreshCaptcha = async () => {
   captchaLoading.value = true
@@ -376,43 +544,44 @@ const refreshCaptcha = async () => {
     registerForm.captchaId = response.captchaId
     registerForm.captcha = '' // 清空验证码输入
   } catch (error: any) {
-    ElMessage.error(error.message || '获取验证码失败')
+    // 错误提示已在响应拦截器中处理，这里不需要重复显示
+    console.error('获取验证码失败:', error)
   } finally {
     captchaLoading.value = false
   }
 }
 
-// 页面加载时获取验证码
-onMounted(() => {
-  refreshCaptcha()
-})
-
 // 注册
 const handleRegister = async () => {
   if (!registerFormRef.value) return
 
+  // 验证必填的地区字段
+  if (!registerForm.province || !registerForm.city || !registerForm.district) {
+    ElMessage.error('请选择完整的地区信息')
+    return
+  }
+
+  // 验证验证码ID
+  if (!registerForm.captchaId) {
+    ElMessage.error('请先获取验证码')
+    return
+  }
+
   await registerFormRef.value.validate((valid) => {
     if (valid) {
-      // 验证必填的地区字段
-      if (!registerForm.province || !registerForm.city || !registerForm.district) {
-        ElMessage.error('请选择完整的地区信息')
-        return
-      }
-
-      // 验证验证码ID
-      if (!registerForm.captchaId) {
-        ElMessage.error('请先获取验证码')
-        return
-      }
-
       loading.value = true
       registerApi(registerForm)
         .then(() => {
-          ElMessage.success('注册成功，请等待管理员审核')
+          ElMessage.success('注册成功，账户已激活，可以立即使用')
           router.push('/login')
         })
         .catch((error) => {
-          ElMessage.error(error.message || '注册失败')
+          // 错误提示已在响应拦截器中处理，这里不需要重复显示
+          // 验证码错误时刷新验证码
+          if (error.message && (error.message.includes('验证码') || error.message.includes('captcha'))) {
+            refreshCaptcha()
+          }
+          console.error('注册失败:', error)
         })
         .finally(() => {
           loading.value = false
@@ -426,67 +595,283 @@ const goToLogin = () => {
 }
 </script>
 
-<style scoped>
-.register-container {
+<style scoped lang="scss">
+.register-page {
   min-height: 100vh;
   background: #f5f5f5;
-  padding: 40px 20px;
 }
 
-.register-box {
-  max-width: 800px;
+.register-content {
+  padding: 30px 0 60px;
+  background: #f5f5f5;
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 15px;
+  }
+
+  .page-title {
+    text-align: center;
+    font-size: 24px;
+    color: #333;
+    margin-bottom: 15px;
+    font-weight: bold;
+  }
+
+  .welcome-text {
+    text-align: center;
+    color: #666;
+    margin-bottom: 30px;
+    font-size: 14px;
+  }
+}
+
+// 协议同意框
+.agreement-box {
+  max-width: 900px;
   margin: 0 auto;
   background: white;
   padding: 40px;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+  .agreement-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .agreement-content {
+    max-height: 500px;
+    overflow-y: auto;
+    padding: 20px;
+    background: #fafafa;
+    border: 1px solid #e8e8e8;
+    border-radius: 4px;
+    margin-bottom: 30px;
+    line-height: 1.8;
+    color: #666;
+    font-size: 14px;
+
+    > p {
+      margin-bottom: 15px;
+      text-indent: 2em;
+    }
+
+    .agreement-item {
+      margin-bottom: 20px;
+
+      p {
+        text-indent: 0;
+        line-height: 1.8;
+        margin: 0;
+
+        strong {
+          color: #333;
+          font-size: 15px;
+        }
+      }
+    }
+  }
+
+  .agreement-actions {
+    text-align: center;
+
+    .agree-button {
+      width: 200px;
+      height: 45px;
+      font-size: 16px;
+      background: linear-gradient(to right, #ffa500, #ff8c00);
+      border: none;
+      border-radius: 4px;
+      color: #fff;
+      font-weight: bold;
+      transition: all 0.3s;
+
+      &:hover {
+        background: linear-gradient(to right, #ff8c00, #ff7f00);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(255, 140, 0, 0.3);
+      }
+
+      &:active {
+        transform: translateY(0);
+      }
+    }
+  }
 }
 
-h2 {
-  text-align: center;
-  margin-bottom: 10px;
-  color: #333;
-  font-size: 28px;
-}
-
-.welcome-text {
-  text-align: center;
-  color: #666;
-  margin-bottom: 30px;
+// 注册表单框
+.register-form-box {
+  max-width: 900px;
+  margin: 0 auto;
+  background: white;
+  padding: 40px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .register-form {
-  margin-top: 20px;
-}
+  :deep(.el-form-item) {
+    margin-bottom: 24px;
+  }
 
-.login-link {
-  text-align: center;
-  width: 100%;
-}
+  :deep(.el-form-item__error) {
+    padding-left: 135px;
+    margin-top: 4px;
+  }
 
-.captcha-image-container {
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 40px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  background: #f5f7fa;
-  transition: all 0.3s;
-}
+  .form-row {
+    display: flex;
+    align-items: flex-start;
 
-.captcha-image-container:hover {
-  border-color: #409eff;
-  background: #ecf5ff;
-}
+    .form-label {
+      width: 120px;
+      padding-top: 8px;
+      text-align: right;
+      padding-right: 15px;
+      color: #333;
+      font-size: 14px;
+      flex-shrink: 0;
 
-.captcha-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  border-radius: 4px;
+      .required {
+        color: #e4393c;
+        margin-right: 4px;
+      }
+    }
+
+    .form-input-wrapper {
+      flex: 1;
+
+      .form-input {
+        width: 500px;
+
+        :deep(.el-input__wrapper) {
+          border-radius: 4px;
+        }
+      }
+
+      .form-textarea {
+        width: 500px;
+
+        :deep(.el-textarea__inner) {
+          border-radius: 4px;
+          min-height: 80px;
+        }
+      }
+
+      .date-selectors {
+        display: flex;
+        gap: 10px;
+        width: 500px;
+
+        .date-select {
+          flex: 1;
+
+          :deep(.el-input__wrapper) {
+            border-radius: 4px;
+          }
+        }
+      }
+
+      .region-selectors {
+        display: flex;
+        gap: 10px;
+        width: 500px;
+
+        .region-select {
+          flex: 1;
+
+          :deep(.el-input__wrapper) {
+            border-radius: 4px;
+          }
+        }
+      }
+
+      .captcha-container {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        width: 500px;
+
+        .captcha-image-box {
+          width: 120px;
+          height: 40px;
+          border: 1px solid #dcdfe6;
+          border-radius: 4px;
+          background: #f5f7fa;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.3s;
+          flex-shrink: 0;
+
+          &:hover {
+            border-color: #ff8c00;
+            background: #fff5e6;
+          }
+
+          .captcha-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 4px;
+          }
+
+          .captcha-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+          }
+        }
+
+        .captcha-input {
+          flex: 1;
+          min-width: 200px;
+
+          :deep(.el-input__wrapper) {
+            border-radius: 4px;
+          }
+        }
+      }
+
+      .register-button {
+        width: 200px;
+        height: 45px;
+        font-size: 16px;
+        background: linear-gradient(to right, #ffa500, #ff8c00);
+        border: none;
+        border-radius: 4px;
+        color: #fff;
+        font-weight: bold;
+        transition: all 0.3s;
+
+        &:hover {
+          background: linear-gradient(to right, #ff8c00, #ff7f00);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 8px rgba(255, 140, 0, 0.3);
+        }
+
+        &:active {
+          transform: translateY(0);
+        }
+      }
+
+      .login-link {
+        font-size: 14px;
+        color: #666;
+
+        :deep(.el-link) {
+          color: #e4393c;
+        }
+      }
+    }
+  }
 }
 </style>
-
-

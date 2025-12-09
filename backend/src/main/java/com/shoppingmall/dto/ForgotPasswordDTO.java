@@ -17,6 +17,17 @@ public class ForgotPasswordDTO {
      */
     @NotBlank(message = "用户名不能为空")
     private String username;
+
+    /**
+     * 邮箱（可选，但邮箱和手机号至少填写一个）
+     */
+    private String email;
+
+    /**
+     * 手机号（可选，但邮箱和手机号至少填写一个）
+     */
+    private String phone;
 }
+
 
 

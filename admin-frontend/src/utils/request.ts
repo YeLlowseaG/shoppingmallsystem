@@ -10,12 +10,40 @@ interface ApiResponse<T = any> {
   timestamp: number
 }
 
+// 自定义参数序列化函数，处理数组参数
+const paramsSerializer = (params: any): string => {
+  const searchParams = new URLSearchParams()
+  
+  Object.keys(params || {}).forEach(key => {
+    const value = params[key]
+    if (value === null || value === undefined) {
+      return
+    }
+    
+    if (Array.isArray(value)) {
+      // 数组参数：roleIds=1&roleIds=2
+      value.forEach(item => {
+        if (item !== null && item !== undefined) {
+          searchParams.append(key, String(item))
+        }
+      })
+    } else {
+      searchParams.append(key, String(value))
+    }
+  })
+  
+  return searchParams.toString()
+}
+
 // 创建axios实例
 const service: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json;charset=UTF-8'
+  },
+  paramsSerializer: {
+    serialize: paramsSerializer
   }
 })
 

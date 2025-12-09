@@ -57,12 +57,120 @@ const router = createRouter({
         title: '商品列表',
         requiresAuth: false
       }
+    },
+    {
+      path: '/member',
+      name: 'member',
+      component: () => import('@/views/member/Index.vue'),
+      meta: {
+        title: '会员中心',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/member/settings/password',
+      name: 'member-password',
+      component: () => import('@/views/member/Password.vue'),
+      meta: {
+        title: '修改密码',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/member/settings/profile',
+      name: 'member-profile',
+      component: () => import('@/views/member/Profile.vue'),
+      meta: {
+        title: '个人信息',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/member/settings/address',
+      name: 'member-address',
+      component: () => import('@/views/member/Address.vue'),
+      meta: {
+        title: '收货地址',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/member/settings/address/edit',
+      name: 'member-address-edit',
+      component: () => import('@/views/member/AddressEdit.vue'),
+      meta: {
+        title: '收货地址',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/member/transaction/orders',
+      name: 'member-orders',
+      component: () => import('@/views/member/Orders.vue'),
+      meta: {
+        title: '我的订单',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/member/favorites/products',
+      name: 'member-favorites',
+      component: () => import('@/views/member/Favorites.vue'),
+      meta: {
+        title: '商品收藏',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/cart',
+      name: 'cart',
+      component: () => import('@/views/cart/Index.vue'),
+      meta: {
+        title: '购物车',
+        requiresAuth: false
+      }
+    },
+    {
+      path: '/cart/checkout',
+      name: 'checkout',
+      component: () => import('@/views/cart/Checkout.vue'),
+      meta: {
+        title: '填写购物信息',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/order/payment',
+      name: 'order-payment',
+      component: () => import('@/views/order/Payment.vue'),
+      meta: {
+        title: '订单支付',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/order/detail',
+      name: 'order-detail',
+      component: () => import('@/views/order/Detail.vue'),
+      meta: {
+        title: '订单详情',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/order/message',
+      name: 'order-message',
+      component: () => import('@/views/order/OrderMessage.vue'),
+      meta: {
+        title: '订单消息',
+        requiresAuth: true
+      }
     }
   ]
 })
 
 // 路由守卫
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   const userStore = useUserStore()
   
   // 设置页面标题
