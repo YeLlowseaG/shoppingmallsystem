@@ -40,7 +40,7 @@
               <el-menu-item
                 v-for="child in menu.children"
                 :key="child.id"
-                :index="getMenuPath(child)"
+                :index="getMenuPath(child, menu)"
               >
                 <el-icon v-if="child.icon">
                   <component :is="child.icon" />
@@ -88,11 +88,24 @@ const menuList = computed(() => {
 })
 
 // 获取菜单路径
-const getMenuPath = (menu: MenuVO): string => {
-  if (menu.path) {
-    return menu.path.startsWith('/') ? menu.path : `/admin/${menu.path}`
+const getMenuPath = (menu: MenuVO, parent?: MenuVO): string => {
+  if (!menu.path) {
+    return `/admin/menu-${menu.id}`
   }
-  return `/admin/menu-${menu.id}`
+
+  // 如果是绝对路径，直接返回
+  if (menu.path.startsWith('/')) {
+    return menu.path
+  }
+
+  // 如果有父菜单，需要拼接父路径
+  if (parent && parent.path) {
+    const parentPath = parent.path.startsWith('/') ? parent.path.substring(1) : parent.path
+    return `/admin/${parentPath}/${menu.path}`
+  }
+
+  // 顶级菜单，直接拼接
+  return `/admin/${menu.path}`
 }
 
 // 加载管理员信息和菜单
@@ -123,6 +136,12 @@ const handleLogout = () => {
 
 onMounted(() => {
   adminStore.init()
+
+  // 如果菜单已从localStorage恢复，需要注册动态路由
+  if (adminStore.menus && adminStore.menus.length > 0) {
+    addRoutes(adminStore.menus)
+  }
+
   if (adminStore.isLoggedIn() && (!adminStore.menus || adminStore.menus.length === 0)) {
     loadAdminInfo()
   }

@@ -21,6 +21,7 @@ const router = createRouter({
     },
     {
       path: '/admin',
+      name: 'admin',
       component: () => import('@/components/Layout/index.vue'),
       meta: {
         requiresAuth: true
@@ -105,13 +106,48 @@ const router = createRouter({
 
 // 动态添加路由
 export const addRoutes = (menus: MenuVO[]) => {
+  // 创建组件映射表（避免Vite动态导入限制）
+  const componentMap: Record<string, any> = {
+    'dashboard/Index': () => import('@/views/dashboard/Index.vue'),
+    'product/ProductManage': () => import('@/views/product/ProductManage.vue'),
+    'product/CategoryManage': () => import('@/views/product/CategoryManage.vue'),
+    'product/Add': () => import('@/views/product/Add.vue'),
+    'buyer/List': () => import('@/views/buyer/List.vue'),
+    'buyer/Audit': () => import('@/views/buyer/Audit.vue'),
+    'buyer/Level': () => import('@/views/buyer/Level.vue'),
+    'permission/User': () => import('@/views/permission/User.vue'),
+    'permission/Role': () => import('@/views/permission/Role.vue'),
+    'permission/Menu': () => import('@/views/permission/Menu.vue'),
+    'order/List': () => import('@/views/order/List.vue'),
+    'stock/List': () => import('@/views/stock/List.vue'),
+    'stock/Warning': () => import('@/views/stock/Warning.vue'),
+    'stock/Adjust': () => import('@/views/stock/Adjust.vue'),
+    'stock/Statistics': () => import('@/views/stock/Statistics.vue'),
+    'marketing/Promotion': () => import('@/views/marketing/Promotion.vue'),
+    'marketing/Price': () => import('@/views/marketing/Price.vue'),
+    'statistics/Sales': () => import('@/views/statistics/Sales.vue'),
+    'statistics/Order': () => import('@/views/statistics/Order.vue'),
+    'statistics/Product': () => import('@/views/statistics/Product.vue'),
+    'statistics/Buyer': () => import('@/views/statistics/Buyer.vue'),
+    'system/Basic': () => import('@/views/system/Basic.vue'),
+    'system/Payment': () => import('@/views/system/Payment.vue'),
+    'system/Logistics': () => import('@/views/system/Logistics.vue'),
+    'system/Notification': () => import('@/views/system/Notification.vue')
+  }
+
   const buildRoutes = (menuList: MenuVO[], parentPath = '/admin') => {
     menuList.forEach(menu => {
       if (menu.menuType === 1 && menu.path && menu.component) {
+        const componentLoader = componentMap[menu.component]
+        if (!componentLoader) {
+          console.warn(`组件 ${menu.component} 未在映射表中找到`)
+          return
+        }
+
         const route = {
           path: menu.path.startsWith('/') ? menu.path : `${parentPath}/${menu.path}`,
           name: `admin-${menu.permission?.replace(/:/g, '-')}`,
-          component: () => import(`@/views/${menu.component}.vue`),
+          component: componentLoader,
           meta: {
             title: menu.menuName,
             permission: menu.permission
