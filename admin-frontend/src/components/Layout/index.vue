@@ -68,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminStore } from '@/stores/admin/user'
 import { ElMessage } from 'element-plus'
@@ -84,7 +84,17 @@ const adminStore = useAdminStore()
 const activeMenu = computed(() => route.path)
 
 const menuList = computed(() => {
-  return adminStore.menus || []
+  const menus = adminStore.menus || []
+  if (menus.length === 0) {
+    console.warn('侧边栏菜单数据为空，请检查：')
+    console.warn('1. localStorage 中是否有 admin_menus 数据')
+    console.warn('2. adminStore.menus 的值:', adminStore.menus)
+    const savedMenus = localStorage.getItem('admin_menus')
+    console.warn('3. localStorage 中的原始数据:', savedMenus)
+  } else {
+    console.log('✅ 侧边栏菜单数据已加载，数量:', menus.length)
+  }
+  return menus
 })
 
 // 获取菜单路径（支持父菜单路径）
@@ -104,6 +114,13 @@ const getMenuPath = (menu: MenuVO, parentMenu?: MenuVO): string => {
     const parentPath = parentMenu.path.startsWith('/') 
       ? parentMenu.path.replace(/^\//, '') 
       : parentMenu.path
+    
+    // 特殊处理：如果子菜单路径是 'index'，且父菜单路径是 'dashboard'，则返回 /admin/dashboard
+    // 因为静态路由中 dashboard 的路径就是 /admin/dashboard，不是 /admin/dashboard/index
+    if (menu.path === 'index' && parentPath === 'dashboard') {
+      return `/admin/dashboard`
+    }
+    
     return `/admin/${parentPath}/${menu.path}`
   }
   
@@ -137,11 +154,35 @@ const handleLogout = () => {
   router.push('/admin/login')
 }
 
+// 监听菜单数据变化，确保路由正确添加
+watch(
+  () => adminStore.menus,
+  (newMenus) => {
+    if (newMenus && newMenus.length > 0) {
+      console.log('菜单数据变化，添加动态路由，数量:', newMenus.length)
+      addRoutes(newMenus)
+    }
+  },
+  { immediate: true, deep: true }
+)
+
 onMounted(() => {
   adminStore.init()
-  if (adminStore.isLoggedIn() && (!adminStore.menus || adminStore.menus.length === 0)) {
-    loadAdminInfo()
-  }
+  
+  // 使用 nextTick 确保 store 初始化完成后再检查菜单数据
+  nextTick(() => {
+    // 如果菜单数据已存在（从 localStorage 恢复），需要调用 addRoutes 添加动态路由
+    if (adminStore.menus && adminStore.menus.length > 0) {
+      console.log('onMounted: 从 localStorage 恢复菜单数据，数量:', adminStore.menus.length)
+      addRoutes(adminStore.menus)
+    } else if (adminStore.isLoggedIn()) {
+      console.log('onMounted: 菜单数据为空，尝试从服务器获取')
+      // 如果菜单数据不存在，尝试从服务器获取（虽然 getAdminInfo 不返回菜单，但保留此逻辑以防万一）
+      loadAdminInfo()
+    } else {
+      console.log('onMounted: 用户未登录或菜单数据为空')
+    }
+  })
 })
 </script>
 

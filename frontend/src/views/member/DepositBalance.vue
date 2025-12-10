@@ -25,7 +25,11 @@
             <div class="deposit-wrapper">
               <!-- 页面标题 -->
               <div class="page-title">
-                预存款交易记录 [预存款余额:¥{{ depositBalance.toFixed(2) }} (可用余额:¥{{ availableBalance.toFixed(2) }})]
+                <span class="title-text">预存款交易记录 [预存款余额:</span>
+                <span class="title-amount">¥{{ depositBalance.toFixed(2) }}</span>
+                <span class="title-text"> (可用余额:</span>
+                <span class="title-amount">¥{{ availableBalance.toFixed(2) }}</span>
+                <span class="title-text">)]</span>
               </div>
 
               <!-- 操作按钮 -->
@@ -101,7 +105,16 @@
                           @change="(val: boolean) => handleSelectRecord(record.id, val)"
                         />
                       </td>
-                      <td>{{ record.event }}</td>
+                      <td>
+                        <span
+                          v-if="isClickableEvent(record.event)"
+                          class="event-link"
+                          @click="handleEventClick(record)"
+                        >
+                          {{ record.event }}
+                        </span>
+                        <span v-else>{{ record.event }}</span>
+                      </td>
                       <td class="amount-cell deposit-amount">
                         {{ record.depositAmount > 0 ? `¥${record.depositAmount.toFixed(2)}` : '-' }}
                       </td>
@@ -176,6 +189,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
@@ -183,6 +197,8 @@ import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
 import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
 import MemberSidebar from '@/components/member/MemberSidebar.vue'
+
+const router = useRouter()
 
 const unreadMessageCount = ref(0)
 const loading = ref(false)
@@ -390,6 +406,38 @@ const displayedRecords = computed(() => {
   return recordList.value.slice(start, end)
 })
 
+// 判断事件是否可点击（预存款支付、预存款退款）
+const isClickableEvent = (event: string): boolean => {
+  return event === '预存款支付' || event === '预存款退款'
+}
+
+// 从备注中提取订单号
+const extractOrderNumber = (remark: string): string | null => {
+  if (!remark) return null
+  // 匹配格式：订单号(20231127161917) 或 订单号(20231127161917)
+  const match = remark.match(/订单号\((\d+)\)/)
+  return match ? match[1] : null
+}
+
+// 处理事件点击
+const handleEventClick = (record: DepositRecord) => {
+  if (!isClickableEvent(record.event)) return
+  
+  const orderNumber = extractOrderNumber(record.remark)
+  if (!orderNumber) {
+    ElMessage.warning('无法获取订单号')
+    return
+  }
+  
+  // 跳转到订单详情页面
+  router.push({
+    path: '/order/detail',
+    query: {
+      orderNumber: orderNumber
+    }
+  })
+}
+
 // 格式化日期时间
 const formatDateTime = (dateTime: string | Date) => {
   if (!dateTime) return '-'
@@ -442,11 +490,20 @@ onMounted(() => {
       .deposit-wrapper {
         .page-title {
           font-size: 16px;
-          font-weight: bold;
-          color: #333;
           margin-bottom: 15px;
           padding-bottom: 10px;
           border-bottom: 1px solid #e5e5e5;
+          color: #999; // 默认灰色
+
+          .title-text {
+            color: #999 !important;
+            font-weight: normal;
+          }
+
+          .title-amount {
+            color: #e4393c !important;
+            font-weight: bold;
+          }
         }
 
         // 操作按钮
@@ -541,6 +598,17 @@ onMounted(() => {
                   padding: 12px 8px;
                   vertical-align: middle;
                   border: 1px solid #e5e5e5;
+
+                  .event-link {
+                    color: #0066cc;
+                    cursor: pointer;
+                    text-decoration: none;
+
+                    &:hover {
+                      color: #e4393c;
+                      text-decoration: underline;
+                    }
+                  }
 
                   .amount-cell {
                     text-align: right;

@@ -77,3 +77,4 @@ public class ShippingTemplateDTO {
     private List<ShippingRuleDTO> rules;
 }
 
+

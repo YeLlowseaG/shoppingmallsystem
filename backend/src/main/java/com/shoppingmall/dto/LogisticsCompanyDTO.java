@@ -50,3 +50,4 @@ public class LogisticsCompanyDTO {
     private Integer status;
 }
 
+

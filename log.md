@@ -2,6 +2,159 @@
 
 ## 2025-12-10
 
+### 修复侧边栏在所有页面不显示的问题
+- 已修复所有管理后台页面（如 `/admin/order/list`）侧边栏不显示的问题
+- 主要修改内容：
+  1. **给 /admin 路由添加 name** (`admin-frontend/src/router/index.ts`)：
+     - 给 `/admin` 路由添加 `name: 'admin'`，使 `router.addRoute('admin', route)` 能够正确找到父路由
+  2. **修复动态路由路径格式** (`admin-frontend/src/router/index.ts`)：
+     - 修改 `addRoutes` 函数，使用相对路径（相对于 `/admin`）而不是绝对路径
+     - 动态路由的路径应该是 `order/list` 而不是 `/admin/order/list`
+     - 这样路由会被正确添加到 Layout 组件的 children 中
+  3. **修复菜单路径生成逻辑** (`admin-frontend/src/components/Layout/index.vue`)：
+     - 在 `getMenuPath` 函数中添加特殊处理
+     - 当子菜单路径是 `index` 且父菜单路径是 `dashboard` 时，返回 `/admin/dashboard` 而不是 `/admin/dashboard/index`
+     - 确保菜单路径与静态路由路径一致
+  4. **改进路由存在性检查**：
+     - 添加更准确的路由存在性检查，避免重复添加已存在的路由
+     - 使用完整路径比较，确保检查准确
+- 问题原因：
+  1. `/admin` 路由没有 name，导致 `router.addRoute('admin', route)` 无法找到父路由
+  2. 动态路由使用绝对路径（如 `/admin/order/list`），而不是相对路径（如 `order/list`）
+  3. 这导致动态路由没有正确添加到 Layout 组件的 children 中
+  4. 当访问动态路由页面时，Layout 组件可能没有正确渲染，导致侧边栏不显示
+- 修改效果：
+  - ✅ `/admin` 路由有了正确的 name，动态路由可以正确添加
+  - ✅ 动态路由使用相对路径，正确添加到 Layout 的 children 中
+  - ✅ 所有页面（包括静态路由和动态路由）都能正确显示侧边栏
+  - ✅ `/admin/dashboard`、`/admin/order/list` 等所有页面都能正常访问并显示侧边栏
+- 侧边栏在所有页面不显示的问题已修复
+
+### 修复 Element Plus ElOption 警告
+- 已修复用户管理页面中 Element Plus 的 `ElOption` 组件警告
+- 主要修改内容：
+  1. **修复状态选择框** (`admin-frontend/src/views/permission/User.vue`)：
+     - 移除了 `:value="undefined"` 的 "全部" 选项
+     - 使用 `clearable` 属性即可实现清空功能，不需要额外的 "全部" 选项
+  2. **修复角色选择框**：
+     - 移除了 `role.id!` 的非空断言，改为 `role.id`
+     - 避免可能的 undefined 值导致警告
+- 问题原因：
+  - Element Plus 的 `ElOption` 组件的 `value` prop 不接受 `undefined` 值
+  - 使用 `undefined` 会导致类型检查失败
+- 修改效果：
+  - ✅ Element Plus 警告已消除
+  - ✅ 状态选择框功能正常，可以通过 clearable 清空
+  - ✅ 角色选择框正常工作
+- Element Plus ElOption 警告已修复
+
+## 2025-12-10
+
+### 实现本地开发环境配置文件方案
+- 已实现本地开发环境配置文件方案，解决不同开发者本地数据库密码不同的问题
+- 主要修改内容：
+  1. **更新 .gitignore 文件**：
+     - 添加 `application-dev-local.yml` 到忽略列表，确保本地配置文件不会被提交到 git
+  2. **创建配置文件模板** (`backend/src/main/resources/application-dev-local.yml.example`)：
+     - 创建示例配置文件模板，供开发者参考
+     - 包含使用说明和配置示例
+     - 此文件可以提交到 git，作为模板供团队成员使用
+  3. **修改开发环境配置** (`backend/src/main/resources/application-dev.yml`)：
+     - 统一使用 `spring.datasource.druid` 前缀，与主配置文件保持一致
+     - 保留默认密码作为基础配置
+     - 本地配置文件 `application-dev-local.yml` 会自动覆盖此配置
+- 实现原理：
+  - Spring Boot 配置文件加载顺序：`application.yml` → `application-dev.yml` → `application-dev-local.yml`
+  - 后加载的配置文件会覆盖前面的配置
+  - 每个开发者创建自己的 `application-dev-local.yml` 文件，设置个人本地数据库密码
+- 使用方法：
+  1. 复制 `application-dev-local.yml.example` 为 `application-dev-local.yml`
+  2. 修改其中的数据库密码为个人本地 MySQL 密码
+  3. 确保运行时激活了 `dev` profile
+- 修改效果：
+  - ✅ 每个开发者可以有自己的本地数据库配置，互不影响
+  - ✅ 密码不会硬编码在代码中，更安全
+  - ✅ 本地配置文件不会被提交到 git，保护敏感信息
+  - ✅ 更符合开发规范，支持灵活的本地环境配置
+- 本地开发环境配置文件方案已实现
+
+## 2025-12-10
+
+### 修复管理后台侧边栏不显示问题
+- 已修复页面刷新后侧边栏菜单不显示的问题
+- 主要修改内容：
+  1. **修复 Layout 组件初始化逻辑** (`admin-frontend/src/components/Layout/index.vue`)：
+     - 在 `onMounted` 中，当菜单数据从 localStorage 恢复后，调用 `addRoutes(adminStore.menus)` 添加动态路由
+     - 使用 `nextTick` 确保 store 初始化完成后再检查菜单数据
+     - 添加 `watch` 监听菜单数据变化，确保当菜单数据恢复时自动添加路由
+     - 添加详细的调试日志，方便排查问题
+     - 在 `menuList` computed 中添加调试信息
+- 问题原因：
+  - 页面刷新时，`adminStore.init()` 会从 localStorage 恢复菜单数据
+  - 但是菜单数据恢复后，没有调用 `addRoutes` 来添加动态路由
+  - 可能存在时序问题，导致在检查菜单数据时还没有完全恢复
+- 修改效果：
+  - ✅ 页面刷新后，菜单数据从 localStorage 恢复
+  - ✅ 使用 `watch` 监听菜单数据变化，确保数据恢复后自动添加路由
+  - ✅ 使用 `nextTick` 确保初始化顺序正确
+  - ✅ 添加调试日志，方便排查问题
+  - ✅ 侧边栏菜单可以正常显示和导航
+- 管理后台侧边栏不显示问题已修复
+
+## 2025-12-10
+
+### 修复管理后台动态路由导入错误
+- 已修复管理后台所有页面访问时的动态导入错误（`Unknown variable dynamic import`）
+- 主要修改内容：
+  1. **添加组件映射表** (`admin-frontend/src/router/index.ts`)：
+     - 创建 `componentMap` 对象，预先定义所有可能的组件路径
+     - 只包含实际存在的组件文件，避免构建时文件不存在错误：
+       - 仪表盘：dashboard/Index
+       - 商品管理：product/List (映射到 ProductManage.vue), product/Add, product/Category (映射到 CategoryManage.vue)
+       - 订单管理：order/List
+       - 采购者管理：buyer/List, buyer/Audit
+       - 权限管理：permission/User, permission/Role, permission/Menu
+       - 物流管理：logistics/Index
+     - 对于尚未创建的组件（stock/*, buyer/Level, marketing/*, statistics/*, system/*），会在运行时输出警告
+  2. **修改动态路由添加逻辑**：
+     - 将 `component: () => import(\`@/views/${menu.component}.vue\`)` 改为从映射表获取
+     - 使用 `componentMap[menu.component]` 获取组件加载器
+     - 如果组件不存在，输出警告并跳过路由添加
+  3. **修复文件路径映射**：
+     - `product/List` 映射到 `product/ProductManage.vue`（实际文件名）
+     - `product/Category` 映射到 `product/CategoryManage.vue`（实际文件名）
+- 问题原因：
+  - Vite 无法在构建时静态分析模板字符串形式的动态导入路径
+  - 使用变量拼接的导入路径会导致运行时错误
+  - 数据库中的 component 字段值与实际文件名不一致
+- 修改效果：
+  - ✅ 所有组件路径都是静态的，Vite 可以在构建时正确分析
+  - ✅ 解决了 `Unknown variable dynamic import` 错误
+  - ✅ 解决了文件不存在导致的构建错误
+  - ✅ 管理后台已存在的页面可以正常访问
+  - ✅ 如果组件不存在，会输出警告而不是报错
+- 管理后台动态路由导入错误已修复
+
+## 2025-12-10
+
+### 优化我的预存款页面样式和功能
+- 已优化会员中心我的预存款页面的样式和交互功能
+- 主要修改内容：
+  1. **优化页面标题样式** (`frontend/src/views/member/DepositBalance.vue`)：
+     - 将标题文案改为灰色（#999）
+     - 将金额字段改为红色（#e4393c）并加粗显示
+     - 使用span标签分别包装文案和金额部分
+  2. **添加事件点击跳转功能**：
+     - 判断事件类型，如果是"预存款支付"或"预存款退款"，事件字段可点击
+     - 从备注中提取订单号（格式：订单号(20231127161917)）
+     - 点击事件后跳转到订单详情页面（/order/detail），传递订单号参数
+     - 添加事件链接样式：蓝色文字，鼠标悬停时变红并显示下划线
+- 修改效果：
+  - ✅ 页面标题样式更清晰，金额突出显示
+  - ✅ 预存款支付和预存款退款事件可点击跳转到订单详情
+  - ✅ 提升用户体验，方便用户查看相关订单信息
+- 我的预存款页面样式和功能已优化
+
 ### 恢复预存款充值页面入口，屏蔽预存款充值审核页面
 - 已恢复会员中心预存款充值页面的菜单入口，并屏蔽预存款充值审核页面
 - 主要修改内容：

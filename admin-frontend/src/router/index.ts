@@ -21,6 +21,7 @@ const router = createRouter({
     },
     {
       path: '/admin',
+      name: 'admin',
       component: () => import('@/components/Layout/index.vue'),
       meta: {
         requiresAuth: true
@@ -103,15 +104,91 @@ const router = createRouter({
   ]
 })
 
+// 组件映射表 - 将所有可能的组件路径预先定义（解决 Vite 动态导入问题）
+// 注意：只包含实际存在的组件文件，不存在的组件会在运行时输出警告
+const componentMap: Record<string, () => Promise<any>> = {
+  // 仪表盘
+  'dashboard/Index': () => import('@/views/dashboard/Index.vue'),
+  
+  // 商品管理
+  'product/List': () => import('@/views/product/ProductManage.vue'),
+  'product/Add': () => import('@/views/product/Add.vue'),
+  'product/Category': () => import('@/views/product/CategoryManage.vue'),
+  
+  // 订单管理
+  'order/List': () => import('@/views/order/List.vue'),
+  
+  // 采购者管理
+  'buyer/List': () => import('@/views/buyer/List.vue'),
+  'buyer/Audit': () => import('@/views/buyer/Audit.vue'),
+  
+  // 权限管理
+  'permission/User': () => import('@/views/permission/User.vue'),
+  'permission/Role': () => import('@/views/permission/Role.vue'),
+  'permission/Menu': () => import('@/views/permission/Menu.vue'),
+  
+  // 物流管理
+  'logistics/Index': () => import('@/views/logistics/Index.vue'),
+  
+  // 以下组件文件尚未创建，待开发时添加：
+  // - stock/List, stock/Warning, stock/Adjust, stock/Statistics
+  // - buyer/Level
+  // - marketing/Promotion, marketing/Price
+  // - statistics/Sales, statistics/Order, statistics/Product, statistics/Buyer
+  // - system/Basic, system/Payment, system/Logistics, system/Notification
+}
+
 // 动态添加路由
 export const addRoutes = (menus: MenuVO[]) => {
-  const buildRoutes = (menuList: MenuVO[], parentPath = '/admin') => {
+  const buildRoutes = (menuList: MenuVO[], parentPath = '') => {
     menuList.forEach(menu => {
       if (menu.menuType === 1 && menu.path && menu.component) {
+        // 从组件映射表中获取组件，如果不存在则使用默认组件或报错
+        const componentLoader = componentMap[menu.component]
+        
+        if (!componentLoader) {
+          console.warn(`组件 ${menu.component} 未在 componentMap 中定义，跳过路由添加`)
+          return
+        }
+        
+        // 构建相对路径（相对于 /admin）
+        let routePath = menu.path
+        if (parentPath) {
+          // 如果父路径以 / 开头，去掉开头的 /
+          const cleanParentPath = parentPath.startsWith('/') ? parentPath.replace(/^\//, '') : parentPath
+          routePath = `${cleanParentPath}/${menu.path}`
+        }
+        
+        // 特殊处理：如果路径是 'index' 且父路径是 'dashboard'，则路径应该是 'dashboard'
+        // 因为静态路由中已经定义了 dashboard，避免重复添加
+        if (menu.path === 'index' && parentPath === '/dashboard') {
+          routePath = 'dashboard'
+          // 检查路由是否已存在，避免重复添加
+          const existingRoute = router.getRoutes().find(r => {
+            const fullPath = r.path.startsWith('/') ? r.path : `/admin/${r.path}`
+            return fullPath === '/admin/dashboard' && r.name === 'admin-dashboard'
+          })
+          if (existingRoute) {
+            console.log(`路由 ${routePath} 已存在，跳过添加`)
+            return
+          }
+        }
+        
+        // 检查路由是否已存在，避免重复添加
+        const targetFullPath = routePath.startsWith('/') ? routePath : `/admin/${routePath}`
+        const existingRoute = router.getRoutes().find(r => {
+          const fullPath = r.path.startsWith('/') ? r.path : `/admin/${r.path}`
+          return fullPath === targetFullPath
+        })
+        if (existingRoute) {
+          console.log(`路由 ${routePath} 已存在，跳过添加`)
+          return
+        }
+        
         const route = {
-          path: menu.path.startsWith('/') ? menu.path : `${parentPath}/${menu.path}`,
+          path: routePath,
           name: `admin-${menu.permission?.replace(/:/g, '-')}`,
-          component: () => import(`@/views/${menu.component}.vue`),
+          component: componentLoader, // 使用映射表中的组件加载器
           meta: {
             title: menu.menuName,
             permission: menu.permission
@@ -120,7 +197,15 @@ export const addRoutes = (menus: MenuVO[]) => {
         router.addRoute('admin', route)
       }
       if (menu.children && menu.children.length > 0) {
-        const currentPath = menu.path ? `${parentPath}/${menu.path}` : parentPath
+        // 构建父路径（用于子路由）
+        let currentPath = parentPath
+        if (menu.path) {
+          if (menu.path.startsWith('/')) {
+            currentPath = menu.path
+          } else {
+            currentPath = parentPath ? `${parentPath}/${menu.path}` : menu.path
+          }
+        }
         buildRoutes(menu.children, currentPath)
       }
     })

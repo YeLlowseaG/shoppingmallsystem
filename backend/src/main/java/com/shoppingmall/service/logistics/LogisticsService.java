@@ -71,3 +71,4 @@ public interface LogisticsService {
     void updateLogisticsCompanyStatus(Long id, Integer status);
 }
 
+
