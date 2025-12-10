@@ -216,15 +216,13 @@
                     <source>${java.version}</source>
                     <target>${java.version}</target>
                     <encoding>UTF-8</encoding>
-                    <fork>true</fork>
-                    <executable>javac</executable>
-                    <compilerArgs>
-                        <arg>-encoding</arg>
-                        <arg>UTF-8</arg>
-                        <arg>-J-Dfile.encoding=UTF-8</arg>
-                        <arg>-J-Duser.language=en</arg>
-                        <arg>-J-Duser.country=US</arg>
-                    </compilerArgs>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
         </plugins>

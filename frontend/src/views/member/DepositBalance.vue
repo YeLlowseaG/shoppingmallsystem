@@ -26,9 +26,9 @@
               <!-- 页面标题 -->
               <div class="page-title">
                 <span class="title-text">预存款交易记录 [预存款余额:</span>
-                <span class="title-amount">¥{{ depositBalance.toFixed(2) }}</span>
+                <span class="title-amount">¥{{ Number(depositBalance || 0).toFixed(2) }}</span>
                 <span class="title-text"> (可用余额:</span>
-                <span class="title-amount">¥{{ availableBalance.toFixed(2) }}</span>
+                <span class="title-amount">¥{{ Number(availableBalance || 0).toFixed(2) }}</span>
                 <span class="title-text">)]</span>
               </div>
 
@@ -116,22 +116,22 @@
                         <span v-else>{{ record.event }}</span>
                       </td>
                       <td class="amount-cell deposit-amount">
-                        {{ record.depositAmount > 0 ? `¥${record.depositAmount.toFixed(2)}` : '-' }}
+                        {{ (record.depositAmount && record.depositAmount > 0) ? `¥${Number(record.depositAmount).toFixed(2)}` : '-' }}
                       </td>
                       <td class="amount-cell expense-amount">
-                        {{ record.expenseAmount > 0 ? `¥${record.expenseAmount.toFixed(2)}` : '-' }}
+                        {{ (record.expenseAmount && record.expenseAmount > 0) ? `¥${Number(record.expenseAmount).toFixed(2)}` : '-' }}
                       </td>
                       <td class="amount-cell frozen-amount">
-                        {{ record.frozenAmount > 0 ? `¥${record.frozenAmount.toFixed(2)}` : '-' }}
+                        {{ (record.frozenAmount && record.frozenAmount > 0) ? `¥${Number(record.frozenAmount).toFixed(2)}` : '-' }}
                       </td>
                       <td class="amount-cell unfrozen-amount">
-                        {{ record.unfrozenAmount > 0 ? `¥${record.unfrozenAmount.toFixed(2)}` : '-' }}
+                        {{ (record.unfrozenAmount && record.unfrozenAmount > 0) ? `¥${Number(record.unfrozenAmount).toFixed(2)}` : '-' }}
                       </td>
                       <td class="amount-cell current-balance">
-                        ¥{{ record.currentBalance.toFixed(2) }}
+                        ¥{{ Number(record.currentBalance || 0).toFixed(2) }}
                       </td>
                       <td class="amount-cell available-balance">
-                        ¥{{ record.availableBalance.toFixed(2) }}
+                        ¥{{ Number(record.availableBalance || 0).toFixed(2) }}
                       </td>
                       <td>{{ formatDateTime(record.createTime) }}</td>
                       <td class="remark-cell">{{ record.remark || '-' }}</td>
@@ -197,6 +197,8 @@ import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
 import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
 import MemberSidebar from '@/components/member/MemberSidebar.vue'
+import { getDepositBalance, type DepositRecordVO } from '@/api/buyer/deposit'
+import { formatDateTime } from '@/utils'
 
 const router = useRouter()
 
@@ -215,20 +217,7 @@ const filterForm = reactive({
 })
 
 // 交易记录列表
-interface DepositRecord {
-  id: number
-  event: string
-  depositAmount: number
-  expenseAmount: number
-  frozenAmount: number
-  unfrozenAmount: number
-  currentBalance: number
-  availableBalance: number
-  createTime: string
-  remark: string
-}
-
-const recordList = ref<DepositRecord[]>([])
+const recordList = ref<DepositRecordVO[]>([])
 
 // 选中记录
 const selectAll = ref(false)
@@ -258,26 +247,20 @@ const handleSearch = async () => {
 const loadRecords = async () => {
   loading.value = true
   try {
-    // TODO: 调用真实API接口
-    // const params = {
-    //   pageNum: pagination.currentPage,
-    //   pageSize: pagination.pageSize,
-    //   operationType: filterForm.operationType || undefined,
-    //   startDate: filterForm.startDate || undefined,
-    //   endDate: filterForm.endDate || undefined
-    // }
-    // const response = await getDepositRecords(params)
-    // recordList.value = response.records || []
-    // pagination.total = response.total || 0
-    // depositBalance.value = response.balance || 0
-    // availableBalance.value = response.availableBalance || 0
-
-    // 模拟数据
-    await new Promise(resolve => setTimeout(resolve, 500))
-    recordList.value = generateMockRecords()
-    pagination.total = recordList.value.length
-    depositBalance.value = 1000.00
-    availableBalance.value = 1000.00
+    // 调用真实API接口
+    const params = {
+      pageNum: pagination.currentPage,
+      pageSize: pagination.pageSize,
+      operationType: filterForm.operationType || undefined,
+      startDate: filterForm.startDate || undefined,
+      endDate: filterForm.endDate || undefined
+    }
+    const response = await getDepositBalance(params)
+    
+    recordList.value = response.records || []
+    pagination.total = response.total || 0
+    depositBalance.value = response.depositBalance || 0
+    availableBalance.value = response.availableBalance || 0
 
     // 重置选中状态
     selectedRecords.value = []
@@ -286,50 +269,11 @@ const loadRecords = async () => {
     ElMessage.error(error.message || '加载交易记录失败')
     recordList.value = []
     pagination.total = 0
+    depositBalance.value = 0
+    availableBalance.value = 0
   } finally {
     loading.value = false
   }
-}
-
-// 生成模拟数据
-const generateMockRecords = (): DepositRecord[] => {
-  const records: DepositRecord[] = []
-  const events = ['预存款支付', '在线充值', '预存款退款', 'CW01代充值']
-  const remarks = [
-    '预存款支付:订单号(20231127161917)',
-    'success预存款充值:外部交易号(20231127165432)',
-    '预存款退款:订单号(20231127161917)',
-    '2020年第二季度返点'
-  ]
-
-  let currentBalance = 1000.00
-  let availableBalance = 1000.00
-
-  for (let i = 0; i < 25; i++) {
-    const event = events[i % events.length]
-    const depositAmount = event === '在线充值' || event === 'CW01代充值' ? Math.random() * 500 + 100 : 0
-    const expenseAmount = event === '预存款支付' ? Math.random() * 200 + 50 : 0
-    const frozenAmount = 0
-    const unfrozenAmount = 0
-
-    currentBalance = currentBalance + depositAmount - expenseAmount
-    availableBalance = availableBalance + depositAmount - expenseAmount
-
-    records.push({
-      id: i + 1,
-      event,
-      depositAmount,
-      expenseAmount,
-      frozenAmount,
-      unfrozenAmount,
-      currentBalance,
-      availableBalance,
-      createTime: new Date(2023, 10, 27 - i, 16, 54 - i).toISOString(),
-      remark: remarks[i % remarks.length]
-    })
-  }
-
-  return records.reverse()
 }
 
 // 全选/取消全选
@@ -374,6 +318,7 @@ const handleExportSelected = () => {
 const handlePageChange = (page: number) => {
   pagination.currentPage = page
   pageInput.value = String(page)
+  loadRecords()
   // 滚动到顶部
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
@@ -383,6 +328,7 @@ const handleSizeChange = (size: number) => {
   pagination.pageSize = size
   pagination.currentPage = 1
   pageInput.value = '1'
+  loadRecords()
   // 滚动到顶部
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
@@ -395,15 +341,14 @@ const handleGoToPage = () => {
     return
   }
   pagination.currentPage = page
+  loadRecords()
   // 滚动到顶部
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-// 计算当前页显示的记录列表
+// 当前页显示的记录列表（后端已分页，直接使用）
 const displayedRecords = computed(() => {
-  const start = (pagination.currentPage - 1) * pagination.pageSize
-  const end = start + pagination.pageSize
-  return recordList.value.slice(start, end)
+  return recordList.value
 })
 
 // 判断事件是否可点击（预存款支付、预存款退款）
@@ -420,7 +365,7 @@ const extractOrderNumber = (remark: string): string | null => {
 }
 
 // 处理事件点击
-const handleEventClick = (record: DepositRecord) => {
+const handleEventClick = (record: DepositRecordVO) => {
   if (!isClickableEvent(record.event)) return
   
   const orderNumber = extractOrderNumber(record.remark)
@@ -438,17 +383,7 @@ const handleEventClick = (record: DepositRecord) => {
   })
 }
 
-// 格式化日期时间
-const formatDateTime = (dateTime: string | Date) => {
-  if (!dateTime) return '-'
-  const date = typeof dateTime === 'string' ? new Date(dateTime) : dateTime
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  return `${year}-${month}-${day} ${hours}:${minutes}`
-}
+import { formatDateTime } from '@/utils'
 
 // 初始化
 onMounted(() => {

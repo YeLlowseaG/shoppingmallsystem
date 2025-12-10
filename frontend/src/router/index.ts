@@ -183,6 +183,33 @@ const router = createRouter({
         title: '订单消息',
         requiresAuth: true
       }
+    },
+    {
+      path: '/help',
+      name: 'help',
+      component: () => import('@/views/help/Index.vue'),
+      meta: {
+        title: '帮助中心',
+        requiresAuth: false
+      }
+    },
+    {
+      path: '/news',
+      name: 'news',
+      component: () => import('@/views/news/List.vue'),
+      meta: {
+        title: '最新公告',
+        requiresAuth: false
+      }
+    },
+    {
+      path: '/news/:id',
+      name: 'news-detail',
+      component: () => import('@/views/news/Detail.vue'),
+      meta: {
+        title: '公告详情',
+        requiresAuth: false
+      }
     }
   ]
 })

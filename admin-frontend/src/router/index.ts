@@ -91,6 +91,15 @@ const router = createRouter({
           }
         },
         {
+          path: 'deposit',
+          name: 'admin-deposit-record',
+          component: () => import('@/views/deposit/Record.vue'),
+          meta: {
+            title: '预存款交易记录',
+            permission: 'admin:deposit:list'
+          }
+        },
+        {
           path: 'order/list',
           name: 'admin-order-list',
           component: () => import('@/views/order/List.vue'),
@@ -100,6 +109,46 @@ const router = createRouter({
           }
         }
       ]
+    },
+    // 添加404路由，捕获所有未匹配的admin路径
+    {
+      path: '/admin/:pathMatch(.*)*',
+      name: 'admin-404',
+      component: () => import('@/components/Layout/index.vue'),
+      meta: {
+        requiresAuth: true
+      },
+      children: [
+        {
+          path: '',
+          name: 'not-found',
+          component: {
+            template: '<div></div>',
+            mounted() {
+              // 在组件挂载时重定向
+              const adminStore = useAdminStore()
+              if (adminStore.isLoggedIn()) {
+                this.$router.replace('/admin/dashboard')
+              } else {
+                this.$router.replace('/admin/login')
+              }
+            }
+          }
+        }
+      ]
+    },
+    // 处理根路径的404
+    {
+      path: '/:pathMatch(.*)*',
+      name: '404',
+      redirect: (to) => {
+        // 如果是admin路径，重定向到admin登录页
+        if (to.path.startsWith('/admin')) {
+          return '/admin/login'
+        }
+        // 其他路径重定向到首页
+        return '/'
+      }
     }
   ]
 })
@@ -122,6 +171,9 @@ const componentMap: Record<string, () => Promise<any>> = {
   'buyer/List': () => import('@/views/buyer/List.vue'),
   'buyer/Audit': () => import('@/views/buyer/Audit.vue'),
   
+  // 预存款管理
+  'deposit/Record': () => import('@/views/deposit/Record.vue'),
+  
   // 权限管理
   'permission/User': () => import('@/views/permission/User.vue'),
   'permission/Role': () => import('@/views/permission/Role.vue'),
@@ -129,6 +181,10 @@ const componentMap: Record<string, () => Promise<any>> = {
   
   // 物流管理
   'logistics/Index': () => import('@/views/logistics/Index.vue'),
+  
+  // 帮助中心管理
+  'help/Index': () => import('@/views/help/Index.vue'),
+  'announcement/Index': () => import('@/views/announcement/Index.vue'),
   
   // 以下组件文件尚未创建，待开发时添加：
   // - stock/List, stock/Warning, stock/Adjust, stock/Statistics
@@ -153,10 +209,21 @@ export const addRoutes = (menus: MenuVO[]) => {
         
         // 构建相对路径（相对于 /admin）
         let routePath = menu.path
-        if (parentPath) {
+        // 如果路径是绝对路径（以 /admin 开头），需要转换为相对路径
+        if (routePath.startsWith('/admin/')) {
+          routePath = routePath.replace(/^\/admin\//, '')
+        } else if (routePath.startsWith('/')) {
+          // 如果路径以 / 开头但不是 /admin，去掉开头的 /
+          routePath = routePath.replace(/^\//, '')
+        }
+        
+        // 如果有父路径且当前路径不是绝对路径，则拼接父路径
+        if (parentPath && !menu.path.startsWith('/admin/')) {
           // 如果父路径以 / 开头，去掉开头的 /
           const cleanParentPath = parentPath.startsWith('/') ? parentPath.replace(/^\//, '') : parentPath
-          routePath = `${cleanParentPath}/${menu.path}`
+          // 如果父路径以 /admin 开头，去掉 /admin 前缀
+          const finalParentPath = cleanParentPath.startsWith('admin/') ? cleanParentPath.replace(/^admin\//, '') : cleanParentPath
+          routePath = finalParentPath ? `${finalParentPath}/${routePath}` : routePath
         }
         
         // 特殊处理：如果路径是 'index' 且父路径是 'dashboard'，则路径应该是 'dashboard'
@@ -214,12 +281,26 @@ export const addRoutes = (menus: MenuVO[]) => {
 }
 
 // 路由守卫
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const adminStore = useAdminStore()
   
   // 设置页面标题
   if (to.meta.title) {
     document.title = `${to.meta.title} - B2B成人用品采购平台管理后台`
+  }
+
+  // 检查路由是否存在（排除404路由本身）
+  const matched = to.matched.length > 0
+  if (!matched && to.path.startsWith('/admin') && to.name !== 'admin-404' && to.name !== 'not-found') {
+    // 路由不存在，根据登录状态重定向
+    if (adminStore.isLoggedIn()) {
+      ElMessage.warning('页面不存在，已跳转到首页')
+      next('/admin/dashboard')
+      return
+    } else {
+      next('/admin/login')
+      return
+    }
   }
 
   // 检查是否需要登录
@@ -261,6 +342,26 @@ router.beforeEach(async (to, from, next) => {
   }
 
   next()
+})
+
+// 添加路由错误处理
+router.onError((error) => {
+  console.error('路由错误:', error)
+  const adminStore = useAdminStore()
+  
+  // 如果是组件加载失败，重定向到首页或登录页
+  if (error.message && (
+    error.message.includes('Failed to fetch dynamically imported module') ||
+    error.message.includes('Loading chunk') ||
+    error.message.includes('Failed to fetch')
+  )) {
+    ElMessage.error('页面加载失败，正在跳转...')
+    if (adminStore.isLoggedIn()) {
+      router.replace('/admin/dashboard')
+    } else {
+      router.replace('/admin/login')
+    }
+  }
 })
 
 export default router

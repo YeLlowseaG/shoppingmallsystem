@@ -91,3 +91,8 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
     enabled: true
+
+# 支付配置
+payment:
+  mock:
+    enabled: true  # 是否启用模拟支付（true-模拟支付，false-真实支付），方便测试

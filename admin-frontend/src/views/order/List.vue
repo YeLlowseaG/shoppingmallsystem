@@ -59,7 +59,11 @@
         <el-table-column prop="recipientName" label="收货人" width="120" />
         <el-table-column prop="recipientAddress" label="收货地址" width="250" show-overflow-tooltip />
         <el-table-column prop="description" label="订单描述" width="300" show-overflow-tooltip />
-        <el-table-column prop="orderDate" label="下单日期" width="180" />
+        <el-table-column prop="orderDate" label="下单日期" width="180">
+          <template #default="{ row }">
+            {{ formatDateTime(row.orderDate) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="totalAmount" label="总金额" width="120">
           <template #default="{ row }">
             ¥{{ row.totalAmount.toFixed(2) }}
@@ -123,7 +127,7 @@
     <el-dialog v-model="detailDialogVisible" title="订单详情" width="900px">
       <el-descriptions :column="2" border v-if="currentOrder">
         <el-descriptions-item label="订单号">{{ currentOrder.orderNo }}</el-descriptions-item>
-        <el-descriptions-item label="下单日期">{{ currentOrder.orderDate }}</el-descriptions-item>
+        <el-descriptions-item label="下单日期">{{ formatDateTime(currentOrder.orderDate) }}</el-descriptions-item>
         <el-descriptions-item label="订单状态">
           <el-tag :type="getStatusTagType(currentOrder.status)">
             {{ currentOrder.statusText }}
@@ -212,6 +216,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
+import { formatDateTime } from '@/utils'
 import {
   getOrderList,
   getOrderDetail,

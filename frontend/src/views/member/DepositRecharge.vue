@@ -134,6 +134,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, FormInstance, FormRules } from 'element-plus'
 import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
@@ -141,7 +142,9 @@ import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
 import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
 import MemberSidebar from '@/components/member/MemberSidebar.vue'
+import { rechargeDeposit, type PaymentResponseVO } from '@/api/buyer/deposit'
 
+const router = useRouter()
 const rechargeFormRef = ref<FormInstance>()
 const loading = ref(false)
 const unreadMessageCount = ref(0)
@@ -203,29 +206,44 @@ const handlePayNow = async () => {
       try {
         const amount = parseFloat(rechargeForm.amount)
         
-        // 模拟支付过程
         ElMessage.info('正在处理支付...')
         
-        // TODO: 这里预留真实支付接口对接入口
-        // 示例：await rechargeDeposit({ amount, currency: rechargeForm.currency, paymentMethod: rechargeForm.paymentMethod })
+        // 调用真实充值接口
+        const paymentResponse: PaymentResponseVO = await rechargeDeposit({
+          amount,
+          currency: rechargeForm.currency,
+          paymentMethod: rechargeForm.paymentMethod
+        })
         
-        // 模拟支付API调用，延迟1.5秒后返回支付成功
-        setTimeout(() => {
-          // 模拟支付成功
+        // 如果是模拟支付，直接显示成功
+        if (paymentResponse.isMock) {
           ElMessage.success('支付成功！充值金额已到账')
           
           // 重置表单
           rechargeForm.amount = '0.01'
           rechargeForm.paymentMethod = 'wechat'
           
-          loading.value = false
-          
-          // 可以跳转到充值记录页面或返回预存款页面
-          // router.push('/member/deposit/balance')
-        }, 1500)
+          // 跳转到预存款页面查看余额
+          setTimeout(() => {
+            router.push('/member/deposit/balance')
+          }, 1000)
+        } else {
+          // 真实支付，跳转到支付页面
+          if (paymentResponse.paymentUrl) {
+            // 跳转到支付URL
+            window.location.href = paymentResponse.paymentUrl
+          } else if (paymentResponse.qrCodeUrl) {
+            // 显示二维码支付
+            ElMessage.info('请使用手机扫描二维码完成支付')
+            // TODO: 可以打开二维码弹窗显示二维码
+          } else {
+            ElMessage.warning('支付订单创建成功，但未返回支付URL')
+          }
+        }
       } catch (error: any) {
         console.error('支付失败:', error)
         ElMessage.error(error.message || '支付失败，请重试')
+      } finally {
         loading.value = false
       }
     }

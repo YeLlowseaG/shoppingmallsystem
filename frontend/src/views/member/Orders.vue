@@ -270,6 +270,7 @@ import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
 import MemberSidebar from '@/components/member/MemberSidebar.vue'
 import { getOrderList, cancelOrder, confirmReceipt } from '@/api/buyer/order'
 import type { OrderListVO, OrderPageResponse } from '@/api/buyer/order'
+import { formatDateTime } from '@/utils'
 
 const router = useRouter()
 const unreadMessageCount = ref(0)

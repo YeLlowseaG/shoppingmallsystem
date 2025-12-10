@@ -62,7 +62,11 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="注册时间" width="180" />
+        <el-table-column prop="createTime" label="注册时间" width="180">
+          <template #default="{ row }">
+            {{ formatDateTime(row.createTime) }}
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="250" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="handleView(row)">查看</el-button>
@@ -134,8 +138,8 @@
           {{ currentBuyer.wangwang || '-' }}
         </el-descriptions-item>
         <el-descriptions-item label="审核意见" :span="2">{{ currentBuyer.auditComment || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="注册时间">{{ currentBuyer.createTime }}</el-descriptions-item>
-        <el-descriptions-item label="更新时间">{{ currentBuyer.updateTime }}</el-descriptions-item>
+        <el-descriptions-item label="注册时间">{{ formatDateTime(currentBuyer.createTime) }}</el-descriptions-item>
+        <el-descriptions-item label="更新时间">{{ formatDateTime(currentBuyer.updateTime) }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
 
@@ -168,6 +172,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getBuyerList, getBuyerById, updateBuyerStatus, updateBuyerLevel } from '@/api/admin/buyer'
 import type { BuyerVO } from '@/api/admin/buyer'
+import { formatDateTime } from '@/utils'
 
 const loading = ref(false)
 const buyerList = ref<BuyerVO[]>([])
