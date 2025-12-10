@@ -2,6 +2,34 @@
 
 ## 2025-12-10
 
+### 激活开发环境 Profile 配置并支持本地配置文件
+- 已激活 `dev` profile 并配置支持本地个人配置文件
+- 主要修改内容：
+  1. **添加 Profile 激活配置** (`backend/src/main/resources/application.yml`)：
+     - 在 `spring` 配置下添加 `profiles.active: dev`
+     - 确保本地开发时自动加载 `application-dev.yml`
+  2. **添加本地配置文件导入** (`backend/src/main/resources/application-dev.yml`)：
+     - 使用 `spring.config.import` 导入 `application-dev-local.yml`
+     - 使用 `optional:` 前缀，允许文件不存在（开发者可选择创建）
+     - 如果文件存在，会自动加载并覆盖开发环境配置
+- 配置加载顺序（激活 dev profile 后）：
+  1. `application.yml` - 基础配置
+  2. `application-dev.yml` - 开发环境配置（覆盖数据库密码和日志级别）
+  3. `application-dev-local.yml` - 本地个人配置（如果存在，覆盖数据库密码等个人配置）
+- 工作原理：
+  - Spring Boot 3.1.5 支持 `spring.config.import` 显式导入配置文件
+  - `optional:` 前缀表示文件不存在时不会报错，允许开发者选择性创建
+  - 后加载的配置会覆盖先加载的配置
+- 修改效果：
+  - ✅ 本地开发环境自动激活 `dev` profile
+  - ✅ 自动加载 `application-dev.yml` 配置
+  - ✅ 如果存在 `application-dev-local.yml`，会自动加载并覆盖数据库密码
+  - ✅ 每个开发者可以使用自己的本地数据库配置，互不影响
+  - ✅ 文件不存在时不会报错，不影响其他开发者
+- 开发环境 Profile 配置已激活，本地配置文件支持已添加
+
+## 2025-12-10
+
 ### 修复侧边栏在所有页面不显示的问题
 - 已修复所有管理后台页面（如 `/admin/order/list`）侧边栏不显示的问题
 - 主要修改内容：

@@ -2,6 +2,10 @@ spring:
   application:
     name: shopping-mall-system
   
+  # 激活开发环境配置
+  profiles:
+    active: dev
+  
   # 禁用H2数据库自动配置
   autoconfigure:
     exclude:

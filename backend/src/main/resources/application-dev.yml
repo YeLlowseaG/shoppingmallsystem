@@ -1,5 +1,10 @@
 # 开发环境配置
 spring:
+  # 导入本地配置文件（如果存在）
+  # optional: 表示文件不存在时不会报错，允许开发者选择性创建
+  config:
+    import: optional:classpath:application-dev-local.yml
+  
   datasource:
     druid:
       password: 123456  # 默认密码，会被 application-dev-local.yml 覆盖
