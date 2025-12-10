@@ -216,8 +216,11 @@
                     <source>${java.version}</source>
                     <target>${java.version}</target>
                     <encoding>UTF-8</encoding>
+<<<<<<< Updated upstream
                     <fork>true</fork>
                     <executable>javac</executable>
+=======
+>>>>>>> Stashed changes
                     <annotationProcessorPaths>
                         <path>
                             <groupId>org.projectlombok</groupId>
@@ -229,9 +232,6 @@
                         <arg>-parameters</arg>
                         <arg>-encoding</arg>
                         <arg>UTF-8</arg>
-                        <arg>-J-Dfile.encoding=UTF-8</arg>
-                        <arg>-J-Duser.language=en</arg>
-                        <arg>-J-Duser.country=US</arg>
                     </compilerArgs>
                 </configuration>
             </plugin>
