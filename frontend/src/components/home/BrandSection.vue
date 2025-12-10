@@ -9,9 +9,9 @@
             v-for="brand in brands"
             :key="brand.id"
             class="brand-item"
-            @click="goToBrand(brand.name)"
+            @click="goToBrand(brand.brandName)"
           >
-            <img :src="brand.logo" :alt="brand.name" />
+            <img :src="brand.logoUrl" :alt="brand.brandName" />
           </div>
         </div>
       </div>
@@ -21,10 +21,10 @@
         <img
           v-for="ad in ads"
           :key="ad.id"
-          :src="ad.image"
-          :alt="ad.title"
+          :src="ad.imageUrl"
+          :alt="ad.adName"
           class="ad-image"
-          @click="goToPromotion(ad.id)"
+          @click="goToAdTarget(ad)"
         />
       </div>
     </div>
@@ -32,34 +32,37 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { getActiveBrands, getAdvertisementsByPosition, type Brand, type Advertisement } from '@/api/buyer/website'
 
 const router = useRouter()
 
-const brands = ref([
-  { id: 1, name: '虚姬', logo: 'https://via.placeholder.com/120x60/FF6B9D/ffffff?text=虚姬' },
-  { id: 2, name: 'Angus', logo: 'https://via.placeholder.com/120x60/9D50BB/ffffff?text=Angus' },
-  { id: 3, name: '杜蕾斯', logo: 'https://via.placeholder.com/120x60/6C5CE7/ffffff?text=Durex' },
-  { id: 4, name: '冈本', logo: 'https://via.placeholder.com/120x60/FFD93D/ffffff?text=Okamoto' },
-  { id: 5, name: '欧姿丹', logo: 'https://via.placeholder.com/120x60/FD79A8/ffffff?text=欧姿丹' },
-  { id: 6, name: '杰士邦', logo: 'https://via.placeholder.com/120x60/74B9FF/ffffff?text=杰士邦' },
-  { id: 7, name: 'DESIRE', logo: 'https://via.placeholder.com/120x60/A29BFE/ffffff?text=DESIRE' },
-  { id: 8, name: 'IC KISTOY', logo: 'https://via.placeholder.com/120x60/FD79A8/ffffff?text=IC' },
-  { id: 9, name: 'Beten', logo: 'https://via.placeholder.com/120x60/FF6B9D/ffffff?text=Beten' },
-  { id: 10, name: 'NO17', logo: 'https://via.placeholder.com/120x60/6C5CE7/ffffff?text=NO17' },
-  { id: 11, name: 'W Dibe', logo: 'https://via.placeholder.com/120x60/FFD93D/ffffff?text=Dibe' },
-  { id: 12, name: 'LE', logo: 'https://via.placeholder.com/120x60/74B9FF/ffffff?text=LE' },
-  { id: 13, name: '久慕之', logo: 'https://via.placeholder.com/120x60/A29BFE/ffffff?text=久慕之' },
-  { id: 14, name: 'NU smile', logo: 'https://via.placeholder.com/120x60/FD79A8/ffffff?text=NU' },
-  { id: 15, name: '爱巢', logo: 'https://via.placeholder.com/120x60/FF6B9D/ffffff?text=爱巢' },
-  { id: 16, name: '百乐', logo: 'https://via.placeholder.com/120x60/9D50BB/ffffff?text=百乐' }
-])
+// 品牌数据
+const brands = ref<Brand[]>([])
 
-const ads = ref([
-  { id: 1, title: '好货来袭', image: 'https://via.placeholder.com/280x220/6C5CE7/ffffff?text=好货来袭' },
-  { id: 2, title: '敬请期待', image: 'https://via.placeholder.com/280x220/FF6B9D/ffffff?text=敬请期待' }
-])
+// 侧边广告数据
+const ads = ref<Advertisement[]>([])
+
+// 加载品牌列表
+const loadBrands = async () => {
+  try {
+    brands.value = await getActiveBrands(16) // 限制16个品牌
+  } catch (error) {
+    console.error('加载品牌失败:', error)
+  }
+}
+
+// 加载侧边广告
+const loadAds = async () => {
+  try {
+    const ad1 = await getAdvertisementsByPosition('brand_side_1')
+    const ad2 = await getAdvertisementsByPosition('brand_side_2')
+    ads.value = [...ad1, ...ad2]
+  } catch (error) {
+    console.error('加载广告失败:', error)
+  }
+}
 
 // 跳转到品牌商品列表页
 const goToBrand = (brandName: string) => {
@@ -69,13 +72,30 @@ const goToBrand = (brandName: string) => {
   })
 }
 
-// 跳转到促销活动页
-const goToPromotion = (adId: number) => {
-  router.push({
-    path: '/products',
-    query: { promotionId: `ad-${adId}` }
-  })
+// 跳转到广告目标
+const goToAdTarget = (ad: Advertisement) => {
+  if (ad.linkType === 0 || !ad.linkValue) return
+
+  switch (ad.linkType) {
+    case 1: // 商品分类
+      router.push(`/products?categoryId=${ad.linkValue}`)
+      break
+    case 2: // 商品详情
+      router.push(`/product/${ad.linkValue}`)
+      break
+    case 3: // 促销活动
+      router.push(`/products?type=${ad.linkValue}`)
+      break
+    case 4: // 外部链接
+      window.open(ad.linkValue, '_blank')
+      break
+  }
 }
+
+onMounted(() => {
+  loadBrands()
+  loadAds()
+})
 </script>
 
 <style scoped lang="scss">

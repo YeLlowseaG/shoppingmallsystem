@@ -1,12 +1,18 @@
 <template>
   <div class="hot-products">
     <div class="container">
-      <div class="product-card" v-for="product in products" :key="product.id">
-        <div class="brand-tag">{{ product.brand }}</div>
-        <img :src="product.image" :alt="product.name" class="product-image" />
+      <div
+        class="product-card"
+        v-for="product in products"
+        :key="product.id"
+        @click="goToDetail(product.id)"
+      >
+        <div class="brand-tag">热销</div>
+        <img :src="product.mainImage" :alt="product.productName" class="product-image" />
         <div class="product-info">
-          <div class="product-name">{{ product.name }}</div>
-          <div class="product-desc">{{ product.desc }}</div>
+          <div class="product-name">{{ product.productName }}</div>
+          <div class="product-price">¥{{ product.basePrice }}</div>
+          <div class="product-sales">已售 {{ product.salesCount }}</div>
         </div>
       </div>
     </div>
@@ -14,38 +20,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { getHotProducts, type ProductVO } from '@/api/buyer/product'
 
-const products = ref([
-  {
-    id: 1,
-    brand: 'ANGUS',
-    name: '极尿酸润滑液',
-    desc: '温和润滑 全新体验',
-    image: 'https://via.placeholder.com/280x280/FF6B9D/ffffff?text=Product+1'
-  },
-  {
-    id: 2,
-    brand: '虚姬',
-    name: '魅动遥控跳蛋',
-    desc: 'USB充电 十段强震',
-    image: 'https://via.placeholder.com/280x280/9D50BB/ffffff?text=Product+2'
-  },
-  {
-    id: 3,
-    brand: '虚姬',
-    name: '依依酱飞机杯',
-    desc: '健硅飞机杯 仿真吮吸',
-    image: 'https://via.placeholder.com/280x280/FFD93D/ffffff?text=Product+3'
-  },
-  {
-    id: 4,
-    brand: '名姬',
-    name: '果冻软胸',
-    desc: '好色人妻 三交巨乳',
-    image: 'https://via.placeholder.com/280x280/6C5CE7/ffffff?text=Product+4'
+const router = useRouter()
+const products = ref<ProductVO[]>([])
+
+// 加载热门商品
+const loadHotProducts = async () => {
+  try {
+    products.value = await getHotProducts(4)
+  } catch (error) {
+    console.error('加载热门商品失败:', error)
   }
-])
+}
+
+// 跳转到商品详情
+const goToDetail = (id: number) => {
+  router.push(`/product/${id}`)
+}
+
+onMounted(() => {
+  loadHotProducts()
+})
 </script>
 
 <style scoped lang="scss">
@@ -102,10 +100,20 @@ const products = ref([
         font-size: 14px;
         font-weight: bold;
         color: #333;
+        margin-bottom: 8px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .product-price {
+        font-size: 18px;
+        font-weight: bold;
+        color: #e4393c;
         margin-bottom: 5px;
       }
 
-      .product-desc {
+      .product-sales {
         font-size: 12px;
         color: #999;
       }

@@ -79,6 +79,8 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
+import { createProduct } from '@/api/admin/product'
+import { getCategoryTree } from '@/api/admin/productCategory'
 
 const router = useRouter()
 const formRef = ref<FormInstance>()
@@ -111,13 +113,41 @@ const cascaderProps = {
   checkStrictly: true
 }
 
+// 加载商品分类数据
+const loadCategories = async () => {
+  try {
+    categoryOptions.value = await getCategoryTree()
+  } catch (error) {
+    ElMessage.error('加载分类数据失败')
+  }
+}
+
 const handleSubmit = async () => {
   if (!formRef.value) return
 
-  await formRef.value.validate((valid) => {
+  await formRef.value.validate(async (valid) => {
     if (valid) {
-      ElMessage.success('商品发布功能开发中，敬请期待！')
-      console.log('提交的表单数据：', productForm.value)
+      try {
+        // 处理级联选择器的值（如果是数组，取最后一个值）
+        const categoryId = Array.isArray(productForm.value.categoryId)
+          ? productForm.value.categoryId[productForm.value.categoryId.length - 1]
+          : productForm.value.categoryId
+
+        await createProduct({
+          productName: productForm.value.productName,
+          categoryId: categoryId,
+          productCode: productForm.value.productCode,
+          basePrice: productForm.value.basePrice,
+          stock: productForm.value.stock,
+          description: productForm.value.description,
+          mainImage: productForm.value.mainImage,
+          status: productForm.value.status
+        })
+        ElMessage.success('商品发布成功！')
+        router.push('/admin/product/list')
+      } catch (error) {
+        ElMessage.error('商品发布失败')
+      }
     } else {
       ElMessage.error('请填写完整的商品信息')
     }
@@ -133,8 +163,7 @@ const handleCancel = () => {
 }
 
 onMounted(() => {
-  // TODO: 从后端API加载商品分类数据
-  ElMessage.info('商品发布页面加载成功')
+  loadCategories()
 })
 </script>
 

@@ -101,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
@@ -110,188 +110,87 @@ import HotProducts from '@/components/home/HotProducts.vue'
 import BrandSection from '@/components/home/BrandSection.vue'
 import CategoryFloor from '@/components/home/CategoryFloor.vue'
 import Footer from '@/components/home/Footer.vue'
+import { getRecommendProducts, type ProductVO } from '@/api/buyer/product'
+import { getAllFloorAdvertisements, type Advertisement } from '@/api/buyer/website'
 
-// 模拟楼层数据（后续从接口获取）
-const floorData = ref([
-  {
-    // 1F 男用器具
-    bigAd: 'https://via.placeholder.com/800x400/FF6B9D/ffffff?text=新品上市+好物抢先购',
-    sideProducts: [
-      {
-        id: 1,
-        name: '双穴情欲小翘臀',
-        tag: '丰满翘臀',
-        image: 'https://via.placeholder.com/195x195?text=Product',
-        price: 134.0,
-        originalPrice: 201.0
-      },
-      {
-        id: 2,
-        name: '极上爆乳美模名器',
-        tag: '酥胸把位',
-        image: 'https://via.placeholder.com/195x195?text=Product',
-        price: 134.0,
-        originalPrice: 201.0
-      }
-    ],
-    bottomProducts: [
-      {
-        id: 3,
-        category: '男用器具',
-        name: 'AV女优三穴仿道路 [虞姬]',
-        image: 'https://via.placeholder.com/280x280?text=Product',
-        price: 134.0,
-        originalPrice: 201.0
-      },
-      {
-        id: 4,
-        category: '男用器具',
-        name: '娇嫩酥胸小萌妹 [虞姬]',
-        image: 'https://via.placeholder.com/280x280?text=Product',
-        price: 134.0,
-        originalPrice: 201.0
-      },
-      {
-        id: 5,
-        category: '男用器具',
-        name: '好色人妻巨乳 [虞姬]',
-        image: 'https://via.placeholder.com/280x280?text=Product',
-        price: 239.0,
-        originalPrice: 358.0
-      },
-      {
-        id: 6,
-        category: '男用器具',
-        name: '深喉洁音震动双穴飞机杯 [虞姬]',
-        image: 'https://via.placeholder.com/280x280?text=Product',
-        price: 134.0,
-        originalPrice: 201.0
-      }
-    ]
-  },
-  {
-    // 2F 女用器具
-    bigAd: 'https://via.placeholder.com/800x400/9D50BB/ffffff?text=女用器具专区',
-    sideProducts: [
-      {
-        id: 7,
-        name: '粉红小猪震动棒',
-        tag: '会阴古尼发声',
-        image: 'https://via.placeholder.com/195x195?text=Product',
-        price: 99.0,
-        originalPrice: 150.0
-      },
-      {
-        id: 8,
-        name: '玩趣甜心小象震',
-        tag: '软萌小狗狗',
-        image: 'https://via.placeholder.com/195x195?text=Product',
-        price: 89.0,
-        originalPrice: 130.0
-      }
-    ],
-    bottomProducts: [
-      {
-        id: 9,
-        category: '女用器具',
-        name: '日本NPG 真人倒模大名器 [虞姬]',
-        image: 'https://via.placeholder.com/280x280?text=Product',
-        price: 134.0,
-        originalPrice: 201.0
-      },
-      {
-        id: 10,
-        category: '女用器具',
-        name: '真实阴道倒模震动器',
-        image: 'https://via.placeholder.com/280x280?text=Product',
-        price: 134.0,
-        originalPrice: 201.0
-      },
-      {
-        id: 11,
-        category: '女用器具',
-        name: '丝滑少女唇 [虞姬]',
-        image: 'https://via.placeholder.com/280x280?text=Product',
-        price: 239.0,
-        originalPrice: 358.0
-      },
-      {
-        id: 12,
-        category: '女用器具',
-        name: '粉嫩小玫瑰',
-        image: 'https://via.placeholder.com/280x280?text=Product',
-        price: 134.0,
-        originalPrice: 201.0
-      }
-    ]
-  },
-  // ... 其他楼层数据类似，这里简化处理
-  {
-    bigAd: 'https://via.placeholder.com/800x400/74B9FF/ffffff?text=润滑清洁',
-    sideProducts: [
-      { id: 13, name: '润滑液', tag: '清爽不黏', image: 'https://via.placeholder.com/195x195', price: 19.9, originalPrice: 39.0 },
-      { id: 14, name: '清洁液', tag: '温和抑菌', image: 'https://via.placeholder.com/195x195', price: 29.9, originalPrice: 59.0 }
-    ],
-    bottomProducts: [
-      { id: 15, category: '润滑清洁', name: '水溶性润滑液', image: 'https://via.placeholder.com/280x280', price: 19.9, originalPrice: 39.0 },
-      { id: 16, category: '润滑清洁', name: '硅基润滑液', image: 'https://via.placeholder.com/280x280', price: 39.9, originalPrice: 79.0 },
-      { id: 17, category: '润滑清洁', name: '女性护理液', image: 'https://via.placeholder.com/280x280', price: 29.9, originalPrice: 59.0 },
-      { id: 18, category: '润滑清洁', name: '男性清洁液', image: 'https://via.placeholder.com/280x280', price: 29.9, originalPrice: 59.0 }
-    ]
-  },
-  {
-    bigAd: 'https://via.placeholder.com/800x400/FFD93D/ffffff?text=情趣内衣',
-    sideProducts: [
-      { id: 19, name: '蕾丝连体衣', tag: '性感诱惑', image: 'https://via.placeholder.com/195x195', price: 79.0, originalPrice: 150.0 },
-      { id: 20, name: '情趣护士服', tag: '角色扮演', image: 'https://via.placeholder.com/195x195', price: 89.0, originalPrice: 160.0 }
-    ],
-    bottomProducts: [
-      { id: 21, category: '情趣内衣', name: '黑色蕾丝套装', image: 'https://via.placeholder.com/280x280', price: 79.0, originalPrice: 150.0 },
-      { id: 22, category: '情趣内衣', name: '红色激情套装', image: 'https://via.placeholder.com/280x280', price: 79.0, originalPrice: 150.0 },
-      { id: 23, category: '情趣内衣', name: '学生制服', image: 'https://via.placeholder.com/280x280', price: 89.0, originalPrice: 160.0 },
-      { id: 24, category: '情趣内衣', name: 'OL套装', image: 'https://via.placeholder.com/280x280', price: 89.0, originalPrice: 160.0 }
-    ]
-  },
-  {
-    bigAd: 'https://via.placeholder.com/800x400/FD79A8/ffffff?text=延时保健',
-    sideProducts: [
-      { id: 25, name: '延时喷剂', tag: '持久耐用', image: 'https://via.placeholder.com/195x195', price: 59.0, originalPrice: 120.0 },
-      { id: 26, name: '保健按摩油', tag: '温和滋养', image: 'https://via.placeholder.com/280x280', price: 49.0, originalPrice: 100.0 }
-    ],
-    bottomProducts: [
-      { id: 27, category: '延时保健', name: '男士延时喷雾', image: 'https://via.placeholder.com/280x280', price: 59.0, originalPrice: 120.0 },
-      { id: 28, category: '延时保健', name: '保健精油', image: 'https://via.placeholder.com/280x280', price: 49.0, originalPrice: 100.0 },
-      { id: 29, category: '延时保健', name: '延时湿巾', image: 'https://via.placeholder.com/280x280', price: 39.0, originalPrice: 80.0 },
-      { id: 30, category: '延时保健', name: '增大精油', image: 'https://via.placeholder.com/280x280', price: 69.0, originalPrice: 140.0 }
-    ]
-  },
-  {
-    bigAd: 'https://via.placeholder.com/800x400/55EFC4/ffffff?text=喷剂助情',
-    sideProducts: [
-      { id: 31, name: '女性助情喷剂', tag: '愉悦体验', image: 'https://via.placeholder.com/195x195', price: 79.0, originalPrice: 150.0 },
-      { id: 32, name: '男性助情喷剂', tag: '持久耐力', image: 'https://via.placeholder.com/195x195', price: 79.0, originalPrice: 150.0 }
-    ],
-    bottomProducts: [
-      { id: 33, category: '喷剂助情', name: '女士情欲提升液', image: 'https://via.placeholder.com/280x280', price: 79.0, originalPrice: 150.0 },
-      { id: 34, category: '喷剂助情', name: '男士助勃喷雾', image: 'https://via.placeholder.com/280x280', price: 79.0, originalPrice: 150.0 },
-      { id: 35, category: '喷剂助情', name: '情趣香水', image: 'https://via.placeholder.com/280x280', price: 59.0, originalPrice: 120.0 },
-      { id: 36, category: '喷剂助情', name: '费洛蒙香水', image: 'https://via.placeholder.com/280x280', price: 89.0, originalPrice: 180.0 }
-    ]
-  },
-  {
-    bigAd: 'https://via.placeholder.com/800x400/A29BFE/ffffff?text=其他情趣',
-    sideProducts: [
-      { id: 37, name: 'SM套装', tag: '刺激体验', image: 'https://via.placeholder.com/195x195', price: 129.0, originalPrice: 250.0 },
-      { id: 38, name: '情趣道具', tag: '多样玩法', image: 'https://via.placeholder.com/195x195', price: 99.0, originalPrice: 200.0 }
-    ],
-    bottomProducts: [
-      { id: 39, category: '其他情趣', name: 'SM束缚套装', image: 'https://via.placeholder.com/280x280', price: 129.0, originalPrice: 250.0 },
-      { id: 40, category: '其他情趣', name: '情趣眼罩手铐', image: 'https://via.placeholder.com/280x280', price: 59.0, originalPrice: 120.0 },
-      { id: 41, category: '其他情趣', name: '后庭玩具', image: 'https://via.placeholder.com/280x280', price: 99.0, originalPrice: 200.0 },
-      { id: 42, category: '其他情趣', name: '情趣骰子', image: 'https://via.placeholder.com/280x280', price: 29.0, originalPrice: 60.0 }
-    ]
+// 分类ID配置（根据实际数据库分类ID）
+const categoryIds = [5, 6, 7, 8, 9, 11, 12]  // 男用器具、女用器具、润滑剂、安全套、护理用品、女士内衣、男士内衣
+
+// 楼层数据
+const floorData = ref<any[]>([])
+
+// 楼层广告数据
+const floorAds = ref<Advertisement[]>([])
+
+// 转换商品数据格式
+const convertProduct = (product: ProductVO) => ({
+  id: product.id,
+  name: product.productName,
+  image: product.mainImage,
+  price: product.basePrice,
+  originalPrice: product.basePrice * 1.5,  // 原价设置为基础价的1.5倍
+  category: product.categoryName,
+  tag: ''
+})
+
+// 加载楼层广告
+const loadFloorAds = async () => {
+  try {
+    floorAds.value = await getAllFloorAdvertisements()
+  } catch (error) {
+    console.error('加载楼层广告失败:', error)
   }
-])
+}
+
+// 获取楼层广告图片
+const getFloorAdImage = (floorIndex: number): string => {
+  // 根据楼层索引获取对应位置的广告
+  const positionMap = ['floor_1', 'floor_2', 'floor_3', 'floor_4', 'floor_5', 'floor_6', 'floor_7']
+  const position = positionMap[floorIndex]
+
+  const ad = floorAds.value.find(item => item.adPosition === position)
+  if (ad && ad.imageUrl) {
+    return ad.imageUrl
+  }
+
+  // 如果没有找到对应广告，返回占位符
+  const placeholderColors = ['FF6B9D', '9D50BB', '74B9FF', 'FFD93D', 'FD79A8', '55EFC4', 'A29BFE']
+  return `https://via.placeholder.com/800x400/${placeholderColors[floorIndex]}/ffffff?text=Floor+${floorIndex + 1}`
+}
+
+// 加载楼层数据
+const loadFloorData = async () => {
+  try {
+    const floors = await Promise.all(
+      categoryIds.map(async (categoryId, index) => {
+        // 获取该分类的推荐商品（6个）
+        const products = await getRecommendProducts(categoryId, 6)
+        const convertedProducts = products.map(convertProduct)
+
+        return {
+          bigAd: getFloorAdImage(index),
+          sideProducts: convertedProducts.slice(0, 2),  // 前2个作为侧边商品
+          bottomProducts: convertedProducts.slice(2, 6)  // 后4个作为底部商品
+        }
+      })
+    )
+    floorData.value = floors
+  } catch (error) {
+    console.error('加载楼层数据失败:', error)
+    // 失败时使用空数据
+    floorData.value = categoryIds.map((_, index) => ({
+      bigAd: getFloorAdImage(index),
+      sideProducts: [],
+      bottomProducts: []
+    }))
+  }
+}
+
+onMounted(async () => {
+  // 先加载楼层广告，再加载楼层数据
+  await loadFloorAds()
+  await loadFloorData()
+})
 </script>
 
 <style scoped lang="scss">

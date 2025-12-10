@@ -1,9 +1,9 @@
 <template>
   <div class="banner">
     <el-carousel height="450px" :interval="4000" arrow="always">
-      <el-carousel-item v-for="(item, index) in banners" :key="index">
+      <el-carousel-item v-for="item in banners" :key="item.id">
         <img
-          :src="item.image"
+          :src="item.imageUrl"
           :alt="item.title"
           class="banner-image"
           @click="handleBannerClick(item)"
@@ -14,39 +14,47 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { getActiveBanners, type Banner } from '@/api/buyer/website'
 
 const router = useRouter()
 
-// 模拟轮播图数据（后续从接口获取）
-const banners = ref([
-  {
-    id: 1,
-    title: '新品上市',
-    image: 'https://via.placeholder.com/1200x450/FF6B9D/ffffff?text=新品上市',
-    link: '/products?type=new'
-  },
-  {
-    id: 2,
-    title: '热销商品',
-    image: 'https://via.placeholder.com/1200x450/9D50BB/ffffff?text=热销商品',
-    link: '/products?type=hot'
-  },
-  {
-    id: 3,
-    title: '特价活动',
-    image: 'https://via.placeholder.com/1200x450/6C5CE7/ffffff?text=特价活动',
-    promotionId: 'summer2024',
-    link: '/products?promotionId=summer2024'
-  }
-])
+// 轮播图数据（从API获取）
+const banners = ref<Banner[]>([])
 
-const handleBannerClick = (banner: any) => {
-  if (banner.link) {
-    router.push(banner.link)
+// 加载轮播图
+const loadBanners = async () => {
+  try {
+    banners.value = await getActiveBanners()
+  } catch (error) {
+    console.error('加载轮播图失败:', error)
   }
 }
+
+const handleBannerClick = (banner: Banner) => {
+  if (banner.linkType === 0 || !banner.linkValue) return
+
+  // 根据链接类型跳转
+  switch (banner.linkType) {
+    case 1: // 商品分类
+      router.push(`/products?categoryId=${banner.linkValue}`)
+      break
+    case 2: // 商品详情
+      router.push(`/product/${banner.linkValue}`)
+      break
+    case 3: // 促销活动
+      router.push(`/products?type=${banner.linkValue}`)
+      break
+    case 4: // 外部链接
+      window.open(banner.linkValue, '_blank')
+      break
+  }
+}
+
+onMounted(() => {
+  loadBanners()
+})
 </script>
 
 <style scoped lang="scss">

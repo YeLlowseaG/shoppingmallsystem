@@ -26,8 +26,16 @@
     <!-- 商品主体信息 -->
     <div class="product-main">
       <div class="container">
-        <!-- 左侧：商品图片 -->
-        <div class="product-gallery">
+        <!-- 加载状态 -->
+        <div v-if="loading" class="loading-container">
+          <el-icon class="is-loading" :size="40"><Loading /></el-icon>
+          <p>加载中...</p>
+        </div>
+
+        <!-- 商品内容 -->
+        <template v-else>
+          <!-- 左侧：商品图片 -->
+          <div class="product-gallery">
           <div class="main-image">
             <img :src="currentImage" :alt="product.name" />
           </div>
@@ -156,6 +164,7 @@
             加入收藏
           </div>
         </div>
+        </template>
       </div>
     </div>
 
@@ -253,13 +262,15 @@ import {
   Document,
   Warning,
   ShoppingCart,
-  Star
+  Star,
+  Loading
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
+import { getProductById, type ProductVO } from '@/api/buyer/product'
 
 const route = useRoute()
 const router = useRouter()
@@ -298,49 +309,77 @@ const reviewForm = ref({
 
 // 模拟商品数据
 const product = ref({
-  id: 505228,
-  name: '美国流量款【避孕润滑】超薄玻尿酸2只装 杰士邦',
-  productNo: '505228',
-  weight: 12.000,
-  sku: '505228',
-  barcode: '6927099420936',
-  brand: '杰士邦',
+  id: 0,
+  name: '',
+  productNo: '',
+  weight: 0,
+  sku: '',
+  barcode: '',
+  brand: '',
   unit: '盒',
-  marketPrice: 15.00,
-  price: 10.00,
-  specs: ['2只装'],
-  promoText: '32/盒*12中包=384/箱/箱，注：新旧包装交替发货、若直有铺限政况动，以收到的实物为准。注：此品除无授权线上账关额，京东、小红书、唯品会、拼多多每电商平台，(售此此品需严品禁直销-医医疗器械备案资质凭证抬照该项可销售二类)，标准零售价：9.9元。',
-  images: [
-    'https://via.placeholder.com/400x400/FF6B9D/ffffff?text=Product+Image+1',
-    'https://via.placeholder.com/400x400/9D50BB/ffffff?text=Product+Image+2',
-    'https://via.placeholder.com/400x400/6C5CE7/ffffff?text=Product+Image+3',
-    'https://via.placeholder.com/400x400/FFD93D/ffffff?text=Product+Image+4'
-  ],
-  detailHtml: `
-    <div style="text-align: center;">
-      <h2 style="color: #333; margin-bottom: 20px;">点击文字下载图片包:505228（解压密码：666666）</h2>
-      <p><strong>品牌：</strong>杰士邦</p>
-      <p><strong>名称：</strong>超薄玻尿酸</p>
-      <p><strong>颜色：</strong>乳胶原色</p>
-      <p><strong>香型：</strong>无香</p>
-      <p><strong>数量：</strong>2只装</p>
-      <p><strong>套型：</strong>光面</p>
-      <p><strong>标称宽度：</strong>52mm</p>
-      <img src="https://via.placeholder.com/800x1200/74B9FF/ffffff?text=Product+Detail+Image" style="max-width: 100%; margin: 20px 0;" />
-    </div>
-  `
+  marketPrice: 0,
+  price: 0,
+  specs: ['标准'],
+  promoText: '',
+  images: [] as string[],
+  detailHtml: ''
 })
+
+// 加载状态
+const loading = ref(true)
+
+// 加载商品详情
+const loadProductDetail = async (productId: number) => {
+  loading.value = true
+  try {
+    const productData = await getProductById(productId)
+
+    // 将后端返回的 ProductVO 数据映射到页面需要的格式
+    product.value = {
+      id: productData.id,
+      name: productData.productName,
+      productNo: productData.productCode,
+      weight: 0, // API 暂无重量字段
+      sku: productData.productCode,
+      barcode: '', // API 暂无条码字段
+      brand: '', // API 暂无品牌字段
+      unit: '盒',
+      marketPrice: productData.basePrice * 1.5, // 原价设为基础价的1.5倍
+      price: productData.basePrice,
+      specs: ['标准'],
+      promoText: '',
+      images: productData.imageList.length > 0 ? productData.imageList : [productData.mainImage],
+      detailHtml: `
+        <div style="padding: 20px; line-height: 1.8;">
+          <h3 style="color: #333; margin-bottom: 20px;">商品描述</h3>
+          <p style="color: #666; white-space: pre-wrap;">${productData.description || '暂无详细描述'}</p>
+          ${productData.mainImage ? `<img src="${productData.mainImage}" style="max-width: 100%; margin: 20px 0;" />` : ''}
+        </div>
+      `
+    }
+
+    // 设置默认图片
+    if (product.value.images.length > 0) {
+      currentImage.value = product.value.images[0]
+    }
+  } catch (error) {
+    console.error('加载商品详情失败:', error)
+    ElMessage.error('加载商品详情失败')
+  } finally {
+    loading.value = false
+  }
+}
 
 // 初始化
 onMounted(() => {
-  // 设置默认图片
-  if (product.value.images.length > 0) {
-    currentImage.value = product.value.images[0]
-  }
-
-  // 根据路由参数加载商品数据（后续对接API）
+  // 根据路由参数加载商品数据
   const productId = route.params.id
-  console.log('Product ID:', productId)
+  if (productId) {
+    loadProductDetail(Number(productId))
+  } else {
+    ElMessage.error('商品ID不存在')
+    router.push('/')
+  }
 })
 
 // 立即购买
@@ -400,10 +439,25 @@ const submitReview = () => {
   .product-main {
     background: #fff;
     padding: 30px 0;
+    min-height: 500px;
 
     .container {
       display: flex;
       gap: 40px;
+    }
+
+    .loading-container {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 100px 0;
+      color: #999;
+
+      .el-icon {
+        margin-bottom: 10px;
+      }
     }
   }
 

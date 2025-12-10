@@ -132,7 +132,10 @@ export const addRoutes = (menus: MenuVO[]) => {
     'system/Basic': () => import('@/views/system/Basic.vue'),
     'system/Payment': () => import('@/views/system/Payment.vue'),
     'system/Logistics': () => import('@/views/system/Logistics.vue'),
-    'system/Notification': () => import('@/views/system/Notification.vue')
+    'system/Notification': () => import('@/views/system/Notification.vue'),
+    'website/Banner': () => import('@/views/website/Banner.vue'),
+    'website/Brand': () => import('@/views/website/Brand.vue'),
+    'website/Advertisement': () => import('@/views/website/Advertisement.vue')
   }
 
   const buildRoutes = (menuList: MenuVO[], parentPath = '/admin') => {
