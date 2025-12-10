@@ -40,7 +40,7 @@
               <el-menu-item
                 v-for="child in menu.children"
                 :key="child.id"
-                :index="getMenuPath(child)"
+                :index="getMenuPath(child, menu)"
               >
                 <el-icon v-if="child.icon">
                   <component :is="child.icon" />
@@ -87,12 +87,28 @@ const menuList = computed(() => {
   return adminStore.menus || []
 })
 
-// 获取菜单路径
-const getMenuPath = (menu: MenuVO): string => {
-  if (menu.path) {
-    return menu.path.startsWith('/') ? menu.path : `/admin/${menu.path}`
+// 获取菜单路径（支持父菜单路径）
+const getMenuPath = (menu: MenuVO, parentMenu?: MenuVO): string => {
+  if (!menu.path) {
+    return `/admin/menu-${menu.id}`
   }
-  return `/admin/menu-${menu.id}`
+  
+  // 如果路径以 / 开头，说明是绝对路径，直接返回
+  if (menu.path.startsWith('/')) {
+    return menu.path
+  }
+  
+  // 如果有父菜单，构建完整路径
+  if (parentMenu?.path) {
+    // 父菜单路径可能是 /order 或 order，需要处理
+    const parentPath = parentMenu.path.startsWith('/') 
+      ? parentMenu.path.replace(/^\//, '') 
+      : parentMenu.path
+    return `/admin/${parentPath}/${menu.path}`
+  }
+  
+  // 没有父菜单，直接拼接 /admin
+  return `/admin/${menu.path}`
 }
 
 // 加载管理员信息和菜单

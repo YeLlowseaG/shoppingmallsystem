@@ -122,6 +122,24 @@ const router = createRouter({
       }
     },
     {
+      path: '/member/deposit/recharge',
+      name: 'member-deposit-recharge',
+      component: () => import('@/views/member/DepositRecharge.vue'),
+      meta: {
+        title: '预存款充值',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/member/deposit/balance',
+      name: 'member-deposit-balance',
+      component: () => import('@/views/member/DepositBalance.vue'),
+      meta: {
+        title: '我的预存款',
+        requiresAuth: true
+      }
+    },
+    {
       path: '/cart',
       name: 'cart',
       component: () => import('@/views/cart/Index.vue'),

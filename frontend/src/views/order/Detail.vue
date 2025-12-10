@@ -222,75 +222,80 @@ import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
 import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
 import MemberSidebar from '@/components/member/MemberSidebar.vue'
+import { getOrderDetail, cancelOrder, confirmReceipt } from '@/api/buyer/order'
+import type { OrderDetailVO } from '@/api/buyer/order'
 
 const router = useRouter()
 const route = useRoute()
 
 const unreadMessageCount = ref(0)
+const loading = ref(false)
 
 // 订单编号
-const orderNumber = ref('20251208115856')
+const orderNumber = ref('')
 // 原订单编号
 const originalOrderNo = ref('')
 // 下单日期
-const orderDate = ref('2025-12-08 11:48')
+const orderDate = ref('')
 // 订单状态值（用于判断）
 const orderStatusValue = ref('pending_payment')
 
 // 订单历史记录展开状态
 const showOrderHistory = ref(false)
 
-// 订单历史记录（示例数据，后续从API获取）
-const orderHistory = ref([
-  { date: '2025-12-08 11:48', action: '订单创建' }
-])
+// 订单详情数据
+const orderDetail = ref<OrderDetailVO | null>(null)
 
-// 订单商品列表（示例数据，后续从API获取）
-const orderItems = ref([
-  {
-    id: 1,
-    productCode: '505365',
-    name: '【避孕润滑】玻尿酸润滑液200g ANGUS/爱神(规格)',
-    image: 'https://via.placeholder.com/80x80?text=Product',
-    price: 6.5,
-    quantity: 1
+// 订单历史记录
+const orderHistory = computed(() => {
+  return orderDetail.value?.orderHistory || []
+})
+
+// 订单商品列表
+const orderItems = computed(() => {
+  return orderDetail.value?.items || []
+})
+
+// 收货人信息
+const recipientInfo = computed(() => {
+  return orderDetail.value?.recipientInfo || {
+    name: '',
+    region: '',
+    zipCode: '',
+    shippingMethod: '',
+    weight: 0,
+    address: '',
+    email: '',
+    phone: '',
+    deliveryTime: '',
+    paymentMethod: '',
+    paymentCurrency: ''
   }
-])
-
-// 收货人信息（示例数据，后续从API获取）
-const recipientInfo = ref({
-  name: '刘朋辉',
-  region: '陕西省-西安市-雁塔区',
-  zipCode: '100000',
-  shippingMethod: '包邮订单',
-  weight: '250.000',
-  address: '陕西省西安市雁塔区科技路徐家庄西南口148号',
-  email: '5464351354@qq.com',
-  phone: '18829634981',
-  deliveryTime: '任意日期 任意时间段',
-  paymentMethod: '支付宝',
-  paymentCurrency: '人民币'
 })
 
 // 订单附言
-const orderNotes = ref('')
+const orderNotes = computed(() => {
+  return orderDetail.value?.orderNotes || ''
+})
 
 // 计算总数量
 const totalQuantity = computed(() => {
-  return orderItems.value.reduce((sum, item) => sum + item.quantity, 0)
+  return orderDetail.value?.totalQuantity || 0
 })
 
 // 计算商品总金额
 const totalProductAmount = computed(() => {
-  return orderItems.value.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  return orderDetail.value?.totalProductAmount || 0
 })
 
 // 配送费用
-const shippingFee = ref(0)
+const shippingFee = computed(() => {
+  return orderDetail.value?.shippingFee || 0
+})
 
 // 订单总金额
 const totalAmount = computed(() => {
-  return totalProductAmount.value + shippingFee.value
+  return orderDetail.value?.totalAmount || 0
 })
 
 // 获取状态样式类
@@ -309,6 +314,9 @@ const getStatusClass = (status: string) => {
 
 // 获取状态显示文本
 const getStatusDisplayText = (statusValue: string) => {
+  if (orderDetail.value?.statusText) {
+    return orderDetail.value.statusText
+  }
   const statusMap: Record<string, string> = {
     pending_payment: '未付款[未发货]',
     paid_not_shipped: '已付款[未发货]',
@@ -319,6 +327,20 @@ const getStatusDisplayText = (statusValue: string) => {
     cancelled: '已作废'
   }
   return statusMap[statusValue] || statusValue
+}
+
+// 将状态数字转换为字符串
+const convertStatusNumberToString = (statusNum: number): string => {
+  const statusMap: Record<number, string> = {
+    0: 'pending_payment',
+    1: 'paid_not_shipped',
+    2: 'shipped',
+    3: 'completed',
+    4: 'cancelled',
+    5: 'refunded',
+    6: 'returned'
+  }
+  return statusMap[statusNum] || 'pending_payment'
 }
 
 // 是否显示付款提示（仅待付款状态）
@@ -376,12 +398,40 @@ const handlePayNow = () => {
 }
 
 // 加载订单详情（根据订单编号）
-const loadOrderDetail = (orderNo: string) => {
-  // TODO: 从API获取订单详情
-  // 根据订单编号从订单列表数据中查找对应的订单
-  // 这里先用示例数据，后续对接后端API
-  
-  // 示例：根据订单编号设置不同的订单状态和内容
+const loadOrderDetail = async (orderNo: string) => {
+  loading.value = true
+  try {
+    const data = await getOrderDetail(orderNo)
+    orderDetail.value = data
+    
+    // 设置订单基本信息
+    orderNumber.value = data.orderNo
+    originalOrderNo.value = data.originalOrderNo || ''
+    orderDate.value = formatDateTime(data.orderDate)
+    orderStatusValue.value = convertStatusNumberToString(data.status)
+  } catch (error: any) {
+    ElMessage.error(error.message || '加载订单详情失败')
+    router.push('/member/transaction/orders')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 格式化日期时间
+const formatDateTime = (dateTime: string | Date) => {
+  if (!dateTime) return '-'
+  const date = typeof dateTime === 'string' ? new Date(dateTime) : dateTime
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}`
+}
+
+// 旧代码（保留作为备用，但不再使用）
+const loadOrderDetailOld = (orderNo: string) => {
+  // 已废弃，使用loadOrderDetail替代
   if (orderNo === '20190609205425') {
     // 已退款订单
     orderStatusValue.value = 'refunded'

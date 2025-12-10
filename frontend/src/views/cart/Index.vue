@@ -67,7 +67,7 @@
           <div class="section-subtitle">请在此确认你要购买的商品</div>
 
           <!-- 购物车表格 -->
-          <div class="cart-table-wrapper">
+          <div class="cart-table-wrapper" v-loading="loading">
             <table class="cart-table">
               <thead>
                 <tr>
@@ -188,10 +188,17 @@ import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
-import { useCartStore } from '@/stores/cart'
+import {
+  getCartList,
+  addToCartByCode,
+  updateCartQuantity,
+  deleteCartItem,
+  batchDeleteCartItems,
+  clearCart
+} from '@/api/buyer/cart'
+import type { CartVO } from '@/api/buyer/cart'
 
 const router = useRouter()
-const cartStore = useCartStore()
 
 // 快速添加商品
 const quickAdd = ref({
@@ -199,33 +206,9 @@ const quickAdd = ref({
   quantity: 1
 })
 
-// 购物车商品列表（模拟数据，后续从store获取）
-const cartItems = ref([
-  {
-    id: 1,
-    productCode: '602105',
-    name: '【SM】U型枕手腿铐虞姬(新品)(黑色)',
-    image: 'https://via.placeholder.com/80x80/FF6B9D/ffffff?text=Product',
-    salesPrice: 99.00,
-    memberPrice: 19.00,
-    wholesalePrice: null,
-    quantity: 1,
-    weight: 385,
-    selected: false
-  },
-  {
-    id: 2,
-    productCode: '301059',
-    name: '美团流量款【男用器具】夹吸健慰依依杯虞姬',
-    image: 'https://via.placeholder.com/80x80/FFD93D/ffffff?text=Product',
-    salesPrice: 87.00,
-    memberPrice: 14.00,
-    wholesalePrice: null,
-    quantity: 1,
-    weight: 250,
-    selected: false
-  }
-])
+// 购物车商品列表
+const cartItems = ref<CartVO[]>([])
+const loading = ref(false)
 
 // 全选状态
 const selectAll = computed({
@@ -246,7 +229,7 @@ const selectedCount = computed(() => {
 const selectedTotal = computed(() => {
   return cartItems.value
     .filter(item => item.selected)
-    .reduce((sum, item) => sum + item.memberPrice * item.quantity, 0)
+    .reduce((sum, item) => sum + (item.memberPrice || 0) * item.quantity, 0)
 })
 
 // 商品总数量
@@ -256,24 +239,30 @@ const totalCount = computed(() => {
 
 // 商品总重量
 const totalWeight = computed(() => {
-  return cartItems.value.reduce((sum, item) => sum + item.weight * item.quantity, 0)
+  return cartItems.value.reduce((sum, item) => sum + (item.weight || 0) * item.quantity, 0)
 })
 
 // 订单总金额
 const totalAmount = computed(() => {
-  return cartItems.value.reduce((sum, item) => sum + item.memberPrice * item.quantity, 0)
+  return cartItems.value.reduce((sum, item) => sum + (item.memberPrice || 0) * item.quantity, 0)
 })
 
 // 快速添加到购物车
-const handleQuickAdd = () => {
+const handleQuickAdd = async () => {
   if (!quickAdd.value.productCode.trim()) {
     ElMessage.warning('请输入货号')
     return
   }
-  // TODO: 调用API添加商品到购物车
-  ElMessage.success('已添加到购物车')
-  quickAdd.value.productCode = ''
-  quickAdd.value.quantity = 1
+  try {
+    await addToCartByCode(quickAdd.value.productCode, quickAdd.value.quantity)
+    ElMessage.success('已添加到购物车')
+    quickAdd.value.productCode = ''
+    quickAdd.value.quantity = 1
+    // 重新加载购物车列表
+    loadCartList()
+  } catch (error: any) {
+    ElMessage.error(error.message || '添加失败')
+  }
 }
 
 // 全选/取消全选
@@ -287,9 +276,15 @@ const handleItemSelect = () => {
 }
 
 // 修改数量
-const handleQuantityChange = (item: any) => {
-  // TODO: 调用API更新数量
-  ElMessage.success('数量已更新')
+const handleQuantityChange = async (item: CartVO) => {
+  try {
+    await updateCartQuantity(item.id, item.quantity)
+    ElMessage.success('数量已更新')
+  } catch (error: any) {
+    ElMessage.error(error.message || '更新失败')
+    // 重新加载购物车列表以恢复原数量
+    loadCartList()
+  }
 }
 
 // 删除商品
@@ -298,11 +293,13 @@ const handleDeleteItem = (id: number) => {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
-  }).then(() => {
-    const index = cartItems.value.findIndex(item => item.id === id)
-    if (index > -1) {
-      cartItems.value.splice(index, 1)
+  }).then(async () => {
+    try {
+      await deleteCartItem(id)
       ElMessage.success('删除成功')
+      loadCartList()
+    } catch (error: any) {
+      ElMessage.error(error.message || '删除失败')
     }
   }).catch(() => {})
 }
@@ -313,9 +310,14 @@ const handleClearCart = () => {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
-  }).then(() => {
-    cartItems.value = []
-    ElMessage.success('购物车已清空')
+  }).then(async () => {
+    try {
+      await clearCart()
+      ElMessage.success('购物车已清空')
+      loadCartList()
+    } catch (error: any) {
+      ElMessage.error(error.message || '清空失败')
+    }
   }).catch(() => {})
 }
 
@@ -336,24 +338,54 @@ const handleBatchDelete = () => {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
-  }).then(() => {
-    cartItems.value = cartItems.value.filter(item => !item.selected)
-    ElMessage.success('删除成功')
+  }).then(async () => {
+    try {
+      const ids = selectedItems.map(item => item.id)
+      await batchDeleteCartItems(ids)
+      ElMessage.success('删除成功')
+      loadCartList()
+    } catch (error: any) {
+      ElMessage.error(error.message || '删除失败')
+    }
   }).catch(() => {})
 }
 
 // 去结账
 const handleCheckout = () => {
-  if (cartItems.value.length === 0) {
-    ElMessage.warning('购物车是空的')
+  const selectedItems = cartItems.value.filter(item => item.selected)
+  if (selectedItems.length === 0) {
+    ElMessage.warning('请选择要结算的商品')
     return
   }
-  // 跳转到结算页面
-  router.push('/cart/checkout')
+  // 跳转到结算页面，传递选中的购物车ID列表
+  const cartIds = selectedItems.map(item => item.id)
+  router.push({
+    path: '/cart/checkout',
+    query: {
+      cartIds: cartIds.join(',')
+    }
+  })
+}
+
+// 加载购物车列表
+const loadCartList = async () => {
+  loading.value = true
+  try {
+    const data = await getCartList()
+    cartItems.value = data.map(item => ({
+      ...item,
+      selected: false // 默认未选中
+    }))
+  } catch (error: any) {
+    ElMessage.error(error.message || '加载购物车失败')
+    cartItems.value = []
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(() => {
-  // TODO: 从API加载购物车数据
+  loadCartList()
 })
 </script>
 

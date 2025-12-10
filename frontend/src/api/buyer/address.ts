@@ -53,7 +53,7 @@ export const getAddressById = (id: number): Promise<AddressVO> => {
 /**
  * 新增收货地址
  */
-export const addAddress = (data: AddressDTO): Promise<ApiResponse> => {
+export const addAddress = (data: AddressDTO): Promise<number> => {
   return request.post('/api/buyer/addresses', data)
 }
 

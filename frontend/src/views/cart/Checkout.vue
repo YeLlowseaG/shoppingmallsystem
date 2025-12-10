@@ -68,10 +68,10 @@
                     />
                     <span class="address-radio-label">
                       <div class="address-content">
-                        <span class="address-region">{{ address.region }}</span>
-                        <span class="address-detail">{{ address.detailAddress }}</span>
+                        <span class="address-region">{{ address.province }} {{ address.city }} {{ address.district }}</span>
+                        <span class="address-detail">{{ address.address }}</span>
                         <span class="address-recipient">
-                          (收货人:{{ address.receiverName }} 手机:{{ address.receiverPhone }} 邮编:{{ address.zipCode }})
+                          (收货人:{{ address.recipient }} 手机:{{ address.mobile || address.phone }} 邮编:{{ address.zipCode || '-' }})
                         </span>
                         <el-button type="text" class="edit-link" @click="handleEditAddress(address)">
                           编辑
@@ -342,15 +342,15 @@
                     <td class="col-code">{{ item.productCode }}</td>
                     <td class="col-name">{{ item.name }}</td>
                     <td class="col-price">
-                      <span class="member-price">¥{{ item.memberPrice.toFixed(2) }}</span>
+                      <span class="member-price">¥{{ (item.memberPrice || 0).toFixed(2) }}</span>
                     </td>
                     <td class="col-price">
-                      <span class="sales-price">¥{{ item.salesPrice.toFixed(2) }}</span>
+                      <span class="sales-price">¥{{ (item.salesPrice || 0).toFixed(2) }}</span>
                     </td>
                     <td class="col-quantity">{{ item.quantity }}</td>
                     <td class="col-subtotal">
-                      <div class="subtotal-price">¥{{ (item.memberPrice * item.quantity).toFixed(2) }}</div>
-                      <div class="weight-text">({{ item.weight }}克)</div>
+                      <div class="subtotal-price">¥{{ ((item.memberPrice || 0) * item.quantity).toFixed(2) }}</div>
+                      <div class="weight-text">({{ (item.weight || 0) }}克)</div>
                     </td>
                   </tr>
                 </tbody>
@@ -399,32 +399,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElForm } from 'element-plus'
 import { ShoppingCart } from '@element-plus/icons-vue'
 import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
+import { getCartList } from '@/api/buyer/cart'
+import { getAddressList, addAddress } from '@/api/buyer/address'
+import { createOrder } from '@/api/buyer/order'
+import type { CartVO } from '@/api/buyer/cart'
+import type { AddressVO, AddressDTO } from '@/api/buyer/address'
 
 const router = useRouter()
+const route = useRoute()
 
 // 选中的地址ID
-const selectedAddressId = ref<number | string>(1)
+const selectedAddressId = ref<number | string>('')
 const showAddressForm = ref(false)
+const loading = ref(false)
 
-// 收货地址列表（模拟数据，后续从API获取）
-const addressList = ref([
-  {
-    id: 1,
-    receiverName: '刘朋辉',
-    receiverPhone: '18829634981',
-    zipCode: '100000',
-    region: '陕西省西安市-雁塔区',
-    detailAddress: '陕西省西安市雁塔区科技路徐家庄西南口148号'
-  }
-])
+// 收货地址列表
+const addressList = ref<AddressVO[]>([])
 
 // 地址表单
 const addressFormRef = ref<InstanceType<typeof ElForm>>()
@@ -438,7 +436,7 @@ const addressForm = ref({
   saveAddress: false
 })
 
-// 地址验证规则
+// 地址验证规则（用于表单验证）
 const addressRules = {
   region: [{ required: true, message: '请选择收货地区', trigger: 'change' }],
   detailAddress: [{ required: true, message: '请输入街道地址', trigger: 'blur' }],
@@ -589,30 +587,20 @@ const selectedShippingMethod = computed(() => {
   return shippingMethods.value.find(m => m.id === selectedShippingMethodId.value) || shippingMethods.value[11]
 })
 
-// 订单商品列表（模拟数据，后续从购物车获取）
-const orderItems = ref([
-  {
-    id: 1,
-    productCode: '505365',
-    name: '【避孕润滑】玻尿酸润滑液200g ANGUS/爱神(规格)',
-    memberPrice: 6.50,
-    salesPrice: 54.00,
-    quantity: 1,
-    weight: 250
-  }
-])
+// 订单商品列表（从购物车获取）
+const orderItems = ref<CartVO[]>([])
 
 // 发票
 const needInvoice = ref(false)
 
 // 计算总价
 const totalProductPrice = computed(() => {
-  return orderItems.value.reduce((sum, item) => sum + item.memberPrice * item.quantity, 0)
+  return orderItems.value.reduce((sum, item) => sum + (item.memberPrice || 0) * item.quantity, 0)
 })
 
 // 计算总重量
 const totalWeight = computed(() => {
-  return orderItems.value.reduce((sum, item) => sum + item.weight * item.quantity, 0)
+  return orderItems.value.reduce((sum, item) => sum + (item.weight || 0) * item.quantity, 0)
 })
 
 // 配送费用（根据选中的配送方式计算）
@@ -629,17 +617,17 @@ const totalAmount = computed(() => {
 })
 
 // 编辑地址
-const handleEditAddress = (address: any) => {
+const handleEditAddress = (address: AddressVO) => {
   selectedAddressId.value = 'other'
   showAddressForm.value = true
   // 填充表单数据
   addressForm.value = {
-    region: ['shaanxi', 'xian', 'yanta'], // 默认选择陕西省西安市雁塔区
-    detailAddress: address.detailAddress || '陕西省西安市雁塔区科技路徐家庄西南口148号',
-    zipCode: address.zipCode || '100000',
-    receiverName: address.receiverName || '刘明辉',
-    receiverPhone: address.receiverPhone || '',
-    receiverMobile: address.receiverPhone || '18829634981',
+    region: [address.province, address.city, address.district], // 使用实际地址数据
+    detailAddress: address.address || '',
+    zipCode: address.zipCode || '',
+    receiverName: address.recipient || '',
+    receiverPhone: address.phone || '',
+    receiverMobile: address.mobile || '',
     saveAddress: false
   }
 }
@@ -658,7 +646,10 @@ const handleBackToCart = () => {
 // 提交订单
 const handlePlaceOrder = async () => {
   // 验证地址
+  let addressId: number | null = null
+  
   if (selectedAddressId.value === 'other' || showAddressForm.value) {
+    // 使用新地址
     if (!addressFormRef.value) return
     await addressFormRef.value.validate(async (valid) => {
       if (!valid) {
@@ -666,22 +657,141 @@ const handlePlaceOrder = async () => {
         return
       }
     })
-  }
-
-  // TODO: 调用提交订单API，获取订单编号
-  // 模拟订单编号
-  const orderNumber = '20251208115856'
-  
-  // 跳转到支付页面，传递订单信息和支付方式
-  router.push({
-    path: '/order/payment',
-    query: {
-      orderNumber: orderNumber,
-      amount: totalAmount.value.toFixed(2),
-      paymentMethod: paymentMethod.value
+    
+    // 如果选择保存地址，先创建地址
+    if (addressForm.value.saveAddress) {
+      try {
+        const addressDTO: AddressDTO = {
+          recipient: addressForm.value.receiverName,
+          phone: addressForm.value.receiverPhone || undefined,
+          mobile: addressForm.value.receiverMobile || undefined,
+          province: addressForm.value.region[0] || '',
+          city: addressForm.value.region[1] || '',
+          district: addressForm.value.region[2] || '',
+          address: addressForm.value.detailAddress,
+          zipCode: addressForm.value.zipCode || undefined,
+          isDefault: false
+        }
+        const newAddressId = await addAddress(addressDTO)
+        addressId = newAddressId
+      } catch (error: any) {
+        ElMessage.error(error.message || '保存地址失败')
+        return
+      }
+    } else {
+      // 不保存地址，需要临时创建或使用已有地址
+      // 这里简化处理，要求用户先保存地址
+      ElMessage.warning('请先保存收货地址')
+      return
     }
-  })
+  } else {
+    // 使用已有地址
+    addressId = Number(selectedAddressId.value)
+  }
+  
+  if (!addressId) {
+    ElMessage.warning('请选择或填写收货地址')
+    return
+  }
+  
+  // 获取选中的购物车ID列表
+  const cartIds = route.query.cartIds ? (route.query.cartIds as string).split(',').map(id => Number(id)) : []
+  
+  // 转换支付方式
+  const paymentMethodMap: Record<string, string> = {
+    'alipay': 'ALIPAY',
+    'wechat': 'WECHAT',
+    'pre_deposit': 'PRE_DEPOSIT',
+    'offline': 'OFFLINE'
+  }
+  const backendPaymentMethod = paymentMethodMap[paymentMethod.value] || 'ALIPAY'
+  
+  // 转换配送日期
+  let deliveryDateValue: string | undefined = undefined
+  if (deliveryDate.value !== 'any') {
+    deliveryDateValue = deliveryDate.value
+  }
+  
+  // 转换配送时间
+  let deliveryTimeValue: string | undefined = undefined
+  if (deliveryTime.value !== 'any') {
+    deliveryTimeValue = deliveryTime.value
+  }
+  
+  try {
+    loading.value = true
+    const orderNo = await createOrder({
+      addressId: addressId,
+      cartIds: cartIds.length > 0 ? cartIds : undefined,
+      shippingMethod: selectedShippingMethod.value.name,
+      deliveryDate: deliveryDateValue,
+      deliveryTime: deliveryTimeValue,
+      paymentMethod: backendPaymentMethod,
+      orderRemark: orderRemarks.value || undefined
+    })
+    
+    ElMessage.success('订单创建成功')
+    
+    // 跳转到支付页面
+    router.push({
+      path: '/order/payment',
+      query: {
+        orderNumber: orderNo,
+        amount: totalAmount.value.toFixed(2),
+        paymentMethod: paymentMethod.value
+      }
+    })
+  } catch (error: any) {
+    ElMessage.error(error.message || '创建订单失败')
+  } finally {
+    loading.value = false
+  }
 }
+
+// 加载收货地址列表
+const loadAddressList = async () => {
+  try {
+    const data = await getAddressList()
+    addressList.value = data
+    // 设置默认地址
+    const defaultAddress = data.find(addr => addr.isDefault)
+    if (defaultAddress) {
+      selectedAddressId.value = defaultAddress.id
+    } else if (data.length > 0) {
+      selectedAddressId.value = data[0].id
+    }
+  } catch (error: any) {
+    ElMessage.error(error.message || '加载收货地址失败')
+  }
+}
+
+// 加载购物车商品（从路由参数获取购物车ID）
+const loadCartItems = async () => {
+  try {
+    const cartIds = route.query.cartIds ? (route.query.cartIds as string).split(',').map(id => Number(id)) : []
+    if (cartIds.length === 0) {
+      ElMessage.warning('请先选择要结算的商品')
+      router.push('/cart')
+      return
+    }
+    
+    const allCartItems = await getCartList()
+    orderItems.value = allCartItems.filter(item => cartIds.includes(item.id))
+    
+    if (orderItems.value.length === 0) {
+      ElMessage.warning('购物车商品不存在')
+      router.push('/cart')
+    }
+  } catch (error: any) {
+    ElMessage.error(error.message || '加载购物车商品失败')
+    router.push('/cart')
+  }
+}
+
+onMounted(() => {
+  loadAddressList()
+  loadCartItems()
+})
 </script>
 
 <style scoped lang="scss">
