@@ -1,0 +1,435 @@
+<template>
+  <div class="member-page">
+    <!-- 顶部提示条 -->
+    <TopBar />
+
+    <!-- Logo + 搜索 + 联系方式 -->
+    <Header />
+
+    <!-- 主导航 + 全部分类 -->
+    <Navbar />
+
+    <!-- 会员中心内容区域 -->
+    <div class="member-content">
+      <div class="container">
+        <!-- 会员中心标题栏 -->
+        <MemberHeaderBar />
+
+        <!-- 会员中心主体 -->
+        <div class="member-main">
+          <!-- 左侧导航菜单 -->
+          <MemberSidebar active-menu="deposit/recharge" :unread-message-count="unreadMessageCount" />
+
+          <!-- 右侧主内容区 -->
+          <div class="member-main-content">
+            <!-- 充值表单 -->
+            <div class="recharge-form-wrapper">
+              <h2 class="recharge-title">充值到预存款</h2>
+              
+              <!-- 线上充值按钮 -->
+              <div class="online-recharge-btn-wrapper">
+                <el-button type="danger" class="online-recharge-btn">线上充值</el-button>
+              </div>
+
+              <el-form
+                ref="rechargeFormRef"
+                :model="rechargeForm"
+                :rules="rules"
+                label-width="0"
+                class="recharge-form"
+              >
+                <!-- 充值金额 -->
+                <el-form-item prop="amount">
+                  <table class="form-table">
+                    <tr>
+                      <td class="label-cell">
+                        输入充值金额:
+                      </td>
+                      <td class="input-cell">
+                        <el-input
+                          v-model="rechargeForm.amount"
+                          placeholder="请输入充值金额"
+                          class="form-input"
+                          clearable
+                          type="number"
+                          :min="0.01"
+                          step="0.01"
+                        />
+                      </td>
+                    </tr>
+                  </table>
+                </el-form-item>
+
+                <!-- 支付币别 -->
+                <el-form-item prop="currency">
+                  <table class="form-table">
+                    <tr>
+                      <td class="label-cell">
+                        选择支付币别:
+                      </td>
+                      <td class="input-cell">
+                        <el-select v-model="rechargeForm.currency" class="form-select" style="width: 200px;">
+                          <el-option label="人民币" value="CNY" />
+                        </el-select>
+                      </td>
+                    </tr>
+                  </table>
+                </el-form-item>
+
+                <!-- 支付方式 -->
+                <el-form-item prop="paymentMethod">
+                  <table class="form-table">
+                    <tr>
+                      <td class="label-cell">
+                        选择支付方式:
+                      </td>
+                      <td class="input-cell">
+                        <div class="payment-methods">
+                          <div
+                            v-for="method in paymentMethods"
+                            :key="method.id"
+                            class="payment-method-item"
+                            :class="{ 'is-selected': rechargeForm.paymentMethod === method.id }"
+                            @click="rechargeForm.paymentMethod = method.id"
+                          >
+                            <span class="payment-radio">{{ rechargeForm.paymentMethod === method.id ? '●' : '○' }}</span>
+                            <span class="payment-name">{{ method.name }}</span>
+                            <span class="payment-desc">{{ method.description }}</span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  </table>
+                </el-form-item>
+
+                <!-- 立即付款按钮 -->
+                <el-form-item>
+                  <table class="form-table">
+                    <tr>
+                      <td class="label-cell"></td>
+                      <td class="input-cell">
+                        <el-button
+                          type="danger"
+                          :loading="loading"
+                          @click="handlePayNow"
+                          class="pay-now-btn"
+                        >
+                          点击立刻付款
+                        </el-button>
+                      </td>
+                    </tr>
+                  </table>
+                </el-form-item>
+              </el-form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部 -->
+    <Footer />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage, FormInstance, FormRules } from 'element-plus'
+import TopBar from '@/components/home/TopBar.vue'
+import Header from '@/components/home/Header.vue'
+import Navbar from '@/components/home/Navbar.vue'
+import Footer from '@/components/home/Footer.vue'
+import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
+import MemberSidebar from '@/components/member/MemberSidebar.vue'
+
+const rechargeFormRef = ref<FormInstance>()
+const loading = ref(false)
+const unreadMessageCount = ref(0)
+
+// 表单数据
+const rechargeForm = reactive({
+  amount: '0.01',
+  currency: 'CNY',
+  paymentMethod: 'wechat' // 默认选择微信支付
+})
+
+// 支付方式列表
+const paymentMethods = [
+  {
+    id: 'wechat',
+    name: '微信支付',
+    description: '微信支付'
+  },
+  {
+    id: 'alipay',
+    name: '支付宝',
+    description: '电脑端支付宝支付'
+  }
+]
+
+// 验证规则
+const rules: FormRules = {
+  amount: [
+    { required: true, message: '请输入充值金额', trigger: 'blur' },
+    { 
+      validator: (rule, value, callback) => {
+        const amount = parseFloat(value)
+        if (isNaN(amount) || amount <= 0) {
+          callback(new Error('充值金额必须大于0'))
+        } else if (amount < 0.01) {
+          callback(new Error('充值金额不能小于0.01元'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ],
+  currency: [
+    { required: true, message: '请选择支付币别', trigger: 'change' }
+  ],
+  paymentMethod: [
+    { required: true, message: '请选择支付方式', trigger: 'change' }
+  ]
+}
+
+// 立即付款
+const handlePayNow = async () => {
+  if (!rechargeFormRef.value) return
+
+  await rechargeFormRef.value.validate(async (valid) => {
+    if (valid) {
+      loading.value = true
+      try {
+        const amount = parseFloat(rechargeForm.amount)
+        
+        // 模拟支付过程
+        ElMessage.info('正在处理支付...')
+        
+        // TODO: 这里预留真实支付接口对接入口
+        // 示例：await rechargeDeposit({ amount, currency: rechargeForm.currency, paymentMethod: rechargeForm.paymentMethod })
+        
+        // 模拟支付API调用，延迟1.5秒后返回支付成功
+        setTimeout(() => {
+          // 模拟支付成功
+          ElMessage.success('支付成功！充值金额已到账')
+          
+          // 重置表单
+          rechargeForm.amount = '0.01'
+          rechargeForm.paymentMethod = 'wechat'
+          
+          loading.value = false
+          
+          // 可以跳转到充值记录页面或返回预存款页面
+          // router.push('/member/deposit/balance')
+        }, 1500)
+      } catch (error: any) {
+        console.error('支付失败:', error)
+        ElMessage.error(error.message || '支付失败，请重试')
+        loading.value = false
+      }
+    }
+  })
+}
+
+onMounted(() => {
+  // 可以在这里加载用户信息、预存款余额等
+})
+</script>
+
+<style scoped lang="scss">
+.member-page {
+  min-height: 100vh;
+  background: #f5f5f5;
+}
+
+.member-content {
+  background: #fff;
+  padding: 20px 0 40px;
+  min-height: 600px;
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 15px;
+  }
+
+  // 会员中心主体
+  .member-main {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+
+    // 右侧主内容区
+    .member-main-content {
+      flex: 1;
+      background: #fff;
+      min-height: 500px;
+      padding: 20px;
+
+      .recharge-form-wrapper {
+        .recharge-title {
+          font-size: 18px;
+          font-weight: bold;
+          color: #333;
+          margin: 0 0 20px 0;
+          padding-bottom: 15px;
+          border-bottom: 1px solid #e5e5e5;
+        }
+
+        .online-recharge-btn-wrapper {
+          margin-bottom: 30px;
+
+          .online-recharge-btn {
+            background: #e4393c;
+            border-color: #e4393c;
+            padding: 10px 30px;
+            font-size: 14px;
+            font-weight: bold;
+
+            &:hover {
+              background: #c9302c;
+              border-color: #c9302c;
+            }
+          }
+        }
+
+        .recharge-form {
+          :deep(.el-form-item) {
+            margin-bottom: 20px;
+          }
+
+          .form-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 0;
+
+            .label-cell {
+              width: 150px;
+              padding: 8px 0;
+              vertical-align: top;
+              font-size: 14px;
+              color: #333;
+              text-align: right;
+              padding-right: 15px;
+            }
+
+            .input-cell {
+              padding: 8px 0;
+              vertical-align: top;
+
+              .form-input {
+                width: 300px;
+              }
+
+              .form-select {
+                width: 200px;
+              }
+
+              .payment-methods {
+                display: flex;
+                flex-direction: column;
+                gap: 15px;
+
+                .payment-method-item {
+                  display: flex;
+                  align-items: center;
+                  gap: 10px;
+                  padding: 10px 0;
+                  cursor: pointer;
+                  transition: all 0.3s;
+
+                  &:hover {
+                    .payment-name {
+                      color: #e4393c;
+                    }
+                  }
+
+                  .payment-radio {
+                    font-size: 18px;
+                    color: #999;
+                    width: 20px;
+                    text-align: center;
+                    display: inline-block;
+                    transition: color 0.3s;
+                  }
+
+                  .payment-name {
+                    font-size: 14px;
+                    color: #333;
+                    font-weight: 500;
+                    transition: color 0.3s;
+                    min-width: 80px;
+                  }
+
+                  .payment-desc {
+                    font-size: 12px;
+                    color: #999;
+                    margin-left: 5px;
+                  }
+
+                  // 选中状态
+                  &.is-selected {
+                    .payment-radio {
+                      color: #e4393c;
+                    }
+
+                    .payment-name {
+                      color: #e4393c;
+                    }
+                  }
+                }
+              }
+
+              .pay-now-btn {
+                background: #e4393c;
+                border-color: #e4393c;
+                padding: 12px 40px;
+                font-size: 16px;
+                font-weight: bold;
+                margin-top: 10px;
+
+                &:hover {
+                  background: #c9302c;
+                  border-color: #c9302c;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// 响应式设计
+@media (max-width: 768px) {
+  .member-content {
+    .member-main {
+      flex-direction: column;
+
+      .member-main-content {
+        .recharge-form-wrapper {
+          .recharge-form {
+            .form-table {
+              .input-cell {
+                .form-input,
+                .form-select {
+                  width: 100%;
+                }
+
+                .payment-methods {
+                  .payment-method-item {
+                    flex-wrap: wrap;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+</style>
+

@@ -460,7 +460,6 @@
   - [ ] 预存款余额查询接口（GET /api/buyer/pre-deposit/balance）
   - [ ] 预存款明细接口（GET /api/buyer/pre-deposit/details）
   - [ ] 预存款充值申请接口（POST /api/buyer/pre-deposit/recharge）
-  - [ ] 预存款充值审核接口（管理员端）
   - [ ] 预存款支付接口（使用预存款支付订单）
   - [ ] 预存款支付密码设置/修改接口
 

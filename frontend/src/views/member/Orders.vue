@@ -187,14 +187,14 @@
                           {{ order.description }}
                         </a>
                       </td>
-                      <td>{{ order.orderDate }}</td>
-                      <td class="order-amount">¥{{ order.totalAmount }}</td>
+                      <td>{{ formatDateTime(order.orderDate) }}</td>
+                      <td class="order-amount">¥{{ formatAmount(order.totalAmount) }}</td>
                       <td>
                         <div class="order-status">
                           <span :class="['status-text', getStatusClass(order.status)]">
-                            {{ getStatusText(order) }}
+                            {{ order.statusText || getStatusText(order) }}
                           </span>
-                          <div v-if="order.status === 'shipped' && order.logistics" class="logistics-info">
+                          <div v-if="order.status === 2 && order.logistics" class="logistics-info">
                             <a href="#" class="logistics-link" @click.prevent="handleToggleLogistics(order.id)">
                               {{ expandedLogistics.has(order.id) ? '收起' : '物流信息' }}
                             </a>
@@ -268,9 +268,12 @@ import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
 import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
 import MemberSidebar from '@/components/member/MemberSidebar.vue'
+import { getOrderList, cancelOrder, confirmReceipt } from '@/api/buyer/order'
+import type { OrderListVO, OrderPageResponse } from '@/api/buyer/order'
 
 const router = useRouter()
 const unreadMessageCount = ref(0)
+const loading = ref(false)
 
 // 高级搜索展开状态
 const showAdvancedSearch = ref(false)
@@ -301,157 +304,8 @@ const orderTabs = [
 
 const activeTab = ref('')
 
-// 所有订单数据（示例数据，后续对接后端API）
-const allOrders = ref([
-  {
-    id: 1,
-    orderNo: '20251208115856',
-    recipientName: '刘朋辉',
-    recipientAddress: '陕西省西安市雁塔区科技路徐家庄西南口148号',
-    description: '【避孕润滑】玻尿酸润滑液200g ANGUS/爱神(规格)',
-    orderDate: '2025-12-08 11:48',
-    totalAmount: '6,500',
-    status: 'pending_payment'
-  },
-  {
-    id: 2,
-    orderNo: '20251208118741',
-    recipientName: '刘朋辉',
-    recipientAddress: '陕西省西安市雁塔区科技路徐家庄西南口148号',
-    description: '【避孕润滑】玻尿酸润滑液200g ANGUS/爱神(规格)',
-    orderDate: '2025-12-08 11:28',
-    totalAmount: '6,500',
-    status: 'pending_payment'
-  },
-  {
-    id: 3,
-    orderNo: '20251208102131',
-    recipientName: '刘朋辉',
-    recipientAddress: '陕西省西安市雁塔区科技路徐家庄西南口148号',
-    description: '美团流量款【男用器具】夹吸健慰依依杯 虞姬等2件商品...',
-    orderDate: '2025-12-08 10:52',
-    totalAmount: '33,000',
-    status: 'pending_payment'
-  },
-  {
-    id: 4,
-    orderNo: '20250903163733',
-    recipientName: '叶丽丽',
-    recipientAddress: '浙江省杭州市西湖区文三路259号',
-    description: '【避孕润滑】润滑剂8ml ANGUS/爱神等176件商品...',
-    orderDate: '2025-09-03 16:20',
-    totalAmount: '2,235.78',
-    status: 'shipped',
-    logistics: {
-      shipDate: '2025-09-04',
-      shipTime: '10:30',
-      carrier: '安能物流',
-      trackingNo: '300615250813'
-    }
-  },
-  {
-    id: 5,
-    orderNo: '20250902172914',
-    recipientName: '田烁',
-    recipientAddress: '山东省济南市历下区解放路88号',
-    description: '【避孕润滑】润滑剂8ml ANGUS/爱神等177件商品...',
-    orderDate: '2025-09-02 17:42',
-    totalAmount: '2,241.08',
-    status: 'shipped',
-    logistics: {
-      shipDate: '2025-09-03',
-      shipTime: '10:52',
-      carrier: '安能物流',
-      trackingNo: '300615250800'
-    }
-  },
-  {
-    id: 6,
-    orderNo: '20250902161172',
-    recipientName: '杨晓男',
-    recipientAddress: '辽宁省沈阳市和平区中山路100号',
-    description: '【避孕润滑】润滑剂8ml ANGUS/爱神等178件商品...',
-    orderDate: '2025-09-02 16:46',
-    totalAmount: '2,291.90',
-    status: 'shipped',
-    logistics: {
-      shipDate: '2025-09-02',
-      shipTime: '18:02',
-      carrier: '安能物流',
-      trackingNo: '300615250797'
-    }
-  },
-  {
-    id: 7,
-    orderNo: '20250902130590',
-    recipientName: '马磊',
-    recipientAddress: '黑龙江省哈尔滨市南岗区西大直街200号',
-    description: '【避孕润滑】润滑剂8ml ANGUS/爱神等177件商品...',
-    orderDate: '2025-09-02 13:48',
-    totalAmount: '2,240.28',
-    status: 'shipped',
-    logistics: {
-      shipDate: '2025-09-02',
-      shipTime: '17:10',
-      carrier: '安能物流',
-      trackingNo: '300615250796'
-    }
-  },
-  {
-    id: 8,
-    orderNo: '20250815123456',
-    recipientName: '张三',
-    recipientAddress: '广东省广州市天河区天河路123号',
-    description: '【男用器具】飞机杯等5件商品...',
-    orderDate: '2025-08-15 14:30',
-    totalAmount: '1,500.00',
-    status: 'paid_not_shipped'
-  },
-  {
-    id: 9,
-    orderNo: '20250810111213',
-    recipientName: '李四',
-    recipientAddress: '江苏省南京市鼓楼区中山路50号',
-    description: '【情趣内衣】蕾丝套装等3件商品...',
-    orderDate: '2025-08-10 10:20',
-    totalAmount: '800.00',
-    status: 'completed'
-  },
-  {
-    id: 10,
-    orderNo: '20190609205425',
-    recipientName: '黄连丰',
-    recipientAddress: '辽宁省大连市沙河口区星海广场1号',
-    description: '第六感颗粒3只装等15件商品...',
-    orderDate: '2019-06-09 20:07',
-    totalAmount: '681.000',
-    status: 'refunded',
-    refundStatus: 'cancelled' // 已退款[已作废]
-  },
-  {
-    id: 11,
-    orderNo: '20250805123456',
-    recipientName: '王五',
-    recipientAddress: '北京市朝阳区建国路88号',
-    description: '【保健食品】等10件商品...',
-    orderDate: '2025-08-05 15:30',
-    totalAmount: '2,000.00',
-    status: 'returned'
-  },
-  {
-    id: 12,
-    orderNo: '20250801111213',
-    recipientName: '赵六',
-    recipientAddress: '上海市黄浦区南京东路100号',
-    description: '【安全套】等20件商品...',
-    orderDate: '2025-08-01 09:15',
-    totalAmount: '500.00',
-    status: 'cancelled'
-  }
-])
-
-// 当前显示的订单列表（根据状态筛选）
-const orderList = ref<any[]>([])
+// 订单列表数据
+const orderList = ref<OrderListVO[]>([])
 
 // 选中订单
 const selectAll = ref(false)
@@ -468,7 +322,8 @@ const pagination = reactive({
 })
 
 // 获取状态文本
-const getStatusText = (order: any) => {
+const getStatusText = (order: OrderListVO) => {
+  const statusStr = convertStatusNumberToString(order.status)
   const statusMap: Record<string, string> = {
     pending_payment: '等待付款',
     paid_not_shipped: '已付款未发货',
@@ -479,21 +334,10 @@ const getStatusText = (order: any) => {
     cancelled: '已作废'
   }
   
-  let statusText = statusMap[order.status] || order.status
-  
-  // 已退款订单可能显示组合状态，如"已退款[已作废]"
-  if (order.status === 'refunded' && order.refundStatus) {
-    const refundStatusMap: Record<string, string> = {
-      cancelled: '已作废'
-    }
-    const refundStatusText = refundStatusMap[order.refundStatus]
-    if (refundStatusText) {
-      statusText = `${statusText}[${refundStatusText}]`
-    }
-  }
+  let statusText = statusMap[statusStr] || '未知'
   
   // 已发货订单显示"已付款[已发货]"
-  if (order.status === 'shipped') {
+  if (order.status === 2) {
     statusText = `已付款[${statusText}]`
   }
   
@@ -501,7 +345,8 @@ const getStatusText = (order: any) => {
 }
 
 // 获取状态样式类
-const getStatusClass = (status: string) => {
+const getStatusClass = (status: number) => {
+  const statusStr = convertStatusNumberToString(status)
   const classMap: Record<string, string> = {
     pending_payment: 'status-pending',
     paid_not_shipped: 'status-paid',
@@ -511,7 +356,7 @@ const getStatusClass = (status: string) => {
     returned: 'status-returned',
     cancelled: 'status-cancelled'
   }
-  return classMap[status] || ''
+  return classMap[statusStr] || ''
 }
 
 // 切换高级搜索
@@ -520,98 +365,102 @@ const toggleAdvancedSearch = () => {
 }
 
 // 搜索订单
-const handleSearch = () => {
-  // TODO: 调用后端API搜索订单
-  console.log('搜索订单:', searchForm)
-  
-  // 前端筛选逻辑（临时实现，后续对接后端API）
-  let filtered = [...allOrders.value]
-  
-  // 根据订单号筛选
-  if (searchForm.orderNo) {
-    filtered = filtered.filter(order => 
-      order.orderNo.includes(searchForm.orderNo)
-    )
-  }
-  
-  // 根据状态筛选
-  if (searchForm.status) {
-    filtered = filtered.filter(order => order.status === searchForm.status)
-  }
-  
-  // 根据收货人姓名筛选
-  if (searchForm.recipientName) {
-    filtered = filtered.filter(order => 
-      order.recipientName?.includes(searchForm.recipientName) ||
-      order.recipientAddress?.includes(searchForm.recipientName)
-    )
-  }
-  
-  // 根据日期范围筛选
-  if (searchForm.startDate) {
-    filtered = filtered.filter(order => order.orderDate >= searchForm.startDate)
-  }
-  if (searchForm.endDate) {
-    filtered = filtered.filter(order => order.orderDate <= searchForm.endDate + ' 23:59:59')
-  }
-  
-  // 根据联系电话筛选
-  if (searchForm.contactPhone) {
-    // TODO: 需要订单数据中包含联系电话字段
-  }
-  
-  // 根据联系手机筛选
-  if (searchForm.contactMobile) {
-    // TODO: 需要订单数据中包含联系手机字段
-  }
-  
-  // 根据收货人地址筛选
-  if (searchForm.recipientAddress) {
-    // TODO: 需要订单数据中包含收货人地址字段
-  }
-  
-  orderList.value = filtered
-  pagination.total = filtered.length
+const handleSearch = async () => {
   pagination.currentPage = 1
-  
-  // 重置选中状态
-  selectedOrders.value = []
-  selectAll.value = false
-  
-  // 自动展开所有已发货订单的物流信息
-  autoExpandLogistics()
-  
-  ElMessage.success(`找到 ${filtered.length} 条订单`)
+  await loadOrderList()
 }
 
-// 筛选订单列表
-const filterOrders = () => {
-  if (activeTab.value === '') {
-    // 全部订单
-    orderList.value = [...allOrders.value]
-  } else {
-    // 根据状态筛选
-    orderList.value = allOrders.value.filter(order => order.status === activeTab.value)
+// 加载订单列表
+const loadOrderList = async () => {
+  loading.value = true
+  try {
+    // 将前端状态字符串转换为后端需要的格式
+    let statusStr = searchForm.status || activeTab.value
+    if (statusStr === '') {
+      statusStr = undefined
+    }
+    
+    const params: any = {
+      pageNum: pagination.currentPage,
+      pageSize: pagination.pageSize,
+      orderNo: searchForm.orderNo || undefined,
+      recipientName: searchForm.recipientName || undefined,
+      status: statusStr,
+      startDate: searchForm.startDate || undefined,
+      endDate: searchForm.endDate || undefined,
+      contactPhone: searchForm.contactPhone || undefined,
+      contactMobile: searchForm.contactMobile || undefined,
+      recipientAddress: searchForm.recipientAddress || undefined
+    }
+    
+    const response: OrderPageResponse = await getOrderList(params)
+    orderList.value = response.records || []
+    pagination.total = response.total || 0
+    
+    // 重置选中状态
+    selectedOrders.value = []
+    selectAll.value = false
+    
+    // 自动展开所有已发货订单的物流信息
+    autoExpandLogistics()
+  } catch (error: any) {
+    ElMessage.error(error.message || '加载订单失败')
+    orderList.value = []
+    pagination.total = 0
+  } finally {
+    loading.value = false
   }
-  // 更新分页总数
-  pagination.total = orderList.value.length
-  // 重置选中状态
-  selectedOrders.value = []
-  selectAll.value = false
-  // 自动展开所有已发货订单的物流信息
-  autoExpandLogistics()
+}
+
+// 筛选订单列表（标签页切换）
+const filterOrders = () => {
+  searchForm.status = activeTab.value
+  pagination.currentPage = 1
+  loadOrderList()
 }
 
 // 自动展开所有已发货订单的物流信息
 const autoExpandLogistics = () => {
   const shippedOrders = orderList.value.filter(
-    order => order.status === 'shipped' && order.logistics
+    order => {
+      // 后端返回的status是数字，需要转换
+      const statusNum = convertStatusStringToNumber('shipped')
+      return order.status === statusNum && order.logistics
+    }
   )
   shippedOrders.forEach(order => {
     expandedLogistics.value.add(order.id)
   })
   // 创建新的Set以触发响应式更新
   expandedLogistics.value = new Set(expandedLogistics.value)
+}
+
+// 将状态字符串转换为数字
+const convertStatusStringToNumber = (statusStr: string): number => {
+  const statusMap: Record<string, number> = {
+    'pending_payment': 0,
+    'paid_not_shipped': 1,
+    'shipped': 2,
+    'completed': 3,
+    'cancelled': 4,
+    'refunded': 5,
+    'returned': 6
+  }
+  return statusMap[statusStr] ?? -1
+}
+
+// 将状态数字转换为字符串
+const convertStatusNumberToString = (statusNum: number): string => {
+  const statusMap: Record<number, string> = {
+    0: 'pending_payment',
+    1: 'paid_not_shipped',
+    2: 'shipped',
+    3: 'completed',
+    4: 'cancelled',
+    5: 'refunded',
+    6: 'returned'
+  }
+  return statusMap[statusNum] || ''
 }
 
 // 标签页切换
@@ -748,11 +597,30 @@ const displayedOrders = computed(() => {
   return orderList.value.slice(start, end)
 })
 
+// 格式化日期时间
+const formatDateTime = (dateTime: string | Date) => {
+  if (!dateTime) return '-'
+  const date = typeof dateTime === 'string' ? new Date(dateTime) : dateTime
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}`
+}
+
+// 格式化金额
+const formatAmount = (amount: number | string) => {
+  if (typeof amount === 'number') {
+    return amount.toFixed(2)
+  }
+  return amount || '0.00'
+}
+
 // 初始化
 onMounted(() => {
   // 初始化时加载全部订单
-  filterOrders()
-  // filterOrders 中已经调用了 autoExpandLogistics，这里不需要重复调用
+  loadOrderList()
 })
 </script>
 

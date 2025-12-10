@@ -79,6 +79,24 @@ const router = createRouter({
             title: '采购者审核',
             permission: 'admin:buyer:audit'
           }
+        },
+        {
+          path: 'logistics',
+          name: 'admin-logistics',
+          component: () => import('@/views/logistics/Index.vue'),
+          meta: {
+            title: '物流管理',
+            permission: 'admin:logistics:list'
+          }
+        },
+        {
+          path: 'order/list',
+          name: 'admin-order-list',
+          component: () => import('@/views/order/List.vue'),
+          meta: {
+            title: '订单管理',
+            permission: 'admin:order:list'
+          }
         }
       ]
     }

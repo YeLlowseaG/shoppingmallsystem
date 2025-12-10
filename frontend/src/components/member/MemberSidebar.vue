@@ -47,7 +47,8 @@
         </template>
         <el-menu-item index="deposit/balance">我的预存款</el-menu-item>
         <el-menu-item index="deposit/recharge">预存款充值</el-menu-item>
-        <el-menu-item index="deposit/review">预存款充值审核</el-menu-item>
+        <!-- 预存款充值审核功能已屏蔽 -->
+        <!-- <el-menu-item index="deposit/review">预存款充值审核</el-menu-item> -->
       </el-sub-menu>
 
       <!-- 站内消息 -->
@@ -91,6 +92,8 @@ const activeMenu = computed(() => {
   if (path.includes('/settings/address')) return 'settings/address'
   if (path.includes('/favorites/products')) return 'favorites/products'
   if (path.includes('/transaction/orders')) return 'transaction/orders'
+  if (path.includes('/deposit/recharge')) return 'deposit/recharge'
+  if (path.includes('/deposit/balance')) return 'deposit/balance'
   return ''
 })
 
@@ -105,8 +108,8 @@ const handleMenuSelect = (index: string) => {
     'favorites/products': '/member/favorites/products',
     'favorites/out-of-stock': '/member',
     'messages/comments': '/member',
-    'deposit/balance': '/member',
-    'deposit/recharge': '/member',
+    'deposit/balance': '/member/deposit/balance',
+    'deposit/recharge': '/member/deposit/recharge',
     'deposit/review': '/member',
     'site-messages/send': '/member',
     'site-messages/inbox': '/member',
