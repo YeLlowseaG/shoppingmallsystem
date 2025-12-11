@@ -92,8 +92,47 @@
         <el-form-item label="品牌名称" prop="brandName">
           <el-input v-model="formData.brandName" placeholder="请输入品牌名称" />
         </el-form-item>
-        <el-form-item label="LOGO URL" prop="logoUrl">
-          <el-input v-model="formData.logoUrl" placeholder="请输入LOGO URL" />
+        <el-form-item label="LOGO" prop="logoUrl">
+          <div class="upload-wrapper">
+            <!-- 图片预览 -->
+            <div v-if="formData.logoUrl" class="image-preview">
+              <el-image
+                :src="formData.logoUrl"
+                fit="contain"
+                style="width: 120px; height: 120px"
+                :preview-src-list="[formData.logoUrl]"
+              />
+              <el-button
+                type="danger"
+                size="small"
+                circle
+                :icon="Delete"
+                class="delete-btn"
+                @click="formData.logoUrl = ''"
+              />
+            </div>
+            <!-- 上传按钮 -->
+            <el-upload
+              v-else
+              class="image-uploader"
+              action="/api/common/upload/image"
+              :show-file-list="false"
+              :on-success="handleUploadSuccess"
+              :on-error="handleUploadError"
+              :before-upload="beforeImageUpload"
+              accept="image/*"
+            >
+              <el-button type="primary" :icon="Upload">点击上传LOGO</el-button>
+            </el-upload>
+            <!-- URL输入框 -->
+            <div class="url-input">
+              <el-input
+                v-model="formData.logoUrl"
+                placeholder="或直接输入LOGO URL"
+                clearable
+              />
+            </div>
+          </div>
         </el-form-item>
         <el-form-item label="品牌描述" prop="description">
           <el-input
@@ -124,6 +163,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { Upload, Delete } from '@element-plus/icons-vue'
 import {
   getBrandPage,
   createBrand,
@@ -272,6 +312,38 @@ const handleDelete = async (row: Brand) => {
   }
 }
 
+// 上传前的验证
+const beforeImageUpload = (file: File) => {
+  const isImage = file.type.startsWith('image/')
+  const isLt10M = file.size / 1024 / 1024 < 10
+
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件!')
+    return false
+  }
+  if (!isLt10M) {
+    ElMessage.error('图片大小不能超过 10MB!')
+    return false
+  }
+  return true
+}
+
+// 上传成功回调
+const handleUploadSuccess = (response: any) => {
+  if (response.code === 200 && response.data) {
+    formData.value.logoUrl = response.data.url
+    ElMessage.success('图片上传成功')
+  } else {
+    ElMessage.error(response.message || '图片上传失败')
+  }
+}
+
+// 上传失败回调
+const handleUploadError = (error: any) => {
+  console.error('上传失败:', error)
+  ElMessage.error('图片上传失败，请重试')
+}
+
 // 初始化
 onMounted(() => {
   loadBrandList()
@@ -290,6 +362,28 @@ onMounted(() => {
 
   .search-form {
     margin-bottom: 20px;
+  }
+
+  .upload-wrapper {
+    .image-preview {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 10px;
+
+      .delete-btn {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+      }
+    }
+
+    .image-uploader {
+      margin-bottom: 10px;
+    }
+
+    .url-input {
+      margin-top: 10px;
+    }
   }
 }
 </style>
