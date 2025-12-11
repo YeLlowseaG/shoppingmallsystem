@@ -127,16 +127,69 @@
         <el-form-item label="库存数量" prop="stock">
           <el-input-number v-model="formData.stock" :min="0" />
         </el-form-item>
-        <el-form-item label="主图URL" prop="mainImage">
-          <el-input v-model="formData.mainImage" placeholder="请输入主图URL" />
+        <el-form-item label="主图" prop="mainImage">
+          <div class="upload-wrapper">
+            <!-- 主图预览 -->
+            <div v-if="formData.mainImage" class="image-preview">
+              <el-image
+                :src="formData.mainImage"
+                fit="contain"
+                style="width: 150px; height: 150px"
+                :preview-src-list="[formData.mainImage]"
+              />
+              <el-button
+                type="danger"
+                size="small"
+                circle
+                :icon="Delete"
+                class="delete-btn"
+                @click="formData.mainImage = ''"
+              />
+            </div>
+            <!-- 上传按钮 -->
+            <el-upload
+              v-else
+              class="image-uploader"
+              action="/api/common/upload/image"
+              :show-file-list="false"
+              :on-success="handleMainImageSuccess"
+              :on-error="handleUploadError"
+              :before-upload="beforeImageUpload"
+              accept="image/*"
+            >
+              <div class="upload-placeholder">
+                <el-icon class="upload-icon"><Plus /></el-icon>
+                <div class="upload-text">上传主图</div>
+              </div>
+            </el-upload>
+            <!-- URL输入框 -->
+            <div class="url-input">
+              <el-input
+                v-model="formData.mainImage"
+                placeholder="或直接输入主图URL"
+                clearable
+              />
+            </div>
+          </div>
         </el-form-item>
-        <el-form-item label="商品图片" prop="images">
-          <el-input
-            v-model="formData.images"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入图片URL数组的JSON格式，例如：[&quot;url1&quot;, &quot;url2&quot;]"
-          />
+        <el-form-item label="详情图" prop="images">
+          <div class="detail-images-wrapper">
+            <el-upload
+              v-model:file-list="detailImageList"
+              action="/api/common/upload/image"
+              list-type="picture-card"
+              :on-success="handleDetailImageSuccess"
+              :on-error="handleUploadError"
+              :before-upload="beforeImageUpload"
+              :on-remove="handleDetailImageRemove"
+              accept="image/*"
+              multiple
+              :limit="5"
+            >
+              <el-icon><Plus /></el-icon>
+            </el-upload>
+            <div class="upload-tip">最多上传5张详情图，支持拖拽排序</div>
+          </div>
         </el-form-item>
         <el-form-item label="商品描述" prop="description">
           <el-input
@@ -164,7 +217,8 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadFile, type UploadUserFile } from 'element-plus'
+import { Plus, Delete, Upload } from '@element-plus/icons-vue'
 import {
   getProductPage,
   updateProduct,
@@ -215,6 +269,9 @@ const flatCategories = computed(() => {
 // 对话框
 const dialogVisible = ref(false)
 const formRef = ref<FormInstance>()
+
+// 详情图片列表
+const detailImageList = ref<UploadUserFile[]>([])
 
 // 表单数据
 const formData = ref<ProductDTO>({
@@ -290,6 +347,55 @@ const handleReset = () => {
   handleSearch()
 }
 
+// 图片上传前的校验
+const beforeImageUpload = (file: File) => {
+  const isImage = file.type.startsWith('image/')
+  const isLt10M = file.size / 1024 / 1024 < 10
+
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件!')
+    return false
+  }
+  if (!isLt10M) {
+    ElMessage.error('图片大小不能超过 10MB!')
+    return false
+  }
+  return true
+}
+
+// 主图上传成功
+const handleMainImageSuccess = (response: any) => {
+  if (response.code === 200 && response.data) {
+    formData.value.mainImage = response.data.url
+    ElMessage.success('主图上传成功')
+  } else {
+    ElMessage.error('主图上传失败')
+  }
+}
+
+// 详情图上传成功
+const handleDetailImageSuccess = (response: any, file: UploadFile) => {
+  if (response.code === 200 && response.data) {
+    file.url = response.data.url
+    ElMessage.success('详情图上传成功')
+  } else {
+    ElMessage.error('详情图上传失败')
+  }
+}
+
+// 详情图移除
+const handleDetailImageRemove = (file: UploadFile) => {
+  const index = detailImageList.value.findIndex(item => item.uid === file.uid)
+  if (index > -1) {
+    detailImageList.value.splice(index, 1)
+  }
+}
+
+// 图片上传失败
+const handleUploadError = () => {
+  ElMessage.error('图片上传失败，请重试')
+}
+
 // 编辑商品
 const handleEdit = (row: ProductVO) => {
   formData.value = {
@@ -304,6 +410,17 @@ const handleEdit = (row: ProductVO) => {
     description: row.description,
     status: row.status
   }
+
+  // 初始化详情图片列表
+  if (row.imageList && row.imageList.length > 0) {
+    detailImageList.value = row.imageList.map((url, index) => ({
+      name: `image-${index}`,
+      url: url
+    }))
+  } else {
+    detailImageList.value = []
+  }
+
   dialogVisible.value = true
 }
 
@@ -315,6 +432,14 @@ const handleSubmit = async () => {
     if (!valid) return
 
     try {
+      // 提取详情图片URL列表
+      const detailImages = detailImageList.value
+        .map(file => file.url || (file.response as any)?.data?.url)
+        .filter(url => url)
+
+      // 更新formData的images字段
+      formData.value.images = JSON.stringify(detailImages)
+
       await updateProduct(formData.value)
       ElMessage.success('更新成功')
       dialogVisible.value = false
@@ -375,6 +500,68 @@ onMounted(() => {
 
   .search-form {
     margin-bottom: 20px;
+  }
+}
+
+// 图片上传相关样式
+.upload-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  .image-preview {
+    position: relative;
+    display: inline-block;
+
+    .delete-btn {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+    }
+  }
+
+  .upload-placeholder {
+    width: 150px;
+    height: 150px;
+    border: 1px dashed #d9d9d9;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: border-color 0.3s;
+
+    &:hover {
+      border-color: #409eff;
+    }
+
+    .upload-icon {
+      font-size: 28px;
+      color: #8c939d;
+      margin-bottom: 8px;
+    }
+
+    .upload-text {
+      font-size: 14px;
+      color: #606266;
+    }
+  }
+
+  .url-input {
+    width: 100%;
+    max-width: 500px;
+  }
+}
+
+.detail-images-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  .upload-tip {
+    font-size: 12px;
+    color: #909399;
   }
 }
 </style>
