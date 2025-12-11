@@ -2,6 +2,63 @@
 
 ## 2025-12-11
 
+### 完全清理冗余静态路由代码
+- 已删除 `admin-frontend/src/router/index.ts` 中所有冗余的静态路由定义
+- 删除的路由包括：`dashboard`、`user`、`role`、`menu`
+- 这些路由在数据库中已存在，会通过动态路由机制自动添加，静态定义是冗余的
+- 简化了 dashboard 的特殊处理逻辑，删除了重复检查代码
+- 修改后的 `children` 数组为空，只保留注释说明，明确告知开发者所有路由都通过动态路由机制自动添加
+- 修改效果：
+  - ✅ 代码更简洁，避免冗余
+  - ✅ 统一使用动态路由机制，避免混淆
+  - ✅ 新增页面时只需在数据库和 componentMaps 中添加，无需修改 router/index.ts
+- 完全清理冗余静态路由代码已完成
+
+### 清理冗余静态路由代码
+- 已删除 `admin-frontend/src/router/index.ts` 中的冗余静态路由定义
+- 删除的路由包括：`buyer/list`、`buyer/audit`、`logistics`、`deposit`、`order/list`
+- 这些路由已通过动态路由机制自动添加，静态定义是冗余的，容易造成误解
+- 保留的静态路由：
+  - `dashboard` - 有特殊处理逻辑
+  - `user`、`role`、`menu` - 权限管理核心页面，需要保证一定存在
+- 添加了注释说明：新增页面时只需在数据库中添加菜单数据，并在 `componentMaps/xxx.ts` 中添加组件映射，无需手动添加静态路由
+- 清理冗余静态路由代码已完成
+
+### 重构路由配置：按模块拆分 componentMap 避免多人开发冲突
+- 已完成路由配置的模块化拆分，将组件映射表按功能模块拆分到独立文件，避免多人开发时的冲突
+- 主要修改内容：
+  1. **创建模块化组件映射文件**：
+     - `admin-frontend/src/router/componentMaps/common.ts`：公共组件映射（共同维护）
+     - `admin-frontend/src/router/componentMaps/product.ts`：商品管理模块（开发者A负责）
+     - `admin-frontend/src/router/componentMaps/buyer.ts`：采购者管理模块（开发者A负责）
+     - `admin-frontend/src/router/componentMaps/website.ts`：Website模块（开发者A负责）
+     - `admin-frontend/src/router/componentMaps/order.ts`：订单管理模块（开发者B负责）
+     - `admin-frontend/src/router/componentMaps/permission.ts`：权限管理模块（开发者B负责）
+     - `admin-frontend/src/router/componentMaps/logistics.ts`：物流管理模块（开发者B负责）
+  2. **创建合并文件**：
+     - `admin-frontend/src/router/componentMap.ts`：自动合并所有模块的组件映射
+     - 此文件由各模块文件自动合并生成，不要直接修改
+     - 新增组件映射时，请在对应的模块文件中添加
+  3. **修改主路由文件**：
+     - `admin-frontend/src/router/index.ts`：删除原来的 componentMap 定义，改为从 `./componentMap` 导入
+     - 其他代码保持不变，不影响现有功能
+- 方案优势：
+  - ✅ **零冲突**：每个开发者只修改自己负责的模块文件，不会产生冲突
+  - ✅ **职责清晰**：每个文件对应一个功能模块，便于维护
+  - ✅ **改动最小**：只拆分最容易冲突的 componentMap，其他代码无需修改
+  - ✅ **易于扩展**：新增组件时，在对应模块文件中添加即可
+- 开发规范：
+  - 开发者A负责：product.ts、buyer.ts、website.ts
+  - 开发者B负责：order.ts、permission.ts、logistics.ts
+  - 共同维护：common.ts（修改前需沟通）
+  - 新增组件映射时，请在对应的模块文件中添加，不要直接修改 componentMap.ts
+- 其他业务代码：
+  - ✅ 无需修改，因为只使用 `addRoutes` 函数，而该函数逻辑不变
+  - ✅ `Layout/index.vue` 和 `Login.vue` 等文件无需修改
+- 路由配置模块化拆分已完成
+
+## 2025-12-11
+
 ### 修复Website模块菜单不显示问题
 - 已修复Website模块菜单（轮播图管理、品牌管理、广告位管理）在管理后台不显示的问题
 - 主要修改内容：

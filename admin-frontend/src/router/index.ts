@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAdminStore } from '@/stores/admin/user'
 import { ElMessage } from 'element-plus'
 import type { MenuVO } from '@/api/admin/user'
+import { componentMap } from './componentMap'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -27,87 +28,9 @@ const router = createRouter({
         requiresAuth: true
       },
       children: [
-        {
-          path: 'dashboard',
-          name: 'admin-dashboard',
-          component: () => import('@/views/dashboard/Index.vue'),
-          meta: {
-            title: '数据概览'
-            // dashboard不需要权限，所有已登录用户都可以访问
-          }
-        },
-        {
-          path: 'user',
-          name: 'admin-permission-user',
-          component: () => import('@/views/permission/User.vue'),
-          meta: {
-            title: '用户管理',
-            permission: 'admin:permission:user:list'
-          }
-        },
-        {
-          path: 'role',
-          name: 'admin-permission-role',
-          component: () => import('@/views/permission/Role.vue'),
-          meta: {
-            title: '角色管理',
-            permission: 'admin:permission:role:list'
-          }
-        },
-        {
-          path: 'menu',
-          name: 'admin-permission-menu',
-          component: () => import('@/views/permission/Menu.vue'),
-          meta: {
-            title: '菜单管理',
-            permission: 'admin:permission:menu:list'
-          }
-        },
-        {
-          path: 'list',
-          name: 'admin-buyer-list',
-          component: () => import('@/views/buyer/List.vue'),
-          meta: {
-            title: '采购者列表',
-            permission: 'admin:buyer:list'
-          }
-        },
-        {
-          path: 'audit',
-          name: 'admin-buyer-audit',
-          component: () => import('@/views/buyer/Audit.vue'),
-          meta: {
-            title: '采购者审核',
-            permission: 'admin:buyer:audit'
-          }
-        },
-        {
-          path: 'logistics',
-          name: 'admin-logistics',
-          component: () => import('@/views/logistics/Index.vue'),
-          meta: {
-            title: '物流管理',
-            permission: 'admin:logistics:list'
-          }
-        },
-        {
-          path: 'deposit',
-          name: 'admin-deposit-record',
-          component: () => import('@/views/deposit/Record.vue'),
-          meta: {
-            title: '预存款交易记录',
-            permission: 'admin:deposit:list'
-          }
-        },
-        {
-          path: 'order/list',
-          name: 'admin-order-list',
-          component: () => import('@/views/order/List.vue'),
-          meta: {
-            title: '订单管理',
-            permission: 'admin:order:list'
-          }
-        }
+        // 所有路由都通过动态路由机制自动添加
+        // 新增页面时，只需在数据库中插入菜单数据，并在 componentMaps/xxx.ts 中添加组件映射即可
+        // 无需在此处手动添加静态路由
       ]
     },
     // 添加404路由，捕获所有未匹配的admin路径
@@ -155,51 +78,8 @@ const router = createRouter({
   ]
 })
 
-// 组件映射表 - 将所有可能的组件路径预先定义（解决 Vite 动态导入问题）
-// 注意：只包含实际存在的组件文件，不存在的组件会在运行时输出警告
-const componentMap: Record<string, () => Promise<any>> = {
-  // 仪表盘
-  'dashboard/Index': () => import('@/views/dashboard/Index.vue'),
-  
-  // 商品管理
-  'product/List': () => import('@/views/product/ProductManage.vue'),
-  'product/Add': () => import('@/views/product/Add.vue'),
-  'product/Category': () => import('@/views/product/CategoryManage.vue'),
-  
-  // 订单管理
-  'order/List': () => import('@/views/order/List.vue'),
-  
-  // 采购者管理
-  'buyer/List': () => import('@/views/buyer/List.vue'),
-  'buyer/Audit': () => import('@/views/buyer/Audit.vue'),
-  
-  // 预存款管理
-  'deposit/Record': () => import('@/views/deposit/Record.vue'),
-  
-  // 权限管理
-  'permission/User': () => import('@/views/permission/User.vue'),
-  'permission/Role': () => import('@/views/permission/Role.vue'),
-  'permission/Menu': () => import('@/views/permission/Menu.vue'),
-  
-  // 物流管理
-  'logistics/Index': () => import('@/views/logistics/Index.vue'),
-  
-  // 帮助中心管理
-  'help/Index': () => import('@/views/help/Index.vue'),
-  'announcement/Index': () => import('@/views/announcement/Index.vue'),
-  
-  // Website模块
-  'website/Banner': () => import('@/views/website/Banner.vue'),
-  'website/Brand': () => import('@/views/website/Brand.vue'),
-  'website/Advertisement': () => import('@/views/website/Advertisement.vue'),
-  
-  // 以下组件文件尚未创建，待开发时添加：
-  // - stock/List, stock/Warning, stock/Adjust, stock/Statistics
-  // - buyer/Level
-  // - marketing/Promotion, marketing/Price
-  // - statistics/Sales, statistics/Order, statistics/Product, statistics/Buyer
-  // - system/Basic, system/Payment, system/Logistics, system/Notification
-}
+// 组件映射表已移至 componentMap.ts，按模块拆分以避免多人开发冲突
+// 新增组件映射时，请在 router/componentMaps/ 目录下对应的模块文件中添加
 
 // 动态添加路由
 export const addRoutes = (menus: MenuVO[]) => {
@@ -234,18 +114,8 @@ export const addRoutes = (menus: MenuVO[]) => {
         }
         
         // 特殊处理：如果路径是 'index' 且父路径是 'dashboard'，则路径应该是 'dashboard'
-        // 因为静态路由中已经定义了 dashboard，避免重复添加
         if (menu.path === 'index' && parentPath === '/dashboard') {
           routePath = 'dashboard'
-          // 检查路由是否已存在，避免重复添加
-          const existingRoute = router.getRoutes().find(r => {
-            const fullPath = r.path.startsWith('/') ? r.path : `/admin/${r.path}`
-            return fullPath === '/admin/dashboard' && r.name === 'admin-dashboard'
-          })
-          if (existingRoute) {
-            console.log(`路由 ${routePath} 已存在，跳过添加`)
-            return
-          }
         }
         
         // 检查路由是否已存在，避免重复添加
