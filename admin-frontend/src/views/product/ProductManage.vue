@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <span>商品管理</span>
-          <el-button type="primary" @click="handleAdd">添加商品</el-button>
+          <el-button type="primary" @click="router.push('/admin/product/add')">添加商品</el-button>
         </div>
       </template>
 
@@ -93,10 +93,10 @@
       />
     </el-card>
 
-    <!-- 添加/编辑对话框 -->
+    <!-- 编辑对话框 -->
     <el-dialog
       v-model="dialogVisible"
-      :title="dialogTitle"
+      title="编辑商品"
       width="800px"
     >
       <el-form
@@ -163,10 +163,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import {
   getProductPage,
-  createProduct,
   updateProduct,
   deleteProduct,
   updateProductStatus,
@@ -174,6 +174,8 @@ import {
   type ProductVO
 } from '@/api/admin/product'
 import { getCategoryTree, type ProductCategoryVO } from '@/api/admin/productCategory'
+
+const router = useRouter()
 
 // 搜索表单
 const searchForm = ref({
@@ -212,7 +214,6 @@ const flatCategories = computed(() => {
 
 // 对话框
 const dialogVisible = ref(false)
-const dialogTitle = ref('添加商品')
 const formRef = ref<FormInstance>()
 
 // 表单数据
@@ -289,26 +290,8 @@ const handleReset = () => {
   handleSearch()
 }
 
-// 添加商品
-const handleAdd = () => {
-  dialogTitle.value = '添加商品'
-  formData.value = {
-    productCode: '',
-    productName: '',
-    categoryId: 0,
-    basePrice: 0,
-    stock: 0,
-    mainImage: '',
-    images: '',
-    description: '',
-    status: '下架'
-  }
-  dialogVisible.value = true
-}
-
 // 编辑商品
 const handleEdit = (row: ProductVO) => {
-  dialogTitle.value = '编辑商品'
   formData.value = {
     id: row.id,
     productCode: row.productCode,
@@ -324,7 +307,7 @@ const handleEdit = (row: ProductVO) => {
   dialogVisible.value = true
 }
 
-// 提交表单
+// 提交表单（只用于编辑）
 const handleSubmit = async () => {
   if (!formRef.value) return
 
@@ -332,13 +315,8 @@ const handleSubmit = async () => {
     if (!valid) return
 
     try {
-      if (formData.value.id) {
-        await updateProduct(formData.value)
-        ElMessage.success('更新成功')
-      } else {
-        await createProduct(formData.value)
-        ElMessage.success('创建成功')
-      }
+      await updateProduct(formData.value)
+      ElMessage.success('更新成功')
       dialogVisible.value = false
       loadProductList()
     } catch (error) {

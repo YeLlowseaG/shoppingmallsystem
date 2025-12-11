@@ -28,7 +28,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/api/buyer/user/login",
                         "/api/buyer/user/register",
-                        "/api/buyer/user/forgot-password"
+                        "/api/buyer/user/forgot-password",
+                        "/api/buyer/product/**",
+                        "/api/buyer/product-category/**"
                 );
 
         // 管理员端JWT拦截器

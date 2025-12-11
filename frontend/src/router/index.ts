@@ -59,6 +59,15 @@ const router = createRouter({
       }
     },
     {
+      path: '/products/:id',
+      name: 'product-detail',
+      component: () => import('@/views/products/Detail.vue'),
+      meta: {
+        title: '商品详情',
+        requiresAuth: false
+      }
+    },
+    {
       path: '/member',
       name: 'member',
       component: () => import('@/views/member/Index.vue'),

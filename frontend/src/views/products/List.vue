@@ -52,7 +52,7 @@
       </div>
       <div v-else :class="['product-display', viewMode]">
         <ProductCard
-          v-for="product in products"
+          v-for="product in displayProducts"
           :key="product.id"
           :product="product"
           :view-mode="viewMode"
@@ -86,18 +86,81 @@ import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
 import ProductCard from '@/components/products/ProductCard.vue'
+import { getProductPage, type ProductVO } from '@/api/buyer/product'
 
 const route = useRoute()
 const router = useRouter()
+
+// 分类映射表（用于面包屑导航显示分类名称）
+const categoryMap: Record<number, string> = {
+  // 一级分类
+  1: '男用器具',
+  2: '女用器具',
+  3: '避孕润滑',
+  4: '情趣内衣',
+  5: '护理保健',
+  6: '喷剂助情',
+  7: '其他情趣',
+  // 二级分类
+  11: '女用器具',
+  12: '女用器具',
+  21: '震动跳蛋',
+  31: '润滑液',
+  41: '连体衣',
+  51: '保健食品',
+  61: '男用喷剂',
+  71: 'SM系列',
+  // 三级分类
+  111: '飞机杯',
+  112: '助勃锻炼',
+  113: '充气娃娃',
+  121: '震动棒',
+  122: '跳蛋',
+  123: '潮吹AV棒',
+  211: '情趣跳蛋',
+  212: '震动棒',
+  213: '潮吹AV棒',
+  311: '润滑液',
+  312: '安全套',
+  313: '排卵测孕',
+  314: '口杯液',
+  411: '连体衣',
+  412: '激情T裤',
+  413: '三点式',
+  511: '保健食品',
+  512: '清洗抑菌',
+  513: '按摩精油',
+  611: '男用喷剂',
+  612: '情欲提升',
+  613: '香水诱惑',
+  711: 'SM系列',
+  712: '情趣跳逗',
+  713: '后庭刺激'
+}
 
 // 加载状态
 const loading = ref(false)
 
 // 商品列表数据
-const products = ref<any[]>([])
+const products = ref<ProductVO[]>([])
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(12)
+
+// 转换商品数据格式给 ProductCard 使用
+const displayProducts = computed(() => {
+  return products.value.map(product => ({
+    id: product.id,
+    name: product.productName,
+    image: product.mainImage,
+    price: product.basePrice,
+    originalPrice: product.basePrice * 1.5, // 原价设置为基础价的1.5倍
+    sales: product.salesCount,
+    category: product.categoryName,
+    tags: '', // 暂不使用标签
+    brand: '' // 暂不使用品牌
+  }))
+})
 
 // 显示模式
 const viewMode = ref<'grid' | 'list'>('grid')
@@ -139,7 +202,9 @@ const pageTitle = computed(() => {
     return '热销专区'
   }
   if (filters.value.categoryId) {
-    return '商品分类'
+    const categoryId = Number(filters.value.categoryId)
+    const categoryName = categoryMap[categoryId]
+    return categoryName || '商品分类'
   }
   if (filters.value.brand) {
     return `品牌: ${filters.value.brand}`
@@ -177,20 +242,19 @@ const loadProducts = async () => {
   loading.value = true
 
   try {
-    // TODO: 调用后端 API
-    // const response = await productApi.getList({
-    //   ...filters.value,
-    //   sort: currentSort.value,
-    //   page: currentPage.value,
-    //   pageSize: pageSize.value
-    // })
+    // 调用后端 API
+    const categoryId = filters.value.categoryId ? Number(filters.value.categoryId) : undefined
+    const keyword = filters.value.keyword || undefined
 
-    // 临时使用模拟数据
-    await new Promise(resolve => setTimeout(resolve, 500))
+    const response = await getProductPage(
+      currentPage.value,
+      pageSize.value,
+      categoryId,
+      keyword
+    )
 
-    const mockProducts = generateMockProducts()
-    products.value = mockProducts
-    total.value = 48 // 模拟总数
+    products.value = response.records
+    total.value = response.total
   } catch (error) {
     console.error('加载商品失败:', error)
     products.value = []
@@ -200,30 +264,6 @@ const loadProducts = async () => {
   }
 }
 
-// 生成模拟数据
-const generateMockProducts = () => {
-  const mockData = []
-  const categories = ['男用器具', '女用器具', '润滑清洁', '情趣内衣', '延时保健', '喷剂助情', '其他情趣']
-  const brands = ['虞姬', 'NPG', 'TENGA', '网易严选', '杜蕾斯', '冈本']
-
-  for (let i = 1; i <= pageSize.value; i++) {
-    const id = (currentPage.value - 1) * pageSize.value + i
-    mockData.push({
-      id,
-      name: `精选商品 ${id} - ${categories[Math.floor(Math.random() * categories.length)]}`,
-      category: categories[Math.floor(Math.random() * categories.length)],
-      brand: brands[Math.floor(Math.random() * brands.length)],
-      image: `https://via.placeholder.com/280x280?text=Product+${id}`,
-      price: (Math.random() * 200 + 50).toFixed(2),
-      originalPrice: (Math.random() * 300 + 100).toFixed(2),
-      sales: Math.floor(Math.random() * 10000),
-      tags: ['热销', '新品', '特惠'][Math.floor(Math.random() * 3)],
-      rating: (Math.random() * 2 + 3).toFixed(1)
-    })
-  }
-
-  return mockData
-}
 
 // 监听路由参数变化
 watch(

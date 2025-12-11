@@ -19,7 +19,7 @@
               class="category-item"
               @mouseenter="handleCategoryHover(category)"
             >
-              <div class="category-title">
+              <div class="category-title" @click="goToCategory(category.id)">
                 {{ category.name }}
                 <el-icon class="arrow"><ArrowRight /></el-icon>
               </div>
@@ -28,22 +28,24 @@
                   v-for="sub in category.children?.slice(0, 3)"
                   :key="sub.id"
                   class="sub-name"
+                  @click.stop="goToCategory(sub.id)"
                 >
                   {{ sub.name }}
                 </span>
               </div>
 
-              <!-- 二级分类悬浮展示 -->
+              <!-- 二级和三级分类悬浮展示 -->
               <div
-                v-if="hoveredCategory?.id === category.id && category.children"
+                v-show="hoveredCategory?.id === category.id && category.children"
                 class="sub-categories"
+                @mouseenter="handleCategoryHover(category)"
+                @mouseleave="hoveredCategory = null"
               >
                 <div
                   v-for="subCategory in category.children"
                   :key="subCategory.id"
                   class="sub-category-group"
                 >
-                  <div class="sub-category-title">{{ subCategory.name }}</div>
                   <div class="third-level">
                     <router-link
                       v-for="third in subCategory.children"
@@ -78,8 +80,10 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { Menu, ArrowRight } from '@element-plus/icons-vue'
 
+const router = useRouter()
 const showCategories = ref(false)
 const hoveredCategory = ref<any>(null)
 
@@ -205,6 +209,21 @@ const categories = ref([
 const handleCategoryHover = (category: any) => {
   hoveredCategory.value = category
 }
+
+const handleCategoryLeave = () => {
+  setTimeout(() => {
+    hoveredCategory.value = null
+  }, 100)
+}
+
+// 跳转到分类列表页
+const goToCategory = (categoryId: number) => {
+  showCategories.value = false
+  router.push({
+    path: '/products',
+    query: { categoryId: String(categoryId) }
+  })
+}
 </script>
 
 <style scoped lang="scss">
@@ -255,13 +274,11 @@ const handleCategoryHover = (category: any) => {
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         cursor: pointer;
         transition: background 0.3s;
+        z-index: 1;
 
         &:hover {
           background: rgba(255, 255, 255, 0.1);
-
-          .sub-categories {
-            display: block;
-          }
+          z-index: 1002;
         }
 
         .category-title {
@@ -285,43 +302,62 @@ const handleCategoryHover = (category: any) => {
           .sub-name {
             font-size: 12px;
             color: rgba(255, 255, 255, 0.7);
+            cursor: pointer;
+            transition: color 0.3s;
+
+            &:hover {
+              color: rgba(255, 255, 255, 1);
+            }
           }
         }
 
         .sub-categories {
-          display: none;
-          position: absolute;
-          left: 220px;
-          top: 0;
+          position: fixed;
+          left: 290px;
+          top: 130px;
           width: 600px;
+          height: 500px;
           background: #fff;
           color: #333;
           border: 1px solid #eee;
           box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
           padding: 20px;
-          max-height: 500px;
           overflow-y: auto;
+          z-index: 9999;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px 40px;
+          align-content: start;
 
           .sub-category-group {
-            margin-bottom: 15px;
+            margin-bottom: 10px;
 
             .sub-category-title {
               font-size: 14px;
               font-weight: bold;
-              color: #e4393c;
-              margin-bottom: 8px;
+              color: #333;
+              margin-bottom: 10px;
+              cursor: pointer;
+              transition: color 0.3s;
+              padding-bottom: 8px;
+              border-bottom: 1px solid #f0f0f0;
+
+              &:hover {
+                color: #e4393c;
+              }
             }
 
             .third-level {
               display: flex;
-              flex-wrap: wrap;
-              gap: 15px;
+              flex-direction: column;
+              gap: 8px;
 
               .third-item {
                 font-size: 13px;
                 color: #666;
                 text-decoration: none;
                 transition: color 0.3s;
+                padding: 2px 0;
 
                 &:hover {
                   color: #e4393c;

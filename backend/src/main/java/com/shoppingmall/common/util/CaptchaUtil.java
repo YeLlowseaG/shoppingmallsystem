@@ -48,24 +48,24 @@ public class CaptchaUtil {
         try {
             // 创建验证码生成器
             RandomGenerator randomGenerator = new RandomGenerator(CODE_CHARS, CODE_LENGTH);
-            
+
             // 创建线段干扰的验证码
             LineCaptcha lineCaptcha = cn.hutool.captcha.CaptchaUtil.createLineCaptcha(IMAGE_WIDTH, IMAGE_HEIGHT);
             lineCaptcha.setGenerator(randomGenerator);
-            
+
             // 设置字体
             lineCaptcha.setFont(new Font("Arial", Font.BOLD, 28));
-            
+
             // 生成验证码
             lineCaptcha.createCode();
             String code = lineCaptcha.getCode();
-            
+
             // 转换为Base64
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             lineCaptcha.write(outputStream);
             byte[] imageBytes = outputStream.toByteArray();
             String base64Image = "data:image/png;base64," + Base64.getEncoder().encodeToString(imageBytes);
-            
+
             return new CaptchaResult(code, base64Image);
         } catch (Exception e) {
             log.error("生成验证码失败", e);
@@ -94,5 +94,3 @@ public class CaptchaUtil {
         }
     }
 }
-
-
