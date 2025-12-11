@@ -37,7 +37,7 @@ const paramsSerializer = (params: any): string => {
 
 // 创建axios实例
 const service: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || '',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json;charset=UTF-8'
