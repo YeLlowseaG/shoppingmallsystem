@@ -70,3 +70,4 @@ public class HelpArticle {
     private LocalDateTime updateTime;
 }
 
+

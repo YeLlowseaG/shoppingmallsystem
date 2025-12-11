@@ -29,3 +29,4 @@ public interface DepositService {
     AdminDepositRecordVO getDepositRecordById(Long id);
 }
 
+

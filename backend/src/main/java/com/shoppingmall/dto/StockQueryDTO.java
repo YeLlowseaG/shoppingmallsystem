@@ -32,3 +32,4 @@ public class StockQueryDTO {
     private Boolean onlyWarning;
 }
 
+
