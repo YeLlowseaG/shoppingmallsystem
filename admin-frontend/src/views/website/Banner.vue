@@ -146,7 +146,51 @@
           </el-select>
         </el-form-item>
         <el-form-item label="链接值" prop="linkValue" v-if="formData.linkType > 0">
-          <el-input v-model="formData.linkValue" placeholder="根据链接类型填写对应的值" />
+          <!-- 商品分类选择 -->
+          <el-select
+            v-if="formData.linkType === 1"
+            v-model="formData.linkValue"
+            placeholder="请选择商品分类"
+            filterable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="category in flatCategories"
+              :key="category.id"
+              :label="category.categoryName"
+              :value="String(category.id)"
+            />
+          </el-select>
+
+          <!-- 商品详情选择 -->
+          <div v-else-if="formData.linkType === 2" style="display: flex; gap: 10px;">
+            <el-input
+              v-model="selectedProductName"
+              placeholder="请选择商品"
+              readonly
+              style="flex: 1"
+            />
+            <el-button type="primary" @click="showProductSelector">选择商品</el-button>
+          </div>
+
+          <!-- 促销活动选择 -->
+          <el-select
+            v-else-if="formData.linkType === 3"
+            v-model="formData.linkValue"
+            placeholder="请选择促销类型"
+            style="width: 100%"
+          >
+            <el-option label="新品专区" value="new" />
+            <el-option label="热销商品" value="hot" />
+            <el-option label="特惠活动" value="special" />
+          </el-select>
+
+          <!-- 外部链接输入 -->
+          <el-input
+            v-else-if="formData.linkType === 4"
+            v-model="formData.linkValue"
+            placeholder="请输入完整的URL地址（如：https://example.com）"
+          />
         </el-form-item>
         <el-form-item label="排序" prop="sortOrder">
           <el-input-number v-model="formData.sortOrder" :min="0" />
@@ -179,11 +223,82 @@
         <el-button type="primary" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 商品选择器对话框 -->
+    <el-dialog
+      v-model="productSelectorVisible"
+      title="选择商品"
+      width="900px"
+    >
+      <el-form :inline="true" class="search-form">
+        <el-form-item label="关键词">
+          <el-input
+            v-model="productSearch.keyword"
+            placeholder="商品名称/编码"
+            clearable
+            style="width: 200px"
+            @keyup.enter="searchProducts"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="searchProducts">搜索</el-button>
+        </el-form-item>
+      </el-form>
+
+      <el-table
+        :data="productListForSelector"
+        border
+        highlight-current-row
+        @current-change="handleProductSelect"
+      >
+        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="mainImage" label="图片" width="100">
+          <template #default="{ row }">
+            <el-image
+              v-if="row.mainImage"
+              :src="row.mainImage"
+              style="width: 60px; height: 60px"
+              fit="cover"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column prop="productCode" label="商品编码" width="120" />
+        <el-table-column prop="productName" label="商品名称" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="basePrice" label="价格" width="100">
+          <template #default="{ row }">
+            ¥{{ row.basePrice }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.status === '上架' ? 'success' : 'info'" size="small">
+              {{ row.status }}
+            </el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <el-pagination
+        v-model:current-page="productPagination.current"
+        v-model:page-size="productPagination.size"
+        :total="productPagination.total"
+        :page-sizes="[10, 20, 50]"
+        layout="total, sizes, prev, pager, next"
+        @size-change="loadProducts"
+        @current-change="loadProducts"
+        style="margin-top: 20px; justify-content: flex-end"
+      />
+
+      <template #footer>
+        <el-button @click="productSelectorVisible = false">取消</el-button>
+        <el-button type="primary" @click="confirmProductSelect" :disabled="!selectedProduct">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Upload, Delete } from '@element-plus/icons-vue'
 import {
@@ -194,6 +309,8 @@ import {
   updateBannerStatus,
   type Banner
 } from '@/api/admin/website'
+import { getProductPage, type ProductVO } from '@/api/admin/product'
+import { getCategoryTree, type ProductCategoryVO } from '@/api/admin/productCategory'
 
 // 搜索表单
 const searchForm = ref({
@@ -209,6 +326,36 @@ const pagination = ref({
 
 // 轮播图列表
 const bannerList = ref<Banner[]>([])
+
+// 商品分类列表
+const categoryTree = ref<ProductCategoryVO[]>([])
+const flatCategories = computed(() => {
+  const flatten = (categories: ProductCategoryVO[]): ProductCategoryVO[] => {
+    let result: ProductCategoryVO[] = []
+    categories.forEach(category => {
+      result.push(category)
+      if (category.children && category.children.length > 0) {
+        result = result.concat(flatten(category.children))
+      }
+    })
+    return result
+  }
+  return flatten(categoryTree.value)
+})
+
+// 商品选择器相关
+const productSelectorVisible = ref(false)
+const productListForSelector = ref<ProductVO[]>([])
+const selectedProduct = ref<ProductVO | null>(null)
+const selectedProductName = ref('')
+const productSearch = ref({
+  keyword: ''
+})
+const productPagination = ref({
+  current: 1,
+  size: 10,
+  total: 0
+})
 
 // 对话框
 const dialogVisible = ref(false)
@@ -289,6 +436,12 @@ const handleAdd = () => {
 // 编辑轮播图
 const handleEdit = (row: Banner) => {
   formData.value = { ...row }
+  // 如果是商品详情类型，加载商品名称
+  if (row.linkType === 2 && row.linkValue) {
+    loadSelectedProductName(row.linkValue)
+  } else {
+    selectedProductName.value = ''
+  }
   dialogVisible.value = true
 }
 
@@ -378,9 +531,75 @@ const handleUploadError = (error: any) => {
   ElMessage.error('图片上传失败，请重试')
 }
 
+// 加载商品分类
+const loadCategories = async () => {
+  try {
+    categoryTree.value = await getCategoryTree()
+  } catch (error) {
+    console.error('加载分类失败:', error)
+  }
+}
+
+// 显示商品选择器
+const showProductSelector = () => {
+  productSelectorVisible.value = true
+  loadProducts()
+}
+
+// 加载商品列表
+const loadProducts = async () => {
+  try {
+    const res = await getProductPage(
+      productPagination.value.current,
+      productPagination.value.size,
+      undefined,
+      productSearch.value.keyword,
+      ''
+    )
+    productListForSelector.value = res.records
+    productPagination.value.total = res.total
+  } catch (error) {
+    ElMessage.error('加载商品列表失败')
+  }
+}
+
+// 搜索商品
+const searchProducts = () => {
+  productPagination.value.current = 1
+  loadProducts()
+}
+
+// 选择商品（表格行选中）
+const handleProductSelect = (row: ProductVO | null) => {
+  selectedProduct.value = row
+}
+
+// 确认选择商品
+const confirmProductSelect = () => {
+  if (selectedProduct.value) {
+    formData.value.linkValue = String(selectedProduct.value.id)
+    selectedProductName.value = selectedProduct.value.productName
+    productSelectorVisible.value = false
+  }
+}
+
+// 编辑轮播图时，加载已选商品名称
+const loadSelectedProductName = async (productId: string) => {
+  try {
+    const res = await getProductPage(1, 1, undefined, '', '')
+    const product = res.records.find(p => String(p.id) === productId)
+    if (product) {
+      selectedProductName.value = product.productName
+    }
+  } catch (error) {
+    console.error('加载商品信息失败:', error)
+  }
+}
+
 // 初始化
 onMounted(() => {
   loadBannerList()
+  loadCategories()
 })
 </script>
 

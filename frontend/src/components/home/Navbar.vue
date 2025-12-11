@@ -313,7 +313,7 @@ const goToCategory = (categoryId: number) => {
 
         .sub-categories {
           position: fixed;
-          left: 290px;
+          left: 580px;
           top: 130px;
           width: 600px;
           height: 500px;
@@ -323,7 +323,7 @@ const goToCategory = (categoryId: number) => {
           box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
           padding: 20px;
           overflow-y: auto;
-          z-index: 9999;
+          z-index: 1001;
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 20px 40px;
