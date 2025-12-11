@@ -94,8 +94,47 @@
         <el-form-item label="标题" prop="title">
           <el-input v-model="formData.title" placeholder="请输入轮播图标题" />
         </el-form-item>
-        <el-form-item label="图片URL" prop="imageUrl">
-          <el-input v-model="formData.imageUrl" placeholder="请输入图片URL" />
+        <el-form-item label="图片" prop="imageUrl">
+          <div class="upload-wrapper">
+            <!-- 图片预览 -->
+            <div v-if="formData.imageUrl" class="image-preview">
+              <el-image
+                :src="formData.imageUrl"
+                fit="contain"
+                style="width: 200px; height: 100px"
+                :preview-src-list="[formData.imageUrl]"
+              />
+              <el-button
+                type="danger"
+                size="small"
+                circle
+                :icon="Delete"
+                class="delete-btn"
+                @click="formData.imageUrl = ''"
+              />
+            </div>
+            <!-- 上传按钮 -->
+            <el-upload
+              v-else
+              class="image-uploader"
+              action="/api/common/upload/image"
+              :show-file-list="false"
+              :on-success="handleUploadSuccess"
+              :on-error="handleUploadError"
+              :before-upload="beforeImageUpload"
+              accept="image/*"
+            >
+              <el-button type="primary" :icon="Upload">点击上传图片</el-button>
+            </el-upload>
+            <!-- URL输入框 -->
+            <div class="url-input">
+              <el-input
+                v-model="formData.imageUrl"
+                placeholder="或直接输入图片URL"
+                clearable
+              />
+            </div>
+          </div>
         </el-form-item>
         <el-form-item label="链接类型" prop="linkType">
           <el-select v-model="formData.linkType" placeholder="请选择链接类型" style="width: 100%">
@@ -146,6 +185,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { Upload, Delete } from '@element-plus/icons-vue'
 import {
   getBannerPage,
   createBanner,
@@ -306,6 +346,38 @@ const handleDelete = async (row: Banner) => {
   }
 }
 
+// 上传前的验证
+const beforeImageUpload = (file: File) => {
+  const isImage = file.type.startsWith('image/')
+  const isLt10M = file.size / 1024 / 1024 < 10
+
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件!')
+    return false
+  }
+  if (!isLt10M) {
+    ElMessage.error('图片大小不能超过 10MB!')
+    return false
+  }
+  return true
+}
+
+// 上传成功回调
+const handleUploadSuccess = (response: any) => {
+  if (response.code === 200 && response.data) {
+    formData.value.imageUrl = response.data.url
+    ElMessage.success('图片上传成功')
+  } else {
+    ElMessage.error(response.message || '图片上传失败')
+  }
+}
+
+// 上传失败回调
+const handleUploadError = (error: any) => {
+  console.error('上传失败:', error)
+  ElMessage.error('图片上传失败，请重试')
+}
+
 // 初始化
 onMounted(() => {
   loadBannerList()
@@ -324,6 +396,28 @@ onMounted(() => {
 
   .search-form {
     margin-bottom: 20px;
+  }
+
+  .upload-wrapper {
+    .image-preview {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 10px;
+
+      .delete-btn {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+      }
+    }
+
+    .image-uploader {
+      margin-bottom: 10px;
+    }
+
+    .url-input {
+      margin-top: 10px;
+    }
   }
 }
 </style>
