@@ -160,12 +160,12 @@ const router = createRouter({
 const componentMap: Record<string, () => Promise<any>> = {
   // 仪表盘
   'dashboard/Index': () => import('@/views/dashboard/Index.vue'),
-  
+
   // 商品管理
-  'product/List': () => import('@/views/product/ProductManage.vue'),
+  'product/ProductManage': () => import('@/views/product/ProductManage.vue'),
   'product/Add': () => import('@/views/product/Add.vue'),
-  'product/Category': () => import('@/views/product/CategoryManage.vue'),
-  
+  'product/CategoryManage': () => import('@/views/product/CategoryManage.vue'),
+
   // 订单管理
   'order/List': () => import('@/views/order/List.vue'),
   
