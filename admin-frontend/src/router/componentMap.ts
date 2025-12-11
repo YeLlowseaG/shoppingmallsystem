@@ -9,6 +9,7 @@ import { websiteComponentMap } from './componentMaps/website'
 import { orderComponentMap } from './componentMaps/order'
 import { permissionComponentMap } from './componentMaps/permission'
 import { logisticsComponentMap } from './componentMaps/logistics'
+import { stockComponentMap } from './componentMaps/stock'
 
 // 合并所有模块的组件映射
 export const componentMap: Record<string, () => Promise<any>> = {
@@ -22,6 +23,7 @@ export const componentMap: Record<string, () => Promise<any>> = {
   ...orderComponentMap,
   ...permissionComponentMap,
   ...logisticsComponentMap,
+  ...stockComponentMap,
   
   // 其他模块（待分配或共同维护）
   'deposit/Record': () => import('@/views/deposit/Record.vue'),
@@ -29,7 +31,6 @@ export const componentMap: Record<string, () => Promise<any>> = {
   'announcement/Index': () => import('@/views/announcement/Index.vue'),
   
   // 以下组件文件尚未创建，待开发时添加：
-  // - stock/List, stock/Warning, stock/Adjust, stock/Statistics
   // - buyer/Level
   // - marketing/Promotion, marketing/Price
   // - statistics/Sales, statistics/Order, statistics/Product, statistics/Buyer

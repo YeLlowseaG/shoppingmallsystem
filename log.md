@@ -2,6 +2,223 @@
 
 ## 2025-12-11
 
+### 修复库存列表查询问题，支持查询所有商品
+- **问题描述**：库存列表页面无法查询到商品数据，只能显示已有库存记录的商品
+- **问题原因**：
+  1. 原查询逻辑只从 `product_stock` 表查询，只返回已有库存记录的商品
+  2. 如果商品没有创建库存记录，就不会显示在列表中
+  3. 用户需要看到所有商品（包括所有状态），即使没有库存记录也要显示
+- **修复方案**：
+  1. **修改查询逻辑**：
+     - 改为从 `product` 表查询所有商品（不过滤状态）
+     - 根据搜索条件（商品编码、商品名称、商品ID）筛选商品
+     - 批量查询这些商品的库存信息
+     - 使用 Map 建立商品ID和库存记录的映射关系
+  2. **处理没有库存记录的商品**：
+     - 如果商品没有库存记录，使用默认值（库存为0）
+     - 确保所有商品都能显示在列表中
+  3. **保留预警筛选功能**：
+     - 如果启用预警筛选，只显示有库存记录且达到预警条件的商品
+- **修改文件**：
+  - `backend/src/main/java/com/shoppingmall/service/admin/impl/StockServiceImpl.java`
+- **修改内容**：
+  - 添加 `Map` 导入
+  - 重写 `getStockPage` 方法，改为从商品表查询
+  - 添加 `convertToVO(Product product, ProductStock stock)` 方法，支持商品和库存信息合并
+  - 保留 `convertToVO(ProductStock stock)` 方法，兼容其他调用
+- **修复效果**：
+  - ✅ 库存列表现在可以显示所有商品（包括所有状态）
+  - ✅ 没有库存记录的商品也会显示，库存默认为0
+  - ✅ 支持按商品编码、商品名称搜索
+  - ✅ 支持预警筛选功能（如果启用）
+  - ✅ 可以操作所有商品的库存，包括设置初始库存
+
+## 2025-12-11
+
+### 简化库存管理功能
+- **需求描述**：简化库存管理功能，只保留库存查询和调整功能，移除预警、统计等复杂功能
+- **修改方案**：
+  1. **简化路由映射**：
+     - 在 `admin-frontend/src/router/componentMaps/stock.ts` 中只保留 `stock/List` 路由映射
+     - 移除 `stock/Warning`、`stock/Adjust`、`stock/Statistics` 路由映射
+  2. **简化库存列表页面**：
+     - 移除搜索栏中的"预警筛选"功能
+     - 移除表格中的"预警阈值"和"预警状态"列
+     - 移除"设置预警"按钮
+     - 移除设置预警阈值对话框
+     - 移除库存调整对话框中的"预警阈值"字段
+     - 移除预警相关的样式和逻辑代码
+     - 保留核心功能：商品编码/名称搜索、库存列表显示、库存调整（增加/减少）
+  3. **数据库菜单处理**：
+     - 创建 SQL 脚本 `database/update-20251211-simplify-stock-management.sql`
+     - 禁用库存预警菜单（id=16）
+     - 禁用库存调整菜单（id=17）
+     - 禁用库存统计菜单（id=18）
+     - 保留库存列表菜单（id=15）
+- **修改文件**：
+  - `admin-frontend/src/router/componentMaps/stock.ts`
+  - `admin-frontend/src/views/stock/List.vue`
+  - `database/update-20251211-simplify-stock-management.sql`（新建）
+- **修改效果**：
+  - ✅ 库存管理功能已简化，只保留一个页面（库存列表）
+  - ✅ 支持商品编码和名称搜索
+  - ✅ 支持库存调整（增加/减少库存）
+  - ✅ 移除了预警、统计等复杂功能
+  - ✅ 界面更简洁，操作更直观
+  - ✅ 数据库菜单已更新，其他库存管理菜单已禁用
+
+## 2025-12-11
+
+### 修复菜单删除功能不生效的问题
+- **问题描述**：在菜单管理页面删除菜单时，提示删除成功，但数据库表中的数据还在，实际没有删除成功
+- **问题原因**：
+  1. Menu 实体类使用了 `@TableLogic` 注解进行逻辑删除
+  2. 代码中使用 `menu.setDeleted(1)` 然后 `menuRepository.updateById(menu)` 的方式
+  3. **MyBatis-Plus 的 `updateById` 方法在更新带有 `@TableLogic` 注解的实体时，可能会忽略 `deleted` 字段的更新**
+  4. 需要使用 `UpdateWrapper` 来显式更新 `deleted` 字段
+- **修复方案**：
+  1. **使用 `LambdaUpdateWrapper` 显式更新 deleted 字段**：
+     - 导入 `LambdaUpdateWrapper` 类
+     - 使用 `LambdaUpdateWrapper` 构建更新条件，显式设置 `deleted = 1`
+     - 使用 `menuRepository.update(updateWrapper)` 执行更新
+  2. **保留所有业务逻辑检查**：
+     - 检查菜单是否存在
+     - 检查是否有子菜单
+     - 检查是否有关联角色
+- **修改文件**：
+  - `backend/src/main/java/com/shoppingmall/service/permission/impl/MenuServiceImpl.java`
+- **修改内容**：
+  - 添加 `LambdaUpdateWrapper` 的导入
+  - 修改 `deleteMenu` 方法，使用 `LambdaUpdateWrapper` 显式更新 `deleted` 字段
+- **修复效果**：
+  - ✅ 菜单删除功能现在可以正常工作
+  - ✅ 删除菜单时，数据库中的 `deleted` 字段会被正确设置为 1
+  - ✅ 逻辑删除功能正常，已删除的菜单不会在查询中显示
+  - ✅ 所有业务逻辑检查（子菜单、关联角色）仍然正常工作
+
+## 2025-12-11
+
+### 修复角色编辑页面菜单权限选中状态不同步问题（父子节点关联问题）
+- **问题描述**：修改角色菜单数据后，后端数据更新成功，接口返回正确的 menuIds（不包含已取消的菜单ID，如19、20），但再次打开编辑页面时，树组件仍然显示旧的选中状态（已取消的菜单如"采购者审核"仍然显示为勾选）
+- **问题原因**：
+  1. **Element Plus 树组件的父子节点关联机制**：`el-tree` 组件默认情况下，父子节点是关联的。如果父节点被选中，所有子节点也会被自动选中；如果所有子节点被选中，父节点也会被自动选中。这导致即使后端返回的 menuIds 中没有子节点ID，只要父节点被选中，子节点也会显示为选中状态
+  2. `watch` 监听器与 `handleEdit` 函数中的逻辑冲突，导致选中状态被错误覆盖
+  3. 树组件在设置选中状态时，菜单树数据可能还没有完全渲染完成
+  4. 设置选中状态时没有先清空旧状态，可能导致旧数据残留
+  5. 浏览器缓存了 GET 请求，导致再次请求时返回的是缓存数据而不是最新数据
+- **修复方案**：
+  1. **添加 `check-strictly` 属性禁用父子节点关联**：
+     - 在 `el-tree` 组件上添加 `check-strictly` 属性
+     - 这样父子节点的选中状态完全独立，不会相互影响
+     - 只有实际在 menuIds 中的菜单ID才会显示为选中状态
+  2. **移除冲突的 watch 监听器**：
+     - 移除了 `watch(dialogVisible)` 监听器，因为它与 `handleEdit` 中的逻辑冲突
+     - 选中状态现在完全由 `handleEdit` 和 `handleAdd` 函数控制
+  3. **优化编辑逻辑**：
+     - 在设置新选中状态之前，先完全清空树组件的选中状态（执行两次确保清空）
+     - 确保菜单树数据已加载完成后再设置选中状态
+     - 使用多次 `nextTick` 和 `setTimeout` 确保树组件完全渲染
+     - 确保 `menuIds` 是数字数组格式
+  4. **在请求拦截器中禁用 GET 请求缓存**：
+     - 为所有 GET 请求添加时间戳参数 `_t`，防止浏览器缓存
+     - 设置 `Cache-Control`、`Pragma`、`Expires` 请求头，禁用缓存
+- **修改文件**：
+  - `admin-frontend/src/utils/request.ts`
+  - `admin-frontend/src/views/permission/Role.vue`
+- **修改内容**：
+  - 在 `el-tree` 组件上添加 `check-strictly` 属性
+  - 移除 `watch(dialogVisible)` 监听器
+  - 优化 `handleEdit` 函数，先清空选中状态（执行两次），再等待树组件渲染完成，最后设置新的选中状态
+  - 在请求拦截器中为 GET 请求添加时间戳参数和缓存控制头
+- **修复效果**：
+  - ✅ 父子节点选中状态完全独立，不会相互影响
+  - ✅ 只有后端返回的 menuIds 中的菜单ID才会显示为选中状态
+  - ✅ 已取消的菜单（如"采购者审核"）不再显示为勾选状态
+  - ✅ 菜单权限数据与后端返回的数据完全一致
+  - ✅ GET 请求不再被浏览器缓存，确保获取最新数据
+  - ✅ 树组件选中状态设置更可靠，不会出现旧数据残留
+
+### 修复角色编辑页面数据缓存问题
+
+### 完善库存管理模块前后端对接
+- **问题描述**：管理后台的库存管理页面无法访问，点击菜单后页面无法加载
+- **问题原因**：
+  1. 后端API接口已完整实现（StockController、StockService）
+  2. 前端组件文件已存在（List.vue、Warning.vue、Adjust.vue、Statistics.vue）
+  3. 前端API调用文件已存在（admin-frontend/src/api/admin/stock.ts）
+  4. **但是路由映射没有配置**：componentMap.ts 中缺少库存管理组件的映射
+  5. 数据库菜单已正确配置（id 15-18：库存列表、库存预警、库存调整、库存统计）
+- **修复方案**：
+  1. **创建库存管理模块路由映射文件**：
+     - 创建 `admin-frontend/src/router/componentMaps/stock.ts`
+     - 添加四个组件的映射：`stock/List`、`stock/Warning`、`stock/Adjust`、`stock/Statistics`
+  2. **更新路由合并文件**：
+     - 在 `admin-frontend/src/router/componentMap.ts` 中导入 `stockComponentMap`
+     - 在合并的 componentMap 中添加 `...stockComponentMap`
+     - 删除注释中关于 stock 组件的待开发说明
+- **修改文件**：
+  - `admin-frontend/src/router/componentMaps/stock.ts`（新建）
+  - `admin-frontend/src/router/componentMap.ts`
+- **修复效果**：
+  - ✅ 库存管理模块的所有页面现在可以正常访问
+  - ✅ 库存列表页面可以正常显示和操作
+  - ✅ 库存预警页面可以正常显示预警商品
+  - ✅ 库存调整页面可以正常调整库存
+  - ✅ 库存统计页面可以正常显示统计数据
+  - ✅ 前后端API对接完整，所有功能正常
+
+## 2025-12-11
+
+### 修复角色编辑页面菜单权限保存失败的问题
+- **问题描述**：在角色编辑页面取消勾选菜单后，保存时虽然返回成功，但再次进入页面时修改没有生效，数据没有真正保存成功
+- **问题原因**：
+  1. `handleMenuCheck` 函数在获取选中状态时，树组件的状态可能还没有完全更新
+  2. 当 `menuIds` 是空数组时，`paramsSerializer` 可能不会正确传递参数
+  3. 提交时没有同步更新 `form.menuIds`，可能导致数据不一致
+- **修复方案**：
+  1. 修改 `handleMenuCheck` 函数，使用 `nextTick` 确保树组件状态已更新后再获取选中状态
+  2. 修改 `updateRole` 和 `addRole` API 函数，确保即使 `menuIds` 是空数组也能正确传递参数
+  3. 在提交时同步更新 `form.menuIds`，保持数据一致性
+- **修改文件**：
+  - `admin-frontend/src/views/permission/Role.vue`
+  - `admin-frontend/src/api/admin/role.ts`
+- **修改内容**：
+  - 优化 `handleMenuCheck` 函数，使用 `nextTick` 确保状态同步
+  - 优化 `handleSubmit` 函数，在提交时同步更新 `form.menuIds`
+  - 修改 `updateRole` 和 `addRole` API 函数，确保参数正确传递
+- **修复效果**：
+  - ✅ 取消勾选菜单后，数据能正确保存
+  - ✅ 再次进入编辑页面时，修改的菜单权限能正确显示
+  - ✅ 空数组参数能正确传递给后端
+
+### 修复角色编辑页面菜单权限选中控件需要点击两次的问题
+- **问题描述**：在角色编辑页面（`/admin/permission/role`），菜单权限的选中控件需要点击两次才能触发选中和取消
+- **问题原因**：
+  1. 使用了 `default-checked-keys` 属性，该属性只在组件初始化时生效，后续数据变化不会自动同步
+  2. `handleMenuCheck` 函数没有正确使用事件参数，导致状态同步不及时
+  3. 编辑时使用 `setTimeout` 延迟设置，不够可靠
+- **修复方案**：
+  1. 移除了 `el-tree` 的 `default-checked-keys` 属性，改为通过 `setCheckedKeys` 方法手动控制选中状态
+  2. 修改 `handleMenuCheck` 函数，使用事件参数中的 `checked` 对象来获取选中状态，确保数据同步
+  3. 在 `handleAdd` 和 `handleEdit` 中使用 `nextTick` 确保 DOM 更新后再设置选中状态
+  4. 添加 `watch` 监听对话框打开，自动同步选中状态
+  5. 在对话框关闭时清空选中状态
+- **修改文件**：
+  - `admin-frontend/src/views/permission/Role.vue`
+- **修改内容**：
+  - 导入 `nextTick` 和 `watch` 从 Vue
+  - 移除 `el-tree` 的 `:default-checked-keys` 绑定
+  - 优化 `handleMenuCheck` 函数，使用事件参数获取选中状态
+  - 优化 `handleAdd` 和 `handleEdit`，使用 `nextTick` 确保状态正确设置
+  - 添加 `watch` 监听对话框打开，自动同步选中状态
+- **修复效果**：
+  - ✅ 菜单权限选中控件现在可以正常点击一次就选中/取消
+  - ✅ 编辑角色时，已选中的菜单权限能正确显示
+  - ✅ 新增角色时，选中状态能正确清空
+  - ✅ 对话框打开/关闭时，选中状态能正确同步
+
+## 2025-12-11
+
 ### 完全清理冗余静态路由代码
 - 已删除 `admin-frontend/src/router/index.ts` 中所有冗余的静态路由定义
 - 删除的路由包括：`dashboard`、`user`、`role`、`menu`

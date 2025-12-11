@@ -3,7 +3,7 @@ spring:
   # 导入本地配置文件（如果存在）
   # optional: 表示文件不存在时不会报错，允许开发者选择性创建
   config:
-    import: optional:classpath:application-dev-local.yml
+    import: optional:classpath:application-local.yml
   
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver

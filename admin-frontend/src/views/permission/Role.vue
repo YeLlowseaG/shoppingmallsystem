@@ -96,7 +96,7 @@
             :props="{ children: 'children', label: 'menuName' }"
             show-checkbox
             node-key="id"
-            :default-checked-keys="form.menuIds"
+            check-strictly
             @check="handleMenuCheck"
           />
         </el-form-item>
@@ -110,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
@@ -212,13 +212,35 @@ const handleAdd = () => {
     menuIds: []
   })
   dialogVisible.value = true
+  // 等待DOM更新后清空选中状态
+  nextTick(() => {
+    menuTreeRef.value?.setCheckedKeys([])
+  })
 }
 
 // 编辑
 const handleEdit = async (row: RoleVO) => {
   dialogTitle.value = '编辑角色'
+  // 先清空表单数据，避免显示旧数据
+  Object.assign(form, {
+    id: undefined,
+    roleCode: '',
+    roleName: '',
+    description: '',
+    status: 1,
+    menuIds: []
+  })
+  // 清空树组件的选中状态
+  if (menuTreeRef.value) {
+    menuTreeRef.value.setCheckedKeys([])
+  }
+  
   try {
+    // 打开对话框
+    dialogVisible.value = true
+    // 获取最新数据（禁用缓存后，会获取最新数据）
     const role = await getRoleById(row.id!)
+    // 更新表单数据
     Object.assign(form, {
       id: role.id,
       roleCode: role.roleCode,
@@ -227,23 +249,56 @@ const handleEdit = async (row: RoleVO) => {
       status: role.status,
       menuIds: role.menuIds || []
     })
-    dialogVisible.value = true
-    // 等待DOM更新后设置选中的菜单
-    setTimeout(() => {
-      if (menuTreeRef.value && form.menuIds.length > 0) {
-        menuTreeRef.value.setCheckedKeys(form.menuIds)
-      }
-    }, 100)
+    
+    // 等待DOM更新和菜单树渲染完成后再设置选中状态
+    // 确保菜单树数据已加载
+    if (!menuTree.value || menuTree.value.length === 0) {
+      await loadMenuTree()
+    }
+    
+    // 使用多次 nextTick 和 setTimeout 确保树组件完全渲染
+    await nextTick()
+    await nextTick()
+    // 额外等待一小段时间，确保树组件完全渲染
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
+    // 先完全清空选中状态，避免旧数据干扰
+    // 使用 check-strictly 后，父子节点独立，需要明确清空所有选中状态
+    if (menuTreeRef.value) {
+      menuTreeRef.value.setCheckedKeys([], false)
+      await nextTick()
+      // 再次确保清空，防止有残留的选中状态
+      menuTreeRef.value.setCheckedKeys([], false)
+      await nextTick()
+    }
+    
+    // 设置选中的菜单，使用后端返回的最新 menuIds
+    // 使用 check-strictly 后，父子节点独立，只设置实际需要选中的节点
+    if (menuTreeRef.value && form.menuIds && form.menuIds.length > 0) {
+      // 确保 menuIds 是数字数组，并且只包含后端返回的菜单ID
+      const menuIdsToSet = form.menuIds.map(id => Number(id))
+      // 使用 setCheckedKeys 设置选中状态
+      // 第二个参数 false 表示不限制只选中叶子节点（但 check-strictly 已经禁用了父子关联）
+      menuTreeRef.value.setCheckedKeys(menuIdsToSet, false)
+    } else if (menuTreeRef.value) {
+      // 如果没有选中的菜单，确保清空
+      menuTreeRef.value.setCheckedKeys([], false)
+    }
   } catch (error: any) {
     ElMessage.error(error.message || '加载失败')
+    // 如果加载失败，关闭对话框
+    dialogVisible.value = false
   }
 }
 
 // 菜单选择
 const handleMenuCheck = () => {
-  const checkedKeys = menuTreeRef.value?.getCheckedKeys() || []
-  const halfCheckedKeys = menuTreeRef.value?.getHalfCheckedKeys() || []
-  form.menuIds = [...checkedKeys, ...halfCheckedKeys] as number[]
+  // 使用 nextTick 确保树组件状态已更新后再获取选中状态
+  nextTick(() => {
+    const checkedKeys = menuTreeRef.value?.getCheckedKeys() || []
+    const halfCheckedKeys = menuTreeRef.value?.getHalfCheckedKeys() || []
+    form.menuIds = [...checkedKeys, ...halfCheckedKeys] as number[]
+  })
 }
 
 // 提交
@@ -251,10 +306,13 @@ const handleSubmit = async () => {
   if (!formRef.value) return
   await formRef.value.validate(async (valid) => {
     if (valid) {
-      // 获取选中的菜单ID
+      // 获取选中的菜单ID（从树组件获取最新状态，确保数据准确）
       const checkedKeys = menuTreeRef.value?.getCheckedKeys() || []
       const halfCheckedKeys = menuTreeRef.value?.getHalfCheckedKeys() || []
       const menuIds = [...checkedKeys, ...halfCheckedKeys] as number[]
+      
+      // 同步更新 form.menuIds，保持数据一致性
+      form.menuIds = menuIds
 
       try {
         if (form.id) {
@@ -323,8 +381,14 @@ const handlePageChange = () => {
 // 对话框关闭
 const handleDialogClose = () => {
   formRef.value?.resetFields()
-  menuTreeRef.value?.setCheckedKeys([])
+  // 清空树组件的选中状态
+  nextTick(() => {
+    menuTreeRef.value?.setCheckedKeys([])
+  })
 }
+
+// 注意：移除了 watch 监听器，因为它与 handleEdit 中的逻辑冲突
+// 选中状态现在完全由 handleEdit 和 handleAdd 函数控制
 
 onMounted(() => {
   loadRoleList()
