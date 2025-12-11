@@ -1,5 +1,113 @@
 ﻿# 修改日志
 
+## 2025-12-11
+
+### 完全清理冗余静态路由代码
+- 已删除 `admin-frontend/src/router/index.ts` 中所有冗余的静态路由定义
+- 删除的路由包括：`dashboard`、`user`、`role`、`menu`
+- 这些路由在数据库中已存在，会通过动态路由机制自动添加，静态定义是冗余的
+- 简化了 dashboard 的特殊处理逻辑，删除了重复检查代码
+- 修改后的 `children` 数组为空，只保留注释说明，明确告知开发者所有路由都通过动态路由机制自动添加
+- 修改效果：
+  - ✅ 代码更简洁，避免冗余
+  - ✅ 统一使用动态路由机制，避免混淆
+  - ✅ 新增页面时只需在数据库和 componentMaps 中添加，无需修改 router/index.ts
+- 完全清理冗余静态路由代码已完成
+
+### 清理冗余静态路由代码
+- 已删除 `admin-frontend/src/router/index.ts` 中的冗余静态路由定义
+- 删除的路由包括：`buyer/list`、`buyer/audit`、`logistics`、`deposit`、`order/list`
+- 这些路由已通过动态路由机制自动添加，静态定义是冗余的，容易造成误解
+- 保留的静态路由：
+  - `dashboard` - 有特殊处理逻辑
+  - `user`、`role`、`menu` - 权限管理核心页面，需要保证一定存在
+- 添加了注释说明：新增页面时只需在数据库中添加菜单数据，并在 `componentMaps/xxx.ts` 中添加组件映射，无需手动添加静态路由
+- 清理冗余静态路由代码已完成
+
+### 重构路由配置：按模块拆分 componentMap 避免多人开发冲突
+- 已完成路由配置的模块化拆分，将组件映射表按功能模块拆分到独立文件，避免多人开发时的冲突
+- 主要修改内容：
+  1. **创建模块化组件映射文件**：
+     - `admin-frontend/src/router/componentMaps/common.ts`：公共组件映射（共同维护）
+     - `admin-frontend/src/router/componentMaps/product.ts`：商品管理模块（开发者A负责）
+     - `admin-frontend/src/router/componentMaps/buyer.ts`：采购者管理模块（开发者A负责）
+     - `admin-frontend/src/router/componentMaps/website.ts`：Website模块（开发者A负责）
+     - `admin-frontend/src/router/componentMaps/order.ts`：订单管理模块（开发者B负责）
+     - `admin-frontend/src/router/componentMaps/permission.ts`：权限管理模块（开发者B负责）
+     - `admin-frontend/src/router/componentMaps/logistics.ts`：物流管理模块（开发者B负责）
+  2. **创建合并文件**：
+     - `admin-frontend/src/router/componentMap.ts`：自动合并所有模块的组件映射
+     - 此文件由各模块文件自动合并生成，不要直接修改
+     - 新增组件映射时，请在对应的模块文件中添加
+  3. **修改主路由文件**：
+     - `admin-frontend/src/router/index.ts`：删除原来的 componentMap 定义，改为从 `./componentMap` 导入
+     - 其他代码保持不变，不影响现有功能
+- 方案优势：
+  - ✅ **零冲突**：每个开发者只修改自己负责的模块文件，不会产生冲突
+  - ✅ **职责清晰**：每个文件对应一个功能模块，便于维护
+  - ✅ **改动最小**：只拆分最容易冲突的 componentMap，其他代码无需修改
+  - ✅ **易于扩展**：新增组件时，在对应模块文件中添加即可
+- 开发规范：
+  - 开发者A负责：product.ts、buyer.ts、website.ts
+  - 开发者B负责：order.ts、permission.ts、logistics.ts
+  - 共同维护：common.ts（修改前需沟通）
+  - 新增组件映射时，请在对应的模块文件中添加，不要直接修改 componentMap.ts
+- 其他业务代码：
+  - ✅ 无需修改，因为只使用 `addRoutes` 函数，而该函数逻辑不变
+  - ✅ `Layout/index.vue` 和 `Login.vue` 等文件无需修改
+- 路由配置模块化拆分已完成
+
+## 2025-12-11
+
+### 修复Website模块菜单不显示问题
+- 已修复Website模块菜单（轮播图管理、品牌管理、广告位管理）在管理后台不显示的问题
+- 主要修改内容：
+  1. **添加Website组件映射** (`admin-frontend/src/router/index.ts`)：
+     - 在 `componentMap` 中添加 `website/Banner`、`website/Brand`、`website/Advertisement` 三个组件的映射
+     - 映射到对应的Vue组件文件：`@/views/website/Banner.vue`、`@/views/website/Brand.vue`、`@/views/website/Advertisement.vue`
+- 问题原因：
+  - Website模块的菜单数据已正确插入到数据库（parent_id=8，系统设置下）
+  - 但是路由配置中的 `componentMap` 缺少这些组件的映射
+  - 动态路由添加逻辑会检查 `componentMap`，如果找不到映射会跳过路由添加并输出警告
+  - 导致菜单虽然存在，但路由没有添加，菜单无法正常显示和访问
+- 修改效果：
+  - ✅ Website模块的三个菜单（轮播图管理、品牌管理、广告位管理）现在可以正常显示
+  - ✅ 菜单可以正常点击跳转到对应的页面
+  - ✅ 路由正确添加到系统中，不再输出组件未定义的警告
+- Website模块菜单不显示问题已修复
+
+## 2025-12-10
+
+### 完成库存管理模块开发：实现前后端对接
+- 已完成库存管理模块的前后端开发，包括库存列表、库存预警、库存调整、库存统计等功能
+- 主要修改内容：
+  1. **后端DTO和VO类**：
+     - `backend/src/main/java/com/shoppingmall/dto/StockDTO.java`：库存调整DTO，包含商品ID、调整数量、调整原因、预警阈值
+     - `backend/src/main/java/com/shoppingmall/dto/StockQueryDTO.java`：库存查询DTO，支持商品ID、商品编码、商品名称、预警筛选
+     - `backend/src/main/java/com/shoppingmall/vo/StockVO.java`：库存VO，包含库存信息和商品信息
+     - `backend/src/main/java/com/shoppingmall/vo/StockStatisticsVO.java`：库存统计VO，包含各种统计指标
+  2. **后端Service层**：
+     - `backend/src/main/java/com/shoppingmall/service/admin/StockService.java`：库存管理服务接口
+     - `backend/src/main/java/com/shoppingmall/service/admin/impl/StockServiceImpl.java`：库存管理服务实现类
+     - 实现功能：分页查询库存列表、根据商品ID获取库存、调整库存、更新预警阈值、获取预警列表、获取库存统计
+  3. **后端Controller层**：
+     - `backend/src/main/java/com/shoppingmall/controller/admin/StockController.java`：库存管理控制器
+     - 提供接口：GET /api/admin/stock/page（分页查询）、GET /api/admin/stock/product/{productId}（获取库存）、POST /api/admin/stock/adjust（调整库存）、PUT /api/admin/stock/warning-threshold（更新预警阈值）、GET /api/admin/stock/warning/page（预警列表）、GET /api/admin/stock/statistics（统计信息）
+  4. **前端API接口**：
+     - `admin-frontend/src/api/admin/stock.ts`：库存管理API接口文件
+     - 包含所有库存管理相关的API调用方法
+  5. **前端页面**：
+     - `admin-frontend/src/views/stock/List.vue`：库存列表页面，支持分页、搜索、筛选、库存调整、预警阈值设置
+     - `admin-frontend/src/views/stock/Warning.vue`：库存预警页面，显示所有预警商品，支持搜索和操作
+     - `admin-frontend/src/views/stock/Adjust.vue`：库存调整页面，支持搜索商品并调整库存
+     - `admin-frontend/src/views/stock/Statistics.vue`：库存统计页面，显示库存统计数据和说明
+- 功能说明：
+  - 库存列表：支持按商品编码、商品名称搜索，支持预警筛选，显示总库存、可用库存、锁定库存、预警状态
+  - 库存预警：显示所有可用库存小于等于预警阈值的商品，支持快速调整库存和设置预警阈值
+  - 库存调整：支持搜索商品并调整库存，调整数量可为正数（增加）或负数（减少），可同时更新预警阈值
+  - 库存统计：显示商品总数、总库存、可用库存、锁定库存、预警商品数量、缺货商品数量等统计信息
+  - 预警机制：当可用库存小于等于预警阈值时，商品会显示为预警状态，便于及时补货
+
 ## 2025-12-10
 
 ### 为公告管理和帮助中心管理列表添加状态字段查询
