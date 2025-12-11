@@ -68,7 +68,7 @@ public interface ProductService {
      * @param limit 数量限制
      * @return 热门商品列表
      */
-    Page<ProductVO> getHotProducts(Long limit);
+    List<ProductVO> getHotProducts(Long limit);
 
     /**
      * 根据分类获取推荐商品
@@ -77,5 +77,5 @@ public interface ProductService {
      * @param limit 数量限制
      * @return 推荐商品列表
      */
-    Page<ProductVO> getRecommendProducts(Long categoryId, Long limit);
+    List<ProductVO> getRecommendProducts(Long categoryId, Long limit);
 }

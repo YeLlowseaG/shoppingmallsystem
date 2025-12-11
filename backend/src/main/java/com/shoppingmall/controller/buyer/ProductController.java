@@ -47,9 +47,9 @@ public class ProductController {
      * 获取热门商品
      */
     @GetMapping("/hot")
-    public Result<Page<ProductVO>> getHotProducts(
+    public Result<List<ProductVO>> getHotProducts(
             @RequestParam(defaultValue = "10") Long limit) {
-        Page<ProductVO> products = productService.getHotProducts(limit);
+        List<ProductVO> products = productService.getHotProducts(limit);
         return Result.success("获取成功", products);
     }
 
@@ -57,10 +57,10 @@ public class ProductController {
      * 根据分类获取推荐商品
      */
     @GetMapping("/recommend/{categoryId}")
-    public Result<Page<ProductVO>> getRecommendProducts(
+    public Result<List<ProductVO>> getRecommendProducts(
             @PathVariable Long categoryId,
             @RequestParam(defaultValue = "8") Long limit) {
-        Page<ProductVO> products = productService.getRecommendProducts(categoryId, limit);
+        List<ProductVO> products = productService.getRecommendProducts(categoryId, limit);
         return Result.success("获取成功", products);
     }
 }
