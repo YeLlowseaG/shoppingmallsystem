@@ -176,8 +176,7 @@ public class ProductServiceImpl implements ProductService {
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Product::getStatus, "上架")
-                .orderByDesc(Product::getSalesCount)
-                .last("LIMIT " + limit);
+                .orderByDesc(Product::getSalesCount);
 
         Page<Product> productPage = productRepository.selectPage(page, wrapper);
 
@@ -197,8 +196,7 @@ public class ProductServiceImpl implements ProductService {
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Product::getCategoryId, categoryId)
                 .eq(Product::getStatus, "上架")
-                .orderByDesc(Product::getSalesCount)
-                .last("LIMIT " + limit);
+                .orderByDesc(Product::getSalesCount);
 
         Page<Product> productPage = productRepository.selectPage(page, wrapper);
 
