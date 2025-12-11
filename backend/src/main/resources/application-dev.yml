@@ -1,6 +1,12 @@
 # 开发环境配置
 spring:
+  # 导入本地配置文件（如果存在）
+  # optional: 表示文件不存在时不会报错，允许开发者选择性创建
+  config:
+    import: optional:classpath:application-dev-local.yml
+  
   datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/chengren_shopping_mall?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: root
     password: 12345678
