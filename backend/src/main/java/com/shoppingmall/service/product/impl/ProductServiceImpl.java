@@ -171,44 +171,36 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public Page<ProductVO> getHotProducts(Long limit) {
+    public List<ProductVO> getHotProducts(Long limit) {
         Page<Product> page = new Page<>(1, limit);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Product::getStatus, "上架")
-                .orderByDesc(Product::getSalesCount)
-                .last("LIMIT " + limit);
+                .orderByDesc(Product::getSalesCount);
 
         Page<Product> productPage = productRepository.selectPage(page, wrapper);
 
-        // 转换为VO
-        Page<ProductVO> voPage = new Page<>();
-        voPage.setRecords(productPage.getRecords().stream()
+        // 转换为VO并返回List
+        return productPage.getRecords().stream()
                 .map(this::convertToVO)
-                .toList());
-
-        return voPage;
+                .toList();
     }
 
     @Override
-    public Page<ProductVO> getRecommendProducts(Long categoryId, Long limit) {
+    public List<ProductVO> getRecommendProducts(Long categoryId, Long limit) {
         Page<Product> page = new Page<>(1, limit);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Product::getCategoryId, categoryId)
                 .eq(Product::getStatus, "上架")
-                .orderByDesc(Product::getSalesCount)
-                .last("LIMIT " + limit);
+                .orderByDesc(Product::getSalesCount);
 
         Page<Product> productPage = productRepository.selectPage(page, wrapper);
 
-        // 转换为VO
-        Page<ProductVO> voPage = new Page<>();
-        voPage.setRecords(productPage.getRecords().stream()
+        // 转换为VO并返回List
+        return productPage.getRecords().stream()
                 .map(this::convertToVO)
-                .toList());
-
-        return voPage;
+                .toList();
     }
 
     /**

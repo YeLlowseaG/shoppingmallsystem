@@ -123,7 +123,9 @@ const router = createRouter({
           path: '',
           name: 'not-found',
           component: {
-            template: '<div></div>',
+            render() {
+              return null
+            },
             mounted() {
               // 在组件挂载时重定向
               const adminStore = useAdminStore()
@@ -370,4 +372,3 @@ router.onError((error) => {
 })
 
 export default router
-
