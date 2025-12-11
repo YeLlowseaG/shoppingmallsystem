@@ -2,6 +2,61 @@
 
 ## 2025-12-11
 
+### 实现 product.stock 与 product_stock.total_stock 的同步逻辑
+- **需求描述**：确保 `product` 表的 `stock` 字段与 `product_stock` 表的 `total_stock` 字段保持同步，以 `product_stock.total_stock` 为权威数据源
+- **修改内容**：
+  1. **StockServiceImpl 修改**：
+     - 添加 `syncProductStock()` 私有方法，用于同步更新 `product.stock` 字段
+     - 在 `adjustStock()` 方法中，更新库存后调用同步方法
+     - 同步逻辑包含异常处理，避免影响主业务流程
+  2. **ProductServiceImpl 修改**：
+     - 注入 `ProductStockRepository` 依赖
+     - 添加 `createOrUpdateProductStock()` 私有方法，用于创建或更新库存记录
+     - 在 `createProduct()` 方法中，如果指定了库存，创建或更新 `product_stock` 记录
+     - 在 `updateProduct()` 方法中，如果更新了库存，同步更新 `product_stock` 记录
+     - 同步逻辑包含异常处理，避免影响主业务流程
+- **同步规则**：
+  - 以 `product_stock.total_stock` 为权威数据源
+  - `product.stock` 作为冗余字段，与 `product_stock.total_stock` 保持同步
+  - 库存调整时：更新 `product_stock.total_stock` → 同步更新 `product.stock`
+  - 商品创建时：如果指定了库存，创建 `product_stock` 记录，并同步 `product.stock`
+  - 商品更新时：如果更新了库存，同步更新 `product_stock.total_stock`，并保持 `product.stock` 一致
+- **修改文件**：
+  - `backend/src/main/java/com/shoppingmall/service/admin/impl/StockServiceImpl.java`
+  - `backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java`
+- **注意事项**：
+  - 所有同步操作都在事务中执行
+  - 同步失败不会影响主业务流程，但会记录错误日志
+  - 订单相关的库存操作（锁定、扣减）待实现时也需要添加同步逻辑
+
+## 2025-12-11
+
+### 库存列表页面增加商品状态字段和修改后库存显示
+- **需求描述**：
+  1. 在库存列表表格中增加商品状态字段显示
+  2. 在库存调整对话框中增加"修改后库存"字段，根据调整数量实时计算显示
+- **修改内容**：
+  1. **后端修改**：
+     - 在 `StockVO` 中添加 `productStatus` 字段（商品状态：0-下架，1-上架）
+     - 在 `StockServiceImpl.convertToVO()` 方法中设置商品状态
+  2. **前端修改**：
+     - 在 `admin-frontend/src/api/admin/stock.ts` 的 `StockVO` 接口中添加 `productStatus` 字段
+     - 在库存列表表格中添加"商品状态"列，使用标签显示（上架/下架）
+     - 在库存调整对话框中添加"修改后库存"字段，使用 `computed` 实时计算
+     - 添加负数库存的警告提示和样式
+- **修改文件**：
+  - `backend/src/main/java/com/shoppingmall/vo/StockVO.java`
+  - `backend/src/main/java/com/shoppingmall/service/admin/impl/StockServiceImpl.java`
+  - `admin-frontend/src/api/admin/stock.ts`
+  - `admin-frontend/src/views/stock/List.vue`
+- **功能效果**：
+  - ✅ 库存列表现在可以显示商品状态（上架/下架）
+  - ✅ 库存调整对话框可以实时显示修改后的库存值
+  - ✅ 当修改后库存为负数时，会显示警告提示
+  - ✅ 提交时会验证修改后库存不能为负数
+
+## 2025-12-11
+
 ### 修复库存列表查询问题，支持查询所有商品
 - **问题描述**：库存列表页面无法查询到商品数据，只能显示已有库存记录的商品
 - **问题原因**：

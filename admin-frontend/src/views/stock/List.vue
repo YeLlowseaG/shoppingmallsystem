@@ -25,6 +25,13 @@
       <el-table :data="stockList" v-loading="loading" border>
         <el-table-column prop="productCode" label="商品编码" width="150" />
         <el-table-column prop="productName" label="商品名称" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="productStatus" label="商品状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.productStatus === 1 ? 'success' : 'info'">
+              {{ row.productStatus === 1 ? '上架' : '下架' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="mainImage" label="商品图片" width="100">
           <template #default="{ row }">
             <el-image
@@ -93,6 +100,16 @@
           />
           <div class="form-tip">提示：正数表示增加库存，负数表示减少库存</div>
         </el-form-item>
+        <el-form-item label="修改后库存">
+          <el-input 
+            :value="newStockValue" 
+            disabled 
+            :class="{ 'warning-input': newStockValue < 0 }"
+          />
+          <div v-if="newStockValue < 0" class="form-tip error-tip">
+            警告：修改后库存不能为负数
+          </div>
+        </el-form-item>
         <el-form-item label="调整原因" prop="reason">
           <el-input
             v-model="adjustFormData.reason"
@@ -111,7 +128,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { formatDateTime } from '@/utils'
 import {
@@ -146,6 +163,13 @@ const adjustFormData = ref<StockDTO & { productName: string; currentStock: numbe
 const adjustFormRules = {
   adjustQuantity: [{ required: true, message: '请输入调整数量', trigger: 'blur' }]
 }
+
+// 计算修改后的库存值
+const newStockValue = computed(() => {
+  const current = adjustFormData.value.currentStock || 0
+  const adjust = adjustFormData.value.adjustQuantity || 0
+  return current + adjust
+})
 
 // 加载库存列表
 const loadStockList = async () => {
@@ -195,6 +219,12 @@ const handleAdjustSubmit = async () => {
   
   try {
     await adjustFormRef.value.validate()
+    
+    // 检查修改后库存是否为负数
+    if (newStockValue.value < 0) {
+      ElMessage.error('调整后库存不能为负数')
+      return
+    }
     
     const stockDTO: StockDTO = {
       productId: adjustFormData.value.productId,
@@ -254,6 +284,18 @@ onMounted(() => {
     margin-top: 5px;
     font-size: 12px;
     color: #909399;
+  }
+
+  .error-tip {
+    color: #f56c6c;
+    font-weight: bold;
+  }
+
+  .warning-input {
+    :deep(.el-input__inner) {
+      color: #f56c6c;
+      font-weight: bold;
+    }
   }
 }
 </style>

@@ -8,8 +8,10 @@ import com.shoppingmall.common.util.StringUtil;
 import com.shoppingmall.dto.ProductDTO;
 import com.shoppingmall.entity.Product;
 import com.shoppingmall.entity.ProductCategory;
+import com.shoppingmall.entity.ProductStock;
 import com.shoppingmall.repository.product.ProductCategoryRepository;
 import com.shoppingmall.repository.product.ProductRepository;
+import com.shoppingmall.repository.product.ProductStockRepository;
 import com.shoppingmall.service.product.ProductService;
 import com.shoppingmall.vo.ProductVO;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +36,7 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final ProductCategoryRepository categoryRepository;
+    private final ProductStockRepository productStockRepository;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -114,6 +117,12 @@ public class ProductServiceImpl implements ProductService {
         }
 
         productRepository.insert(product);
+        
+        // 如果指定了库存，创建或更新 product_stock 记录
+        if (product.getStock() != null && product.getStock() > 0) {
+            createOrUpdateProductStock(product.getId(), product.getStock());
+        }
+        
         log.info("创建商品成功: {}", product.getProductName());
         return product.getId();
     }
@@ -146,6 +155,12 @@ public class ProductServiceImpl implements ProductService {
         product.setStatus("上架".equals(productDTO.getStatus()) ? 1 : 0);
 
         productRepository.updateById(product);
+        
+        // 如果更新了库存，同步更新 product_stock 记录
+        if (productDTO.getStock() != null) {
+            createOrUpdateProductStock(product.getId(), productDTO.getStock());
+        }
+        
         log.info("更新商品成功: {}", product.getProductName());
     }
 
@@ -241,5 +256,46 @@ public class ProductServiceImpl implements ProductService {
         vo.setUserLevelPrice(product.getBasePrice());
 
         return vo;
+    }
+
+    /**
+     * 创建或更新 product_stock 记录
+     * 以 product.stock 为数据源，同步到 product_stock.total_stock
+     * 
+     * @param productId 商品ID
+     * @param totalStock 总库存
+     */
+    private void createOrUpdateProductStock(Long productId, Integer totalStock) {
+        try {
+            LambdaQueryWrapper<ProductStock> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(ProductStock::getProductId, productId);
+            ProductStock stock = productStockRepository.selectOne(wrapper);
+            
+            if (stock == null) {
+                // 创建新记录
+                stock = new ProductStock();
+                stock.setProductId(productId);
+                stock.setTotalStock(totalStock);
+                stock.setAvailableStock(totalStock);
+                stock.setLockedStock(0);
+                stock.setWarningThreshold(10);
+                productStockRepository.insert(stock);
+                log.debug("创建库存记录成功，商品ID: {}, 库存: {}", productId, totalStock);
+            } else {
+                // 更新现有记录
+                int oldTotalStock = stock.getTotalStock() != null ? stock.getTotalStock() : 0;
+                int adjustQuantity = totalStock - oldTotalStock;
+                
+                stock.setTotalStock(totalStock);
+                // 可用库存 = 总库存 - 锁定库存
+                int lockedStock = stock.getLockedStock() != null ? stock.getLockedStock() : 0;
+                stock.setAvailableStock(totalStock - lockedStock);
+                productStockRepository.updateById(stock);
+                log.debug("更新库存记录成功，商品ID: {}, 库存: {} (调整: {})", productId, totalStock, adjustQuantity);
+            }
+        } catch (Exception e) {
+            log.error("同步库存记录失败，商品ID: {}, 库存: {}", productId, totalStock, e);
+            // 不抛出异常，避免影响主业务流程
+        }
     }
 }

@@ -174,6 +174,9 @@ public class StockServiceImpl implements StockService {
             stockRepository.updateById(stock);
         }
 
+        // 同步更新 product 表的 stock 字段
+        syncProductStock(stockDTO.getProductId(), newTotalStock);
+
         log.info("库存调整成功，商品ID: {}, 调整数量: {}, 原因: {}", 
                 stockDTO.getProductId(), stockDTO.getAdjustQuantity(), stockDTO.getReason());
     }
@@ -263,6 +266,7 @@ public class StockServiceImpl implements StockService {
         vo.setProductCode(product.getProductCode());
         vo.setProductName(product.getProductName());
         vo.setMainImage(product.getMainImage());
+        vo.setProductStatus(product.getStatus());
         
         // 设置库存信息（如果存在）
         if (stock != null) {
@@ -319,9 +323,31 @@ public class StockServiceImpl implements StockService {
             vo.setProductCode(product.getProductCode());
             vo.setProductName(product.getProductName());
             vo.setMainImage(product.getMainImage());
+            vo.setProductStatus(product.getStatus());
         }
 
         return vo;
+    }
+
+    /**
+     * 同步 product 表的库存字段
+     * 以 product_stock.total_stock 为权威数据源，同步更新 product.stock
+     * 
+     * @param productId 商品ID
+     * @param totalStock 总库存
+     */
+    private void syncProductStock(Long productId, Integer totalStock) {
+        try {
+            Product product = productRepository.selectById(productId);
+            if (product != null) {
+                product.setStock(totalStock);
+                productRepository.updateById(product);
+                log.debug("同步商品库存成功，商品ID: {}, 库存: {}", productId, totalStock);
+            }
+        } catch (Exception e) {
+            log.error("同步商品库存失败，商品ID: {}, 库存: {}", productId, totalStock, e);
+            // 不抛出异常，避免影响主业务流程
+        }
     }
 }
 

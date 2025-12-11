@@ -39,6 +39,11 @@ public class StockVO {
     private String mainImage;
 
     /**
+     * 商品状态（0-下架，1-上架）
+     */
+    private Integer productStatus;
+
+    /**
      * 可用库存
      */
     private Integer availableStock;
