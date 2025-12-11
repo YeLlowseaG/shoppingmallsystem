@@ -20,6 +20,7 @@
 
     <!-- 1F 男用器具 -->
     <CategoryFloor
+      v-if="floorData[0]"
       floor-number="1F"
       category-name="男用器具"
       title-color="linear-gradient(to right, #FF6B9D, #E4393C)"
@@ -31,6 +32,7 @@
 
     <!-- 2F 女用器具 -->
     <CategoryFloor
+      v-if="floorData[1]"
       floor-number="2F"
       category-name="女用器具"
       title-color="linear-gradient(to right, #9D50BB, #6C5CE7)"
@@ -42,6 +44,7 @@
 
     <!-- 3F 润滑清洁 -->
     <CategoryFloor
+      v-if="floorData[2]"
       floor-number="3F"
       category-name="润滑清洁"
       title-color="linear-gradient(to right, #74B9FF, #0984E3)"
@@ -53,6 +56,7 @@
 
     <!-- 4F 情趣内衣 -->
     <CategoryFloor
+      v-if="floorData[3]"
       floor-number="4F"
       category-name="情趣内衣"
       title-color="linear-gradient(to right, #FFD93D, #FFA500)"
@@ -64,6 +68,7 @@
 
     <!-- 5F 延时保健 -->
     <CategoryFloor
+      v-if="floorData[4]"
       floor-number="5F"
       category-name="延时保健"
       title-color="linear-gradient(to right, #FD79A8, #E84393)"
@@ -75,6 +80,7 @@
 
     <!-- 6F 喷剂助情 -->
     <CategoryFloor
+      v-if="floorData[5]"
       floor-number="6F"
       category-name="喷剂助情"
       title-color="linear-gradient(to right, #55EFC4, #00B894)"
@@ -86,6 +92,7 @@
 
     <!-- 7F 其他情趣 -->
     <CategoryFloor
+      v-if="floorData[6]"
       floor-number="7F"
       category-name="其他情趣"
       title-color="linear-gradient(to right, #A29BFE, #6C5CE7)"
