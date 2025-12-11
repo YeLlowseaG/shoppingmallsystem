@@ -41,7 +41,7 @@ const handleBannerClick = (banner: Banner) => {
       router.push(`/products?categoryId=${banner.linkValue}`)
       break
     case 2: // 商品详情
-      router.push(`/product/${banner.linkValue}`)
+      router.push(`/products/${banner.linkValue}`)
       break
     case 3: // 促销活动
       router.push(`/products?type=${banner.linkValue}`)
