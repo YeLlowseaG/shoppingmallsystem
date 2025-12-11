@@ -1,5 +1,56 @@
 ﻿# 修改日志
 
+## 2025-12-11
+
+### 修复Website模块菜单不显示问题
+- 已修复Website模块菜单（轮播图管理、品牌管理、广告位管理）在管理后台不显示的问题
+- 主要修改内容：
+  1. **添加Website组件映射** (`admin-frontend/src/router/index.ts`)：
+     - 在 `componentMap` 中添加 `website/Banner`、`website/Brand`、`website/Advertisement` 三个组件的映射
+     - 映射到对应的Vue组件文件：`@/views/website/Banner.vue`、`@/views/website/Brand.vue`、`@/views/website/Advertisement.vue`
+- 问题原因：
+  - Website模块的菜单数据已正确插入到数据库（parent_id=8，系统设置下）
+  - 但是路由配置中的 `componentMap` 缺少这些组件的映射
+  - 动态路由添加逻辑会检查 `componentMap`，如果找不到映射会跳过路由添加并输出警告
+  - 导致菜单虽然存在，但路由没有添加，菜单无法正常显示和访问
+- 修改效果：
+  - ✅ Website模块的三个菜单（轮播图管理、品牌管理、广告位管理）现在可以正常显示
+  - ✅ 菜单可以正常点击跳转到对应的页面
+  - ✅ 路由正确添加到系统中，不再输出组件未定义的警告
+- Website模块菜单不显示问题已修复
+
+## 2025-12-10
+
+### 完成库存管理模块开发：实现前后端对接
+- 已完成库存管理模块的前后端开发，包括库存列表、库存预警、库存调整、库存统计等功能
+- 主要修改内容：
+  1. **后端DTO和VO类**：
+     - `backend/src/main/java/com/shoppingmall/dto/StockDTO.java`：库存调整DTO，包含商品ID、调整数量、调整原因、预警阈值
+     - `backend/src/main/java/com/shoppingmall/dto/StockQueryDTO.java`：库存查询DTO，支持商品ID、商品编码、商品名称、预警筛选
+     - `backend/src/main/java/com/shoppingmall/vo/StockVO.java`：库存VO，包含库存信息和商品信息
+     - `backend/src/main/java/com/shoppingmall/vo/StockStatisticsVO.java`：库存统计VO，包含各种统计指标
+  2. **后端Service层**：
+     - `backend/src/main/java/com/shoppingmall/service/admin/StockService.java`：库存管理服务接口
+     - `backend/src/main/java/com/shoppingmall/service/admin/impl/StockServiceImpl.java`：库存管理服务实现类
+     - 实现功能：分页查询库存列表、根据商品ID获取库存、调整库存、更新预警阈值、获取预警列表、获取库存统计
+  3. **后端Controller层**：
+     - `backend/src/main/java/com/shoppingmall/controller/admin/StockController.java`：库存管理控制器
+     - 提供接口：GET /api/admin/stock/page（分页查询）、GET /api/admin/stock/product/{productId}（获取库存）、POST /api/admin/stock/adjust（调整库存）、PUT /api/admin/stock/warning-threshold（更新预警阈值）、GET /api/admin/stock/warning/page（预警列表）、GET /api/admin/stock/statistics（统计信息）
+  4. **前端API接口**：
+     - `admin-frontend/src/api/admin/stock.ts`：库存管理API接口文件
+     - 包含所有库存管理相关的API调用方法
+  5. **前端页面**：
+     - `admin-frontend/src/views/stock/List.vue`：库存列表页面，支持分页、搜索、筛选、库存调整、预警阈值设置
+     - `admin-frontend/src/views/stock/Warning.vue`：库存预警页面，显示所有预警商品，支持搜索和操作
+     - `admin-frontend/src/views/stock/Adjust.vue`：库存调整页面，支持搜索商品并调整库存
+     - `admin-frontend/src/views/stock/Statistics.vue`：库存统计页面，显示库存统计数据和说明
+- 功能说明：
+  - 库存列表：支持按商品编码、商品名称搜索，支持预警筛选，显示总库存、可用库存、锁定库存、预警状态
+  - 库存预警：显示所有可用库存小于等于预警阈值的商品，支持快速调整库存和设置预警阈值
+  - 库存调整：支持搜索商品并调整库存，调整数量可为正数（增加）或负数（减少），可同时更新预警阈值
+  - 库存统计：显示商品总数、总库存、可用库存、锁定库存、预警商品数量、缺货商品数量等统计信息
+  - 预警机制：当可用库存小于等于预警阈值时，商品会显示为预警状态，便于及时补货
+
 ## 2025-12-10
 
 ### 为公告管理和帮助中心管理列表添加状态字段查询

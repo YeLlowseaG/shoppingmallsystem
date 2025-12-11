@@ -186,6 +186,11 @@ const componentMap: Record<string, () => Promise<any>> = {
   'help/Index': () => import('@/views/help/Index.vue'),
   'announcement/Index': () => import('@/views/announcement/Index.vue'),
   
+  // Website模块
+  'website/Banner': () => import('@/views/website/Banner.vue'),
+  'website/Brand': () => import('@/views/website/Brand.vue'),
+  'website/Advertisement': () => import('@/views/website/Advertisement.vue'),
+  
   // 以下组件文件尚未创建，待开发时添加：
   // - stock/List, stock/Warning, stock/Adjust, stock/Statistics
   // - buyer/Level
