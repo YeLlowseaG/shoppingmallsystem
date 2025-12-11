@@ -55,7 +55,7 @@ public class ProductServiceImpl implements ProductService {
 
         // 状态筛选
         if (StringUtil.isNotBlank(status)) {
-            wrapper.eq(Product::getStatus, status);
+            wrapper.eq(Product::getStatus, "上架".equals(status) ? 1 : 0);
         }
 
         // 按销量降序
@@ -101,11 +101,11 @@ public class ProductServiceImpl implements ProductService {
         }
 
         Product product = new Product();
-        BeanUtils.copyProperties(productDTO, product);
+        BeanUtils.copyProperties(productDTO, product, "status");
 
-        if (product.getStatus() == null) {
-            product.setStatus("下架");
-        }
+        // 状态映射：上架=1，下架=0
+        product.setStatus("上架".equals(productDTO.getStatus()) ? 1 : 0);
+
         if (product.getStock() == null) {
             product.setStock(0);
         }
@@ -140,7 +140,11 @@ public class ProductServiceImpl implements ProductService {
             throw new BusinessException(400, "商品分类不存在");
         }
 
-        BeanUtils.copyProperties(productDTO, product, "id", "salesCount");
+        BeanUtils.copyProperties(productDTO, product, "id", "salesCount", "status");
+
+        // 状态映射：上架=1，下架=0
+        product.setStatus("上架".equals(productDTO.getStatus()) ? 1 : 0);
+
         productRepository.updateById(product);
         log.info("更新商品成功: {}", product.getProductName());
     }
@@ -165,7 +169,8 @@ public class ProductServiceImpl implements ProductService {
             throw new BusinessException(404, "商品不存在");
         }
 
-        product.setStatus(status);
+        // 状态映射：上架=1，下架=0
+        product.setStatus("上架".equals(status) ? 1 : 0);
         productRepository.updateById(product);
         log.info("更新商品状态成功: id={}, status={}", id, status);
     }
@@ -175,7 +180,7 @@ public class ProductServiceImpl implements ProductService {
         Page<Product> page = new Page<>(1, limit);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Product::getStatus, "上架")
+        wrapper.eq(Product::getStatus, 1)  // 1=上架
                 .orderByDesc(Product::getSalesCount);
 
         Page<Product> productPage = productRepository.selectPage(page, wrapper);
@@ -192,7 +197,7 @@ public class ProductServiceImpl implements ProductService {
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Product::getCategoryId, categoryId)
-                .eq(Product::getStatus, "上架")
+                .eq(Product::getStatus, 1)  // 1=上架
                 .orderByDesc(Product::getSalesCount);
 
         Page<Product> productPage = productRepository.selectPage(page, wrapper);
@@ -208,7 +213,10 @@ public class ProductServiceImpl implements ProductService {
      */
     private ProductVO convertToVO(Product product) {
         ProductVO vo = new ProductVO();
-        BeanUtils.copyProperties(product, vo);
+        BeanUtils.copyProperties(product, vo, "status");
+
+        // 状态映射：1=上架，0=下架
+        vo.setStatus(product.getStatus() == 1 ? "上架" : "下架");
 
         // 获取分类名称
         ProductCategory category = categoryRepository.selectById(product.getCategoryId());

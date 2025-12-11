@@ -68,9 +68,9 @@ public class Product {
     private Integer salesCount;
 
     /**
-     * 状态（上架/下架）
+     * 状态（0-下架，1-上架）
      */
-    private String status;
+    private Integer status;
 
     /**
      * 逻辑删除（0-未删除，1-已删除）
