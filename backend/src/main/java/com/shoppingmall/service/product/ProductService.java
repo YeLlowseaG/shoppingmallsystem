@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shoppingmall.dto.ProductDTO;
 import com.shoppingmall.vo.ProductVO;
 
+import java.util.List;
+
 /**
  * 商品服务接口
  *

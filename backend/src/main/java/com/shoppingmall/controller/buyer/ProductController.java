@@ -7,6 +7,8 @@ import com.shoppingmall.vo.ProductVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
  * 商品控制器（采购者端）
  *
