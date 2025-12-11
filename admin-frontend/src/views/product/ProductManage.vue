@@ -172,7 +172,7 @@
             </div>
           </div>
         </el-form-item>
-        <el-form-item label="详情图" prop="images">
+        <el-form-item label="详情轮播图" prop="images">
           <div class="detail-images-wrapper">
             <el-upload
               v-model:file-list="detailImageList"
@@ -188,15 +188,14 @@
             >
               <el-icon><Plus /></el-icon>
             </el-upload>
-            <div class="upload-tip">最多上传5张详情图，支持拖拽排序</div>
+            <div class="upload-tip">最多上传5张轮播图，将在详情页顶部轮播展示</div>
           </div>
         </el-form-item>
         <el-form-item label="商品描述" prop="description">
-          <el-input
+          <RichTextEditor
             v-model="formData.description"
-            type="textarea"
-            :rows="4"
-            placeholder="请输入商品描述"
+            placeholder="请输入商品详细描述"
+            height="500px"
           />
         </el-form-item>
         <el-form-item label="状态" prop="status">
@@ -228,6 +227,7 @@ import {
   type ProductVO
 } from '@/api/admin/product'
 import { getCategoryTree, type ProductCategoryVO } from '@/api/admin/productCategory'
+import RichTextEditor from '@/components/common/RichTextEditor.vue'
 
 const router = useRouter()
 

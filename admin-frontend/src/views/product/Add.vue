@@ -44,15 +44,6 @@
           <el-input-number v-model="productForm.stock" :min="0" />
         </el-form-item>
 
-        <el-form-item label="商品描述" prop="description">
-          <el-input
-            v-model="productForm.description"
-            type="textarea"
-            :rows="4"
-            placeholder="请输入商品描述"
-          />
-        </el-form-item>
-
         <el-form-item label="主图" prop="mainImage">
           <div class="upload-wrapper">
             <!-- 主图预览 -->
@@ -99,7 +90,7 @@
           </div>
         </el-form-item>
 
-        <el-form-item label="详情图" prop="detailImages">
+        <el-form-item label="详情轮播图" prop="detailImages">
           <div class="detail-images-wrapper">
             <el-upload
               v-model:file-list="detailImageList"
@@ -115,8 +106,16 @@
             >
               <el-icon><Plus /></el-icon>
             </el-upload>
-            <div class="upload-tip">最多上传5张详情图，支持拖拽排序</div>
+            <div class="upload-tip">最多上传5张轮播图，将在详情页顶部轮播展示</div>
           </div>
+        </el-form-item>
+
+        <el-form-item label="商品描述" prop="description">
+          <RichTextEditor
+            v-model="productForm.description"
+            placeholder="请输入商品详细描述"
+            height="500px"
+          />
         </el-form-item>
 
         <el-form-item label="商品状态" prop="status">
@@ -144,6 +143,7 @@ import { Plus, Delete } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules, UploadFile, UploadUserFile } from 'element-plus'
 import { createProduct } from '@/api/admin/product'
 import { getCategoryTree } from '@/api/admin/productCategory'
+import RichTextEditor from '@/components/common/RichTextEditor.vue'
 
 const router = useRouter()
 const formRef = ref<FormInstance>()
