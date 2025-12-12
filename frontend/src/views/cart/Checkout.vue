@@ -181,8 +181,8 @@
               </table>
             </div>
 
-            <!-- 送货日期和时间 -->
-            <div class="delivery-time">
+            <!-- 送货日期和时间（已屏蔽） -->
+            <!-- <div class="delivery-time">
               <div class="time-item">
                 <span class="time-label">送货日期：</span>
                 <el-select v-model="deliveryDate" placeholder="任意日期" style="width: 200px">
@@ -201,7 +201,7 @@
                   <el-option label="晚上" value="evening" />
                 </el-select>
               </div>
-            </div>
+            </div> -->
 
             <!-- 订单附言 -->
             <div class="order-remarks">
@@ -216,8 +216,8 @@
             </div>
           </div>
 
-          <!-- 选择配送方式 -->
-          <div class="checkout-section">
+          <!-- 选择配送方式（已屏蔽） -->
+          <!-- <div class="checkout-section">
             <div class="section-header">
               <h3 class="section-title">
                 选择配送方式
@@ -236,7 +236,6 @@
             </div>
           </div>
 
-          <!-- 配送方式选择对话框 -->
           <el-dialog
             v-model="showShippingDialog"
             title="选择配送方式"
@@ -274,7 +273,7 @@
               <el-button @click="showShippingDialog = false">取消</el-button>
               <el-button type="danger" @click="handleConfirmShipping">确定</el-button>
             </template>
-          </el-dialog>
+          </el-dialog> -->
 
           <!-- 选择支付方式 -->
           <div class="checkout-section">
@@ -372,12 +371,13 @@
               <span class="summary-label">配送费用：</span>
               <span class="summary-value">¥{{ shippingFee.toFixed(2) }}</span>
             </div>
-            <div class="summary-row">
+            <!-- 税金和发票抬头（已屏蔽） -->
+            <!-- <div class="summary-row">
               <span class="summary-label">税金(0%)：</span>
               <span class="summary-value">+¥{{ tax.toFixed(2) }}</span>
               <span class="invoice-label">发票抬头：</span>
               <el-checkbox v-model="needInvoice" class="invoice-checkbox"></el-checkbox>
-            </div>
+            </div> -->
             <div class="summary-row total-row">
               <span class="summary-label">订单总金额：</span>
               <span class="summary-value total-amount">¥{{ totalAmount.toFixed(2) }}</span>
@@ -427,12 +427,12 @@ const addressList = ref<AddressVO[]>([])
 // 地址表单
 const addressFormRef = ref<InstanceType<typeof ElForm>>()
 const addressForm = ref({
-  region: ['shaanxi', 'xian', 'yanta'], // 默认选择陕西省西安市雁塔区
-  detailAddress: '陕西省西安市雁塔区科技路徐家庄西南口148号',
-  zipCode: '100000',
-  receiverName: '刘明辉',
+  region: [] as string[], // 不设置默认值
+  detailAddress: '',
+  zipCode: '',
+  receiverName: '',
   receiverPhone: '',
-  receiverMobile: '18829634981',
+  receiverMobile: '',
   saveAddress: false
 })
 
@@ -442,7 +442,19 @@ const addressRules = {
   detailAddress: [{ required: true, message: '请输入街道地址', trigger: 'blur' }],
   receiverName: [{ required: true, message: '请输入收货人姓名', trigger: 'blur' }],
   receiverPhone: [{ required: false, message: '请输入联系电话', trigger: 'blur' }],
-  receiverMobile: [{ required: false, message: '请输入联系手机', trigger: 'blur' }]
+  receiverMobile: [
+    {
+      validator: (rule: any, value: string, callback: Function) => {
+        // 手机和电话至少填一个
+        if (!value && !addressForm.value.receiverPhone) {
+          callback(new Error('请至少填写手机或电话中的一项'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ]
 }
 
 // 地区选项（模拟数据，后续从API获取）
@@ -648,15 +660,31 @@ const handlePlaceOrder = async () => {
   // 验证地址
   let addressId: number | null = null
   
-  if (selectedAddressId.value === 'other' || showAddressForm.value) {
-    // 使用新地址
-    if (!addressFormRef.value) return
-    await addressFormRef.value.validate(async (valid) => {
-      if (!valid) {
-        ElMessage.warning('请完善收货地址信息')
-        return
-      }
-    })
+  if (selectedAddressId.value === 'other' || showAddressForm.value || addressList.value.length === 0) {
+    // 使用新地址，需要验证表单
+    // 先验证收货人信息必填项
+    if (!addressForm.value.receiverName || addressForm.value.receiverName.trim() === '') {
+      ElMessage.warning('请输入收货人姓名')
+      return
+    }
+    
+    // 验证手机或电话至少填一个
+    if ((!addressForm.value.receiverMobile || addressForm.value.receiverMobile.trim() === '') &&
+        (!addressForm.value.receiverPhone || addressForm.value.receiverPhone.trim() === '')) {
+      ElMessage.warning('请至少填写手机或电话中的一项')
+      return
+    }
+    
+    // 验证其他必填项
+    if (!addressForm.value.region || addressForm.value.region.length === 0) {
+      ElMessage.warning('请选择收货地区')
+      return
+    }
+    
+    if (!addressForm.value.detailAddress || addressForm.value.detailAddress.trim() === '') {
+      ElMessage.warning('请输入街道地址')
+      return
+    }
     
     // 如果选择保存地址，先创建地址
     if (addressForm.value.saveAddress) {
@@ -706,26 +734,25 @@ const handlePlaceOrder = async () => {
   }
   const backendPaymentMethod = paymentMethodMap[paymentMethod.value] || 'ALIPAY'
   
-  // 转换配送日期
-  let deliveryDateValue: string | undefined = undefined
-  if (deliveryDate.value !== 'any') {
-    deliveryDateValue = deliveryDate.value
-  }
+  // 转换配送日期和时间（已屏蔽，传undefined）
+  // let deliveryDateValue: string | undefined = undefined
+  // if (deliveryDate.value !== 'any') {
+  //   deliveryDateValue = deliveryDate.value
+  // }
   
-  // 转换配送时间
-  let deliveryTimeValue: string | undefined = undefined
-  if (deliveryTime.value !== 'any') {
-    deliveryTimeValue = deliveryTime.value
-  }
+  // let deliveryTimeValue: string | undefined = undefined
+  // if (deliveryTime.value !== 'any') {
+  //   deliveryTimeValue = deliveryTime.value
+  // }
   
   try {
     loading.value = true
     const orderNo = await createOrder({
       addressId: addressId,
       cartIds: cartIds.length > 0 ? cartIds : undefined,
-      shippingMethod: selectedShippingMethod.value.name,
-      deliveryDate: deliveryDateValue,
-      deliveryTime: deliveryTimeValue,
+      // shippingMethod: selectedShippingMethod.value.name, // 已屏蔽配送方式
+      // deliveryDate: deliveryDateValue, // 已屏蔽
+      // deliveryTime: deliveryTimeValue, // 已屏蔽
       paymentMethod: backendPaymentMethod,
       orderRemark: orderRemarks.value || undefined
     })
@@ -759,9 +786,32 @@ const loadAddressList = async () => {
       selectedAddressId.value = defaultAddress.id
     } else if (data.length > 0) {
       selectedAddressId.value = data[0].id
+    } else {
+      // 如果没有收货地址，清空表单默认值，显示地址表单
+      selectedAddressId.value = 'other'
+      showAddressForm.value = true
+      addressForm.value = {
+        region: [],
+        detailAddress: '',
+        zipCode: '',
+        receiverName: '',
+        receiverPhone: '',
+        receiverMobile: '',
+        saveAddress: false
+      }
     }
   } catch (error: any) {
     ElMessage.error(error.message || '加载收货地址失败')
+    // 加载失败时也清空表单默认值
+    addressForm.value = {
+      region: [],
+      detailAddress: '',
+      zipCode: '',
+      receiverName: '',
+      receiverPhone: '',
+      receiverMobile: '',
+      saveAddress: false
+    }
   }
 }
 

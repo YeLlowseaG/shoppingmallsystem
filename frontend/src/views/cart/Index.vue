@@ -42,8 +42,8 @@
           </div>
         </div>
 
-        <!-- 快速添加商品区 -->
-        <div class="quick-add-section">
+        <!-- 快速添加商品区（已屏蔽） -->
+        <!-- <div class="quick-add-section">
           <div class="add-form">
             <span class="label">货号：</span>
             <el-input v-model="quickAdd.productCode" placeholder="请输入货号" class="input-field" />
@@ -56,7 +56,7 @@
             />
             <el-button type="danger" @click="handleQuickAdd">添加到购物车</el-button>
           </div>
-        </div>
+        </div> -->
 
         <!-- 购物车商品列表 -->
         <div class="cart-items-section">
@@ -82,7 +82,6 @@
                   <th class="col-name">商品名称</th>
                   <th class="col-price">销售价格</th>
                   <th class="col-price">会员价</th>
-                  <th class="col-price">批发优惠价</th>
                   <th class="col-quantity">数量</th>
                   <th class="col-total">合计</th>
                   <th class="col-action">删除</th>
@@ -100,15 +99,16 @@
                     <img :src="item.image" :alt="item.name" class="product-image" />
                   </td>
                   <td class="col-code">{{ item.productCode }}</td>
-                  <td class="col-name">{{ item.name }}</td>
+                  <td class="col-name">
+                    <router-link :to="`/products/${item.productId}`" class="product-name-link">
+                      {{ item.name }}
+                    </router-link>
+                  </td>
                   <td class="col-price">
                     <span class="price-text">¥{{ item.salesPrice.toFixed(2) }}</span>
                   </td>
                   <td class="col-price">
                     <span class="price-text member-price">¥{{ item.memberPrice.toFixed(2) }}</span>
-                  </td>
-                  <td class="col-price">
-                    <span class="price-text">{{ item.wholesalePrice ? '¥' + item.wholesalePrice.toFixed(2) : '-' }}</span>
                   </td>
                   <td class="col-quantity">
                     <el-input-number
@@ -134,7 +134,7 @@
                   </td>
                 </tr>
                 <tr v-if="cartItems.length === 0" class="empty-row">
-                  <td colspan="10" class="empty-cart">
+                  <td colspan="9" class="empty-cart">
                     <div class="empty-content">
                       <el-icon class="empty-icon"><ShoppingCart /></el-icon>
                       <div class="empty-text">购物车是空的，快去选购吧！</div>
@@ -374,7 +374,7 @@ const loadCartList = async () => {
     const data = await getCartList()
     cartItems.value = data.map(item => ({
       ...item,
-      selected: false // 默认未选中
+      selected: true // 默认选中
     }))
   } catch (error: any) {
     ElMessage.error(error.message || '加载购物车失败')
@@ -600,6 +600,18 @@ onMounted(() => {
           width: 300px;
           text-align: left;
           color: #333;
+
+          .product-name-link {
+            color: #333;
+            text-decoration: none;
+            cursor: pointer;
+            transition: color 0.3s;
+
+            &:hover {
+              color: #409eff;
+              text-decoration: underline;
+            }
+          }
         }
 
         .col-price {

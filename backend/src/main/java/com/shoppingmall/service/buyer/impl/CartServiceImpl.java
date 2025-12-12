@@ -3,10 +3,15 @@ package com.shoppingmall.service.buyer.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.shoppingmall.common.exception.BusinessException;
+import com.shoppingmall.common.constant.UserLevel;
 import com.shoppingmall.dto.CartDTO;
 import com.shoppingmall.entity.Cart;
 import com.shoppingmall.entity.User;
+import com.shoppingmall.entity.Product;
+import com.shoppingmall.entity.ProductPrice;
 import com.shoppingmall.repository.cart.CartRepository;
+import com.shoppingmall.repository.product.ProductPriceRepository;
+import com.shoppingmall.repository.product.ProductRepository;
 import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.service.buyer.CartService;
 import com.shoppingmall.vo.CartVO;
@@ -32,6 +37,8 @@ public class CartServiceImpl implements CartService {
 
     private final CartRepository cartRepository;
     private final UserRepository userRepository;
+    private final ProductRepository productRepository;
+    private final ProductPriceRepository productPriceRepository;
 
     @Override
     public List<CartVO> getCartList(Long userId) {
@@ -50,8 +57,14 @@ public class CartServiceImpl implements CartService {
             throw new BusinessException(400, "商品ID不能为空");
         }
 
-        // 检查商品是否存在（TODO: 后续需要查询商品表验证）
-        // 这里先简单验证，后续需要完善商品查询逻辑
+        // 检查商品是否存在且已上架
+        Product product = productRepository.selectById(cartDTO.getProductId());
+        if (product == null) {
+            throw new BusinessException(404, "商品不存在");
+        }
+        if (product.getStatus() == null || product.getStatus() != 1) {
+            throw new BusinessException(400, "商品已下架，无法添加到购物车");
+        }
 
         // 检查购物车中是否已存在该商品
         LambdaQueryWrapper<Cart> wrapper = new LambdaQueryWrapper<>();
@@ -84,10 +97,21 @@ public class CartServiceImpl implements CartService {
             throw new BusinessException(400, "商品编码不能为空");
         }
 
-        // TODO: 通过商品编码查询商品ID
-        // 这里需要先查询商品表，根据product_code获取product_id
-        // 暂时抛出异常，提示需要先实现商品查询功能
-        throw new BusinessException(501, "通过货号添加商品功能待实现，需要先完成商品模块");
+        // 通过商品编码查询商品
+        LambdaQueryWrapper<Product> productWrapper = new LambdaQueryWrapper<>();
+        productWrapper.eq(Product::getProductCode, productCode);
+        productWrapper.eq(Product::getStatus, 1); // 只查询上架商品
+        Product product = productRepository.selectOne(productWrapper);
+        
+        if (product == null) {
+            throw new BusinessException(404, "商品不存在或已下架");
+        }
+
+        // 使用商品ID添加到购物车
+        CartDTO cartDTO = new CartDTO();
+        cartDTO.setProductId(product.getId());
+        cartDTO.setQuantity(quantity);
+        return addToCart(userId, cartDTO);
     }
 
     @Override
@@ -169,7 +193,7 @@ public class CartServiceImpl implements CartService {
 
     /**
      * 实体转VO
-     * TODO: 需要查询商品信息、价格信息、重量信息等
+     * 查询商品信息、价格信息、重量信息等
      */
     private CartVO convertToVO(Cart cart, Long userId) {
         CartVO vo = new CartVO();
@@ -178,22 +202,106 @@ public class CartServiceImpl implements CartService {
         vo.setQuantity(cart.getQuantity());
         vo.setSelected(false); // 默认未选中
 
-        // TODO: 查询商品信息
-        // 1. 根据productId查询商品表，获取商品名称、图片、编码等
-        // 2. 根据userId查询用户等级
-        // 3. 根据productId和用户等级查询价格表，获取销售价格、会员价、批发优惠价
-        // 4. 查询商品重量（可能在商品表或商品库存表中）
+        // 1. 查询商品信息
+        Product product = productRepository.selectById(cart.getProductId());
+        if (product == null) {
+            log.warn("购物车中的商品不存在: productId={}", cart.getProductId());
+            // 商品不存在时设置默认值
+            vo.setProductCode("未知");
+            vo.setName("商品已下架");
+            vo.setImage("");
+            vo.setSalesPrice(BigDecimal.ZERO);
+            vo.setMemberPrice(BigDecimal.ZERO);
+            vo.setWholesalePrice(null);
+            vo.setWeight(BigDecimal.ZERO);
+            return vo;
+        }
 
-        // 临时数据，后续需要替换为实际查询
-        vo.setProductCode("TEMP_" + cart.getProductId());
-        vo.setName("商品名称（待实现）");
-        vo.setImage("https://via.placeholder.com/80x80?text=Product");
-        vo.setSalesPrice(BigDecimal.ZERO);
-        vo.setMemberPrice(BigDecimal.ZERO);
-        vo.setWholesalePrice(null);
-        vo.setWeight(BigDecimal.ZERO);
+        // 设置商品基本信息
+        vo.setProductCode(product.getProductCode());
+        vo.setName(product.getProductName());
+        // 使用主图，如果没有主图则使用第一张图片
+        if (product.getMainImage() != null && !product.getMainImage().trim().isEmpty()) {
+            vo.setImage(product.getMainImage());
+        } else {
+            vo.setImage(""); // 如果没有图片，设置为空字符串
+        }
+        
+        // 设置商品重量（从商品表获取，单位：克）
+        if (product.getWeight() != null) {
+            vo.setWeight(BigDecimal.valueOf(product.getWeight()));
+        } else {
+            vo.setWeight(BigDecimal.ZERO);
+        }
+
+        // 2. 查询用户等级
+        User user = userRepository.selectById(userId);
+        Integer userLevel = (user != null && user.getUserLevel() != null) ? user.getUserLevel() : UserLevel.NORMAL;
+        String userLevelName = convertUserLevelToString(userLevel);
+
+        // 3. 查询价格信息
+        // 销售价格：使用商品表的salePrice，如果没有则使用basePrice
+        BigDecimal salesPrice = product.getSalePrice() != null ? product.getSalePrice() : product.getBasePrice();
+        vo.setSalesPrice(salesPrice != null ? salesPrice : BigDecimal.ZERO);
+
+        // 会员价：根据用户等级查询价格表
+        BigDecimal memberPrice = getPriceByUserLevel(cart.getProductId(), userLevelName, cart.getQuantity());
+        vo.setMemberPrice(memberPrice != null ? memberPrice : salesPrice);
+
+        // 批发优惠价：查询金牌等级的价格（如果有）
+        BigDecimal wholesalePrice = getPriceByUserLevel(cart.getProductId(), "金牌", cart.getQuantity());
+        vo.setWholesalePrice(wholesalePrice);
 
         return vo;
+    }
+
+    /**
+     * 根据用户等级获取价格
+     * 
+     * @param productId 商品ID
+     * @param userLevelName 用户等级名称（普通/VIP/金牌）
+     * @param quantity 数量（用于阶梯价格）
+     * @return 价格
+     */
+    private BigDecimal getPriceByUserLevel(Long productId, String userLevelName, Integer quantity) {
+        LambdaQueryWrapper<ProductPrice> priceWrapper = new LambdaQueryWrapper<>();
+        priceWrapper.eq(ProductPrice::getProductId, productId);
+        priceWrapper.eq(ProductPrice::getUserLevel, userLevelName);
+        
+        // 如果有数量，查询符合数量范围的阶梯价格
+        if (quantity != null && quantity > 0) {
+            priceWrapper.le(ProductPrice::getMinQuantity, quantity);
+            priceWrapper.and(w -> w.isNull(ProductPrice::getMaxQuantity)
+                    .or().ge(ProductPrice::getMaxQuantity, quantity));
+        }
+        
+        priceWrapper.orderByDesc(ProductPrice::getMinQuantity); // 按最小数量降序，优先匹配高阶梯价格
+        priceWrapper.last("LIMIT 1");
+        
+        ProductPrice productPrice = productPriceRepository.selectOne(priceWrapper);
+        return productPrice != null ? productPrice.getPrice() : null;
+    }
+
+    /**
+     * 将用户等级数字转换为字符串
+     * 
+     * @param userLevel 用户等级（0-普通，1-VIP，2-金牌）
+     * @return 用户等级名称
+     */
+    private String convertUserLevelToString(Integer userLevel) {
+        if (userLevel == null) {
+            return "普通";
+        }
+        switch (userLevel) {
+            case 0:
+                return "普通";
+            case 1:
+                return "VIP";
+            case 2:
+                return "金牌";
+            default:
+                return "普通";
+        }
     }
 }
 
