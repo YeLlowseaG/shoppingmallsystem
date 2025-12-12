@@ -38,6 +38,11 @@ public class User {
     private String password;
 
     /**
+     * 支付密码（BCrypt加密）
+     */
+    private String paymentPassword;
+
+    /**
      * 真实姓名
      */
     private String realName;

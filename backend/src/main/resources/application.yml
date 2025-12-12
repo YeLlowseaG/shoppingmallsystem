@@ -91,3 +91,8 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
     enabled: true
+
+# 订单配置
+order:
+  # 待付款订单自动取消时间（小时），默认6小时
+  payment-timeout-hours: 6

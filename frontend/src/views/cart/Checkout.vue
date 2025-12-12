@@ -410,11 +410,14 @@ import Footer from '@/components/home/Footer.vue'
 import { getCartList } from '@/api/buyer/cart'
 import { getAddressList, addAddress } from '@/api/buyer/address'
 import { createOrder } from '@/api/buyer/order'
+import { getDepositBalance } from '@/api/buyer/deposit'
+import { useUserStore } from '@/stores/user'
 import type { CartVO } from '@/api/buyer/cart'
 import type { AddressVO, AddressDTO } from '@/api/buyer/address'
 
 const router = useRouter()
 const route = useRoute()
+const userStore = useUserStore()
 
 // 选中的地址ID
 const selectedAddressId = ref<number | string>('')
@@ -487,7 +490,7 @@ const paymentCurrency = ref('CNY')
 // 支付方式相关
 const showPaymentOptions = ref(false)
 const paymentMethod = ref('alipay')
-// 预存款余额（模拟数据，后续从后端获取）
+// 预存款余额
 const depositBalance = ref(0.00)
 
 // 支付方式列表
@@ -838,9 +841,29 @@ const loadCartItems = async () => {
   }
 }
 
+// 加载预存款余额
+const loadDepositBalance = async () => {
+  try {
+    const response = await getDepositBalance()
+    if (response) {
+      depositBalance.value = response.availableBalance || 0
+    }
+  } catch (error: any) {
+    console.error('获取预存款余额失败:', error)
+    // 如果用户未登录或其他错误，不显示错误提示，保持默认值0
+    if (error?.response?.status !== 401) {
+      // 静默失败，不影响页面正常使用
+    }
+  }
+}
+
 onMounted(() => {
   loadAddressList()
   loadCartItems()
+  // 如果用户已登录，加载预存款余额
+  if (userStore.isLoggedIn()) {
+    loadDepositBalance()
+  }
 })
 </script>
 

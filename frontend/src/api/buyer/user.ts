@@ -144,3 +144,12 @@ export const changePassword = (oldPassword: string, newPassword: string): Promis
   })
 }
 
+/**
+ * 修改支付密码
+ */
+export const changePaymentPassword = (oldPaymentPassword: string, newPaymentPassword: string): Promise<ApiResponse> => {
+  return request.put('/api/buyer/user/payment-password', null, {
+    params: { oldPaymentPassword, newPaymentPassword }
+  })
+}
+

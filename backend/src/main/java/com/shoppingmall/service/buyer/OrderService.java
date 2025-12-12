@@ -56,6 +56,16 @@ public interface OrderService {
      * @param userId  用户ID
      */
     void confirmReceipt(String orderNo, Long userId);
+
+    /**
+     * 订单支付
+     *
+     * @param orderNo 订单号
+     * @param userId  用户ID
+     * @param paymentDTO 支付信息
+     * @return 支付响应（包含支付URL等）
+     */
+    com.shoppingmall.dto.PaymentResponseDTO payOrder(String orderNo, Long userId, com.shoppingmall.dto.OrderPaymentDTO paymentDTO);
 }
 
 

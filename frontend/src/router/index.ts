@@ -86,6 +86,15 @@ const router = createRouter({
       }
     },
     {
+      path: '/member/settings/payment-password',
+      name: 'member-payment-password',
+      component: () => import('@/views/member/PaymentPassword.vue'),
+      meta: {
+        title: '修改预存款支付密码',
+        requiresAuth: true
+      }
+    },
+    {
       path: '/member/settings/profile',
       name: 'member-profile',
       component: () => import('@/views/member/Profile.vue'),

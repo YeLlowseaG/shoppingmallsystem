@@ -84,5 +84,18 @@ public class UserController {
         userService.changePassword(userId, oldPassword, newPassword);
         return Result.success("密码修改成功");
     }
+
+    /**
+     * 修改支付密码
+     */
+    @PutMapping("/payment-password")
+    public Result<?> changePaymentPassword(
+            HttpServletRequest request,
+            @RequestParam String oldPaymentPassword,
+            @RequestParam String newPaymentPassword) {
+        Long userId = (Long) request.getAttribute("userId");
+        userService.changePaymentPassword(userId, oldPaymentPassword, newPaymentPassword);
+        return Result.success("支付密码修改成功");
+    }
 }
 

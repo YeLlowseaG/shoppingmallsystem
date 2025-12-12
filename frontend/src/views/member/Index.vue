@@ -89,14 +89,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
+import { getDepositBalance } from '@/api/buyer/deposit'
 import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
 import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
 import MemberSidebar from '@/components/member/MemberSidebar.vue'
+import { ElMessage } from 'element-plus'
 
 const userStore = useUserStore()
 
@@ -114,6 +116,30 @@ const availableBalance = ref(0)
 const unpaidOrderCount = ref(0)
 const shippedOrderCount = ref(17)
 const cancelledOrderCount = ref(1)
+
+// 获取预存款余额
+const fetchDepositBalance = async () => {
+  try {
+    const response = await getDepositBalance()
+    if (response) {
+      depositBalance.value = response.depositBalance || 0
+      availableBalance.value = response.availableBalance || 0
+    }
+  } catch (error: any) {
+    console.error('获取预存款余额失败:', error)
+    // 如果用户未登录或其他错误，不显示错误提示，保持默认值0
+    if (error?.response?.status !== 401) {
+      ElMessage.error('获取预存款余额失败')
+    }
+  }
+}
+
+// 组件挂载时获取预存款余额
+onMounted(() => {
+  if (userStore.userInfo) {
+    fetchDepositBalance()
+  }
+})
 
 // 菜单选择逻辑已移至 MemberSidebar 组件中
 </script>

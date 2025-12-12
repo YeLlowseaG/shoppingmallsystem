@@ -2,6 +2,18 @@ import request from '@/utils/request'
 import type { ApiResponse } from '@/types'
 
 /**
+ * 支付响应VO
+ */
+export interface PaymentResponseVO {
+  internalOrderNo: string
+  paymentUrl?: string
+  paymentParams?: string
+  qrCodeUrl?: string
+  isMock?: boolean
+  mockExternalTradeNo?: string
+}
+
+/**
  * 创建订单DTO
  */
 export interface CreateOrderDTO {
@@ -141,5 +153,21 @@ export const cancelOrder = (orderNo: string): Promise<ApiResponse> => {
  */
 export const confirmReceipt = (orderNo: string): Promise<ApiResponse> => {
   return request.put(`/api/buyer/orders/${orderNo}/confirm`)
+}
+
+/**
+ * 订单支付DTO
+ */
+export interface OrderPaymentDTO {
+  orderNo: string
+  paymentMethod: string
+  paymentPassword?: string
+}
+
+/**
+ * 订单支付
+ */
+export const payOrder = (orderNo: string, data: OrderPaymentDTO): Promise<PaymentResponseVO> => {
+  return request.post(`/api/buyer/orders/${orderNo}/pay`, data)
 }
 

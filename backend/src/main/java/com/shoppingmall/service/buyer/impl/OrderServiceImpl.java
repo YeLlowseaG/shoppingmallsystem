@@ -19,9 +19,19 @@ import com.shoppingmall.repository.order.OrderLogisticsRepository;
 import com.shoppingmall.repository.order.OrderRepository;
 import com.shoppingmall.repository.product.ProductPriceRepository;
 import com.shoppingmall.repository.product.ProductRepository;
+import com.shoppingmall.repository.product.ProductStockRepository;
 import com.shoppingmall.repository.user.UserAddressRepository;
 import com.shoppingmall.repository.user.UserRepository;
+import com.shoppingmall.repository.payment.PaymentRecordRepository;
 import com.shoppingmall.service.buyer.OrderService;
+import com.shoppingmall.service.buyer.DepositService;
+import com.shoppingmall.service.payment.PaymentService;
+import com.shoppingmall.dto.OrderPaymentDTO;
+import com.shoppingmall.dto.PaymentRequestDTO;
+import com.shoppingmall.dto.PaymentResponseDTO;
+import com.shoppingmall.entity.PaymentRecord;
+import com.shoppingmall.common.constant.PaymentStatus;
+import com.shoppingmall.common.util.EncryptUtil;
 import com.shoppingmall.vo.OrderDetailVO;
 import com.shoppingmall.vo.OrderListVO;
 import lombok.RequiredArgsConstructor;
@@ -54,7 +64,11 @@ public class OrderServiceImpl implements OrderService {
     private final CartRepository cartRepository;
     private final ProductRepository productRepository;
     private final ProductPriceRepository productPriceRepository;
+    private final ProductStockRepository productStockRepository;
     private final UserRepository userRepository;
+    private final PaymentRecordRepository paymentRecordRepository;
+    private final DepositService depositService;
+    private final PaymentService paymentService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -179,7 +193,49 @@ public class OrderServiceImpl implements OrderService {
             orderItemRepository.insert(orderItem);
         }
 
-        // 7. 从购物车删除已下单的商品
+        // 8. 扣减库存
+        for (CreateOrderDTO.OrderItemDTO itemDTO : orderItems) {
+            // 扣减product表的库存
+            Product product = productRepository.selectById(itemDTO.getProductId());
+            if (product != null && product.getStock() != null) {
+                int newStock = product.getStock() - itemDTO.getQuantity();
+                if (newStock < 0) {
+                    throw new BusinessException(400, "库存不足: " + product.getProductName());
+                }
+                product.setStock(newStock);
+                productRepository.updateById(product);
+            }
+            
+            // 扣减product_stock表的库存
+            LambdaQueryWrapper<ProductStock> stockWrapper = new LambdaQueryWrapper<>();
+            stockWrapper.eq(ProductStock::getProductId, itemDTO.getProductId());
+            ProductStock productStock = productStockRepository.selectOne(stockWrapper);
+            
+            if (productStock != null) {
+                // 增加锁定库存
+                int newLockedStock = (productStock.getLockedStock() != null ? productStock.getLockedStock() : 0) + itemDTO.getQuantity();
+                productStock.setLockedStock(newLockedStock);
+                
+                // 减少可用库存
+                int newAvailableStock = (productStock.getAvailableStock() != null ? productStock.getAvailableStock() : 0) - itemDTO.getQuantity();
+                if (newAvailableStock < 0) {
+                    throw new BusinessException(400, "可用库存不足: " + product.getProductName());
+                }
+                productStock.setAvailableStock(newAvailableStock);
+                productStockRepository.updateById(productStock);
+            } else {
+                // 如果product_stock记录不存在，创建新记录
+                productStock = new ProductStock();
+                productStock.setProductId(itemDTO.getProductId());
+                productStock.setTotalStock(product != null && product.getStock() != null ? product.getStock() : 0);
+                productStock.setLockedStock(itemDTO.getQuantity());
+                productStock.setAvailableStock((productStock.getTotalStock() - productStock.getLockedStock()));
+                productStock.setWarningThreshold(10);
+                productStockRepository.insert(productStock);
+            }
+        }
+
+        // 9. 从购物车删除已下单的商品
         if (createOrderDTO.getCartIds() != null && !createOrderDTO.getCartIds().isEmpty()) {
             cartRepository.deleteBatchIds(createOrderDTO.getCartIds());
         }
@@ -255,6 +311,39 @@ public class OrderServiceImpl implements OrderService {
         // 只有待付款订单可以取消
         if (!OrderStatus.PENDING_PAYMENT.equals(order.getOrderStatus())) {
             throw new BusinessException(400, "只有待付款订单可以取消");
+        }
+        
+        // 恢复库存
+        LambdaQueryWrapper<OrderItem> itemWrapper = new LambdaQueryWrapper<>();
+        itemWrapper.eq(OrderItem::getOrderId, order.getId());
+        List<OrderItem> orderItems = orderItemRepository.selectList(itemWrapper);
+        
+        for (OrderItem orderItem : orderItems) {
+            // 恢复product表的库存
+            Product product = productRepository.selectById(orderItem.getProductId());
+            if (product != null && product.getStock() != null) {
+                product.setStock(product.getStock() + orderItem.getQuantity());
+                productRepository.updateById(product);
+            }
+            
+            // 恢复product_stock表的库存
+            LambdaQueryWrapper<ProductStock> stockWrapper = new LambdaQueryWrapper<>();
+            stockWrapper.eq(ProductStock::getProductId, orderItem.getProductId());
+            ProductStock productStock = productStockRepository.selectOne(stockWrapper);
+            
+            if (productStock != null) {
+                // 减少锁定库存
+                int newLockedStock = (productStock.getLockedStock() != null ? productStock.getLockedStock() : 0) - orderItem.getQuantity();
+                if (newLockedStock < 0) {
+                    newLockedStock = 0;
+                }
+                productStock.setLockedStock(newLockedStock);
+                
+                // 增加可用库存
+                int newAvailableStock = (productStock.getAvailableStock() != null ? productStock.getAvailableStock() : 0) + orderItem.getQuantity();
+                productStock.setAvailableStock(newAvailableStock);
+                productStockRepository.updateById(productStock);
+            }
         }
         
         order.setOrderStatus(OrderStatus.CANCELLED);
@@ -607,6 +696,113 @@ public class OrderServiceImpl implements OrderService {
             default:
                 return "未知";
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public PaymentResponseDTO payOrder(String orderNo, Long userId, OrderPaymentDTO paymentDTO) {
+        // 1. 验证订单
+        LambdaQueryWrapper<Order> orderWrapper = new LambdaQueryWrapper<>();
+        orderWrapper.eq(Order::getOrderNo, orderNo);
+        orderWrapper.eq(Order::getUserId, userId);
+        Order order = orderRepository.selectOne(orderWrapper);
+        
+        if (order == null) {
+            throw new BusinessException(404, "订单不存在");
+        }
+        
+        if (!OrderStatus.PENDING_PAYMENT.equals(order.getOrderStatus())) {
+            throw new BusinessException(400, "订单状态不允许支付");
+        }
+        
+        if (order.getPaymentStatus() != null && PaymentStatus.PAID.equals(order.getPaymentStatus())) {
+            throw new BusinessException(400, "订单已支付");
+        }
+        
+        // 2. 根据支付方式处理
+        String paymentMethod = paymentDTO.getPaymentMethod();
+        PaymentResponseDTO response = new PaymentResponseDTO();
+        response.setInternalOrderNo(orderNo);
+        
+        if ("PRE_DEPOSIT".equals(paymentMethod)) {
+            // 预存款支付
+            // 2.1 验证支付密码
+            User user = userRepository.selectById(userId);
+            if (user == null) {
+                throw new BusinessException(404, "用户不存在");
+            }
+            
+            if (paymentDTO.getPaymentPassword() == null || paymentDTO.getPaymentPassword().isEmpty()) {
+                throw new BusinessException(400, "支付密码不能为空");
+            }
+            
+            // 验证支付密码
+            // 如果用户没有设置过支付密码，则使用登录密码作为默认支付密码
+            boolean passwordValid = false;
+            if (user.getPaymentPassword() == null || user.getPaymentPassword().isEmpty()) {
+                // 未设置过支付密码，使用登录密码验证
+                passwordValid = EncryptUtil.bcryptMatches(paymentDTO.getPaymentPassword(), user.getPassword());
+            } else {
+                // 已设置过支付密码，使用支付密码验证
+                passwordValid = EncryptUtil.bcryptMatches(paymentDTO.getPaymentPassword(), user.getPaymentPassword());
+            }
+            
+            if (!passwordValid) {
+                throw new BusinessException(400, "支付密码错误");
+            }
+            
+            // 2.2 使用预存款支付
+            depositService.depositPayment(userId, order.getId(), orderNo, order.getActualAmount());
+            
+            // 2.3 更新订单状态
+            order.setPaymentStatus(PaymentStatus.PAID); // 已支付
+            order.setOrderStatus(OrderStatus.PAID_UNSHIPPED);
+            order.setPayTime(LocalDateTime.now());
+            orderRepository.updateById(order);
+            
+            // 2.4 创建支付记录
+            PaymentRecord paymentRecord = new PaymentRecord();
+            paymentRecord.setOrderId(order.getId());
+            paymentRecord.setPaymentNo("DEPOSIT_" + System.currentTimeMillis() + "_" + orderNo);
+            paymentRecord.setPaymentMethod("PRE_DEPOSIT");
+            paymentRecord.setAmount(order.getActualAmount());
+            paymentRecord.setPaymentStatus(PaymentStatus.PAID); // 已支付
+            paymentRecord.setPaymentTime(LocalDateTime.now());
+            paymentRecordRepository.insert(paymentRecord);
+            
+            log.info("预存款支付成功: orderNo={}, userId={}, amount={}", orderNo, userId, order.getActualAmount());
+            
+        } else if ("ALIPAY".equals(paymentMethod) || "WECHAT".equals(paymentMethod)) {
+            // 支付宝/微信支付
+            // 2.1 创建支付订单
+            PaymentRequestDTO paymentRequest = new PaymentRequestDTO();
+            paymentRequest.setInternalOrderNo(orderNo);
+            paymentRequest.setAmount(order.getActualAmount());
+            paymentRequest.setPaymentMethod("alipay".equals(paymentMethod.toLowerCase()) ? "alipay" : "wechat");
+            paymentRequest.setCurrency("CNY");
+            paymentRequest.setDescription("订单支付：" + orderNo);
+            paymentRequest.setUserId(userId);
+            
+            PaymentResponseDTO paymentResponse = paymentService.createPayment(paymentRequest);
+            
+            // 2.2 创建支付记录（待支付状态）
+            PaymentRecord paymentRecord = new PaymentRecord();
+            paymentRecord.setOrderId(order.getId());
+            paymentRecord.setPaymentNo("PAY_" + System.currentTimeMillis() + "_" + orderNo);
+            paymentRecord.setPaymentMethod(paymentMethod);
+            paymentRecord.setAmount(order.getActualAmount());
+            paymentRecord.setPaymentStatus(PaymentStatus.UNPAID); // 待支付
+            paymentRecordRepository.insert(paymentRecord);
+            
+            log.info("创建支付订单成功: orderNo={}, paymentMethod={}, paymentNo={}", 
+                    orderNo, paymentMethod, paymentRecord.getPaymentNo());
+            
+            return paymentResponse;
+        } else {
+            throw new BusinessException(400, "不支持的支付方式");
+        }
+        
+        return response;
     }
 }
 

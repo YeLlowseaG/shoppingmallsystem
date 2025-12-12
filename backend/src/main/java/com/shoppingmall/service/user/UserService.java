@@ -59,5 +59,14 @@ public interface UserService {
      * @param newPassword 新密码
      */
     void changePassword(Long userId, String oldPassword, String newPassword);
+
+    /**
+     * 修改支付密码
+     *
+     * @param userId 用户ID
+     * @param oldPaymentPassword 旧支付密码（如果未设置过支付密码，则使用登录密码）
+     * @param newPaymentPassword 新支付密码
+     */
+    void changePaymentPassword(Long userId, String oldPaymentPassword, String newPaymentPassword);
 }
 

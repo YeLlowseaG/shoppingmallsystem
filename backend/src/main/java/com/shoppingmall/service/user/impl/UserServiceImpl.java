@@ -339,5 +339,35 @@ public class UserServiceImpl implements UserService {
 
         log.info("用户密码修改成功: userId={}", userId);
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void changePaymentPassword(Long userId, String oldPaymentPassword, String newPaymentPassword) {
+        User user = userRepository.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(404, "用户不存在");
+        }
+
+        // 验证原支付密码
+        // 如果用户没有设置过支付密码，则使用登录密码作为默认支付密码
+        boolean passwordValid = false;
+        if (user.getPaymentPassword() == null || user.getPaymentPassword().isEmpty()) {
+            // 未设置过支付密码，使用登录密码验证
+            passwordValid = EncryptUtil.bcryptMatches(oldPaymentPassword, user.getPassword());
+        } else {
+            // 已设置过支付密码，使用支付密码验证
+            passwordValid = EncryptUtil.bcryptMatches(oldPaymentPassword, user.getPaymentPassword());
+        }
+
+        if (!passwordValid) {
+            throw new BusinessException(400, "原支付密码错误");
+        }
+
+        // 更新支付密码
+        user.setPaymentPassword(EncryptUtil.bcryptEncode(newPaymentPassword));
+        userRepository.updateById(user);
+
+        log.info("用户支付密码修改成功: userId={}", userId);
+    }
 }
 
