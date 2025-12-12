@@ -51,7 +51,7 @@
                     <div class="product-details">
                       <h4 class="product-name">{{ item.productName }}</h4>
                       <div class="product-specs">
-                        数量：{{ item.quantity }} | 单价：¥{{ item.price }}
+                        数量：{{ item.quantity }} | 单价：¥{{ parseFloat(item.price).toFixed(2) }}
                       </div>
                     </div>
                   </div>

@@ -53,7 +53,7 @@
         <el-table-column prop="categoryName" label="分类" width="120" />
         <el-table-column prop="basePrice" label="价格" width="100">
           <template #default="{ row }">
-            ¥{{ row.basePrice }}
+            ¥{{ parseFloat(row.basePrice).toFixed(2) }}
           </template>
         </el-table-column>
         <el-table-column prop="stock" label="库存" width="80" />
@@ -142,7 +142,7 @@
         <el-divider content-position="left">价格与库存</el-divider>
 
         <div class="price-stock-grid">
-          <el-form-item label="销售价格" prop="basePrice" required>
+          <el-form-item label="初始会员价" prop="basePrice" required>
             <el-input-number
               v-model="formData.basePrice"
               :min="0"
@@ -153,7 +153,7 @@
             />
           </el-form-item>
 
-          <el-form-item label="市场价格" prop="marketPrice">
+          <el-form-item label="建议零售价" prop="marketPrice">
             <el-input-number
               v-model="formData.marketPrice"
               :min="0"
@@ -164,7 +164,7 @@
             />
           </el-form-item>
 
-          <el-form-item label="成本价格" prop="costPrice">
+          <el-form-item label="市场零售价" prop="costPrice">
             <el-input-number
               v-model="formData.costPrice"
               :min="0"

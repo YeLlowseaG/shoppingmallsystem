@@ -11,7 +11,7 @@
         <img :src="product.mainImage" :alt="product.productName" class="product-image" />
         <div class="product-info">
           <div class="product-name">{{ product.productName }}</div>
-          <div class="product-price">¥{{ product.basePrice }}</div>
+          <div class="product-price">¥{{ parseFloat(product.basePrice).toFixed(2) }}</div>
           <div class="product-sales">已售 {{ product.salesCount }}</div>
         </div>
       </div>

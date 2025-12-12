@@ -50,7 +50,7 @@
 
                 <!-- 商品价格 -->
                 <div class="product-price">
-                  <span class="price">¥{{ item.basePrice }}</span>
+                  <span class="price">¥{{ parseFloat(item.basePrice).toFixed(2) }}</span>
                 </div>
 
                 <!-- 操作按钮 -->

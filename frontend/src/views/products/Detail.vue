@@ -99,11 +99,11 @@
           <div class="price-info">
             <div class="price-row">
               <span class="price-label">市场零售价：</span>
-              <span class="market-price">¥{{ product.marketPrice }}</span>
+              <span class="market-price">¥{{ parseFloat(product.marketPrice).toFixed(2) }}</span>
             </div>
             <div class="price-row">
               <span class="price-label">建议零售价：</span>
-              <span class="suggest-price">¥ {{ product.price }}</span>
+              <span class="suggest-price">¥ {{ parseFloat(product.price).toFixed(2) }}</span>
             </div>
           </div>
 
