@@ -36,21 +36,21 @@
               >
                 <!-- 商品图片 -->
                 <div class="product-image">
-                  <img :src="item.image" :alt="item.name" />
+                  <img :src="item.mainImage" :alt="item.productName" />
                 </div>
 
                 <!-- 商品信息 -->
                 <div class="product-info">
-                  <div class="product-name">{{ item.name }}</div>
+                  <div class="product-name">{{ item.productName }}</div>
                   <div class="product-note">
-                    <span v-if="item.retailPrice">标准零售价:{{ item.retailPrice }}元。</span>
-                    <span v-if="item.boxSpec">箱规:{{ item.boxSpec }}</span>
+                    <span v-if="item.userLevelPrice">会员价:{{ item.userLevelPrice }}元。</span>
+                    <span v-if="item.stock">库存:{{ item.stock }}</span>
                   </div>
                 </div>
 
                 <!-- 商品价格 -->
                 <div class="product-price">
-                  <span class="price">¥{{ item.price }}</span>
+                  <span class="price">¥{{ item.basePrice }}</span>
                 </div>
 
                 <!-- 操作按钮 -->
@@ -97,54 +97,38 @@ import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
 import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
 import MemberSidebar from '@/components/member/MemberSidebar.vue'
-
-// 收藏商品接口类型
-interface FavoriteItem {
-  id: number
-  productId: number
-  name: string
-  image: string
-  price: number | string
-  retailPrice?: number | string
-  boxSpec?: string
-}
+import { getFavoritePage, removeFavorite, type FavoriteVO } from '@/api/buyer/favorite'
 
 const unreadMessageCount = ref(0)
+const loading = ref(false)
 
-// 收藏商品列表（模拟数据，后续对接API）
-const favoritesList = ref<FavoriteItem[]>([
-  {
-    id: 1,
-    productId: 101,
-    name: '【避孕润滑】玻尿酸水光薄2只装 杜蕾斯',
-    image: 'https://via.placeholder.com/150x150',
-    price: '19.43',
-    retailPrice: '29.9',
-    boxSpec: '480/箱'
-  },
-  {
-    id: 2,
-    productId: 102,
-    name: '【SM】U型枕手腿铐虞姬(新品)',
-    image: 'https://via.placeholder.com/150x150',
-    price: '19.00',
-    boxSpec: '120/箱'
-  },
-  {
-    id: 3,
-    productId: 103,
-    name: '【SM】U型枕手腿铐虞姬(新品)',
-    image: 'https://via.placeholder.com/150x150',
-    price: '19.00',
-    boxSpec: '120/箱'
+// 收藏商品列表
+const favoritesList = ref<FavoriteVO[]>([])
+const total = ref(0)
+const currentPage = ref(1)
+const pageSize = ref(10)
+
+// 加载收藏列表
+const loadFavorites = async () => {
+  loading.value = true
+  try {
+    const response = await getFavoritePage(currentPage.value, pageSize.value)
+    favoritesList.value = response.records
+    total.value = response.total
+  } catch (error) {
+    console.error('加载收藏列表失败:', error)
+    ElMessage.error('加载收藏列表失败')
+    favoritesList.value = []
+  } finally {
+    loading.value = false
   }
-])
+}
 
 // 删除收藏
-const handleDelete = async (item: FavoriteItem) => {
+const handleDelete = async (item: FavoriteVO) => {
   try {
     await ElMessageBox.confirm(
-      `确定要删除商品"${item.name}"的收藏吗？`,
+      `确定要删除商品"${item.productName}"的收藏吗？`,
       '提示',
       {
         confirmButtonText: '确定',
@@ -153,36 +137,21 @@ const handleDelete = async (item: FavoriteItem) => {
       }
     )
     
-    // TODO: 调用删除收藏API
-    // await deleteFavorite(item.id)
-    
-    // 临时从列表中移除
-    const index = favoritesList.value.findIndex(f => f.id === item.id)
-    if (index > -1) {
-      favoritesList.value.splice(index, 1)
-      ElMessage.success('删除成功')
+    await removeFavorite(item.productId)
+    ElMessage.success('删除成功')
+    loadFavorites() // 重新加载列表
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除收藏失败:', error)
+      ElMessage.error('删除收藏失败')
     }
-  } catch {
-    // 用户取消删除
   }
 }
 
 // 加入购物车
-const handleAddToCart = (item: FavoriteItem) => {
+const handleAddToCart = (item: FavoriteVO) => {
   // TODO: 调用加入购物车API
   ElMessage.success('已加入购物车')
-}
-
-// 加载收藏列表
-const loadFavorites = async () => {
-  try {
-    // TODO: 调用获取收藏列表API
-    // const res = await getFavoritesList()
-    // favoritesList.value = res.data
-  } catch (error: any) {
-    console.error('加载收藏列表失败:', error)
-    ElMessage.error('加载收藏列表失败')
-  }
 }
 
 onMounted(() => {

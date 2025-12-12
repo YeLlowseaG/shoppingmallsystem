@@ -165,9 +165,12 @@
           </div>
 
           <!-- 收藏 -->
-          <div class="favorite-link">
-            <el-icon><Star /></el-icon>
-            加入收藏
+          <div class="favorite-link" @click="toggleFavorite">
+            <el-icon v-if="favoritLoading"><Loading /></el-icon>
+            <el-icon v-else>
+              <Star :class="{ favorited: isFavorited }" />
+            </el-icon>
+            {{ isFavorited ? '已收藏' : '加入收藏' }}
           </div>
         </div>
         </template>
@@ -298,6 +301,7 @@ import Footer from '@/components/home/Footer.vue'
 import { getProductById, type ProductVO } from '@/api/buyer/product'
 import { addToCart as addToCartAPI, type AddCartDTO } from '@/api/buyer/cart'
 import { submitConsultation as submitConsultationAPI, type ConsultationDTO } from '@/api/buyer/consultation'
+import { addFavorite, removeFavorite, checkFavorite } from '@/api/buyer/favorite'
 import { useCartStore } from '@/stores/cart'
 
 const route = useRoute()
@@ -349,6 +353,10 @@ const consultationRules: FormRules = {
 
 // 提交咨询状态
 const submittingConsultation = ref(false)
+
+// 收藏相关状态
+const isFavorited = ref(false)
+const favoritLoading = ref(false)
 
 // 评论表单
 const reviewForm = ref({
@@ -425,11 +433,13 @@ const loadProductDetail = async (productId: number) => {
 }
 
 // 初始化
-onMounted(() => {
+onMounted(async () => {
   // 根据路由参数加载商品数据
   const productId = route.params.id
   if (productId) {
-    loadProductDetail(Number(productId))
+    await loadProductDetail(Number(productId))
+    // 加载商品后检查收藏状态
+    await checkFavoriteStatus()
   } else {
     ElMessage.error('商品ID不存在')
     router.push('/')
@@ -525,6 +535,42 @@ const submitConsultation = async () => {
 // 提交评论
 const submitReview = () => {
   ElMessage.success('评论提交成功！')
+}
+
+// 检查收藏状态
+const checkFavoriteStatus = async () => {
+  if (!product.value.id) return
+  try {
+    isFavorited.value = await checkFavorite(product.value.id)
+  } catch (error) {
+    console.error('检查收藏状态失败:', error)
+  }
+}
+
+// 切换收藏状态
+const toggleFavorite = async () => {
+  if (!product.value.id) {
+    ElMessage.error('商品信息不存在')
+    return
+  }
+
+  favoritLoading.value = true
+  try {
+    if (isFavorited.value) {
+      await removeFavorite(product.value.id)
+      isFavorited.value = false
+      ElMessage.success('已取消收藏')
+    } else {
+      await addFavorite(product.value.id)
+      isFavorited.value = true
+      ElMessage.success('已加入收藏')
+    }
+  } catch (error) {
+    console.error('操作收藏失败:', error)
+    ElMessage.error('操作失败，请重试')
+  } finally {
+    favoritLoading.value = false
+  }
 }
 </script>
 
@@ -839,6 +885,10 @@ const submitReview = () => {
       transition: color 0.3s;
 
       &:hover {
+        color: #e4393c;
+      }
+
+      .favorited {
         color: #e4393c;
       }
     }
