@@ -31,8 +31,9 @@ public class ProductController {
             @RequestParam(defaultValue = "10") Long size,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String brand,
             @RequestParam(required = false) String status) {
-        Page<ProductVO> page = productService.getProductPage(current, size, categoryId, keyword, status);
+        Page<ProductVO> page = productService.getProductPage(current, size, categoryId, keyword, brand, status);
         return Result.success("获取成功", page);
     }
 

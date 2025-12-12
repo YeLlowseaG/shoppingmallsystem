@@ -30,9 +30,10 @@ public class ProductController {
             @RequestParam(defaultValue = "1") Long current,
             @RequestParam(defaultValue = "20") Long size,
             @RequestParam(required = false) Long categoryId,
-            @RequestParam(required = false) String keyword) {
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String brand) {
         // 买家端只查询已上架商品
-        Page<ProductVO> page = productService.getProductPage(current, size, categoryId, keyword, "上架");
+        Page<ProductVO> page = productService.getProductPage(current, size, categoryId, keyword, brand, "上架");
         return Result.success("获取成功", page);
     }
 

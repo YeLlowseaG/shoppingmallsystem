@@ -8,8 +8,10 @@ import com.shoppingmall.common.util.StringUtil;
 import com.shoppingmall.dto.ProductDTO;
 import com.shoppingmall.entity.Product;
 import com.shoppingmall.entity.ProductCategory;
+import com.shoppingmall.entity.Brand;
 import com.shoppingmall.repository.product.ProductCategoryRepository;
 import com.shoppingmall.repository.product.ProductRepository;
+import com.shoppingmall.repository.website.BrandRepository;
 import com.shoppingmall.service.product.ProductService;
 import com.shoppingmall.vo.ProductVO;
 import lombok.RequiredArgsConstructor;
@@ -34,10 +36,11 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final ProductCategoryRepository categoryRepository;
+    private final BrandRepository brandRepository;
     private final ObjectMapper objectMapper;
 
     @Override
-    public Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String status) {
+    public Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String brand, String status) {
         Page<Product> page = new Page<>(current, size);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
@@ -51,6 +54,20 @@ public class ProductServiceImpl implements ProductService {
         if (StringUtil.isNotBlank(keyword)) {
             wrapper.and(w -> w.like(Product::getProductName, keyword)
                     .or().like(Product::getProductCode, keyword));
+        }
+
+        // 品牌筛选
+        if (StringUtil.isNotBlank(brand)) {
+            // 先通过品牌名称查找品牌ID
+            LambdaQueryWrapper<Brand> brandWrapper = new LambdaQueryWrapper<>();
+            brandWrapper.eq(Brand::getBrandName, brand);
+            Brand brandEntity = brandRepository.selectOne(brandWrapper);
+            if (brandEntity != null) {
+                wrapper.eq(Product::getBrandId, brandEntity.getId());
+            } else {
+                // 如果品牌不存在，返回空结果
+                wrapper.eq(Product::getId, -1);
+            }
         }
 
         // 状态筛选

@@ -222,12 +222,14 @@ const loadProducts = async () => {
     // 调用后端 API
     const categoryId = filters.value.categoryId ? Number(filters.value.categoryId) : undefined
     const keyword = filters.value.keyword || undefined
+    const brand = filters.value.brand || undefined
 
     const response = await getProductPage(
       currentPage.value,
       pageSize.value,
       categoryId,
-      keyword
+      keyword,
+      brand
     )
 
     products.value = response.records
