@@ -11,6 +11,7 @@ export interface StockVO {
   productCode: string
   productName: string
   mainImage?: string
+  productStatus?: number // 商品状态（0-下架，1-上架）
   availableStock: number
   lockedStock: number
   totalStock: number

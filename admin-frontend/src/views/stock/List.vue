@@ -15,12 +15,6 @@
         <el-form-item label="商品名称">
           <el-input v-model="searchForm.productName" placeholder="请输入商品名称" clearable style="width: 200px" />
         </el-form-item>
-        <el-form-item label="预警筛选">
-          <el-select v-model="searchForm.onlyWarning" placeholder="请选择" clearable style="width: 150px">
-            <el-option label="全部" :value="undefined" />
-            <el-option label="仅预警" :value="true" />
-          </el-select>
-        </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="loadStockList">查询</el-button>
           <el-button @click="resetSearch">重置</el-button>
@@ -31,6 +25,13 @@
       <el-table :data="stockList" v-loading="loading" border>
         <el-table-column prop="productCode" label="商品编码" width="150" />
         <el-table-column prop="productName" label="商品名称" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="productStatus" label="商品状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.productStatus === 1 ? 'success' : 'info'">
+              {{ row.productStatus === 1 ? '上架' : '下架' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="mainImage" label="商品图片" width="100">
           <template #default="{ row }">
             <el-image
@@ -43,31 +44,16 @@
           </template>
         </el-table-column>
         <el-table-column prop="totalStock" label="总库存" width="100" align="right" />
-        <el-table-column prop="availableStock" label="可用库存" width="100" align="right">
-          <template #default="{ row }">
-            <span :class="{ 'warning-text': row.isWarning }">
-              {{ row.availableStock }}
-            </span>
-          </template>
-        </el-table-column>
+        <el-table-column prop="availableStock" label="可用库存" width="100" align="right" />
         <el-table-column prop="lockedStock" label="锁定库存" width="100" align="right" />
-        <el-table-column prop="warningThreshold" label="预警阈值" width="100" align="right" />
-        <el-table-column prop="isWarning" label="预警状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.isWarning ? 'danger' : 'success'">
-              {{ row.isWarning ? '预警' : '正常' }}
-            </el-tag>
-          </template>
-        </el-table-column>
         <el-table-column prop="updateTime" label="更新时间" width="180">
           <template #default="{ row }">
             {{ formatDateTime(row.updateTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="handleAdjust(row)">调整库存</el-button>
-            <el-button type="success" link @click="handleSetThreshold(row)">设置预警</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -114,6 +100,16 @@
           />
           <div class="form-tip">提示：正数表示增加库存，负数表示减少库存</div>
         </el-form-item>
+        <el-form-item label="修改后库存">
+          <el-input 
+            :value="newStockValue" 
+            disabled 
+            :class="{ 'warning-input': newStockValue < 0 }"
+          />
+          <div v-if="newStockValue < 0" class="form-tip error-tip">
+            警告：修改后库存不能为负数
+          </div>
+        </el-form-item>
         <el-form-item label="调整原因" prop="reason">
           <el-input
             v-model="adjustFormData.reason"
@@ -122,63 +118,22 @@
             placeholder="请输入调整原因（可选）"
           />
         </el-form-item>
-        <el-form-item label="预警阈值" prop="warningThreshold">
-          <el-input-number
-            v-model="adjustFormData.warningThreshold"
-            :min="0"
-            style="width: 100%"
-            placeholder="可选，用于更新预警阈值"
-          />
-        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="adjustDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="handleAdjustSubmit">确定</el-button>
       </template>
     </el-dialog>
-
-    <!-- 设置预警阈值对话框 -->
-    <el-dialog
-      v-model="thresholdDialogVisible"
-      title="设置预警阈值"
-      width="400px"
-    >
-      <el-form
-        ref="thresholdFormRef"
-        :model="thresholdFormData"
-        :rules="thresholdFormRules"
-        label-width="120px"
-      >
-        <el-form-item label="商品名称">
-          <el-input v-model="thresholdFormData.productName" disabled />
-        </el-form-item>
-        <el-form-item label="当前可用库存">
-          <el-input v-model="thresholdFormData.currentAvailableStock" disabled />
-        </el-form-item>
-        <el-form-item label="预警阈值" prop="warningThreshold">
-          <el-input-number
-            v-model="thresholdFormData.warningThreshold"
-            :min="0"
-            style="width: 100%"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="thresholdDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleThresholdSubmit">确定</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { formatDateTime } from '@/utils'
 import {
   getStockPage,
   adjustStock,
-  updateWarningThreshold,
   type StockVO,
   type StockDTO
 } from '@/api/admin/stock'
@@ -187,8 +142,7 @@ const loading = ref(false)
 const stockList = ref<StockVO[]>([])
 const searchForm = ref({
   productCode: '',
-  productName: '',
-  onlyWarning: undefined as boolean | undefined
+  productName: ''
 })
 const pagination = ref({
   current: 1,
@@ -204,30 +158,18 @@ const adjustFormData = ref<StockDTO & { productName: string; currentStock: numbe
   productName: '',
   currentStock: 0,
   adjustQuantity: 0,
-  reason: '',
-  warningThreshold: undefined
+  reason: ''
 })
 const adjustFormRules = {
   adjustQuantity: [{ required: true, message: '请输入调整数量', trigger: 'blur' }]
 }
 
-// 设置预警阈值对话框
-const thresholdDialogVisible = ref(false)
-const thresholdFormRef = ref()
-const thresholdFormData = ref<{
-  productId: number
-  productName: string
-  currentAvailableStock: number
-  warningThreshold: number
-}>({
-  productId: 0,
-  productName: '',
-  currentAvailableStock: 0,
-  warningThreshold: 10
+// 计算修改后的库存值
+const newStockValue = computed(() => {
+  const current = adjustFormData.value.currentStock || 0
+  const adjust = adjustFormData.value.adjustQuantity || 0
+  return current + adjust
 })
-const thresholdFormRules = {
-  warningThreshold: [{ required: true, message: '请输入预警阈值', trigger: 'blur' }]
-}
 
 // 加载库存列表
 const loadStockList = async () => {
@@ -238,8 +180,7 @@ const loadStockList = async () => {
       pagination.value.size,
       undefined,
       searchForm.value.productCode || undefined,
-      searchForm.value.productName || undefined,
-      searchForm.value.onlyWarning
+      searchForm.value.productName || undefined
     )
     stockList.value = response.records || []
     pagination.value.total = response.total || 0
@@ -254,8 +195,7 @@ const loadStockList = async () => {
 const resetSearch = () => {
   searchForm.value = {
     productCode: '',
-    productName: '',
-    onlyWarning: undefined
+    productName: ''
   }
   pagination.value.current = 1
   loadStockList()
@@ -268,8 +208,7 @@ const handleAdjust = (row: StockVO) => {
     productName: row.productName,
     currentStock: row.totalStock,
     adjustQuantity: 0,
-    reason: '',
-    warningThreshold: row.warningThreshold
+    reason: ''
   }
   adjustDialogVisible.value = true
 }
@@ -281,11 +220,16 @@ const handleAdjustSubmit = async () => {
   try {
     await adjustFormRef.value.validate()
     
+    // 检查修改后库存是否为负数
+    if (newStockValue.value < 0) {
+      ElMessage.error('调整后库存不能为负数')
+      return
+    }
+    
     const stockDTO: StockDTO = {
       productId: adjustFormData.value.productId,
       adjustQuantity: adjustFormData.value.adjustQuantity,
-      reason: adjustFormData.value.reason || undefined,
-      warningThreshold: adjustFormData.value.warningThreshold || undefined
+      reason: adjustFormData.value.reason || undefined
     }
     
     await adjustStock(stockDTO)
@@ -306,42 +250,9 @@ const resetAdjustForm = () => {
     productName: '',
     currentStock: 0,
     adjustQuantity: 0,
-    reason: '',
-    warningThreshold: undefined
+    reason: ''
   }
   adjustFormRef.value?.clearValidate()
-}
-
-// 设置预警阈值
-const handleSetThreshold = (row: StockVO) => {
-  thresholdFormData.value = {
-    productId: row.productId,
-    productName: row.productName,
-    currentAvailableStock: row.availableStock,
-    warningThreshold: row.warningThreshold
-  }
-  thresholdDialogVisible.value = true
-}
-
-// 提交预警阈值设置
-const handleThresholdSubmit = async () => {
-  if (!thresholdFormRef.value) return
-  
-  try {
-    await thresholdFormRef.value.validate()
-    
-    await updateWarningThreshold(
-      thresholdFormData.value.productId,
-      thresholdFormData.value.warningThreshold
-    )
-    ElMessage.success('预警阈值设置成功')
-    thresholdDialogVisible.value = false
-    loadStockList()
-  } catch (error: any) {
-    if (error !== false) {
-      ElMessage.error(error.message || '预警阈值设置失败')
-    }
-  }
 }
 
 // 初始化
@@ -369,15 +280,22 @@ onMounted(() => {
     justify-content: flex-end;
   }
 
-  .warning-text {
-    color: #f56c6c;
-    font-weight: bold;
-  }
-
   .form-tip {
     margin-top: 5px;
     font-size: 12px;
     color: #909399;
+  }
+
+  .error-tip {
+    color: #f56c6c;
+    font-weight: bold;
+  }
+
+  .warning-input {
+    :deep(.el-input__inner) {
+      color: #f56c6c;
+      font-weight: bold;
+    }
   }
 }
 </style>

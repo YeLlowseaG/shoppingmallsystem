@@ -55,6 +55,23 @@ service.interceptors.request.use(
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
     }
+    
+    // 禁用GET请求的浏览器缓存，确保获取最新数据
+    if (config.method?.toLowerCase() === 'get') {
+      // 添加时间戳参数，防止缓存
+      if (!config.params) {
+        config.params = {}
+      }
+      config.params._t = Date.now()
+      
+      // 设置请求头，禁用缓存
+      if (config.headers) {
+        config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        config.headers['Pragma'] = 'no-cache'
+        config.headers['Expires'] = '0'
+      }
+    }
+    
     return config
   },
   (error) => {

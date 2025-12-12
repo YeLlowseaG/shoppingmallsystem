@@ -11,12 +11,16 @@ import com.shoppingmall.common.exception.BusinessException;
 import com.shoppingmall.dto.CreateOrderDTO;
 import com.shoppingmall.dto.OrderQueryDTO;
 import com.shoppingmall.dto.ShippingAddressDTO;
+import com.shoppingmall.common.constant.UserLevel;
 import com.shoppingmall.entity.*;
 import com.shoppingmall.repository.cart.CartRepository;
 import com.shoppingmall.repository.order.OrderItemRepository;
 import com.shoppingmall.repository.order.OrderLogisticsRepository;
 import com.shoppingmall.repository.order.OrderRepository;
+import com.shoppingmall.repository.product.ProductPriceRepository;
+import com.shoppingmall.repository.product.ProductRepository;
 import com.shoppingmall.repository.user.UserAddressRepository;
+import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.service.buyer.OrderService;
 import com.shoppingmall.vo.OrderDetailVO;
 import com.shoppingmall.vo.OrderListVO;
@@ -48,6 +52,9 @@ public class OrderServiceImpl implements OrderService {
     private final OrderLogisticsRepository orderLogisticsRepository;
     private final UserAddressRepository userAddressRepository;
     private final CartRepository cartRepository;
+    private final ProductRepository productRepository;
+    private final ProductPriceRepository productPriceRepository;
+    private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -85,11 +92,63 @@ public class OrderServiceImpl implements OrderService {
             throw new BusinessException(400, "订单商品不能为空");
         }
 
-        // 3. 验证库存和计算价格（TODO: 需要实现商品查询和价格计算）
-        // 4. 生成订单号
+        // 3. 查询用户等级
+        User user = userRepository.selectById(userId);
+        Integer userLevel = (user != null && user.getUserLevel() != null) ? user.getUserLevel() : UserLevel.NORMAL;
+        String userLevelName = convertUserLevelToString(userLevel);
+
+        // 4. 验证库存和计算价格
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        List<OrderItem> orderItemList = new ArrayList<>();
+        
+        for (CreateOrderDTO.OrderItemDTO itemDTO : orderItems) {
+            // 查询商品信息
+            Product product = productRepository.selectById(itemDTO.getProductId());
+            if (product == null) {
+                throw new BusinessException(404, "商品不存在: productId=" + itemDTO.getProductId());
+            }
+            if (product.getStatus() == null || product.getStatus() != 1) {
+                throw new BusinessException(400, "商品已下架: " + product.getProductName());
+            }
+            
+            // 验证库存
+            if (product.getStock() == null || product.getStock() < itemDTO.getQuantity()) {
+                throw new BusinessException(400, "商品库存不足: " + product.getProductName());
+            }
+            
+            // 查询价格（根据用户等级）
+            BigDecimal salesPrice = product.getSalePrice() != null ? product.getSalePrice() : product.getBasePrice();
+            BigDecimal memberPrice = getPriceByUserLevel(itemDTO.getProductId(), userLevelName, itemDTO.getQuantity());
+            if (memberPrice == null) {
+                memberPrice = salesPrice != null ? salesPrice : product.getBasePrice();
+            }
+            if (memberPrice == null) {
+                throw new BusinessException(400, "商品价格未设置: " + product.getProductName());
+            }
+            
+            // 使用会员价计算订单金额
+            BigDecimal itemSubtotal = memberPrice.multiply(BigDecimal.valueOf(itemDTO.getQuantity()));
+            totalAmount = totalAmount.add(itemSubtotal);
+            
+            // 创建订单商品快照
+            OrderItem orderItem = new OrderItem();
+            orderItem.setProductId(itemDTO.getProductId());
+            orderItem.setQuantity(itemDTO.getQuantity());
+            orderItem.setProductName(product.getProductName());
+            orderItem.setProductCode(product.getProductCode());
+            orderItem.setProductImage(product.getMainImage() != null && !product.getMainImage().trim().isEmpty() 
+                ? product.getMainImage() : "");
+            orderItem.setPrice(memberPrice);
+            orderItem.setSubtotal(itemSubtotal);
+            orderItem.setWeight(product.getWeight() != null ? BigDecimal.valueOf(product.getWeight()) : BigDecimal.ZERO);
+            
+            orderItemList.add(orderItem);
+        }
+
+        // 5. 生成订单号
         String orderNo = generateOrderNo();
 
-        // 5. 创建订单
+        // 6. 创建订单
         Order order = new Order();
         order.setOrderNo(orderNo);
         order.setUserId(userId);
@@ -100,22 +159,13 @@ public class OrderServiceImpl implements OrderService {
         order.setDeliveryTime(createOrderDTO.getDeliveryTime());
         order.setOrderRemark(createOrderDTO.getOrderRemark());
 
-        // 构建收货地址JSON（TODO: 需要序列化为JSON）
+        // 构建收货地址JSON
         String shippingAddressJson = buildShippingAddressJson(address);
         order.setShippingAddress(shippingAddressJson);
 
-        // 计算订单金额（TODO: 需要实现价格计算逻辑）
-        BigDecimal totalAmount = BigDecimal.ZERO;
-        BigDecimal shippingFee = BigDecimal.ZERO;
-        BigDecimal tax = BigDecimal.ZERO;
-        
-        // 临时计算，后续需要完善
-        for (CreateOrderDTO.OrderItemDTO item : orderItems) {
-            // TODO: 查询商品价格并计算
-            BigDecimal itemPrice = BigDecimal.valueOf(100); // 临时价格
-            totalAmount = totalAmount.add(itemPrice.multiply(BigDecimal.valueOf(item.getQuantity())));
-        }
-
+        // 设置订单金额
+        BigDecimal shippingFee = BigDecimal.ZERO; // 运费暂时为0，后续根据配送方式计算
+        BigDecimal tax = BigDecimal.ZERO; // 税金为0
         order.setTotalAmount(totalAmount);
         order.setShippingFee(shippingFee);
         order.setTax(tax);
@@ -123,21 +173,9 @@ public class OrderServiceImpl implements OrderService {
 
         orderRepository.insert(order);
 
-        // 6. 创建订单商品
-        for (CreateOrderDTO.OrderItemDTO itemDTO : orderItems) {
-            OrderItem orderItem = new OrderItem();
+        // 7. 创建订单商品
+        for (OrderItem orderItem : orderItemList) {
             orderItem.setOrderId(order.getId());
-            orderItem.setProductId(itemDTO.getProductId());
-            orderItem.setQuantity(itemDTO.getQuantity());
-
-            // TODO: 查询商品信息并设置快照
-            orderItem.setProductName("商品名称（待实现）");
-            orderItem.setProductImage("https://via.placeholder.com/80x80?text=Product");
-            orderItem.setProductCode("TEMP_" + itemDTO.getProductId());
-            orderItem.setPrice(BigDecimal.valueOf(100)); // 临时价格
-            orderItem.setSubtotal(orderItem.getPrice().multiply(BigDecimal.valueOf(itemDTO.getQuantity())));
-            orderItem.setWeight(BigDecimal.ZERO); // TODO: 查询商品重量
-
             orderItemRepository.insert(orderItem);
         }
 
@@ -492,6 +530,55 @@ public class OrderServiceImpl implements OrderService {
                 return "线下支付";
             default:
                 return paymentMethod;
+        }
+    }
+
+    /**
+     * 根据用户等级获取价格
+     * 
+     * @param productId 商品ID
+     * @param userLevelName 用户等级名称（普通/VIP/金牌）
+     * @param quantity 数量（用于阶梯价格）
+     * @return 价格
+     */
+    private BigDecimal getPriceByUserLevel(Long productId, String userLevelName, Integer quantity) {
+        LambdaQueryWrapper<ProductPrice> priceWrapper = new LambdaQueryWrapper<>();
+        priceWrapper.eq(ProductPrice::getProductId, productId);
+        priceWrapper.eq(ProductPrice::getUserLevel, userLevelName);
+        
+        // 如果有数量，查询符合数量范围的阶梯价格
+        if (quantity != null && quantity > 0) {
+            priceWrapper.le(ProductPrice::getMinQuantity, quantity);
+            priceWrapper.and(w -> w.isNull(ProductPrice::getMaxQuantity)
+                    .or().ge(ProductPrice::getMaxQuantity, quantity));
+        }
+        
+        priceWrapper.orderByDesc(ProductPrice::getMinQuantity); // 按最小数量降序，优先匹配高阶梯价格
+        priceWrapper.last("LIMIT 1");
+        
+        ProductPrice productPrice = productPriceRepository.selectOne(priceWrapper);
+        return productPrice != null ? productPrice.getPrice() : null;
+    }
+
+    /**
+     * 将用户等级数字转换为字符串
+     * 
+     * @param userLevel 用户等级（0-普通，1-VIP，2-金牌）
+     * @return 用户等级名称
+     */
+    private String convertUserLevelToString(Integer userLevel) {
+        if (userLevel == null) {
+            return "普通";
+        }
+        switch (userLevel) {
+            case 0:
+                return "普通";
+            case 1:
+                return "VIP";
+            case 2:
+                return "金牌";
+            default:
+                return "普通";
         }
     }
 

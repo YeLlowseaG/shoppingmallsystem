@@ -45,8 +45,13 @@ export const getRoleById = (id: number): Promise<RoleVO> => {
  * 新增角色
  */
 export const addRole = (data: RoleVO, menuIds?: number[]): Promise<void> => {
+  // 确保 menuIds 参数正确传递，即使是空数组也要传递
+  const params: any = {}
+  if (menuIds !== undefined) {
+    params.menuIds = menuIds
+  }
   return request.post('/api/admin/role', data, {
-    params: { menuIds }
+    params
   })
 }
 
@@ -54,8 +59,13 @@ export const addRole = (data: RoleVO, menuIds?: number[]): Promise<void> => {
  * 更新角色
  */
 export const updateRole = (id: number, data: RoleVO, menuIds?: number[]): Promise<void> => {
+  // 确保 menuIds 参数正确传递，即使是空数组也要传递
+  const params: any = {}
+  if (menuIds !== undefined) {
+    params.menuIds = menuIds
+  }
   return request.put(`/api/admin/role/${id}`, data, {
-    params: { menuIds }
+    params
   })
 }
 

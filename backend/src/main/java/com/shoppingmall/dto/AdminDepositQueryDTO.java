@@ -72,3 +72,4 @@ public class AdminDepositQueryDTO {
     private String endDate;
 }
 
+

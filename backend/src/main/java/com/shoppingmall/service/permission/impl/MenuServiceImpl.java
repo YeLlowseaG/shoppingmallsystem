@@ -1,6 +1,7 @@
 package com.shoppingmall.service.permission.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.shoppingmall.common.exception.BusinessException;
 import com.shoppingmall.entity.Menu;
 import com.shoppingmall.entity.RoleMenu;
@@ -129,9 +130,12 @@ public class MenuServiceImpl implements MenuService {
             throw new BusinessException("该菜单已被角色使用，无法删除");
         }
 
-        // 逻辑删除
-        menu.setDeleted(1);
-        menuRepository.updateById(menu);
+        // 逻辑删除：使用 UpdateWrapper 显式更新 deleted 字段
+        // 注意：使用 @TableLogic 时，updateById 可能不会更新 deleted 字段，需要使用 UpdateWrapper
+        LambdaUpdateWrapper<Menu> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(Menu::getId, id)
+                .set(Menu::getDeleted, 1);
+        menuRepository.update(updateWrapper);
     }
 
     @Override

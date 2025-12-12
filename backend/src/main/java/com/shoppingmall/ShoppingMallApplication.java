@@ -16,7 +16,9 @@ import java.net.InetAddress;
  * @date 2025-12-04
  */
 @Slf4j
-@SpringBootApplication
+@SpringBootApplication(exclude = {
+    org.springframework.boot.autoconfigure.h2.H2ConsoleAutoConfiguration.class
+})
 @EnableScheduling // 启用定时任务
 public class ShoppingMallApplication implements CommandLineRunner {
 

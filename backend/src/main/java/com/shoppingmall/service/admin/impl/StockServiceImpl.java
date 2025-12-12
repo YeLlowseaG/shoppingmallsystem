@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -38,62 +39,86 @@ public class StockServiceImpl implements StockService {
 
     @Override
     public Page<StockVO> getStockPage(Long current, Long size, StockQueryDTO queryDTO) {
-        // 如果提供了商品编码或名称，先查询商品ID列表
-        List<Long> productIds = null;
-        if (StringUtil.isNotBlank(queryDTO.getProductCode()) || StringUtil.isNotBlank(queryDTO.getProductName())) {
-            LambdaQueryWrapper<Product> productWrapper = new LambdaQueryWrapper<>();
-            if (StringUtil.isNotBlank(queryDTO.getProductCode())) {
-                productWrapper.like(Product::getProductCode, queryDTO.getProductCode());
-            }
-            if (StringUtil.isNotBlank(queryDTO.getProductName())) {
-                productWrapper.like(Product::getProductName, queryDTO.getProductName());
-            }
-            List<Product> products = productRepository.selectList(productWrapper);
-            productIds = products.stream().map(Product::getId).collect(Collectors.toList());
-            
-            // 如果没有找到匹配的商品，返回空结果
-            if (productIds.isEmpty()) {
-                Page<StockVO> emptyPage = new Page<>();
-                emptyPage.setCurrent(current);
-                emptyPage.setSize(size);
-                emptyPage.setTotal(0);
-                emptyPage.setRecords(new ArrayList<>());
-                return emptyPage;
-            }
+        // 从商品表查询所有商品（包括所有状态）
+        LambdaQueryWrapper<Product> productWrapper = new LambdaQueryWrapper<>();
+        
+        // 商品编码筛选
+        if (StringUtil.isNotBlank(queryDTO.getProductCode())) {
+            productWrapper.like(Product::getProductCode, queryDTO.getProductCode());
         }
-
-        Page<ProductStock> page = new Page<>(current, size);
-
-        LambdaQueryWrapper<ProductStock> wrapper = new LambdaQueryWrapper<>();
-
+        
+        // 商品名称筛选
+        if (StringUtil.isNotBlank(queryDTO.getProductName())) {
+            productWrapper.like(Product::getProductName, queryDTO.getProductName());
+        }
+        
         // 商品ID筛选
         if (queryDTO.getProductId() != null) {
-            wrapper.eq(ProductStock::getProductId, queryDTO.getProductId());
-        } else if (productIds != null && !productIds.isEmpty()) {
-            // 使用商品ID列表筛选
-            wrapper.in(ProductStock::getProductId, productIds);
+            productWrapper.eq(Product::getId, queryDTO.getProductId());
         }
-
-        // 预警筛选
-        if (Boolean.TRUE.equals(queryDTO.getOnlyWarning())) {
-            // 查询可用库存 <= 预警阈值的商品
-            wrapper.apply("available_stock <= warning_threshold");
-        }
-
+        
+        // 不筛选状态，查询所有状态的商品
         // 按更新时间倒序
-        wrapper.orderByDesc(ProductStock::getUpdateTime);
-
-        Page<ProductStock> stockPage = stockRepository.selectPage(page, wrapper);
-
-        // 转换为VO并填充商品信息
+        productWrapper.orderByDesc(Product::getUpdateTime);
+        
+        // 分页查询商品
+        Page<Product> productPage = new Page<>(current, size);
+        Page<Product> products = productRepository.selectPage(productPage, productWrapper);
+        
+        if (products.getRecords().isEmpty()) {
+            Page<StockVO> emptyPage = new Page<>();
+            emptyPage.setCurrent(current);
+            emptyPage.setSize(size);
+            emptyPage.setTotal(0);
+            emptyPage.setRecords(new ArrayList<>());
+            return emptyPage;
+        }
+        
+        // 获取商品ID列表
+        List<Long> productIds = products.getRecords().stream()
+                .map(Product::getId)
+                .collect(Collectors.toList());
+        
+        // 批量查询库存信息
+        LambdaQueryWrapper<ProductStock> stockWrapper = new LambdaQueryWrapper<>();
+        stockWrapper.in(ProductStock::getProductId, productIds);
+        List<ProductStock> stocks = stockRepository.selectList(stockWrapper);
+        
+        // 创建库存Map，方便查找
+        Map<Long, ProductStock> stockMap = stocks.stream()
+                .collect(Collectors.toMap(ProductStock::getProductId, stock -> stock));
+        
+        // 预警筛选（如果启用）
+        List<Product> filteredProducts = products.getRecords();
+        if (Boolean.TRUE.equals(queryDTO.getOnlyWarning())) {
+            filteredProducts = products.getRecords().stream()
+                    .filter(product -> {
+                        ProductStock stock = stockMap.get(product.getId());
+                        if (stock == null) {
+                            return false; // 没有库存记录的商品不预警
+                        }
+                        Integer available = stock.getAvailableStock();
+                        Integer threshold = stock.getWarningThreshold();
+                        return available != null && threshold != null && available <= threshold;
+                    })
+                    .collect(Collectors.toList());
+        }
+        
+        // 转换为VO
+        List<StockVO> voList = filteredProducts.stream()
+                .map(product -> {
+                    ProductStock stock = stockMap.get(product.getId());
+                    return convertToVO(product, stock);
+                })
+                .collect(Collectors.toList());
+        
+        // 构建分页结果
         Page<StockVO> voPage = new Page<>();
-        voPage.setCurrent(stockPage.getCurrent());
-        voPage.setSize(stockPage.getSize());
-        voPage.setTotal(stockPage.getTotal());
-        voPage.setRecords(stockPage.getRecords().stream()
-                .map(this::convertToVO)
-                .collect(Collectors.toList()));
-
+        voPage.setCurrent(products.getCurrent());
+        voPage.setSize(products.getSize());
+        voPage.setTotal(products.getTotal());
+        voPage.setRecords(voList);
+        
         return voPage;
     }
 
@@ -148,6 +173,9 @@ public class StockServiceImpl implements StockService {
         } else {
             stockRepository.updateById(stock);
         }
+
+        // 同步更新 product 表的 stock 字段
+        syncProductStock(stockDTO.getProductId(), newTotalStock);
 
         log.info("库存调整成功，商品ID: {}, 调整数量: {}, 原因: {}", 
                 stockDTO.getProductId(), stockDTO.getAdjustQuantity(), stockDTO.getReason());
@@ -228,7 +256,49 @@ public class StockServiceImpl implements StockService {
     }
 
     /**
-     * 转换为VO
+     * 转换为VO（支持商品和库存信息）
+     */
+    private StockVO convertToVO(Product product, ProductStock stock) {
+        StockVO vo = new StockVO();
+        
+        // 设置商品信息
+        vo.setProductId(product.getId());
+        vo.setProductCode(product.getProductCode());
+        vo.setProductName(product.getProductName());
+        vo.setMainImage(product.getMainImage());
+        vo.setProductStatus(product.getStatus());
+        
+        // 设置库存信息（如果存在）
+        if (stock != null) {
+            vo.setId(stock.getId());
+            vo.setAvailableStock(stock.getAvailableStock() != null ? stock.getAvailableStock() : 0);
+            vo.setLockedStock(stock.getLockedStock() != null ? stock.getLockedStock() : 0);
+            vo.setTotalStock(stock.getTotalStock() != null ? stock.getTotalStock() : 0);
+            vo.setWarningThreshold(stock.getWarningThreshold() != null ? stock.getWarningThreshold() : 10);
+            vo.setUpdateTime(stock.getUpdateTime());
+            
+            // 判断是否预警
+            if (stock.getAvailableStock() != null && stock.getWarningThreshold() != null) {
+                vo.setIsWarning(stock.getAvailableStock() <= stock.getWarningThreshold());
+            } else {
+                vo.setIsWarning(false);
+            }
+        } else {
+            // 没有库存记录，使用默认值
+            vo.setId(null);
+            vo.setAvailableStock(0);
+            vo.setLockedStock(0);
+            vo.setTotalStock(0);
+            vo.setWarningThreshold(10);
+            vo.setUpdateTime(product.getUpdateTime());
+            vo.setIsWarning(false);
+        }
+        
+        return vo;
+    }
+
+    /**
+     * 转换为VO（兼容旧方法）
      */
     private StockVO convertToVO(ProductStock stock) {
         StockVO vo = new StockVO();
@@ -253,9 +323,31 @@ public class StockServiceImpl implements StockService {
             vo.setProductCode(product.getProductCode());
             vo.setProductName(product.getProductName());
             vo.setMainImage(product.getMainImage());
+            vo.setProductStatus(product.getStatus());
         }
 
         return vo;
+    }
+
+    /**
+     * 同步 product 表的库存字段
+     * 以 product_stock.total_stock 为权威数据源，同步更新 product.stock
+     * 
+     * @param productId 商品ID
+     * @param totalStock 总库存
+     */
+    private void syncProductStock(Long productId, Integer totalStock) {
+        try {
+            Product product = productRepository.selectById(productId);
+            if (product != null) {
+                product.setStock(totalStock);
+                productRepository.updateById(product);
+                log.debug("同步商品库存成功，商品ID: {}, 库存: {}", productId, totalStock);
+            }
+        } catch (Exception e) {
+            log.error("同步商品库存失败，商品ID: {}, 库存: {}", productId, totalStock, e);
+            // 不抛出异常，避免影响主业务流程
+        }
     }
 }
 

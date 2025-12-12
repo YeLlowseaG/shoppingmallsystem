@@ -42,3 +42,4 @@ public class StockStatisticsVO {
     private Long outOfStockCount;
 }
 
+
