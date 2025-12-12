@@ -161,18 +161,11 @@
             </div>
           </div>
         </el-form-item>
-        <el-form-item label="链接类型" prop="linkType">
-          <el-select v-model="formData.linkType" placeholder="请选择链接类型" style="width: 100%">
-            <el-option label="无链接" :value="0" />
-            <el-option label="商品分类" :value="1" />
-            <el-option label="商品详情" :value="2" />
-            <el-option label="促销活动" :value="3" />
-            <el-option label="外部链接" :value="4" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="链接值" prop="linkValue" v-if="formData.linkType > 0">
-          <el-input v-model="formData.linkValue" placeholder="根据链接类型填写对应的值" />
-        </el-form-item>
+        <!-- 使用通用链接选择器组件 -->
+        <LinkSelector
+          v-model:model-link-type="formData.linkType"
+          v-model:model-link-value="formData.linkValue"
+        />
         <el-form-item label="排序" prop="sortOrder">
           <el-input-number v-model="formData.sortOrder" :min="0" />
         </el-form-item>
@@ -219,6 +212,7 @@ import {
   updateAdvertisementStatus,
   type Advertisement
 } from '@/api/admin/website'
+import LinkSelector from '@/components/common/LinkSelector.vue'
 
 // 搜索表单
 const searchForm = ref({
