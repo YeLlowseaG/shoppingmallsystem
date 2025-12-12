@@ -61,6 +61,21 @@ public class ProductVO {
     private BigDecimal basePrice;
 
     /**
+     * 销售价格
+     */
+    private BigDecimal salePrice;
+
+    /**
+     * 市场价格
+     */
+    private BigDecimal marketPrice;
+
+    /**
+     * 成本价格
+     */
+    private BigDecimal costPrice;
+
+    /**
      * 用户等级价格（根据当前登录用户的等级）
      */
     private BigDecimal userLevelPrice;
@@ -69,6 +84,16 @@ public class ProductVO {
      * 库存数量
      */
     private Integer stock;
+
+    /**
+     * 警戒库存
+     */
+    private Integer warningStock;
+
+    /**
+     * 商品重量(g)
+     */
+    private BigDecimal weight;
 
     /**
      * 销量
