@@ -21,10 +21,11 @@ public interface ProductService {
      * @param size 每页大小
      * @param categoryId 分类ID（可选）
      * @param keyword 关键词（可选）
+     * @param brand 品牌名称（可选）
      * @param status 状态（可选）
      * @return 商品分页列表
      */
-    Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String status);
+    Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String brand, String status);
 
     /**
      * 根据ID获取商品详情
