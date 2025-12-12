@@ -121,12 +121,76 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="商品价格" prop="basePrice">
-          <el-input-number v-model="formData.basePrice" :min="0" :precision="2" :step="0.1" />
-        </el-form-item>
-        <el-form-item label="库存数量" prop="stock">
-          <el-input-number v-model="formData.stock" :min="0" />
-        </el-form-item>
+
+        <!-- 价格与库存 -->
+        <el-divider content-position="left">价格与库存</el-divider>
+
+        <div class="price-stock-grid">
+          <el-form-item label="销售价格" prop="basePrice" required>
+            <el-input-number
+              v-model="formData.basePrice"
+              :min="0"
+              :precision="2"
+              :step="0.01"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </el-form-item>
+
+          <el-form-item label="市场价格" prop="marketPrice">
+            <el-input-number
+              v-model="formData.marketPrice"
+              :min="0"
+              :precision="2"
+              :step="0.01"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </el-form-item>
+
+          <el-form-item label="成本价格" prop="costPrice">
+            <el-input-number
+              v-model="formData.costPrice"
+              :min="0"
+              :precision="2"
+              :step="0.01"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </el-form-item>
+
+          <el-form-item label="商品库存" prop="stock" required>
+            <el-input-number
+              v-model="formData.stock"
+              :min="0"
+              :step="1"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </el-form-item>
+
+          <el-form-item label="警戒库存" prop="warningStock">
+            <el-input-number
+              v-model="formData.warningStock"
+              :min="0"
+              :step="1"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </el-form-item>
+
+          <el-form-item label="商品重量(g)" prop="weight">
+            <el-input-number
+              v-model="formData.weight"
+              :min="0"
+              :precision="2"
+              :step="0.01"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </div>
+
         <el-form-item label="主图" prop="mainImage">
           <div class="upload-wrapper">
             <!-- 主图预览 -->
@@ -279,7 +343,11 @@ const formData = ref<ProductDTO>({
   productName: '',
   categoryId: 0,
   basePrice: 0,
+  marketPrice: 0,
+  costPrice: 0,
   stock: 0,
+  warningStock: 10,
+  weight: 0,
   mainImage: '',
   images: '',
   description: '',
@@ -404,7 +472,11 @@ const handleEdit = (row: ProductVO) => {
     productName: row.productName,
     categoryId: row.categoryId,
     basePrice: row.basePrice,
+    marketPrice: row.marketPrice || 0,
+    costPrice: row.costPrice || 0,
     stock: row.stock,
+    warningStock: row.warningStock || 10,
+    weight: row.weight || 0,
     mainImage: row.mainImage,
     images: JSON.stringify(row.imageList),
     description: row.description,
@@ -500,6 +572,17 @@ onMounted(() => {
 
   .search-form {
     margin-bottom: 20px;
+  }
+}
+
+.price-stock-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0 20px;
+  margin-bottom: 20px;
+
+  :deep(.el-form-item) {
+    margin-bottom: 18px;
   }
 }
 

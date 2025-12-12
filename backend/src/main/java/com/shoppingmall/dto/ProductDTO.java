@@ -55,11 +55,21 @@ public class ProductDTO {
     private String description;
 
     /**
-     * 基础批发价
+     * 基础批发价（销售价格）
      */
     @NotNull(message = "价格不能为空")
     @DecimalMin(value = "0.01", message = "价格必须大于0")
     private BigDecimal basePrice;
+
+    /**
+     * 市场价格
+     */
+    private BigDecimal marketPrice;
+
+    /**
+     * 成本价格
+     */
+    private BigDecimal costPrice;
 
     /**
      * 库存数量
@@ -67,6 +77,16 @@ public class ProductDTO {
     @NotNull(message = "库存不能为空")
     @Min(value = 0, message = "库存不能为负数")
     private Integer stock;
+
+    /**
+     * 警戒库存
+     */
+    private Integer warningStock;
+
+    /**
+     * 商品重量(g)
+     */
+    private BigDecimal weight;
 
     /**
      * 状态（上架/下架）

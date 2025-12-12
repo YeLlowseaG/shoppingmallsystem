@@ -31,18 +31,74 @@
           <el-input v-model="productForm.productCode" placeholder="请输入商品编码" />
         </el-form-item>
 
-        <el-form-item label="基础价格" prop="basePrice">
-          <el-input-number
-            v-model="productForm.basePrice"
-            :min="0"
-            :precision="2"
-            :step="0.01"
-          />
-        </el-form-item>
+        <!-- 价格与库存 -->
+        <el-divider content-position="left">价格与库存</el-divider>
 
-        <el-form-item label="库存数量" prop="stock">
-          <el-input-number v-model="productForm.stock" :min="0" />
-        </el-form-item>
+        <div class="price-stock-grid">
+          <el-form-item label="销售价格" prop="basePrice" required>
+            <el-input-number
+              v-model="productForm.basePrice"
+              :min="0"
+              :precision="2"
+              :step="0.01"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </el-form-item>
+
+          <el-form-item label="市场价格" prop="marketPrice">
+            <el-input-number
+              v-model="productForm.marketPrice"
+              :min="0"
+              :precision="2"
+              :step="0.01"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </el-form-item>
+
+          <el-form-item label="成本价格" prop="costPrice">
+            <el-input-number
+              v-model="productForm.costPrice"
+              :min="0"
+              :precision="2"
+              :step="0.01"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </el-form-item>
+
+          <el-form-item label="商品库存" prop="stock" required>
+            <el-input-number
+              v-model="productForm.stock"
+              :min="0"
+              :step="1"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </el-form-item>
+
+          <el-form-item label="警戒库存" prop="warningStock">
+            <el-input-number
+              v-model="productForm.warningStock"
+              :min="0"
+              :step="1"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </el-form-item>
+
+          <el-form-item label="商品重量(g)" prop="weight">
+            <el-input-number
+              v-model="productForm.weight"
+              :min="0"
+              :precision="2"
+              :step="0.01"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </div>
 
         <el-form-item label="主图" prop="mainImage">
           <div class="upload-wrapper">
@@ -153,7 +209,11 @@ const productForm = ref({
   categoryId: null as any,
   productCode: '',
   basePrice: 0,
+  marketPrice: 0,
+  costPrice: 0,
   stock: 0,
+  warningStock: 10,
+  weight: 0,
   description: '',
   mainImage: '',
   status: '下架'
@@ -257,7 +317,11 @@ const handleSubmit = async () => {
           categoryId: categoryId,
           productCode: productForm.value.productCode,
           basePrice: productForm.value.basePrice,
+          marketPrice: productForm.value.marketPrice,
+          costPrice: productForm.value.costPrice,
           stock: productForm.value.stock,
+          warningStock: productForm.value.warningStock,
+          weight: productForm.value.weight,
           description: productForm.value.description,
           mainImage: productForm.value.mainImage,
           detailImages: detailImages.join(','), // 多张图片用逗号分隔
@@ -296,6 +360,17 @@ onMounted(() => {
 .card-header {
   font-size: 18px;
   font-weight: 500;
+}
+
+.price-stock-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0 20px;
+  margin-bottom: 20px;
+
+  :deep(.el-form-item) {
+    margin-bottom: 18px;
+  }
 }
 
 .upload-wrapper {

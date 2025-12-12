@@ -58,9 +58,34 @@ public class Product {
     private BigDecimal basePrice;
 
     /**
+     * 销售价格
+     */
+    private BigDecimal salePrice;
+
+    /**
+     * 市场价格
+     */
+    private BigDecimal marketPrice;
+
+    /**
+     * 成本价格
+     */
+    private BigDecimal costPrice;
+
+    /**
      * 库存数量
      */
     private Integer stock;
+
+    /**
+     * 警戒库存
+     */
+    private Integer warningStock;
+
+    /**
+     * 商品重量(g)
+     */
+    private Integer weight;
 
     /**
      * 销量
