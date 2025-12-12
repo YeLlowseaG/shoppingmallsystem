@@ -1,0 +1,426 @@
+<template>
+  <div class="navigation-menu">
+    <el-card>
+      <template #header>
+        <div class="card-header">
+          <span>导航菜单管理</span>
+          <el-button type="primary" @click="handleAdd">添加菜单</el-button>
+        </div>
+      </template>
+
+      <!-- 搜索栏 -->
+      <el-form :inline="true" :model="searchForm" class="search-form">
+        <el-form-item label="菜单名称">
+          <el-input
+            v-model="searchForm.menuName"
+            placeholder="请输入菜单名称"
+            clearable
+            style="width: 200px"
+            @keyup.enter="handleSearch"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">搜索</el-button>
+          <el-button @click="handleReset">重置</el-button>
+        </el-form-item>
+      </el-form>
+
+      <!-- 菜单列表 -->
+      <el-table :data="menuList" border style="width: 100%">
+        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="menuName" label="菜单名称" width="150" />
+        <el-table-column prop="menuUrl" label="菜单链接" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="menuType" label="菜单类型" width="120">
+          <template #default="{ row }">
+            <el-tag :type="getTypeTagType(row.menuType)" size="small">
+              {{ getTypeText(row.menuType) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="menuParams" label="菜单参数" width="150" show-overflow-tooltip />
+        <el-table-column prop="sortOrder" label="排序" width="80" />
+        <el-table-column prop="target" label="打开方式" width="100">
+          <template #default="{ row }">
+            {{ row.target === '_blank' ? '新窗口' : '当前窗口' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
+              {{ row.status === 1 ? '启用' : '禁用' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="280" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" size="small" @click="handleEdit(row)">编辑</el-button>
+            <el-button
+              :type="row.status === 1 ? 'warning' : 'success'"
+              size="small"
+              @click="handleToggleStatus(row)"
+            >
+              {{ row.status === 1 ? '禁用' : '启用' }}
+            </el-button>
+            <el-button type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <!-- 分页 -->
+      <el-pagination
+        v-model:current-page="pagination.current"
+        v-model:page-size="pagination.size"
+        :total="pagination.total"
+        :page-sizes="[10, 20, 50, 100]"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="loadMenuList"
+        @current-change="loadMenuList"
+        style="margin-top: 20px; justify-content: flex-end"
+      />
+    </el-card>
+
+    <!-- 编辑/新增对话框 -->
+    <el-dialog
+      v-model="dialogVisible"
+      :title="formData.id ? '编辑菜单' : '添加菜单'"
+      width="600px"
+    >
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="formRules"
+        label-width="120px"
+      >
+        <el-form-item label="菜单名称" prop="menuName">
+          <el-input v-model="formData.menuName" placeholder="请输入菜单名称" />
+        </el-form-item>
+        <el-form-item label="菜单类型" prop="menuType">
+          <el-select v-model="formData.menuType" placeholder="请选择菜单类型" style="width: 100%" @change="handleTypeChange">
+            <el-option label="直接链接" value="link" />
+            <el-option label="商品分类" value="category" />
+            <el-option label="品牌筛选" value="brand" />
+            <el-option label="类型筛选" value="type" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="菜单链接" prop="menuUrl">
+          <el-input v-model="formData.menuUrl" placeholder="请输入菜单链接，如：/products" />
+        </el-form-item>
+        <el-form-item v-if="formData.menuType !== 'link'" label="菜单参数">
+          <div style="width: 100%;">
+            <div v-if="formData.menuType === 'category'" class="param-input">
+              <el-input 
+                v-model="categoryParam" 
+                placeholder="请输入分类ID" 
+                @input="updateParams"
+              />
+              <small style="color: #666;">分类ID，如：5</small>
+            </div>
+            <div v-else-if="formData.menuType === 'brand'" class="param-input">
+              <el-input 
+                v-model="brandParam" 
+                placeholder="请输入品牌名称" 
+                @input="updateParams"
+              />
+              <small style="color: #666;">品牌名称，如：angus</small>
+            </div>
+            <div v-else-if="formData.menuType === 'type'" class="param-input">
+              <el-select v-model="typeParam" placeholder="请选择类型" @change="updateParams" style="width: 100%;">
+                <el-option label="新品专区" value="new" />
+                <el-option label="特惠区" value="special" />
+                <el-option label="热销商品" value="hot" />
+              </el-select>
+              <small style="color: #666;">商品类型筛选</small>
+            </div>
+          </div>
+        </el-form-item>
+        <el-form-item label="菜单图标">
+          <el-input v-model="formData.icon" placeholder="请输入图标名称（可选）" />
+        </el-form-item>
+        <el-form-item label="打开方式" prop="target">
+          <el-radio-group v-model="formData.target">
+            <el-radio label="_self">当前窗口</el-radio>
+            <el-radio label="_blank">新窗口</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="排序" prop="sortOrder">
+          <el-input-number v-model="formData.sortOrder" :min="0" />
+        </el-form-item>
+        <el-form-item label="状态" prop="status">
+          <el-radio-group v-model="formData.status">
+            <el-radio :label="1">启用</el-radio>
+            <el-radio :label="0">禁用</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="菜单描述">
+          <el-input
+            v-model="formData.description"
+            type="textarea"
+            :rows="2"
+            placeholder="请输入菜单描述（可选）"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSubmit">确定</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import {
+  getNavigationMenuPage,
+  createNavigationMenu,
+  updateNavigationMenu,
+  deleteNavigationMenu,
+  updateNavigationMenuStatus,
+  type NavigationMenu
+} from '@/api/admin/navigationMenu'
+
+// 搜索表单
+const searchForm = ref({
+  menuName: ''
+})
+
+// 分页
+const pagination = ref({
+  current: 1,
+  size: 10,
+  total: 0
+})
+
+// 菜单列表
+const menuList = ref<NavigationMenu[]>([])
+
+// 对话框
+const dialogVisible = ref(false)
+const formRef = ref<FormInstance>()
+
+// 表单数据
+const formData = ref<NavigationMenu>({
+  menuName: '',
+  menuUrl: '',
+  menuType: 'link',
+  menuParams: '',
+  icon: '',
+  sortOrder: 0,
+  status: 1,
+  target: '_self',
+  description: ''
+})
+
+// 参数输入
+const categoryParam = ref('')
+const brandParam = ref('')
+const typeParam = ref('')
+
+// 表单验证规则
+const formRules: FormRules = {
+  menuName: [{ required: true, message: '请输入菜单名称', trigger: 'blur' }],
+  menuUrl: [{ required: true, message: '请输入菜单链接', trigger: 'blur' }],
+  menuType: [{ required: true, message: '请选择菜单类型', trigger: 'change' }],
+  target: [{ required: true, message: '请选择打开方式', trigger: 'change' }],
+  sortOrder: [{ required: true, message: '请输入排序', trigger: 'blur' }]
+}
+
+// 获取类型标签类型
+const getTypeTagType = (type: string) => {
+  const typeMap: Record<string, string> = {
+    link: '',
+    category: 'success',
+    brand: 'warning',
+    type: 'info'
+  }
+  return typeMap[type] || ''
+}
+
+// 获取类型文本
+const getTypeText = (type: string) => {
+  const typeMap: Record<string, string> = {
+    link: '直接链接',
+    category: '商品分类',
+    brand: '品牌筛选',
+    type: '类型筛选'
+  }
+  return typeMap[type] || '未知'
+}
+
+// 处理类型变化
+const handleTypeChange = () => {
+  categoryParam.value = ''
+  brandParam.value = ''
+  typeParam.value = ''
+  formData.value.menuParams = ''
+}
+
+// 更新参数
+const updateParams = () => {
+  if (formData.value.menuType === 'category' && categoryParam.value) {
+    formData.value.menuParams = JSON.stringify({ categoryId: categoryParam.value })
+  } else if (formData.value.menuType === 'brand' && brandParam.value) {
+    formData.value.menuParams = JSON.stringify({ brand: brandParam.value })
+  } else if (formData.value.menuType === 'type' && typeParam.value) {
+    formData.value.menuParams = JSON.stringify({ type: typeParam.value })
+  } else {
+    formData.value.menuParams = ''
+  }
+}
+
+// 解析参数用于编辑回显
+const parseParams = (params: string) => {
+  if (!params) return
+  
+  try {
+    const parsed = JSON.parse(params)
+    if (parsed.categoryId) {
+      categoryParam.value = parsed.categoryId
+    } else if (parsed.brand) {
+      brandParam.value = parsed.brand
+    } else if (parsed.type) {
+      typeParam.value = parsed.type
+    }
+  } catch (error) {
+    console.error('解析菜单参数失败:', error)
+  }
+}
+
+// 加载菜单列表
+const loadMenuList = async () => {
+  try {
+    const res = await getNavigationMenuPage(
+      pagination.value.current,
+      pagination.value.size,
+      searchForm.value.menuName || undefined
+    )
+    menuList.value = res.records
+    pagination.value.total = res.total
+  } catch (error) {
+    ElMessage.error('加载菜单列表失败')
+  }
+}
+
+// 搜索
+const handleSearch = () => {
+  pagination.value.current = 1
+  loadMenuList()
+}
+
+// 重置
+const handleReset = () => {
+  searchForm.value = {
+    menuName: ''
+  }
+  handleSearch()
+}
+
+// 添加菜单
+const handleAdd = () => {
+  formData.value = {
+    menuName: '',
+    menuUrl: '',
+    menuType: 'link',
+    menuParams: '',
+    icon: '',
+    sortOrder: 0,
+    status: 1,
+    target: '_self',
+    description: ''
+  }
+  categoryParam.value = ''
+  brandParam.value = ''
+  typeParam.value = ''
+  dialogVisible.value = true
+}
+
+// 编辑菜单
+const handleEdit = (row: NavigationMenu) => {
+  formData.value = { ...row }
+  parseParams(row.menuParams || '')
+  dialogVisible.value = true
+}
+
+// 提交表单
+const handleSubmit = async () => {
+  if (!formRef.value) return
+
+  await formRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    try {
+      if (formData.value.id) {
+        await updateNavigationMenu(formData.value)
+        ElMessage.success('更新成功')
+      } else {
+        await createNavigationMenu(formData.value)
+        ElMessage.success('创建成功')
+      }
+      dialogVisible.value = false
+      loadMenuList()
+    } catch (error) {
+      ElMessage.error('操作失败')
+    }
+  })
+}
+
+// 切换状态
+const handleToggleStatus = async (row: NavigationMenu) => {
+  const newStatus = row.status === 1 ? 0 : 1
+  try {
+    await updateNavigationMenuStatus(row.id!, newStatus)
+    ElMessage.success('状态更新成功')
+    loadMenuList()
+  } catch (error) {
+    ElMessage.error('状态更新失败')
+  }
+}
+
+// 删除菜单
+const handleDelete = async (row: NavigationMenu) => {
+  try {
+    await ElMessageBox.confirm('确定要删除该菜单吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    await deleteNavigationMenu(row.id!)
+    ElMessage.success('删除成功')
+    loadMenuList()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
+// 初始化
+onMounted(() => {
+  loadMenuList()
+})
+</script>
+
+<style scoped lang="scss">
+.navigation-menu {
+  padding: 20px;
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .search-form {
+    margin-bottom: 20px;
+  }
+
+  .param-input {
+    small {
+      display: block;
+      margin-top: 4px;
+    }
+  }
+}
+</style>
