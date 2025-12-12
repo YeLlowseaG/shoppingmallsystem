@@ -152,9 +152,15 @@
             <el-button type="danger" size="large" class="buy-now-btn" @click="buyNow">
               立即购买
             </el-button>
-            <el-button size="large" class="add-cart-btn" @click="addToCart">
-              <el-icon><ShoppingCart /></el-icon>
-              加入购物车
+            <el-button 
+              size="large" 
+              class="add-cart-btn" 
+              :loading="addingToCart"
+              :disabled="addingToCart"
+              @click="addToCart"
+            >
+              <el-icon v-if="!addingToCart"><ShoppingCart /></el-icon>
+              {{ addingToCart ? '加入中...' : '加入购物车' }}
             </el-button>
           </div>
 
@@ -271,9 +277,12 @@ import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
 import { getProductById, type ProductVO } from '@/api/buyer/product'
+import { addToCart as addToCartAPI, type AddCartDTO } from '@/api/buyer/cart'
+import { useCartStore } from '@/stores/cart'
 
 const route = useRoute()
 const router = useRouter()
+const cartStore = useCartStore()
 
 // 当前选中的图片
 const currentImage = ref('')
@@ -327,6 +336,9 @@ const product = ref({
 
 // 加载状态
 const loading = ref(true)
+
+// 加入购物车按钮加载状态
+const addingToCart = ref(false)
 
 // 加载商品详情
 const loadProductDetail = async (productId: number) => {
@@ -388,8 +400,39 @@ const buyNow = () => {
 }
 
 // 加入购物车
-const addToCart = () => {
-  ElMessage.success('已加入购物车！')
+const addToCart = async () => {
+  if (addingToCart.value) return
+  
+  try {
+    if (!product.value.id) {
+      ElMessage.error('商品信息不存在')
+      return
+    }
+
+    addingToCart.value = true
+
+    const cartData: AddCartDTO = {
+      productId: product.value.id,
+      quantity: quantity.value
+    }
+
+    await addToCartAPI(cartData)
+    
+    // 更新购物车数量
+    await cartStore.updateCartCount()
+    
+    ElMessage.success('已成功加入购物车！')
+  } catch (error: any) {
+    console.error('加入购物车失败:', error)
+    if (error.response?.status === 401) {
+      ElMessage.error('请先登录')
+      router.push('/login')
+    } else {
+      ElMessage.error(error.response?.data?.message || '加入购物车失败，请重试')
+    }
+  } finally {
+    addingToCart.value = false
+  }
 }
 
 // 提交咨询
