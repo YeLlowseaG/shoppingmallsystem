@@ -1,4 +1,5 @@
 -- 创建导航菜单配置表
+-- 创建时间：2025-12-13
 DROP TABLE IF EXISTS `navigation_menu`;
 CREATE TABLE `navigation_menu` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',

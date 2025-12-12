@@ -1,4 +1,5 @@
 -- 商品评价表
+-- 创建时间：2025-12-13
 CREATE TABLE `product_review` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `product_id` bigint NOT NULL COMMENT '商品ID',
