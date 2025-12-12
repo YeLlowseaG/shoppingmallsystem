@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shoppingmall.repository.sku.ProductSpecValueRepository">
+
+    <!-- 根据规格属性ID查询规格值列表 -->
+    <select id="findBySpecKeyId" parameterType="java.lang.Long" resultType="com.shoppingmall.entity.ProductSpecValue">
+        SELECT * FROM product_spec_value 
+        WHERE spec_key_id = #{specKeyId}
+        ORDER BY sort_order ASC, id ASC
+    </select>
+    
+    <!-- 根据规格属性ID删除规格值 -->
+    <delete id="deleteBySpecKeyId" parameterType="java.lang.Long">
+        DELETE FROM product_spec_value WHERE spec_key_id = #{specKeyId}
+    </delete>
+    
+    <!-- 根据商品ID查询所有规格值 -->
+    <select id="findByProductId" parameterType="java.lang.Long" resultType="com.shoppingmall.entity.ProductSpecValue">
+        SELECT psv.* 
+        FROM product_spec_value psv 
+        INNER JOIN product_spec_key psk ON psv.spec_key_id = psk.id
+        WHERE psk.product_id = #{productId}
+        ORDER BY psk.sort_order ASC, psv.sort_order ASC, psv.id ASC
+    </select>
+
+</mapper>
