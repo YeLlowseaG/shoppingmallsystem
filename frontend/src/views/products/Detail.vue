@@ -192,27 +192,46 @@
               <div class="tips">
                 如果您对本商品有什么问题，请提问咨询吧！
               </div>
-              <el-form :model="consultationForm" label-width="100px">
-                <el-form-item label="*咨询标题：">
-                  <el-input v-model="consultationForm.title" />
-                </el-form-item>
-                <el-form-item label="*联系方式：">
-                  <el-input v-model="consultationForm.contact" placeholder="(可以是电话、email、qq等)" />
-                </el-form-item>
-                <el-form-item label="*咨询内容：">
-                  <el-input
-                    v-model="consultationForm.content"
-                    type="textarea"
-                    :rows="6"
+              <el-form 
+                ref="consultationFormRef"
+                :model="consultationForm" 
+                :rules="consultationRules"
+                label-width="100px"
+              >
+                <el-form-item label="*联系人姓名：" prop="contactName">
+                  <el-input 
+                    v-model="consultationForm.contactName" 
+                    placeholder="请输入您的姓名"
                   />
                 </el-form-item>
-                <el-form-item label="*验证码：">
-                  <el-input v-model="consultationForm.captcha" style="width: 120px" />
-                  <img src="https://via.placeholder.com/100x40?text=4375" class="captcha-img" />
-                  <span class="captcha-tip">看不清楚?换个图片</span>
+                <el-form-item label="联系电话：" prop="contactPhone">
+                  <el-input 
+                    v-model="consultationForm.contactPhone" 
+                    placeholder="请输入您的联系电话（可选）"
+                  />
+                </el-form-item>
+                <el-form-item label="联系邮箱：" prop="contactEmail">
+                  <el-input 
+                    v-model="consultationForm.contactEmail" 
+                    placeholder="请输入您的邮箱（可选）"
+                  />
+                </el-form-item>
+                <el-form-item label="*咨询内容：" prop="consultationContent">
+                  <el-input
+                    v-model="consultationForm.consultationContent"
+                    type="textarea"
+                    :rows="6"
+                    placeholder="请详细描述您的问题..."
+                  />
                 </el-form-item>
                 <el-form-item>
-                  <el-button type="primary" @click="submitConsultation">提交咨询</el-button>
+                  <el-button 
+                    type="primary" 
+                    :loading="submittingConsultation"
+                    @click="submitConsultation"
+                  >
+                    {{ submittingConsultation ? '提交中...' : '提交咨询' }}
+                  </el-button>
                 </el-form-item>
               </el-form>
             </div>
@@ -271,13 +290,14 @@ import {
   Star,
   Loading
 } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
 import { getProductById, type ProductVO } from '@/api/buyer/product'
 import { addToCart as addToCartAPI, type AddCartDTO } from '@/api/buyer/cart'
+import { submitConsultation as submitConsultationAPI, type ConsultationDTO } from '@/api/buyer/consultation'
 import { useCartStore } from '@/stores/cart'
 
 const route = useRoute()
@@ -301,12 +321,34 @@ const consultationCount = ref(0)
 const reviewCount = ref(0)
 
 // 咨询表单
+const consultationFormRef = ref<FormInstance>()
 const consultationForm = ref({
-  title: '',
-  contact: '',
-  content: '',
-  captcha: ''
+  contactName: '',
+  contactPhone: '',
+  contactEmail: '',
+  consultationContent: ''
 })
+
+// 咨询表单验证规则
+const consultationRules: FormRules = {
+  contactName: [
+    { required: true, message: '请输入联系人姓名', trigger: 'blur' },
+    { min: 2, max: 50, message: '姓名长度在 2 到 50 个字符', trigger: 'blur' }
+  ],
+  contactPhone: [
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码', trigger: 'blur' }
+  ],
+  contactEmail: [
+    { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
+  ],
+  consultationContent: [
+    { required: true, message: '请输入咨询内容', trigger: 'blur' },
+    { min: 10, max: 1000, message: '咨询内容长度在 10 到 1000 个字符', trigger: 'blur' }
+  ]
+}
+
+// 提交咨询状态
+const submittingConsultation = ref(false)
 
 // 评论表单
 const reviewForm = ref({
@@ -436,8 +478,48 @@ const addToCart = async () => {
 }
 
 // 提交咨询
-const submitConsultation = () => {
-  ElMessage.success('咨询提交成功！')
+const submitConsultation = async () => {
+  if (!consultationFormRef.value) return
+
+  await consultationFormRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    if (!product.value.id) {
+      ElMessage.error('商品信息不存在')
+      return
+    }
+
+    try {
+      submittingConsultation.value = true
+
+      const consultationData: ConsultationDTO = {
+        productId: product.value.id,
+        contactName: consultationForm.value.contactName,
+        contactPhone: consultationForm.value.contactPhone || undefined,
+        contactEmail: consultationForm.value.contactEmail || undefined,
+        consultationContent: consultationForm.value.consultationContent
+      }
+
+      await submitConsultationAPI(consultationData)
+      
+      ElMessage.success('咨询提交成功！我们会尽快回复您')
+      
+      // 重置表单
+      consultationForm.value = {
+        contactName: '',
+        contactPhone: '',
+        contactEmail: '',
+        consultationContent: ''
+      }
+      consultationFormRef.value?.resetFields()
+      
+    } catch (error: any) {
+      console.error('提交咨询失败:', error)
+      ElMessage.error(error.response?.data?.message || '提交咨询失败，请重试')
+    } finally {
+      submittingConsultation.value = false
+    }
+  })
 }
 
 // 提交评论

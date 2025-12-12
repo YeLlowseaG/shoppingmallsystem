@@ -11,6 +11,7 @@ import { permissionComponentMap } from './componentMaps/permission'
 import { logisticsComponentMap } from './componentMaps/logistics'
 import { stockComponentMap } from './componentMaps/stock'
 import { systemComponentMap } from './componentMaps/system'
+import { contentComponentMap } from './componentMaps/content'
 
 // 合并所有模块的组件映射
 export const componentMap: Record<string, () => Promise<any>> = {
@@ -26,6 +27,7 @@ export const componentMap: Record<string, () => Promise<any>> = {
   ...logisticsComponentMap,
   ...stockComponentMap,
   ...systemComponentMap,
+  ...contentComponentMap,
   
   // 其他模块（待分配或共同维护）
   'deposit/Record': () => import('@/views/deposit/Record.vue'),
