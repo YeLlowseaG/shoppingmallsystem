@@ -229,7 +229,8 @@ const loadProducts = async () => {
       pageSize.value,
       categoryId,
       keyword,
-      brand
+      brand,
+      currentSort.value
     )
 
     products.value = response.records

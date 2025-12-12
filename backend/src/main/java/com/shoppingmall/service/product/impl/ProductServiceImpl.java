@@ -43,7 +43,7 @@ public class ProductServiceImpl implements ProductService {
     private final ObjectMapper objectMapper;
 
     @Override
-    public Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String brand, String status) {
+    public Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String brand, String status, String sortBy) {
         Page<Product> page = new Page<>(current, size);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
@@ -78,8 +78,31 @@ public class ProductServiceImpl implements ProductService {
             wrapper.eq(Product::getStatus, "上架".equals(status) ? 1 : 0);
         }
 
-        // 按创建时间倒序
-        wrapper.orderByDesc(Product::getCreateTime);
+        // 动态排序
+        if (StringUtil.isNotBlank(sortBy)) {
+            switch (sortBy) {
+                case "price_asc":
+                    wrapper.orderByAsc(Product::getBasePrice);
+                    break;
+                case "price_desc":
+                    wrapper.orderByDesc(Product::getBasePrice);
+                    break;
+                case "sales":
+                    wrapper.orderByDesc(Product::getSalesCount);
+                    break;
+                case "newest":
+                    wrapper.orderByDesc(Product::getCreateTime);
+                    break;
+                case "default":
+                default:
+                    // 默认综合排序：销量降序
+                    wrapper.orderByDesc(Product::getSalesCount);
+                    break;
+            }
+        } else {
+            // 默认按销量降序
+            wrapper.orderByDesc(Product::getSalesCount);
+        }
 
         Page<Product> productPage = productRepository.selectPage(page, wrapper);
 
