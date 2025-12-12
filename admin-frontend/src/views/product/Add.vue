@@ -31,6 +31,22 @@
           <el-input v-model="productForm.productCode" placeholder="请输入商品编码" />
         </el-form-item>
 
+        <el-form-item label="商品品牌" prop="brandId">
+          <el-select
+            v-model="productForm.brandId"
+            placeholder="请选择商品品牌（可选）"
+            clearable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="brand in brandOptions"
+              :key="brand.id"
+              :label="brand.brandName"
+              :value="brand.id"
+            />
+          </el-select>
+        </el-form-item>
+
         <!-- 价格与库存 -->
         <el-divider content-position="left">价格与库存</el-divider>
 
@@ -199,6 +215,7 @@ import { Plus, Delete } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules, UploadFile, UploadUserFile } from 'element-plus'
 import { createProduct } from '@/api/admin/product'
 import { getCategoryTree } from '@/api/admin/productCategory'
+import { getBrandOptions } from '@/api/admin/brand'
 import RichTextEditor from '@/components/common/RichTextEditor.vue'
 
 const router = useRouter()
@@ -208,6 +225,7 @@ const productForm = ref({
   productName: '',
   categoryId: null as any,
   productCode: '',
+  brandId: null as any,
   basePrice: 0,
   marketPrice: 0,
   costPrice: 0,
@@ -231,6 +249,7 @@ const formRules: FormRules = {
 }
 
 const categoryOptions = ref<any[]>([])
+const brandOptions = ref<any[]>([])
 
 const cascaderProps = {
   value: 'id',
@@ -245,6 +264,17 @@ const loadCategories = async () => {
     categoryOptions.value = await getCategoryTree()
   } catch (error) {
     ElMessage.error('加载分类数据失败')
+  }
+}
+
+// 加载品牌数据
+const loadBrands = async () => {
+  try {
+    const response = await getBrandOptions()
+    brandOptions.value = response || []
+  } catch (error) {
+    // 静默处理，不显示错误
+    brandOptions.value = []
   }
 }
 
@@ -316,6 +346,7 @@ const handleSubmit = async () => {
           productName: productForm.value.productName,
           categoryId: categoryId,
           productCode: productForm.value.productCode,
+          brandId: productForm.value.brandId,
           basePrice: productForm.value.basePrice,
           marketPrice: productForm.value.marketPrice,
           costPrice: productForm.value.costPrice,
@@ -349,6 +380,7 @@ const handleCancel = () => {
 
 onMounted(() => {
   loadCategories()
+  loadBrands()
 })
 </script>
 

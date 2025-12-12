@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { getCartItemCount } from '@/api/buyer/cart'
 
 export interface CartItem {
   id: number
@@ -61,6 +62,16 @@ export const useCartStore = defineStore('cart', () => {
     totalAmount.value = items.value.reduce((sum, item) => sum + item.price * item.quantity, 0)
   }
 
+  // 从服务器更新购物车数量
+  const updateCartCount = async () => {
+    try {
+      const count = await getCartItemCount()
+      totalCount.value = count
+    } catch (error) {
+      console.error('更新购物车数量失败:', error)
+    }
+  }
+
   return {
     items,
     totalCount,
@@ -69,7 +80,8 @@ export const useCartStore = defineStore('cart', () => {
     removeItem,
     updateQuantity,
     clearCart,
-    calculateTotal
+    calculateTotal,
+    updateCartCount
   }
 })
 

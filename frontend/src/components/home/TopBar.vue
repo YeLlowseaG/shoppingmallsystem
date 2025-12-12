@@ -27,7 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { useCartStore } from '@/stores/cart'
 import { ElMessage } from 'element-plus'
@@ -39,6 +39,22 @@ const router = useRouter()
 
 // 计算登录状态，确保响应式
 const isLoggedIn = computed(() => userStore.isLoggedIn())
+
+// 初始化购物车数量
+onMounted(() => {
+  if (isLoggedIn.value) {
+    cartStore.updateCartCount()
+  }
+})
+
+// 监听登录状态变化，更新购物车数量
+watch(isLoggedIn, (newVal) => {
+  if (newVal) {
+    cartStore.updateCartCount()
+  } else {
+    cartStore.totalCount = 0
+  }
+})
 
 const handleLogout = (e: Event) => {
   e.preventDefault()

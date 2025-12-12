@@ -68,4 +68,11 @@ public interface BrandService {
      * @return 启用的品牌列表
      */
     List<Brand> getActiveBrands(Integer limit);
+
+    /**
+     * 获取所有启用的品牌（管理端下拉框使用）
+     *
+     * @return 启用的品牌列表
+     */
+    List<Brand> getEnabledBrands();
 }

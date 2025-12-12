@@ -76,4 +76,27 @@ public class BrandController {
         brandService.updateStatus(id, status);
         return Result.success("状态更新成功");
     }
+
+    /**
+     * 获取启用品牌选项列表（用于下拉框）
+     */
+    @GetMapping("/options")
+    public Result<?> getBrandOptions() {
+        try {
+            System.out.println("======== 开始获取品牌选项列表 ========");
+            var brands = brandService.getEnabledBrands();
+            System.out.println("======== 品牌查询结果，数量: " + (brands != null ? brands.size() : 0) + " ========");
+            if (brands != null) {
+                brands.forEach(brand -> {
+                    System.out.println("品牌: ID=" + brand.getId() + ", 名称=" + brand.getBrandName() + ", 状态=" + brand.getStatus());
+                });
+            }
+            System.out.println("======== 返回品牌选项成功 ========");
+            return Result.success("获取成功", brands);
+        } catch (Exception e) {
+            System.err.println("======== 获取品牌选项失败: " + e.getMessage() + " ========");
+            e.printStackTrace();
+            return Result.error("获取品牌选项失败: " + e.getMessage());
+        }
+    }
 }

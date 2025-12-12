@@ -122,6 +122,22 @@
           </el-select>
         </el-form-item>
 
+        <el-form-item label="商品品牌" prop="brandId">
+          <el-select
+            v-model="formData.brandId"
+            placeholder="请选择商品品牌（可选）"
+            clearable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="brand in brandOptions"
+              :key="brand.id"
+              :label="brand.brandName"
+              :value="brand.id"
+            />
+          </el-select>
+        </el-form-item>
+
         <!-- 价格与库存 -->
         <el-divider content-position="left">价格与库存</el-divider>
 
@@ -291,6 +307,7 @@ import {
   type ProductVO
 } from '@/api/admin/product'
 import { getCategoryTree, type ProductCategoryVO } from '@/api/admin/productCategory'
+import { getBrandOptions } from '@/api/admin/brand'
 import RichTextEditor from '@/components/common/RichTextEditor.vue'
 
 const router = useRouter()
@@ -314,6 +331,9 @@ const productList = ref<ProductVO[]>([])
 
 // 分类列表
 const categoryTree = ref<ProductCategoryVO[]>([])
+
+// 品牌列表
+const brandOptions = ref<any[]>([])
 
 // 扁平化分类列表（用于下拉选择）
 const flatCategories = computed(() => {
@@ -342,6 +362,7 @@ const formData = ref<ProductDTO>({
   productCode: '',
   productName: '',
   categoryId: 0,
+  brandId: null,
   basePrice: 0,
   marketPrice: 0,
   costPrice: 0,
@@ -379,6 +400,17 @@ const loadCategoryTree = async () => {
     categoryTree.value = await getCategoryTree()
   } catch (error) {
     ElMessage.error('加载分类失败')
+  }
+}
+
+// 加载品牌列表
+const loadBrands = async () => {
+  try {
+    const response = await getBrandOptions()
+    brandOptions.value = response || []
+  } catch (error) {
+    // 静默处理，不显示错误
+    brandOptions.value = []
   }
 }
 
@@ -471,6 +503,7 @@ const handleEdit = (row: ProductVO) => {
     productCode: row.productCode,
     productName: row.productName,
     categoryId: row.categoryId,
+    brandId: row.brandId || null,
     basePrice: row.basePrice,
     marketPrice: row.marketPrice || 0,
     costPrice: row.costPrice || 0,
@@ -556,6 +589,7 @@ const handleDelete = async (row: ProductVO) => {
 // 初始化
 onMounted(() => {
   loadCategoryTree()
+  loadBrands()
   loadProductList()
 })
 </script>
