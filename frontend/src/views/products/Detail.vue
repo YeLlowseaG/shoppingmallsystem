@@ -99,30 +99,20 @@
             </div>
             <div class="price-row">
               <span class="price-label">建议零售价：</span>
-              <span class="suggest-price">¥ {{ parseFloat(product.price).toFixed(2) }}</span>
+              <span class="suggest-price">
+                ¥{{ currentSku ? parseFloat(currentSku.price).toFixed(2) : parseFloat(product.price).toFixed(2) }}
+              </span>
             </div>
           </div>
 
-          <!-- 规格选择 -->
+          <!-- 规格选择器 -->
           <div class="spec-selection">
-            <div class="spec-row">
-              <span class="spec-label">您已选择：</span>
-              <span class="spec-value">"{{ selectedSpec }}"</span>
-            </div>
-            <div class="spec-row">
-              <span class="spec-label">规格：</span>
-              <div class="spec-options">
-                <div
-                  v-for="spec in product.specs"
-                  :key="spec"
-                  class="spec-option"
-                  :class="{ active: selectedSpec === spec }"
-                  @click="selectedSpec = spec"
-                >
-                  {{ spec }}
-                </div>
-              </div>
-            </div>
+            <SpecSelector
+              :spec-keys="productSpecKeys"
+              :sku-list="productSkuList"
+              :default-specs="defaultSpecs"
+              @spec-change="handleSpecChange"
+            />
           </div>
 
           <!-- 购买数量 -->
@@ -134,7 +124,9 @@
               :max="999"
               size="large"
             />
-            <span class="stock-status">库存-充足</span>
+            <span class="stock-status" :class="getStockStatusClass()">
+              {{ getStockStatusText() }}
+            </span>
           </div>
 
 
@@ -293,7 +285,9 @@ import { getProductById, type ProductVO } from '@/api/buyer/product'
 import { addToCart as addToCartAPI, type AddCartDTO } from '@/api/buyer/cart'
 import { submitConsultation as submitConsultationAPI, type ConsultationDTO } from '@/api/buyer/consultation'
 import { addFavorite, removeFavorite, checkFavorite } from '@/api/buyer/favorite'
+import { getSkusByProductId, getSpecKeysByProductId, type ProductSkuVO, type ProductSpecKeyVO } from '@/api/buyer/sku'
 import { useCartStore } from '@/stores/cart'
+import SpecSelector from '@/components/product/SpecSelector.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -302,8 +296,12 @@ const cartStore = useCartStore()
 // 当前选中的图片
 const currentImage = ref('')
 
-// 选中的规格
-const selectedSpec = ref('')
+// SKU规格相关数据
+const productSpecKeys = ref<ProductSpecKeyVO[]>([])
+const productSkuList = ref<ProductSkuVO[]>([])
+const selectedSpecs = ref<Record<string, string>>({})
+const currentSku = ref<ProductSkuVO | null>(null)
+const defaultSpecs = ref<Record<string, string>>({})
 
 // 购买数量
 const quantity = ref(1)
@@ -416,16 +414,87 @@ const loadProductDetail = async (productId: number) => {
       currentImage.value = product.value.images[0]
     }
 
-    // 设置默认规格
-    if (product.value.specs.length > 0) {
-      selectedSpec.value = product.value.specs[0]
-    }
+    // 加载SKU规格数据
+    await loadProductSkuData(Number(productId))
   } catch (error) {
     console.error('加载商品详情失败:', error)
     ElMessage.error('加载商品详情失败')
   } finally {
     loading.value = false
   }
+}
+
+// 加载商品SKU数据
+const loadProductSkuData = async (productId: number) => {
+  try {
+    // 并行加载规格属性和SKU列表
+    const [specKeys, skuList] = await Promise.all([
+      getSpecKeysByProductId(productId),
+      getSkusByProductId(productId)
+    ])
+    
+    productSpecKeys.value = specKeys
+    productSkuList.value = skuList
+    
+    // 如果有SKU数据，设置默认选中第一个可用SKU的规格
+    if (skuList.length > 0 && specKeys.length > 0) {
+      const firstAvailableSku = skuList.find(sku => sku.status === 1 && sku.stock > 0)
+      if (firstAvailableSku) {
+        try {
+          const specCombination = JSON.parse(firstAvailableSku.specCombination)
+          defaultSpecs.value = specCombination
+          selectedSpecs.value = { ...specCombination }
+          currentSku.value = firstAvailableSku
+        } catch (error) {
+          console.error('解析默认SKU规格失败:', error)
+        }
+      }
+    }
+  } catch (error) {
+    console.error('加载商品SKU数据失败:', error)
+    // 如果SKU数据加载失败，不影响商品基本信息显示
+  }
+}
+
+// 处理规格选择变化
+const handleSpecChange = (newSelectedSpecs: Record<string, string>, newCurrentSku: ProductSkuVO | null) => {
+  selectedSpecs.value = newSelectedSpecs
+  currentSku.value = newCurrentSku
+  
+  // 重置购买数量为1
+  quantity.value = 1
+}
+
+// 获取库存状态文本
+const getStockStatusText = () => {
+  if (currentSku.value) {
+    const stock = currentSku.value.stock
+    const warningStock = currentSku.value.warningStock
+    
+    if (stock <= 0) {
+      return '库存-缺货'
+    } else if (stock <= warningStock) {
+      return `库存-紧张 (剩余${stock}件)`
+    } else {
+      return '库存-充足'
+    }
+  }
+  return '库存-充足'
+}
+
+// 获取库存状态样式类
+const getStockStatusClass = () => {
+  if (currentSku.value) {
+    const stock = currentSku.value.stock
+    const warningStock = currentSku.value.warningStock
+    
+    if (stock <= 0) {
+      return 'out-of-stock'
+    } else if (stock <= warningStock) {
+      return 'low-stock'
+    }
+  }
+  return ''
 }
 
 // 初始化
@@ -832,6 +901,14 @@ const toggleFavorite = async () => {
       .stock-status {
         color: #52c41a;
         font-size: 14px;
+        
+        &.low-stock {
+          color: #faad14;
+        }
+        
+        &.out-of-stock {
+          color: #ff4d4f;
+        }
       }
     }
 
