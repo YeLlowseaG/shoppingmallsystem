@@ -193,32 +193,10 @@
                 <span class="required">*</span>地区:
               </div>
               <div class="form-input-wrapper">
-                <div class="region-selectors">
-                  <el-select v-model="registerForm.province" placeholder="请选择..." class="region-select" @change="handleProvinceChange">
-                    <el-option
-                      v-for="province in provinces"
-                      :key="province.value"
-                      :label="province.label"
-                      :value="province.value"
-                    />
-                  </el-select>
-                  <el-select v-model="registerForm.city" placeholder="请选择..." class="region-select" :disabled="!registerForm.province" @change="handleCityChange">
-                    <el-option
-                      v-for="city in cities"
-                      :key="city.value"
-                      :label="city.label"
-                      :value="city.value"
-                    />
-                  </el-select>
-                  <el-select v-model="registerForm.district" placeholder="请选择..." class="region-select" :disabled="!registerForm.city">
-                    <el-option
-                      v-for="district in districts"
-                      :key="district.value"
-                      :label="district.label"
-                      :value="district.value"
-                    />
-                  </el-select>
-                </div>
+                <RegionSelector
+                  v-model="regionData"
+                  @change="handleRegionChange"
+                />
               </div>
             </div>
 
@@ -391,6 +369,7 @@ import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
+import RegionSelector from '@/components/common/RegionSelector.vue'
 
 const router = useRouter()
 
@@ -475,45 +454,25 @@ const rules: FormRules = {
   ]
 }
 
-// 地区数据（简化版，实际应该从后端获取）
-const provinces = ref([
-  { label: '北京市', value: '北京' },
-  { label: '上海市', value: '上海' },
-  { label: '广东省', value: '广东' },
-  { label: '浙江省', value: '浙江' },
-  { label: '江苏省', value: '江苏' }
-])
+// 地区选择器数据
+const regionData = ref<{
+  provinceId?: number;
+  cityId?: number;
+  districtId?: number;
+}>({})
 
-const cities = ref<Array<{ label: string; value: string }>>([])
-const districts = ref<Array<{ label: string; value: string }>>([])
-
-// 简化版地区数据
-const regionData: Record<string, Record<string, string[]>> = {
-  '北京': {
-    '北京市': ['东城区', '西城区', '朝阳区', '海淀区']
-  },
-  '上海': {
-    '上海市': ['黄浦区', '徐汇区', '长宁区', '静安区']
-  },
-  '广东': {
-    '广州市': ['越秀区', '海珠区', '天河区', '白云区'],
-    '深圳市': ['罗湖区', '福田区', '南山区', '宝安区']
-  }
-}
-
-const handleProvinceChange = () => {
-  registerForm.city = ''
-  registerForm.district = ''
-  const provinceData = regionData[registerForm.province] || {}
-  cities.value = Object.keys(provinceData).map(city => ({ label: city, value: city }))
-  districts.value = []
-}
-
-const handleCityChange = () => {
-  registerForm.district = ''
-  const provinceData = regionData[registerForm.province] || {}
-  const cityData = provinceData[registerForm.city] || []
-  districts.value = cityData.map(district => ({ label: district, value: district }))
+// 地区选择器change事件处理
+const handleRegionChange = (value: {
+  provinceId?: number;
+  cityId?: number;
+  districtId?: number;
+  provinceName?: string;
+  cityName?: string;
+  districtName?: string;
+}) => {
+  registerForm.province = value.provinceName || ''
+  registerForm.city = value.cityName || ''
+  registerForm.district = value.districtName || ''
 }
 
 // 出生日期选项
@@ -722,20 +681,30 @@ const goToLogin = () => {
   :deep(.el-form-item__error) {
     padding-left: 135px;
     margin-top: 4px;
+    line-height: 1.5;
+  }
+  
+  :deep(.el-form-item__content) {
+    line-height: 40px;
   }
 
   .form-row {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
+    min-height: 40px;
 
     .form-label {
       width: 120px;
-      padding-top: 8px;
       text-align: right;
       padding-right: 15px;
       color: #333;
       font-size: 14px;
       flex-shrink: 0;
+      line-height: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
 
       .required {
         color: #e4393c;

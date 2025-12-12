@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
+import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
 
@@ -21,7 +21,7 @@ const service: AxiosInstance = axios.create({
 
 // 请求拦截器
 service.interceptors.request.use(
-  (config: AxiosRequestConfig) => {
+  (config: InternalAxiosRequestConfig) => {
     // 从localStorage获取token
     const token = localStorage.getItem('token')
     if (token && config.headers) {
@@ -44,6 +44,12 @@ service.interceptors.response.use(
     if (res.code === 200) {
       return res.data
     } else {
+      // 如果返回401且消息包含"Token已过期"，直接跳转登录页，不显示错误提示
+      if (res.code === 401 && (res.message?.includes('Token已过期') || res.message?.includes('Token无效'))) {
+        localStorage.removeItem('token')
+        router.push('/login')
+        return Promise.reject(new Error(res.message || 'Token已过期'))
+      }
       // 其他状态码，显示错误信息
       ElMessage.error(res.message || '请求失败')
       return Promise.reject(new Error(res.message || '请求失败'))
@@ -57,9 +63,18 @@ service.interceptors.response.use(
       
       switch (status) {
         case 401:
-          ElMessage.error('未授权，请重新登录')
-          localStorage.removeItem('token')
-          router.push('/login')
+          // 检查是否是token过期的情况
+          const message = data?.message || ''
+          if (message.includes('Token已过期') || message.includes('Token无效') || message.includes('未登录')) {
+            // token过期，不显示错误提示，直接跳转登录页
+            localStorage.removeItem('token')
+            router.push('/login')
+          } else {
+            // 其他401错误，显示错误提示
+            ElMessage.error('未授权，请重新登录')
+            localStorage.removeItem('token')
+            router.push('/login')
+          }
           break
         case 403:
           ElMessage.error('拒绝访问')

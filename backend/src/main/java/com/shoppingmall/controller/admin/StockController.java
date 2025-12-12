@@ -34,12 +34,14 @@ public class StockController {
             @RequestParam(required = false) Long productId,
             @RequestParam(required = false) String productCode,
             @RequestParam(required = false) String productName,
+            @RequestParam(required = false) Integer productStatus,
             @RequestParam(required = false) Boolean onlyWarning
     ) {
         StockQueryDTO queryDTO = new StockQueryDTO();
         queryDTO.setProductId(productId);
         queryDTO.setProductCode(productCode);
         queryDTO.setProductName(productName);
+        queryDTO.setProductStatus(productStatus);
         queryDTO.setOnlyWarning(onlyWarning);
         
         Page<StockVO> page = stockService.getStockPage(current, size, queryDTO);

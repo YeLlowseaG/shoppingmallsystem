@@ -38,7 +38,11 @@
                 class="address-table"
               >
                 <el-table-column prop="recipient" label="收货人" width="120" align="center" />
-                <el-table-column prop="address" label="地址" min-width="300" />
+                <el-table-column prop="address" label="地址" min-width="300">
+                  <template #default="scope">
+                    {{ formatFullAddress(scope.row) }}
+                  </template>
+                </el-table-column>
                 <el-table-column prop="phone" label="电话" width="120" align="center">
                   <template #default="scope">
                     {{ scope.row.phone || '-' }}
@@ -118,6 +122,26 @@ const loadAddressList = async () => {
     console.error('加载收货地址列表失败:', error)
     ElMessage.error(error.message || '加载收货地址列表失败')
   }
+}
+
+// 格式化完整地址（省市区 + 详细地址）
+const formatFullAddress = (address: AddressVO): string => {
+  const parts: string[] = []
+  
+  if (address.province) {
+    parts.push(address.province)
+  }
+  if (address.city) {
+    parts.push(address.city)
+  }
+  if (address.district) {
+    parts.push(address.district)
+  }
+  if (address.address) {
+    parts.push(address.address)
+  }
+  
+  return parts.join(' ')
 }
 
 // 菜单选择逻辑已移至 MemberSidebar 组件中

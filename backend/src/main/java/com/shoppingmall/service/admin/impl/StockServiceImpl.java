@@ -57,9 +57,13 @@ public class StockServiceImpl implements StockService {
             productWrapper.eq(Product::getId, queryDTO.getProductId());
         }
         
-        // 不筛选状态，查询所有状态的商品
-        // 按更新时间倒序
-        productWrapper.orderByDesc(Product::getUpdateTime);
+        // 商品状态筛选
+        if (queryDTO.getProductStatus() != null) {
+            productWrapper.eq(Product::getStatus, queryDTO.getProductStatus());
+        }
+        
+        // 按创建时间倒序
+        productWrapper.orderByDesc(Product::getCreateTime);
         
         // 分页查询商品
         Page<Product> productPage = new Page<>(current, size);
@@ -164,8 +168,10 @@ public class StockServiceImpl implements StockService {
         stock.setAvailableStock(newTotalStock - stock.getLockedStock());
 
         // 更新预警阈值（如果提供了）
+        boolean warningThresholdUpdated = false;
         if (stockDTO.getWarningThreshold() != null) {
             stock.setWarningThreshold(stockDTO.getWarningThreshold());
+            warningThresholdUpdated = true;
         }
 
         if (stock.getId() == null) {
@@ -176,6 +182,11 @@ public class StockServiceImpl implements StockService {
 
         // 同步更新 product 表的 stock 字段
         syncProductStock(stockDTO.getProductId(), newTotalStock);
+        
+        // 如果更新了预警阈值，同步更新 product 表的 warning_stock 字段
+        if (warningThresholdUpdated) {
+            syncProductWarningStock(stockDTO.getProductId(), stock.getWarningThreshold());
+        }
 
         log.info("库存调整成功，商品ID: {}, 调整数量: {}, 原因: {}", 
                 stockDTO.getProductId(), stockDTO.getAdjustQuantity(), stockDTO.getReason());
@@ -194,6 +205,10 @@ public class StockServiceImpl implements StockService {
 
         stock.setWarningThreshold(warningThreshold);
         stockRepository.updateById(stock);
+        
+        // 同步更新 product 表的 warning_stock 字段
+        // 以 product_stock.warning_threshold 为权威数据源
+        syncProductWarningStock(productId, warningThreshold);
     }
 
     @Override
@@ -346,6 +361,27 @@ public class StockServiceImpl implements StockService {
             }
         } catch (Exception e) {
             log.error("同步商品库存失败，商品ID: {}, 库存: {}", productId, totalStock, e);
+            // 不抛出异常，避免影响主业务流程
+        }
+    }
+
+    /**
+     * 同步 product 表的预警库存字段
+     * 以 product_stock.warning_threshold 为权威数据源，同步更新 product.warning_stock
+     * 
+     * @param productId 商品ID
+     * @param warningThreshold 预警阈值
+     */
+    private void syncProductWarningStock(Long productId, Integer warningThreshold) {
+        try {
+            Product product = productRepository.selectById(productId);
+            if (product != null) {
+                product.setWarningStock(warningThreshold);
+                productRepository.updateById(product);
+                log.debug("同步商品预警库存成功，商品ID: {}, 预警阈值: {}", productId, warningThreshold);
+            }
+        } catch (Exception e) {
+            log.error("同步商品预警库存失败，商品ID: {}, 预警阈值: {}", productId, warningThreshold, e);
             // 不抛出异常，避免影响主业务流程
         }
     }

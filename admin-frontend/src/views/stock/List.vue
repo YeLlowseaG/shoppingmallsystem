@@ -15,6 +15,18 @@
         <el-form-item label="商品名称">
           <el-input v-model="searchForm.productName" placeholder="请输入商品名称" clearable style="width: 200px" />
         </el-form-item>
+        <el-form-item label="商品状态">
+          <el-select v-model="searchForm.productStatus" placeholder="请选择商品状态" clearable style="width: 150px">
+            <el-option label="上架" :value="1" />
+            <el-option label="下架" :value="0" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="预警筛选">
+          <el-select v-model="searchForm.onlyWarning" placeholder="请选择" clearable style="width: 150px">
+            <el-option label="仅预警商品" :value="true" />
+            <el-option label="全部商品" :value="false" />
+          </el-select>
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="loadStockList">查询</el-button>
           <el-button @click="resetSearch">重置</el-button>
@@ -36,24 +48,44 @@
           <template #default="{ row }">
             <el-image
               v-if="row.mainImage"
-              :src="row.mainImage"
+              :src="getImageUrl(row.mainImage)"
               style="width: 60px; height: 60px"
               fit="cover"
-            />
+              :preview-src-list="[getImageUrl(row.mainImage)]"
+              :hide-on-click-modal="true"
+            >
+              <template #error>
+                <div class="image-slot">
+                  <el-icon><Picture /></el-icon>
+                </div>
+              </template>
+            </el-image>
             <span v-else>无图片</span>
           </template>
         </el-table-column>
         <el-table-column prop="totalStock" label="总库存" width="100" align="right" />
-        <el-table-column prop="availableStock" label="可用库存" width="100" align="right" />
+        <el-table-column prop="availableStock" label="可用库存" width="100" align="right">
+          <template #default="{ row }">
+            <span :class="{ 'warning-text': row.isWarning }">{{ row.availableStock }}</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="lockedStock" label="锁定库存" width="100" align="right" />
+        <el-table-column prop="warningThreshold" label="预警阈值" width="100" align="right" />
+        <el-table-column label="预警状态" width="100">
+          <template #default="{ row }">
+            <el-tag v-if="row.isWarning" type="danger" size="small">预警</el-tag>
+            <el-tag v-else type="success" size="small">正常</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="updateTime" label="更新时间" width="180">
           <template #default="{ row }">
             {{ formatDateTime(row.updateTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="handleAdjust(row)">调整库存</el-button>
+            <el-button type="success" link @click="handleSetThreshold(row)">设置预警</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -130,10 +162,12 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Picture } from '@element-plus/icons-vue'
 import { formatDateTime } from '@/utils'
 import {
   getStockPage,
   adjustStock,
+  updateWarningThreshold,
   type StockVO,
   type StockDTO
 } from '@/api/admin/stock'
@@ -142,7 +176,9 @@ const loading = ref(false)
 const stockList = ref<StockVO[]>([])
 const searchForm = ref({
   productCode: '',
-  productName: ''
+  productName: '',
+  productStatus: undefined as number | undefined,
+  onlyWarning: undefined as boolean | undefined
 })
 const pagination = ref({
   current: 1,
@@ -171,6 +207,21 @@ const newStockValue = computed(() => {
   return current + adjust
 })
 
+// 获取图片URL（处理相对路径）
+const getImageUrl = (url: string | undefined): string => {
+  if (!url) return ''
+  // 如果已经是完整URL，直接返回
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  // 如果是相对路径，添加基础URL
+  if (url.startsWith('/')) {
+    const baseURL = import.meta.env.VITE_API_BASE_URL || ''
+    return baseURL + url
+  }
+  return url
+}
+
 // 加载库存列表
 const loadStockList = async () => {
   loading.value = true
@@ -180,7 +231,9 @@ const loadStockList = async () => {
       pagination.value.size,
       undefined,
       searchForm.value.productCode || undefined,
-      searchForm.value.productName || undefined
+      searchForm.value.productName || undefined,
+      searchForm.value.productStatus,
+      searchForm.value.onlyWarning
     )
     stockList.value = response.records || []
     pagination.value.total = response.total || 0
@@ -195,7 +248,9 @@ const loadStockList = async () => {
 const resetSearch = () => {
   searchForm.value = {
     productCode: '',
-    productName: ''
+    productName: '',
+    productStatus: undefined,
+    onlyWarning: undefined
   }
   pagination.value.current = 1
   loadStockList()
@@ -255,6 +310,36 @@ const resetAdjustForm = () => {
   adjustFormRef.value?.clearValidate()
 }
 
+// 设置预警阈值
+const handleSetThreshold = async (row: StockVO) => {
+  try {
+    const { value: threshold } = await ElMessageBox.prompt(
+      `当前预警阈值：${row.warningThreshold || 10}\n可用库存：${row.availableStock}`,
+      '设置预警阈值',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputType: 'number',
+        inputValue: row.warningThreshold || 10,
+        inputValidator: (value) => {
+          if (!value || Number(value) < 0) {
+            return '预警阈值必须大于等于0'
+          }
+          return true
+        }
+      }
+    )
+    
+    await updateWarningThreshold(row.productId, Number(threshold))
+    ElMessage.success('预警阈值设置成功')
+    loadStockList()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '设置预警阈值失败')
+    }
+  }
+}
+
 // 初始化
 onMounted(() => {
   loadStockList()
@@ -296,6 +381,21 @@ onMounted(() => {
       color: #f56c6c;
       font-weight: bold;
     }
+  }
+
+  .warning-text {
+    color: #f56c6c;
+    font-weight: bold;
+  }
+
+  .image-slot {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    background: #f5f7fa;
+    color: #909399;
   }
 }
 </style>

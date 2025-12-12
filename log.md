@@ -1,4 +1,628 @@
-﻿## 2025-12-12 - 修复支付页面重复错误提示问题
+﻿## 2025-12-12 - 添加预警阈值同步逻辑，以库存表为权威数据源
+
+### 修改内容
+添加同步逻辑，确保 `product.warning_stock` 与 `product_stock.warning_threshold` 保持一致，以 `product_stock.warning_threshold` 为权威数据源。
+
+### 修改文件
+
+#### 后端
+1. backend/src/main/java/com/shoppingmall/service/admin/impl/StockServiceImpl.java - 添加预警阈值同步方法
+2. backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java - 修改创建库存记录逻辑，添加预警阈值同步
+
+### 具体修改
+
+#### 1. 添加预警阈值同步方法
+- 在`StockServiceImpl`中添加`syncProductWarningStock`方法
+- 以`product_stock.warning_threshold`为权威数据源，同步更新`product.warning_stock`
+- 与现有的`syncProductStock`方法保持一致的设计模式
+
+#### 2. 在更新预警阈值时同步
+- 在`StockServiceImpl.updateWarningThreshold`方法中
+- 更新`product_stock.warning_threshold`后，调用`syncProductWarningStock`同步到`product.warning_stock`
+
+#### 3. 在调整库存时同步预警阈值
+- 在`StockServiceImpl.adjustStock`方法中
+- 如果`StockDTO`中提供了`warningThreshold`，更新后同步到`product.warning_stock`
+
+#### 4. 创建库存记录时的同步逻辑
+- 在`ProductServiceImpl.createOrUpdateProductStock`方法中
+- 创建新库存记录时：
+  - 如果`product.warning_stock`存在，使用它作为`product_stock.warning_threshold`的初始值
+  - 如果不存在，使用默认值10
+  - 创建后，以`product_stock.warning_threshold`为准，同步回`product.warning_stock`
+- 更新现有库存记录时：
+  - 更新后，以`product_stock.warning_threshold`为准，同步回`product.warning_stock`
+
+### 技术细节
+- 同步逻辑采用"以库存表为准"的原则
+- 所有更新`product_stock.warning_threshold`的地方都会同步更新`product.warning_stock`
+- 同步失败不会影响主业务流程（使用try-catch捕获异常）
+- 保留`product.warning_stock`字段，但实际数据以`product_stock.warning_threshold`为准
+
+### 影响
+- ✅ `product.warning_stock`和`product_stock.warning_threshold`保持一致
+- ✅ 以`product_stock.warning_threshold`为权威数据源
+- ✅ 所有更新预警阈值的操作都会自动同步
+- ✅ 创建库存记录时会正确初始化预警阈值并同步
+
+---
+
+## 2025-12-12 - 修改商品列表和库存列表排序为按创建时间倒序
+
+### 修改内容
+将商品列表和库存列表的排序方式改为按商品创建时间倒序排列。
+
+### 修改文件
+
+#### 后端
+1. backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java - 修改商品列表排序
+2. backend/src/main/java/com/shoppingmall/service/admin/impl/StockServiceImpl.java - 修改库存列表排序
+
+### 具体修改
+
+#### 1. 商品列表排序修改
+- 在`ProductServiceImpl.getProductPage`方法中
+- 将排序从`orderByDesc(Product::getSalesCount)`（按销量降序）改为`orderByDesc(Product::getCreateTime)`（按创建时间倒序）
+- 影响页面：`http://localhost:3003/admin/product/list`
+
+#### 2. 库存列表排序修改
+- 在`StockServiceImpl.getStockPage`方法中
+- 将排序从`orderByDesc(Product::getUpdateTime)`（按更新时间倒序）改为`orderByDesc(Product::getCreateTime)`（按创建时间倒序）
+- 影响页面：`http://localhost:3003/admin/stock/list`
+
+### 技术细节
+- 使用MyBatis-Plus的`orderByDesc`方法进行倒序排序
+- 排序字段：`Product::getCreateTime`（商品创建时间）
+- 最新创建的商品会显示在列表最前面
+
+### 影响
+- ✅ 商品列表按创建时间倒序排列，最新创建的商品显示在最前面
+- ✅ 库存列表按创建时间倒序排列，最新创建的商品显示在最前面
+- ✅ 两个列表的排序方式保持一致
+
+---
+
+## 2025-12-12 - 修复库存列表功能并增加商品状态搜索和库存预警功能
+
+### 修改内容
+1. 修复库存列表页面商品图片显示问题
+2. 在搜索功能中增加商品状态字段查询
+3. 增加库存预警相关功能（预警筛选、预警状态显示、预警阈值设置）
+
+### 修改文件
+
+#### 后端
+1. backend/src/main/java/com/shoppingmall/dto/StockQueryDTO.java - 添加productStatus字段
+2. backend/src/main/java/com/shoppingmall/controller/admin/StockController.java - 添加productStatus参数
+3. backend/src/main/java/com/shoppingmall/service/admin/impl/StockServiceImpl.java - 添加商品状态筛选逻辑
+
+#### 前端
+1. admin-frontend/src/api/admin/stock.ts - 添加productStatus参数
+2. admin-frontend/src/views/stock/List.vue - 修复图片显示、添加状态搜索、添加预警功能
+
+### 具体修改
+
+#### 1. 修复商品图片显示问题
+- 添加`getImageUrl`函数，处理图片URL的相对路径和绝对路径
+- 如果URL是相对路径（以`/`开头），添加基础URL前缀
+- 如果URL已经是完整URL（以`http://`或`https://`开头），直接使用
+- 为`el-image`组件添加错误处理，显示占位图标
+- 添加图片预览功能，点击图片可以放大查看
+
+#### 2. 增加商品状态搜索功能
+- 在`StockQueryDTO`中添加`productStatus`字段（Integer类型，0-下架，1-上架）
+- 在`StockController`的`getStockPage`方法中添加`productStatus`参数
+- 在`StockServiceImpl`的`getStockPage`方法中添加商品状态筛选逻辑
+- 在前端搜索表单中添加商品状态下拉选择框
+- 支持筛选上架、下架或全部商品
+
+#### 3. 增加库存预警功能
+- 在搜索表单中添加"预警筛选"下拉框，支持筛选仅预警商品或全部商品
+- 在库存列表表格中添加"预警阈值"列，显示每个商品的预警阈值
+- 在库存列表表格中添加"预警状态"列，使用标签显示预警/正常状态
+- 在"可用库存"列中，如果商品处于预警状态，使用红色高亮显示
+- 在操作列中添加"设置预警"按钮，可以快速设置商品的预警阈值
+- 添加`handleSetThreshold`函数，通过弹窗输入框设置预警阈值
+- 调用`updateWarningThreshold` API更新预警阈值
+
+### 技术细节
+- 图片URL处理：使用环境变量`VITE_API_BASE_URL`作为基础URL
+- 商品状态：0表示下架，1表示上架
+- 预警判断：当可用库存 <= 预警阈值时，商品处于预警状态
+- 预警阈值设置：使用`ElMessageBox.prompt`弹窗输入，验证输入值必须大于等于0
+
+### 影响
+- ✅ 库存列表页面商品图片能够正确显示
+- ✅ 支持按商品状态筛选库存列表
+- ✅ 支持按预警状态筛选库存列表
+- ✅ 库存列表显示预警阈值和预警状态
+- ✅ 可以快速设置商品的预警阈值
+- ✅ 预警商品在列表中高亮显示，便于识别
+
+---
+
+## 2025-12-12 - 修复购物车结算页面地址编辑和新增逻辑
+
+### 修改内容
+修复购物车结算页面地址编辑和新增的逻辑：
+1. 编辑操作时默认勾选"保存本次收货地址"
+2. 编辑操作保存后更新原地址，不新增记录
+3. 只有选择"其他收货地址"保存才是新增操作
+
+### 修改文件
+
+#### 前端
+1. frontend/src/views/cart/Checkout.vue - 修复地址编辑和新增逻辑
+
+### 具体修改
+
+#### 1. 添加编辑地址ID跟踪
+- 添加`editingAddressId`变量，用于保存正在编辑的地址ID
+- 区分编辑和新增操作
+
+#### 2. 修复handleEditAddress函数
+- 保存正在编辑的地址ID到`editingAddressId`
+- 设置`saveAddress: true`，编辑时默认勾选"保存本次收货地址"
+
+#### 3. 修复handlePlaceOrder函数
+- 导入`updateAddress`函数
+- 在保存地址时，判断是编辑还是新增：
+  - 如果`editingAddressId`不为null，调用`updateAddress`更新地址
+  - 如果`editingAddressId`为null，调用`addAddress`新增地址
+- 编辑时使用原地址ID，新增时使用新创建的地址ID
+
+#### 4. 优化watch监听逻辑
+- 选择"其他收货地址"时，清空`editingAddressId`，确保是新增操作
+
+### 技术细节
+- 编辑操作：`editingAddressId`有值，保存时更新地址
+- 新增操作：`editingAddressId`为null，保存时新增地址
+- 通过`editingAddressId`区分编辑和新增，逻辑更清晰
+
+### 影响
+- ✅ 编辑操作时默认勾选"保存本次收货地址"
+- ✅ 编辑操作保存后更新原地址，不新增记录
+- ✅ 只有选择"其他收货地址"保存才是新增操作
+- ✅ 提升用户体验，编辑和新增逻辑更清晰
+
+---
+
+## 2025-12-12 - 修复购物车结算页面编辑地址的bug
+
+### 修改内容
+修复购物车结算页面点击已有地址的"编辑"按钮时，不应该定位到"其他收货地址"选项，也不应该清空已有地址的输入信息。
+
+### 修改文件
+
+#### 前端
+1. frontend/src/views/cart/Checkout.vue - 修复编辑地址逻辑
+
+### 具体修改
+
+#### 1. 修复handleEditAddress函数
+- 移除`selectedAddressId.value = 'other'`的设置
+- 编辑地址时，保持当前选中的地址ID不变
+- 只设置`showAddressForm.value = true`来显示编辑表单
+- 填充表单数据，不触发watch清空逻辑
+
+#### 2. 优化watch监听逻辑
+- 添加`oldVal`参数，判断是否从非'other'变为'other'
+- 只有当从非'other'变为'other'时才清空表单
+- 避免编辑地址时（selectedAddressId不变）触发清空
+
+### 技术细节
+- 编辑地址时：不改变selectedAddressId，只显示表单并填充数据
+- 选择"其他收货地址"时：selectedAddressId变为'other'，触发watch清空表单
+- 通过oldVal判断，确保只有真正的选择操作才清空表单
+
+### 影响
+- ✅ 编辑地址时不会定位到"其他收货地址"选项
+- ✅ 编辑地址时不会清空已有地址的输入信息
+- ✅ 只有选择"其他收货地址"时才会清空表单
+- ✅ 提升用户体验，编辑和新增逻辑更清晰
+
+---
+
+## 2025-12-12 - 修复购物车结算页面选择其他收货地址时清空表单
+
+### 修改内容
+修复购物车结算页面选择"其他收货地址"时，自动清空所有收货人信息输入框，相当于重置为新增状态。
+
+### 修改文件
+
+#### 前端
+1. frontend/src/views/cart/Checkout.vue - 添加watch监听，选择"其他收货地址"时清空表单
+
+### 具体修改
+
+#### 1. 添加watch监听逻辑
+- 导入`watch`函数
+- 监听`selectedAddressId`的变化
+- 当选择"other"（其他收货地址）时，清空所有表单字段：
+  - 省市区字段
+  - 详细地址
+  - 邮编
+  - 收货人姓名
+  - 联系电话
+  - 联系手机
+  - 保存地址选项
+- 同时清空地区选择器数据（regionData）
+- 显示地址表单（showAddressForm = true）
+
+### 技术细节
+- 使用Vue的watch API监听selectedAddressId的变化
+- 当值变为'other'时，重置addressForm为初始状态
+- 清空regionData，确保地区选择器也重置
+- 自动显示地址表单，方便用户填写
+
+### 影响
+- ✅ 选择"其他收货地址"时自动清空所有输入框
+- ✅ 提供清晰的表单重置体验
+- ✅ 避免用户需要手动清空已填写的旧数据
+- ✅ 提升用户体验，表单状态更清晰
+
+---
+
+## 2025-12-12 - 修复购物车结算页面地址编辑地区显示问题
+
+### 修改内容
+修复购物车结算页面编辑收货地址时，地区数据不显示的问题。
+
+### 修改文件
+
+#### 前端
+1. frontend/src/views/cart/Checkout.vue - 添加地区ID查找功能
+
+### 具体修改
+
+#### 1. 添加地区ID查找功能
+- 添加`loadRegionIdsByName`函数，根据省市区名称查找对应的ID
+- 在`handleEditAddress`中调用该函数，将查找到的ID设置到`regionData`中
+- 通过三级查找：省份 -> 城市 -> 区县，确保找到正确的ID
+- 如果查找失败，不影响表单数据，用户仍可以重新选择
+
+### 技术细节
+- 根据名称查找ID：通过遍历所有省份、城市、区县来匹配名称
+- 异步加载：地区数据加载是异步的，需要等待数据加载完成
+- 与AddressEdit.vue使用相同的逻辑，保持一致性
+
+### 影响
+- ✅ 购物车结算页面编辑地址时能够正确显示已保存的地区数据
+- ✅ 提升用户体验，编辑地址时无需重新选择地区
+- ✅ 与收货地址编辑页面保持一致的行为
+
+---
+
+## 2025-12-12 - 修复收货地址编辑和列表显示问题
+
+### 修改内容
+修复收货地址编辑页面地区数据不显示的问题，以及地址列表需要拼接省市区显示的问题。
+
+### 修改文件
+
+#### 前端
+1. frontend/src/views/member/AddressEdit.vue - 修复编辑页面地区数据加载
+2. frontend/src/views/member/Address.vue - 修复地址列表显示，拼接省市区
+3. frontend/src/components/common/RegionSelector.vue - 优化watch逻辑，支持动态加载子级数据
+
+### 具体修改
+
+#### 1. 修复编辑页面地区数据不显示
+- 添加`loadRegionIdsByName`函数，根据省市区名称查找对应的ID
+- 在`loadAddressData`中调用该函数，将查找到的ID设置到`regionData`中
+- 通过三级查找：省份 -> 城市 -> 区县，确保找到正确的ID
+- 如果查找失败，不影响表单数据，用户仍可以重新选择
+
+#### 2. 修复地址列表显示
+- 添加`formatFullAddress`函数，将省市区和详细地址拼接成完整地址
+- 格式：`省份 城市 区县 详细地址`
+- 在地址列表的地址列中使用该函数格式化显示
+
+#### 3. 优化RegionSelector组件
+- 优化watch逻辑，当外部值变化时，自动加载对应的子级数据
+- 如果省份ID变化，重新加载城市列表
+- 如果城市ID变化，重新加载区县列表
+- 确保组件能够正确响应外部数据变化
+
+### 技术细节
+- 根据名称查找ID：通过遍历所有省份、城市、区县来匹配名称
+- 地址拼接：使用空格连接省市区和详细地址
+- 异步加载：地区数据加载是异步的，需要等待数据加载完成
+
+### 影响
+- ✅ 编辑页面能够正确显示已保存的地区数据
+- ✅ 地址列表显示完整的省市区地址信息
+- ✅ RegionSelector组件能够正确响应外部数据变化
+- ✅ 提升用户体验，编辑地址时无需重新选择地区
+
+---
+
+## 2025-12-12 - 对接3个页面的地区选择功能到后端
+
+### 修改内容
+将购物车结算页面、用户注册页面和收货地址编辑页面的地区选择功能对接后端region表数据，使用统一的RegionSelector组件。
+
+### 修改文件
+
+#### 前端
+1. frontend/src/components/common/RegionSelector.vue - 扩展change事件，同时返回名称
+2. frontend/src/views/cart/Checkout.vue - 替换el-cascader为RegionSelector组件
+3. frontend/src/views/auth/Register.vue - 替换硬编码地区数据为RegionSelector组件
+4. frontend/src/views/member/AddressEdit.vue - 替换硬编码地区数据为RegionSelector组件
+
+### 具体修改
+
+#### 1. RegionSelector组件增强
+- change事件同时返回ID、编码和名称
+- 新增字段：provinceName、cityName、districtName
+- 方便页面直接使用名称提交给后端API
+
+#### 2. Checkout.vue（购物车结算页面）
+- 引入RegionSelector组件
+- 替换el-cascader组件
+- 更新表单数据结构：region数组改为province、city、district三个独立字段
+- 添加handleRegionChange处理函数，将选中的ID转换为名称
+- 更新地址验证逻辑
+- 更新地址提交逻辑，使用名称而非ID
+
+#### 3. Register.vue（用户注册页面）
+- 引入RegionSelector组件
+- 删除硬编码的地区数据（provinces、cities、districts、regionData）
+- 删除handleProvinceChange和handleCityChange函数
+- 添加regionData和handleRegionChange
+- registerForm已有province、city、district字段，直接使用
+
+#### 4. AddressEdit.vue（收货地址编辑页面）
+- 引入RegionSelector组件
+- 删除硬编码的地区数据
+- 删除handleProvinceChange和handleCityChange函数
+- 添加regionData和handleRegionChange
+- 编辑时加载地址数据，regionData暂时清空（后续可扩展根据名称查询ID）
+
+### 技术细节
+- 后端API期望接收省市区名称（字符串），而非ID
+- RegionSelector组件返回ID和名称，页面使用名称提交
+- 编辑地址时，由于只有名称没有ID，暂时需要用户重新选择（后续可扩展API支持根据名称查询ID）
+- 所有页面统一使用RegionSelector组件，代码更简洁，维护更方便
+
+### 影响
+- ✅ 3个页面的地区选择功能已对接后端region表数据
+- ✅ 使用统一的RegionSelector组件，代码复用性更好
+- ✅ 删除硬编码的地区数据，数据更完整准确
+- ✅ 支持完整的省市区三级数据选择
+- ✅ 前端localStorage缓存，减少API调用
+
+---
+
+## 2025-12-12 - 修复编译错误：javax.annotation包不存在
+
+### 修改内容
+修复Spring Boot 3.x中javax.annotation包不存在的问题，将PostConstruct注解的导入从javax.annotation改为jakarta.annotation。
+
+### 修改文件
+
+#### 后端
+1. backend/src/main/java/com/shoppingmall/service/common/impl/RegionServiceImpl.java - 修复PostConstruct导入
+
+### 具体修改
+
+#### 1. 修复导入语句
+- 将`import javax.annotation.PostConstruct;`改为`import jakarta.annotation.PostConstruct;`
+- Spring Boot 3.x使用Jakarta EE规范，javax包已被jakarta包替代
+
+### 技术细节
+- Spring Boot 3.x基于Jakarta EE 9+，所有javax.*包都已迁移到jakarta.*
+- PostConstruct注解用于标记在依赖注入完成后执行的方法
+- 在RegionServiceImpl中用于应用启动时预加载地区数据
+
+### 影响
+- ✅ 修复编译错误，服务可以正常启动
+- ✅ 符合Spring Boot 3.x的Jakarta EE规范
+- ✅ 地区数据预加载功能正常工作
+
+---
+
+## 2025-12-12 - 修复首页公开接口401错误
+
+### 修改内容
+修复未登录用户访问首页时，系统配置和导航菜单接口返回401错误的问题，将这两个公开接口添加到拦截器排除列表中。
+
+### 修改文件
+
+#### 后端
+1. backend/src/main/java/com/shoppingmall/common/config/WebMvcConfig.java - 添加公开接口到排除列表
+
+### 具体修改
+
+#### 1. 添加公开接口到拦截器排除列表
+- 在JWT拦截器的`excludePathPatterns`中添加`/api/buyer/system/config/public`，允许游客访问系统公开配置接口
+- 在JWT拦截器的`excludePathPatterns`中添加`/api/buyer/navigation/**`，允许游客访问导航菜单模块的所有接口
+
+### 技术细节
+- 这两个接口是首页必需的公开数据，不需要登录即可访问
+- `/api/buyer/system/config/public` - 获取系统公开配置（如网站名称、客服电话等）
+- `/api/buyer/navigation/menus` - 获取导航菜单列表
+- 通过添加到排除列表，这些接口不再被JWT拦截器拦截
+
+### 影响
+- ✅ 未登录用户访问首页时，系统配置和导航菜单接口正常返回数据
+- ✅ 首页可以正常加载，不再出现401错误
+- ✅ 提升游客体验，首页功能完整可用
+
+---
+
+## 2025-12-12 - 实现多级地区数据管理功能
+
+### 修改内容
+实现完整的省市区三级地区数据管理功能，支持用户注册和收货地址的多级地区选择。使用数据库存储地区数据，采用Caffeine本地缓存优化性能，前端使用localStorage缓存减少API调用。
+
+### 修改文件
+
+#### 数据库
+1. database/update-20251212-create-region-table.sql - 创建地区表结构
+2. database/import_regions.py - 地区数据导入脚本（JSON转SQL）
+
+#### 后端
+1. backend/src/main/java/com/shoppingmall/common/config/CacheConfig.java - 添加地区缓存配置
+2. backend/src/main/java/com/shoppingmall/entity/Region.java - 地区实体类
+3. backend/src/main/java/com/shoppingmall/repository/common/RegionRepository.java - 地区数据访问层
+4. backend/src/main/java/com/shoppingmall/vo/RegionVO.java - 地区VO类
+5. backend/src/main/java/com/shoppingmall/service/common/RegionService.java - 地区服务接口
+6. backend/src/main/java/com/shoppingmall/service/common/impl/RegionServiceImpl.java - 地区服务实现类
+7. backend/src/main/java/com/shoppingmall/controller/common/RegionController.java - 地区控制器
+
+#### 前端
+1. frontend/src/api/common/region.ts - 地区API服务（包含localStorage缓存）
+2. frontend/src/components/common/RegionSelector.vue - 统一地区选择组件
+
+### 具体修改
+
+#### 1. 数据库设计
+- 创建`region`表，包含字段：id、code、name、parent_id、level、sort_order、status等
+- 建立索引：code唯一索引、parent_id索引、level索引、复合索引(parent_id, level)
+- 支持三级结构：省/直辖市(level=1)、市(level=2)、区/县(level=3)
+
+#### 2. 后端实现
+- **缓存配置**：添加`regionCache`和`regionTreeCache`两个Caffeine缓存Bean
+  - regionCache：最大50000条，24小时过期，用于缓存所有地区数据
+  - regionTreeCache：最大10条，24小时过期，用于缓存树形结构
+- **实体类**：Region实体，支持树形结构（children字段）
+- **Repository层**：
+  - selectByLevel：根据级别查询
+  - selectByParentId：根据父级ID查询子级
+  - selectByCode：根据编码查询
+  - selectAllEnabled：查询所有启用的地区（用于预加载）
+- **Service层**：
+  - getProvinces：获取所有省份
+  - getChildrenByParentId：根据父级ID获取子级
+  - getByCode：根据编码获取地区
+  - getFullPathByCode：根据编码获取完整路径（省-市-区）
+  - preloadRegions：应用启动时预加载所有地区数据到缓存
+  - clearCache：清除缓存
+- **Controller层**：提供RESTful API接口
+  - GET /api/regions/provinces - 获取所有省份
+  - GET /api/regions/children/{parentId} - 获取子级地区
+  - GET /api/regions/code/{code} - 根据编码获取地区
+  - GET /api/regions/path/{code} - 根据编码获取完整路径
+
+#### 3. 前端实现
+- **API服务**（region.ts）：
+  - 使用localStorage缓存，24小时过期
+  - getProvinces：获取省份列表（带缓存）
+  - getChildrenByParentId：获取子级地区（带缓存）
+  - getRegionByCode：根据编码获取地区
+  - getFullPathByCode：根据编码获取完整路径
+  - clearRegionCache：清除所有地区缓存
+- **统一组件**（RegionSelector.vue）：
+  - 三级联动选择器（省-市-区）
+  - 支持v-model双向绑定
+  - 懒加载：按需加载城市和区县数据
+  - 支持初始值设置
+  - 发出change事件，包含ID和编码信息
+
+#### 4. 数据导入脚本
+- 创建Python脚本`import_regions.py`
+- 将`docs/regions.json`转换为SQL INSERT语句
+- 自动处理三级结构关系，生成parent_id
+- 生成SQL文件：`update-20251212-import-regions-data.sql`
+
+### 性能优化
+
+#### 后端优化
+1. **Caffeine本地缓存**：
+   - 应用启动时预加载所有地区数据
+   - 缓存命中率高，减少数据库查询
+   - 24小时过期时间，适合地区数据很少变化的场景
+2. **数据库优化**：
+   - 建立复合索引(parent_id, level)，优化按父级和级别查询
+   - 单列索引：code、parent_id、level
+3. **查询优化**：
+   - 批量查询子级数据，避免N+1查询
+   - 使用@Select注解，直接SQL查询，性能更好
+
+#### 前端优化
+1. **localStorage缓存**：
+   - 24小时过期时间
+   - 减少API调用次数
+   - 提升用户体验
+2. **懒加载策略**：
+   - 初始只加载省份列表
+   - 选择省份后加载城市
+   - 选择城市后加载区县
+3. **组件复用**：
+   - 统一地区选择组件，可在多个页面复用
+   - 减少代码重复
+
+### 技术细节
+- 地区编码：使用6位数字编码（如：110000表示北京市）
+- 树形结构：通过parent_id建立父子关系
+- 级别标识：1-省/直辖市，2-市，3-区/县
+- 缓存策略：多级缓存（Caffeine + localStorage）
+- 数据预加载：应用启动时自动预加载，减少首次查询延迟
+
+### 使用说明
+1. **执行数据库脚本**：
+   ```sql
+   -- 1. 创建表
+   source database/update-20251212-create-region-table.sql;
+   
+   -- 2. 导入数据（需要先运行Python脚本生成SQL）
+   python database/import_regions.py
+   source database/update-20251212-import-regions-data.sql;
+   ```
+2. **前端使用组件**：
+   ```vue
+   <RegionSelector 
+     v-model="regionData"
+     @change="handleRegionChange"
+   />
+   ```
+
+### 影响
+- ✅ 完整的省市区三级地区数据支持
+- ✅ 高性能缓存策略，减少数据库查询
+- ✅ 前端localStorage缓存，减少API调用
+- ✅ 统一地区选择组件，便于复用
+- ✅ 支持用户注册和收货地址的地区选择
+- ✅ 应用启动时预加载，首次查询无延迟
+
+---
+
+## 2025-12-12 - Token过期自动跳转登录页
+
+### 修改内容
+优化token过期处理逻辑，当系统检测到token过期时，不显示错误提示，直接跳转到登录页面。
+
+### 修改文件
+
+#### 前端
+1. frontend/src/utils/request.ts - 优化token过期处理逻辑
+
+### 具体修改
+
+#### 1. 响应拦截器优化
+- 在成功响应拦截器中，当返回`code === 401`且消息包含"Token已过期"或"Token无效"时，不显示错误提示，直接清除token并跳转到登录页
+- 在错误响应拦截器中，当HTTP状态码为401且错误消息包含"Token已过期"、"Token无效"或"未登录"时，不显示错误提示，直接清除token并跳转到登录页
+- 其他401错误仍然显示错误提示
+
+#### 2. 修复类型错误
+- 将`AxiosRequestConfig`改为`InternalAxiosRequestConfig`，修复axios版本更新后的类型兼容性问题
+
+### 技术细节
+- 检测token过期的条件：`code === 401` 且消息包含"Token已过期"、"Token无效"或"未登录"
+- 跳转前自动清除localStorage中的token
+- 使用`router.push('/login')`跳转到登录页
+- 不显示`ElMessage.error`提示，避免用户看到多个错误提示
+
+### 影响
+- ✅ Token过期时自动跳转登录页，不显示错误提示
+- ✅ 提升用户体验，避免页面出现多个错误提示
+- ✅ 统一处理token过期逻辑，代码更加清晰
+- ✅ 修复了axios类型兼容性问题
+
+---
+
+## 2025-12-12 - 修复支付页面重复错误提示问题
 
 ### 修改内容
 修复支付页面支付密码错误时出现两个重复错误提示的问题，优化错误处理逻辑。

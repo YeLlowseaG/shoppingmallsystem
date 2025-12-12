@@ -78,8 +78,8 @@ public class ProductServiceImpl implements ProductService {
             wrapper.eq(Product::getStatus, "上架".equals(status) ? 1 : 0);
         }
 
-        // 按销量降序
-        wrapper.orderByDesc(Product::getSalesCount);
+        // 按创建时间倒序
+        wrapper.orderByDesc(Product::getCreateTime);
 
         Page<Product> productPage = productRepository.selectPage(page, wrapper);
 
@@ -278,6 +278,8 @@ public class ProductServiceImpl implements ProductService {
     /**
      * 创建或更新 product_stock 记录
      * 以 product.stock 为数据源，同步到 product_stock.total_stock
+     * 预警阈值：创建时如果 product.warning_stock 存在则使用，否则使用默认值10
+     * 创建后以 product_stock.warning_threshold 为准，同步回 product.warning_stock
      * 
      * @param productId 商品ID
      * @param totalStock 总库存
@@ -290,14 +292,27 @@ public class ProductServiceImpl implements ProductService {
             
             if (stock == null) {
                 // 创建新记录
+                // 查询商品信息，获取 warning_stock 作为初始值
+                Product product = productRepository.selectById(productId);
+                Integer initialWarningThreshold = (product != null && product.getWarningStock() != null) 
+                    ? product.getWarningStock() : 10;
+                
                 stock = new ProductStock();
                 stock.setProductId(productId);
                 stock.setTotalStock(totalStock);
                 stock.setAvailableStock(totalStock);
                 stock.setLockedStock(0);
-                stock.setWarningThreshold(10);
+                stock.setWarningThreshold(initialWarningThreshold);
                 productStockRepository.insert(stock);
-                log.debug("创建库存记录成功，商品ID: {}, 库存: {}", productId, totalStock);
+                
+                // 同步预警阈值回 product 表（以 product_stock 为准）
+                if (product != null) {
+                    product.setWarningStock(initialWarningThreshold);
+                    productRepository.updateById(product);
+                }
+                
+                log.debug("创建库存记录成功，商品ID: {}, 库存: {}, 预警阈值: {}", 
+                    productId, totalStock, initialWarningThreshold);
             } else {
                 // 更新现有记录
                 int oldTotalStock = stock.getTotalStock() != null ? stock.getTotalStock() : 0;
@@ -308,6 +323,14 @@ public class ProductServiceImpl implements ProductService {
                 int lockedStock = stock.getLockedStock() != null ? stock.getLockedStock() : 0;
                 stock.setAvailableStock(totalStock - lockedStock);
                 productStockRepository.updateById(stock);
+                
+                // 同步预警阈值回 product 表（以 product_stock 为准）
+                Product product = productRepository.selectById(productId);
+                if (product != null && stock.getWarningThreshold() != null) {
+                    product.setWarningStock(stock.getWarningThreshold());
+                    productRepository.updateById(product);
+                }
+                
                 log.debug("更新库存记录成功，商品ID: {}, 库存: {} (调整: {})", productId, totalStock, adjustQuantity);
             }
         } catch (Exception e) {
