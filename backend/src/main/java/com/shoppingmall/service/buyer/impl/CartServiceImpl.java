@@ -212,7 +212,6 @@ public class CartServiceImpl implements CartService {
             vo.setImage("");
             vo.setSalesPrice(BigDecimal.ZERO);
             vo.setMemberPrice(BigDecimal.ZERO);
-            vo.setWholesalePrice(null);
             vo.setWeight(BigDecimal.ZERO);
             return vo;
         }
@@ -240,17 +239,13 @@ public class CartServiceImpl implements CartService {
         String userLevelName = convertUserLevelToString(userLevel);
 
         // 3. 查询价格信息
-        // 销售价格：使用商品表的salePrice，如果没有则使用basePrice
-        BigDecimal salesPrice = product.getSalePrice() != null ? product.getSalePrice() : product.getBasePrice();
+        // 销售价格：统一使用basePrice作为销售价格
+        BigDecimal salesPrice = product.getBasePrice();
         vo.setSalesPrice(salesPrice != null ? salesPrice : BigDecimal.ZERO);
 
         // 会员价：根据用户等级查询价格表
         BigDecimal memberPrice = getPriceByUserLevel(cart.getProductId(), userLevelName, cart.getQuantity());
         vo.setMemberPrice(memberPrice != null ? memberPrice : salesPrice);
-
-        // 批发优惠价：查询金牌等级的价格（如果有）
-        BigDecimal wholesalePrice = getPriceByUserLevel(cart.getProductId(), "金牌", cart.getQuantity());
-        vo.setWholesalePrice(wholesalePrice);
 
         return vo;
     }

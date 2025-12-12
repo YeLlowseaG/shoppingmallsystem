@@ -49,11 +49,6 @@ public class CartVO {
     private BigDecimal memberPrice;
 
     /**
-     * 批发优惠价
-     */
-    private BigDecimal wholesalePrice;
-
-    /**
      * 数量
      */
     private Integer quantity;

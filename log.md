@@ -1,4 +1,445 @@
-﻿## 2025-12-12 - 添加预警阈值同步逻辑，以库存表为权威数据源
+﻿## 2025-12-12 - 统一使用basePrice作为销售价格，删除批发价格字段
+
+### 修改内容
+统一使用`basePrice`字段作为销售价格，删除所有批发价格（`wholesalePrice`）相关代码。简化价格体系，不再区分批发价格和销售价格。
+
+### 修改文件
+
+#### 后端实体类/DTO/VO
+1. `backend/src/main/java/com/shoppingmall/entity/Product.java` - 修改`basePrice`字段注释为"销售价格"
+2. `backend/src/main/java/com/shoppingmall/dto/ProductDTO.java` - 修改`basePrice`字段注释为"销售价格"
+3. `backend/src/main/java/com/shoppingmall/vo/ProductVO.java` - 修改`basePrice`字段注释为"销售价格"
+4. `backend/src/main/java/com/shoppingmall/vo/CartVO.java` - 删除`wholesalePrice`字段
+
+#### 后端服务层
+5. `backend/src/main/java/com/shoppingmall/service/buyer/impl/CartServiceImpl.java` - 统一使用`basePrice`作为销售价格，删除批发价格逻辑
+6. `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java` - 统一使用`basePrice`作为销售价格
+
+#### 前端API接口
+7. `frontend/src/api/buyer/cart.ts` - 删除`CartVO`接口中的`wholesalePrice`字段
+
+### 具体修改
+
+#### 1. 实体类注释修改
+- `Product.java`: 将`basePrice`字段注释从"基础批发价"改为"销售价格"
+- `ProductDTO.java`: 将`basePrice`字段注释从"基础批发价（销售价格）"改为"销售价格"
+- `ProductVO.java`: 将`basePrice`字段注释从"基础批发价"改为"销售价格"
+
+#### 2. 购物车VO修改
+- 删除`CartVO`中的`wholesalePrice`字段（批发优惠价）
+- 保留`salesPrice`（销售价格）和`memberPrice`（会员价）字段
+
+#### 3. 购物车服务修改
+- 修改`convertToVO`方法中的价格获取逻辑：
+  - 原来：优先使用`salePrice`，如果没有则使用`basePrice`
+  - 现在：统一使用`basePrice`作为销售价格
+- 删除批发优惠价的查询和设置逻辑（删除查询"金牌"等级价格的代码）
+
+#### 4. 订单服务修改
+- 修改价格获取逻辑：
+  - 原来：优先使用`salePrice`，如果没有则使用`basePrice`
+  - 现在：统一使用`basePrice`作为销售价格
+- 简化会员价回退逻辑
+
+#### 5. 前端接口修改
+- 删除`CartVO`接口中的`wholesalePrice?: number`字段定义
+
+### 技术细节
+- 统一价格字段：所有地方都使用`basePrice`作为销售价格
+- 删除批发价格：不再区分批发价格和销售价格，简化价格体系
+- 保持向后兼容：前端页面组件无需修改，因为它们已经使用`basePrice`字段
+
+### 影响
+- ✅ 统一使用`basePrice`作为销售价格，语义更清晰
+- ✅ 删除批发价格相关代码，简化系统逻辑
+- ✅ 购物车接口返回的价格字段正确（使用`basePrice`而不是`salePrice`）
+- ✅ 订单创建时使用正确的销售价格
+- ✅ 前端接口定义与后端保持一致
+
+---
+
+## 2025-12-12 - 管理后台订单详情页面添加商品图片显示
+
+### 修改内容
+在管理后台订单详情页面的商品列表中，在商品编码左侧增加图片字段，显示商品图片。参考用户端订单详情页面的实现逻辑。
+
+### 修改文件
+
+#### 前端
+1. admin-frontend/src/views/order/List.vue - 在订单详情对话框的商品列表中添加图片列
+
+### 具体修改
+
+#### 1. 添加商品图片列
+- 在商品列表表格中，在商品编码列之前添加"图片"列
+- 使用`el-image`组件显示商品图片
+- 图片尺寸设置为60x60像素，使用`fit="cover"`保持比例
+- 支持图片预览功能，点击图片可以放大查看
+- 添加图片加载失败时的占位符（使用Picture图标）
+
+#### 2. 添加图片URL处理函数
+- 添加`getImageUrl`函数，处理图片URL的相对路径和绝对路径
+- 如果URL是相对路径（以`/`开头），添加基础URL前缀（`VITE_API_BASE_URL`）
+- 如果URL已经是完整URL（以`http://`或`https://`开头），直接使用
+- 参考库存列表页面的实现方式
+
+#### 3. 导入Picture图标
+- 从`@element-plus/icons-vue`导入`Picture`图标
+- 用于图片加载失败时的占位符显示
+
+#### 4. 添加图片占位符样式
+- 添加`.image-slot`样式类
+- 占位符居中显示，灰色背景，使用Picture图标
+
+### 技术细节
+- 使用Element Plus的`el-image`组件，支持图片预览功能
+- 图片URL处理：使用环境变量`VITE_API_BASE_URL`作为基础URL
+- 图片尺寸：60x60像素，保持宽高比
+- 错误处理：图片加载失败时显示占位符图标
+
+### 影响
+- ✅ 订单详情页面商品列表显示商品图片
+- ✅ 支持点击图片放大预览
+- ✅ 图片加载失败时显示友好的占位符
+- ✅ 与用户端订单详情页面保持一致的显示效果
+- ✅ 提升用户体验，商品信息更直观
+
+---
+
+## 2025-12-12 - 管理后台订单列表页面优化
+
+### 修改内容
+优化管理后台订单列表页面（`/admin/order/list`）的显示和操作功能：
+1. 订单号字段增加可点击打开订单详情页面
+2. 列表屏蔽收货地址字段
+3. 操作列屏蔽【查看按钮】
+4. 操作列增加【物流信息】按钮，可以弹窗查看物流信息；如果无物流显示，则显示暂无物流信息
+
+### 修改文件
+
+#### 前端
+1. admin-frontend/src/views/order/List.vue - 优化订单列表显示和操作
+
+### 具体修改
+
+#### 1. 订单号字段可点击
+- 将订单号列改为可点击的链接样式
+- 点击订单号时调用`handleView`方法打开订单详情对话框
+- 使用`el-link`组件，样式为蓝色链接，鼠标悬停时显示手型光标
+
+#### 2. 屏蔽收货地址字段
+- 删除表格中的"收货地址"列（`recipientAddress`）
+- 简化表格显示，减少不必要的信息
+
+#### 3. 屏蔽查看按钮
+- 删除操作列中的"查看"按钮
+- 用户可以通过点击订单号直接查看订单详情
+
+#### 4. 添加物流信息按钮和弹窗
+- 在操作列中添加"物流信息"按钮
+- 添加物流信息对话框，显示订单号和收货人信息
+- 如果有物流信息，显示：
+  - 承运公司
+  - 发货日期
+  - 发货时间
+  - 物流单号（带复制按钮）
+- 如果无物流信息，显示"暂无物流信息"提示
+- 添加`handleViewLogistics`方法处理查看物流信息
+- 添加`handleCopyTrackingNo`方法处理复制物流单号功能
+
+#### 5. 删除表格中的物流信息列
+- 删除表格中独立的"物流信息"列
+- 物流信息统一通过操作列的按钮查看
+
+#### 6. 删除hasLogistics计算属性
+- 删除不再需要的`hasLogistics`计算属性
+
+### 技术细节
+- 订单号使用`el-link`组件，点击时打开订单详情对话框
+- 物流信息对话框使用`el-descriptions`组件展示信息
+- 物流单号支持一键复制功能，使用`navigator.clipboard.writeText` API
+- 无物流信息时显示友好的提示信息
+
+### 影响
+- ✅ 订单号可点击，直接打开订单详情，操作更便捷
+- ✅ 列表更简洁，屏蔽了收货地址字段
+- ✅ 操作列更精简，移除了查看按钮
+- ✅ 物流信息通过弹窗查看，信息更完整
+- ✅ 支持复制物流单号，提升操作效率
+- ✅ 无物流信息时显示友好提示
+
+---
+
+## 2025-12-12 - 管理后台订单列表页面添加tab标签页功能
+
+### 修改内容
+在管理后台订单列表页面（`/admin/order/list`）添加订单状态tab标签页，参考前端"我的订单"页面的实现，方便用户快速定位查看不同状态的订单。同时保留搜索栏中的订单状态下拉选择框，提供两种方式筛选订单状态。
+
+### 修改文件
+
+#### 前端
+1. admin-frontend/src/views/order/List.vue - 添加订单状态tab标签页
+
+### 具体修改
+
+#### 1. 保留搜索栏中的订单状态下拉选择框
+- 保留搜索表单中的"订单状态"下拉选择框（`el-select`）
+- 用户可以通过下拉选择框进行精确查询
+- 下拉选择框与tab标签页状态同步
+
+#### 2. 添加订单状态tab标签页
+- 在搜索栏下方添加订单状态tab标签页组件
+- 包含8个标签：全部订单、待付款、已付款未发货、已发货、已完成、已取消、已退款、已退货
+- 使用数字状态值（0-6）对应不同的订单状态
+- 当前选中的tab高亮显示（蓝色文字和底部边框）
+
+#### 3. 添加tab切换逻辑
+- 添加`orderTabs`配置数组，定义所有订单状态标签
+- 添加`activeTab`响应式变量，跟踪当前选中的标签
+- 添加`handleTabChange`方法，处理标签切换逻辑：
+  - 点击标签时更新`activeTab`和`searchForm.orderStatus`
+  - 重置分页到第一页
+  - 重新加载订单列表
+  - 如果点击的是当前标签，不执行任何操作
+
+#### 4. 优化搜索和重置方法
+- 修改`handleSearch`方法：如果搜索时没有指定状态，使用当前tab的状态；搜索时同步tab状态
+- 修改`handleReset`方法：重置时同时清空`activeTab`状态
+
+#### 5. 添加状态同步机制
+- 添加`watch`监听`searchForm.orderStatus`的变化，当下拉选择框的值改变时，自动同步更新`activeTab`
+- 点击tab标签页时，自动同步更新下拉选择框的值
+- 确保tab标签页和下拉选择框的状态始终保持一致
+
+#### 6. 添加tab样式
+- 参考前端"我的订单"页面的tab样式
+- 使用Element Plus主题色（#409eff）作为激活状态颜色
+- 添加hover效果和过渡动画
+- 底部边框高亮显示当前选中的tab
+
+### 技术细节
+- Tab标签页使用数字状态值（undefined表示全部，0-6表示不同状态）
+- 切换tab时自动重置分页到第一页
+- 搜索和重置功能与tab状态同步
+- 样式与前端"我的订单"页面保持一致，提升用户体验
+
+### 影响
+- ✅ 管理后台订单列表页面支持tab标签页快速切换订单状态
+- ✅ 用户可以通过点击tab快速定位查看不同状态的订单
+- ✅ 保留搜索栏中的订单状态下拉选择框，提供精确查询功能
+- ✅ tab标签页和下拉选择框状态自动同步，用户体验一致
+- ✅ 界面更加直观，操作更加便捷
+- ✅ 与前端"我的订单"页面保持一致的交互体验
+- ✅ 搜索和重置功能与tab状态完美同步
+
+---
+
+## 2025-12-12 - 修复订单页面交易状态下拉框缺少"已退货"选项
+
+### 修改内容
+修复会员中心订单列表页面（`/member/transaction/orders`）中，交易状态下拉选择框缺少"已退货"选项的问题。
+
+### 修改文件
+
+#### 前端
+1. frontend/src/views/member/Orders.vue - 在交易状态下拉框中添加"已退货"选项
+
+### 具体修改
+
+#### 1. 添加"已退货"选项
+- 在交易状态下拉选择框（`el-select`）中添加`<el-option label="已退货" value="returned" />`选项
+- 位置：在"已退款"选项之后，"已作废"选项之前
+- 与订单状态标签页（`orderTabs`）中的"已退货"选项保持一致
+
+### 技术细节
+- 下拉框选项顺序：全部订单、等待付款、已付款未发货、已发货、已完成、已退款、已退货、已作废
+- 选项值：`returned`，与后端订单状态值（6）对应
+- 与标签页中的"已退货"选项保持一致，确保用户体验统一
+
+### 影响
+- ✅ 交易状态下拉框中包含"已退货"选项
+- ✅ 用户可以通过下拉框筛选"已退货"状态的订单
+- ✅ 与标签页中的"已退货"选项保持一致
+- ✅ 支持通过URL参数`?status=returned`筛选已退货订单
+
+---
+
+## 2025-12-12 - 修复订单页面标签页切换问题
+
+### 修改内容
+修复订单页面点击标签页时无法正确切换和定位的问题，确保点击标签页时能正确加载数据并定位到对应标签页。
+
+### 修改文件
+
+#### 前端
+1. frontend/src/views/member/Orders.vue - 修复标签页切换逻辑
+
+### 具体修改
+
+#### 1. 添加路由参数支持
+- 引入`useRoute`来获取路由参数
+- 添加`initFromRoute`函数，从路由参数初始化标签页状态
+- 在`onMounted`中调用`initFromRoute`初始化状态
+- 添加路由变化监听，当URL参数变化时自动更新标签页状态
+
+#### 2. 修复标签页切换逻辑
+- 在`handleTabChange`函数中添加检查，如果点击的是当前标签，不执行任何操作
+- 在`filterOrders`函数中更新URL参数，通过URL参数来定位到对应的标签页
+- 切换标签页时自动滚动到页面顶部，提升用户体验
+
+#### 3. 修复分页加载问题
+- 在`handlePageChange`和`handleSizeChange`函数中添加`loadOrderList()`调用
+- 确保分页变化时重新加载数据
+
+### 技术细节
+- 使用Vue Router的`query`参数来保持标签页状态
+- 切换标签页时更新URL：`/member/transaction/orders?status=pending_payment`
+- 通过`watch`监听路由参数变化，实现状态同步
+- 切换标签页时自动滚动到顶部，方便用户查看新内容
+
+### 影响
+- ✅ 点击标签页时能正确切换并加载对应状态的订单
+- ✅ URL参数会更新，可以通过URL直接定位到对应的标签页
+- ✅ 切换标签页时自动滚动到顶部
+- ✅ 分页变化时正确重新加载数据
+- ✅ 支持通过URL参数直接访问特定状态的订单列表
+
+---
+
+## 2025-12-12 - 修复订单状态查询功能无效果问题
+
+### 修改内容
+修复会员中心订单列表页面（`/member/transaction/orders`）中，通过URL参数或标签页切换进行订单状态查询时无效果的问题。
+
+### 修改文件
+
+#### 前端
+1. frontend/src/views/member/Orders.vue - 修复订单状态查询参数名
+2. frontend/src/api/buyer/order.ts - 更新订单查询DTO接口定义
+
+### 具体修改
+
+#### 1. 修复参数名不匹配问题
+- 前端发送的参数名是`status`，但后端期望的参数名是`orderStatus`
+- 在`loadOrderList`函数中，将`status: statusStr`改为`orderStatus: statusStr`
+- 确保前端发送的参数名与后端`OrderQueryDTO`中的字段名一致
+
+#### 2. 更新TypeScript接口定义
+- 在`OrderQueryDTO`接口中，将`status?: string`改为`orderStatus?: string`
+- 保持前端接口定义与后端DTO字段名一致
+
+### 技术细节
+- 后端`OrderQueryDTO`中的字段名是`orderStatus`（驼峰命名）
+- Spring Boot使用字段名来绑定请求参数
+- 前端发送的参数名必须与后端DTO字段名完全匹配
+- URL参数`?status=completed`仍然可以正常工作，因为前端会将其映射到`orderStatus`参数
+
+### 影响
+- ✅ 订单状态查询功能正常工作
+- ✅ 通过URL参数（如`?status=completed`）可以正确筛选订单
+- ✅ 点击标签页切换订单状态可以正确筛选
+- ✅ 搜索表单中的状态筛选功能正常工作
+- ✅ 前后端参数名保持一致，避免后续问题
+
+---
+
+## 2025-12-12 - 订单列表页面优化：等待付款订单改为取消订单，操作按钮改为按钮样式
+
+### 修改内容
+1. 对于"等待付款"状态的订单，将"确认订单"操作改为"取消订单"操作
+2. 管理员可以在后台取消未支付的订单
+3. 将所有操作按钮从文字链接样式改为按钮样式
+
+### 修改文件
+
+#### 后端
+1. backend/src/main/java/com/shoppingmall/service/admin/OrderService.java - 添加取消订单接口方法
+2. backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java - 实现取消订单方法，包含库存恢复逻辑
+3. backend/src/main/java/com/shoppingmall/controller/admin/OrderController.java - 添加取消订单API接口
+
+#### 前端
+1. admin-frontend/src/api/admin/order.ts - 添加取消订单API方法
+2. admin-frontend/src/views/order/List.vue - 修改订单列表页面，将确认订单改为取消订单，并将所有操作按钮改为按钮样式
+
+### 具体修改
+
+#### 1. 后端添加取消订单接口
+- 在`OrderService`接口中添加`cancelOrder`方法
+- 在`OrderServiceImpl`中实现取消订单逻辑：
+  - 验证订单是否存在
+  - 只有待付款订单（status=0）可以取消
+  - 取消订单时自动恢复库存：
+    - 恢复`product`表的`stock`字段
+    - 恢复`product_stock`表的`availableStock`字段
+    - 减少`product_stock`表的`lockedStock`字段
+  - 更新订单状态为已取消（status=4）
+- 在`OrderController`中添加`PUT /api/admin/orders/{orderNo}/cancel`接口
+
+#### 2. 前端API添加取消订单方法
+- 在`order.ts`中添加`cancelOrder`方法，调用后端取消订单接口
+
+#### 3. 前端订单列表页面修改
+- 将"确认订单"按钮改为"取消订单"按钮（仅对status=0的订单显示）
+- 将所有操作按钮从`link`样式改为按钮样式（移除`link`属性，添加`size="small"`）
+- 修改按钮类型：
+  - 查看按钮：`type="primary"`
+  - 取消订单按钮：`type="danger"`（红色，表示危险操作）
+  - 发货按钮：`type="warning"`
+  - 备注按钮：`type="info"`
+- 将`handleConfirm`函数改为`handleCancel`函数，调用取消订单API
+- 取消订单时显示确认对话框，提示"取消后库存将自动恢复"
+
+### 技术细节
+- 取消订单时自动恢复库存，确保库存数据准确性
+- 只有待付款订单可以取消，其他状态的订单不能取消
+- 使用事务保证取消订单和恢复库存的原子性
+- 按钮样式统一使用`size="small"`，保持界面美观
+
+### 影响
+- ✅ 等待付款状态的订单可以取消，不再显示"确认订单"操作
+- ✅ 管理员可以在后台取消未支付的订单
+- ✅ 取消订单时自动恢复库存，避免库存损失
+- ✅ 所有操作按钮改为按钮样式，界面更加美观统一
+- ✅ 提升用户体验，操作更加直观
+
+---
+
+## 2025-12-12 - 会员中心左侧菜单栏默认全部展开
+
+### 修改内容
+将会员中心左侧菜单栏设置为默认全部展开状态，方便用户查看所有菜单项。
+
+### 修改文件
+
+#### 前端
+1. frontend/src/components/member/MemberSidebar.vue - 添加默认展开配置
+
+### 具体修改
+
+#### 1. 添加默认展开配置
+- 在`el-menu`组件上添加`:default-openeds`属性
+- 定义`defaultOpeneds`常量数组，包含所有子菜单的索引：
+  - `transaction`（交易记录）
+  - `favorites`（收藏夹）
+  - `messages`（商品留言）
+  - `settings`（个人设置）
+  - `deposit`（预存款）
+  - `site-messages`（站内消息）
+- 页面加载时，所有子菜单默认展开
+
+### 技术细节
+- 使用Element Plus的`default-openeds`属性控制菜单默认展开状态
+- 该属性接受一个字符串数组，包含所有需要默认展开的子菜单的index值
+- 用户仍可以手动折叠/展开菜单项
+
+### 影响
+- ✅ 会员中心左侧菜单栏默认全部展开
+- ✅ 用户进入会员中心即可看到所有菜单项
+- ✅ 提升用户体验，减少点击操作
+
+---
+
+## 2025-12-12 - 添加预警阈值同步逻辑，以库存表为权威数据源
 
 ### 修改内容
 添加同步逻辑，确保 `product.warning_stock` 与 `product_stock.warning_threshold` 保持一致，以 `product_stock.warning_threshold` 为权威数据源。

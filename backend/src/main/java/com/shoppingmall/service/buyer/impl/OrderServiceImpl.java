@@ -131,10 +131,11 @@ public class OrderServiceImpl implements OrderService {
             }
             
             // 查询价格（根据用户等级）
-            BigDecimal salesPrice = product.getSalePrice() != null ? product.getSalePrice() : product.getBasePrice();
+            // 销售价格：统一使用basePrice作为销售价格
+            BigDecimal salesPrice = product.getBasePrice();
             BigDecimal memberPrice = getPriceByUserLevel(itemDTO.getProductId(), userLevelName, itemDTO.getQuantity());
             if (memberPrice == null) {
-                memberPrice = salesPrice != null ? salesPrice : product.getBasePrice();
+                memberPrice = salesPrice;
             }
             if (memberPrice == null) {
                 throw new BusinessException(400, "商品价格未设置: " + product.getProductName());

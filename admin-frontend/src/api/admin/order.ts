@@ -117,5 +117,12 @@ export const addOrderRemark = (orderNo: string, remark: string): Promise<void> =
   })
 }
 
+/**
+ * 取消订单（管理员）
+ */
+export const cancelOrder = (orderNo: string): Promise<void> => {
+  return request.put(`/api/admin/orders/${orderNo}/cancel`)
+}
+
 
 

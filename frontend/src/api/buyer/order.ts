@@ -36,7 +36,7 @@ export interface CreateOrderDTO {
 export interface OrderQueryDTO {
   orderNo?: string
   recipientName?: string
-  status?: string
+  orderStatus?: string
   startDate?: string
   endDate?: string
   contactPhone?: string

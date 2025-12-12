@@ -2,6 +2,7 @@
   <div class="member-sidebar">
     <el-menu
       :default-active="activeMenu"
+      :default-openeds="defaultOpeneds"
       class="sidebar-menu"
       @select="handleMenuSelect"
     >
@@ -80,6 +81,9 @@ const props = withDefaults(defineProps<{
 
 const route = useRoute()
 const router = useRouter()
+
+// 默认展开所有子菜单
+const defaultOpeneds = ['transaction', 'favorites', 'messages', 'settings', 'deposit', 'site-messages']
 
 // 如果没有传入activeMenu，则根据当前路由自动判断
 const activeMenu = computed(() => {

@@ -66,7 +66,7 @@ public class ProductVO {
     private String description;
 
     /**
-     * 基础批发价
+     * 销售价格
      */
     private BigDecimal basePrice;
 

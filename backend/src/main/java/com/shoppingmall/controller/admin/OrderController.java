@@ -74,5 +74,14 @@ public class OrderController {
         orderService.addOrderRemark(orderNo, remark);
         return Result.success("备注添加成功");
     }
+
+    /**
+     * 取消订单（管理员）
+     */
+    @PutMapping("/{orderNo}/cancel")
+    public Result<?> cancelOrder(@PathVariable String orderNo) {
+        orderService.cancelOrder(orderNo);
+        return Result.success("订单已取消");
+    }
 }
 
