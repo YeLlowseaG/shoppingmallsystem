@@ -38,6 +38,11 @@ public class Product {
     private Long categoryId;
 
     /**
+     * 品牌ID（关联brand表）
+     */
+    private Long brandId;
+
+    /**
      * 主图URL
      */
     private String mainImage;

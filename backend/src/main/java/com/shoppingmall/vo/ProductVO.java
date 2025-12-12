@@ -41,6 +41,16 @@ public class ProductVO {
     private String categoryName;
 
     /**
+     * 品牌ID
+     */
+    private Long brandId;
+
+    /**
+     * 品牌名称
+     */
+    private String brandName;
+
+    /**
      * 主图URL
      */
     private String mainImage;

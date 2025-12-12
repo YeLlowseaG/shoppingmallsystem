@@ -72,6 +72,14 @@ service.interceptors.response.use(
     if (res.code === 200) {
       return res.data
     } else {
+      // 401未登录，特殊处理
+      if (res.code === 401) {
+        console.warn('未登录或登录已过期')
+        ElMessage.error('登录已过期，请重新登录')
+        localStorage.removeItem('admin_token')
+        return Promise.reject(new Error('未登录'))
+      }
+      
       // 其他状态码，显示错误信息
       ElMessage.error(res.message || '请求失败')
       return Promise.reject(new Error(res.message || '请求失败'))

@@ -106,4 +106,24 @@ public class BrandServiceImpl implements BrandService {
 
         return brandRepository.selectList(wrapper);
     }
+
+    @Override
+    public List<Brand> getEnabledBrands() {
+        System.out.println("======== BrandService: 开始查询启用品牌 ========");
+        try {
+            LambdaQueryWrapper<Brand> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(Brand::getStatus, 1); // 只查询启用状态
+            wrapper.orderByAsc(Brand::getSortOrder, Brand::getId);
+            System.out.println("======== BrandService: 查询条件构建完成 ========");
+            
+            List<Brand> brands = brandRepository.selectList(wrapper);
+            System.out.println("======== BrandService: 数据库查询完成，结果数量: " + (brands != null ? brands.size() : 0) + " ========");
+            
+            return brands;
+        } catch (Exception e) {
+            System.err.println("======== BrandService: 查询启用品牌失败: " + e.getMessage() + " ========");
+            e.printStackTrace();
+            throw e;
+        }
+    }
 }

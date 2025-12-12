@@ -40,6 +40,11 @@ public class ProductDTO {
     private Long categoryId;
 
     /**
+     * 品牌ID（非必填）
+     */
+    private Long brandId;
+
+    /**
      * 主图URL
      */
     private String mainImage;
