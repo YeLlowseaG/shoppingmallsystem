@@ -1,4 +1,5 @@
 -- 购买咨询表
+-- 创建时间：2025-12-13
 CREATE TABLE `consultation` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `product_id` bigint NOT NULL COMMENT '商品ID',
