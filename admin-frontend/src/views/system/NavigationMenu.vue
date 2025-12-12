@@ -94,45 +94,12 @@
         <el-form-item label="菜单名称" prop="menuName">
           <el-input v-model="formData.menuName" placeholder="请输入菜单名称" />
         </el-form-item>
-        <el-form-item label="菜单类型" prop="menuType">
-          <el-select v-model="formData.menuType" placeholder="请选择菜单类型" style="width: 100%" @change="handleTypeChange">
-            <el-option label="直接链接" value="link" />
-            <el-option label="商品分类" value="category" />
-            <el-option label="品牌筛选" value="brand" />
-            <el-option label="类型筛选" value="type" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="菜单链接" prop="menuUrl">
-          <el-input v-model="formData.menuUrl" placeholder="请输入菜单链接，如：/products" />
-        </el-form-item>
-        <el-form-item v-if="formData.menuType !== 'link'" label="菜单参数">
-          <div style="width: 100%;">
-            <div v-if="formData.menuType === 'category'" class="param-input">
-              <el-input 
-                v-model="categoryParam" 
-                placeholder="请输入分类ID" 
-                @input="updateParams"
-              />
-              <small style="color: #666;">分类ID，如：5</small>
-            </div>
-            <div v-else-if="formData.menuType === 'brand'" class="param-input">
-              <el-input 
-                v-model="brandParam" 
-                placeholder="请输入品牌名称" 
-                @input="updateParams"
-              />
-              <small style="color: #666;">品牌名称，如：angus</small>
-            </div>
-            <div v-else-if="formData.menuType === 'type'" class="param-input">
-              <el-select v-model="typeParam" placeholder="请选择类型" @change="updateParams" style="width: 100%;">
-                <el-option label="新品专区" value="new" />
-                <el-option label="特惠区" value="special" />
-                <el-option label="热销商品" value="hot" />
-              </el-select>
-              <small style="color: #666;">商品类型筛选</small>
-            </div>
-          </div>
-        </el-form-item>
+        <!-- 使用通用链接选择器组件（排除商品详情） -->
+        <LinkSelector
+          v-model:model-link-type="linkType"
+          v-model:model-link-value="linkValue"
+          :exclude-types="['2']"
+        />
         <el-form-item label="菜单图标">
           <el-input v-model="formData.icon" placeholder="请输入图标名称（可选）" />
         </el-form-item>
@@ -169,7 +136,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import {
   getNavigationMenuPage,
@@ -179,6 +146,7 @@ import {
   updateNavigationMenuStatus,
   type NavigationMenu
 } from '@/api/admin/navigationMenu'
+import LinkSelector from '@/components/common/LinkSelector.vue'
 
 // 搜索表单
 const searchForm = ref({
@@ -212,16 +180,41 @@ const formData = ref<NavigationMenu>({
   description: ''
 })
 
-// 参数输入
-const categoryParam = ref('')
-const brandParam = ref('')
-const typeParam = ref('')
+// LinkSelector双向绑定
+const linkType = ref(0)
+const linkValue = ref('')
+
+// 监听LinkSelector的变化，同步到formData
+watch([linkType, linkValue], () => {
+  formData.value.menuType = getLinkTypeString(linkType.value)
+  formData.value.menuUrl = linkType.value === 4 ? linkValue.value : '/products'
+  formData.value.menuParams = generateMenuParams(linkType.value, linkValue.value)
+})
+
+// 将数字类型转换为字符串类型
+const getLinkTypeString = (type: number): string => {
+  const typeMap: Record<number, string> = {
+    0: 'link',
+    1: 'category', 
+    3: 'type',
+    4: 'link'
+  }
+  return typeMap[type] || 'link'
+}
+
+// 生成菜单参数
+const generateMenuParams = (type: number, value: string): string => {
+  if (type === 1) { // 商品分类
+    return JSON.stringify({ categoryId: value })
+  } else if (type === 3) { // 促销活动
+    return JSON.stringify({ type: value })
+  }
+  return ''
+}
 
 // 表单验证规则
 const formRules: FormRules = {
   menuName: [{ required: true, message: '请输入菜单名称', trigger: 'blur' }],
-  menuUrl: [{ required: true, message: '请输入菜单链接', trigger: 'blur' }],
-  menuType: [{ required: true, message: '请选择菜单类型', trigger: 'change' }],
   target: [{ required: true, message: '请选择打开方式', trigger: 'change' }],
   sortOrder: [{ required: true, message: '请输入排序', trigger: 'blur' }]
 }
@@ -248,42 +241,39 @@ const getTypeText = (type: string) => {
   return typeMap[type] || '未知'
 }
 
-// 处理类型变化
-const handleTypeChange = () => {
-  categoryParam.value = ''
-  brandParam.value = ''
-  typeParam.value = ''
-  formData.value.menuParams = ''
-}
-
-// 更新参数
-const updateParams = () => {
-  if (formData.value.menuType === 'category' && categoryParam.value) {
-    formData.value.menuParams = JSON.stringify({ categoryId: categoryParam.value })
-  } else if (formData.value.menuType === 'brand' && brandParam.value) {
-    formData.value.menuParams = JSON.stringify({ brand: brandParam.value })
-  } else if (formData.value.menuType === 'type' && typeParam.value) {
-    formData.value.menuParams = JSON.stringify({ type: typeParam.value })
-  } else {
-    formData.value.menuParams = ''
+// 将字符串类型转换为数字类型（用于回显）
+const getNumberLinkType = (typeString: string): number => {
+  const typeMap: Record<string, number> = {
+    'link': 0,
+    'category': 1,
+    'type': 3
   }
+  return typeMap[typeString] || 0
 }
 
 // 解析参数用于编辑回显
-const parseParams = (params: string) => {
-  if (!params) return
+const parseMenuData = (menu: NavigationMenu) => {
+  // 设置链接类型
+  linkType.value = getNumberLinkType(menu.menuType || 'link')
   
-  try {
-    const parsed = JSON.parse(params)
-    if (parsed.categoryId) {
-      categoryParam.value = parsed.categoryId
-    } else if (parsed.brand) {
-      brandParam.value = parsed.brand
-    } else if (parsed.type) {
-      typeParam.value = parsed.type
+  // 解析链接值
+  if (menu.menuType === 'category' || menu.menuType === 'type') {
+    try {
+      const params = menu.menuParams ? JSON.parse(menu.menuParams) : {}
+      if (params.categoryId) {
+        linkValue.value = params.categoryId
+      } else if (params.type) {
+        linkValue.value = params.type
+      }
+    } catch (error) {
+      console.error('解析菜单参数失败:', error)
+      linkValue.value = ''
     }
-  } catch (error) {
-    console.error('解析菜单参数失败:', error)
+  } else if (menu.menuType === 'link' && menu.menuUrl !== '/products') {
+    linkType.value = 4 // 外部链接
+    linkValue.value = menu.menuUrl
+  } else {
+    linkValue.value = ''
   }
 }
 
@@ -320,7 +310,7 @@ const handleReset = () => {
 const handleAdd = () => {
   formData.value = {
     menuName: '',
-    menuUrl: '',
+    menuUrl: '/products',
     menuType: 'link',
     menuParams: '',
     icon: '',
@@ -329,16 +319,15 @@ const handleAdd = () => {
     target: '_self',
     description: ''
   }
-  categoryParam.value = ''
-  brandParam.value = ''
-  typeParam.value = ''
+  linkType.value = 0
+  linkValue.value = ''
   dialogVisible.value = true
 }
 
 // 编辑菜单
 const handleEdit = (row: NavigationMenu) => {
   formData.value = { ...row }
-  parseParams(row.menuParams || '')
+  parseMenuData(row)
   dialogVisible.value = true
 }
 
