@@ -38,7 +38,7 @@ const loadHotProducts = async () => {
 
 // 跳转到商品详情
 const goToDetail = (id: number) => {
-  router.push(`/product/${id}`)
+  router.push(`/products/${id}`)
 }
 
 onMounted(() => {

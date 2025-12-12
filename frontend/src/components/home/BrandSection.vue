@@ -81,7 +81,7 @@ const goToAdTarget = (ad: Advertisement) => {
       router.push(`/products?categoryId=${ad.linkValue}`)
       break
     case 2: // 商品详情
-      router.push(`/product/${ad.linkValue}`)
+      router.push(`/products/${ad.linkValue}`)
       break
     case 3: // 促销活动
       router.push(`/products?type=${ad.linkValue}`)
