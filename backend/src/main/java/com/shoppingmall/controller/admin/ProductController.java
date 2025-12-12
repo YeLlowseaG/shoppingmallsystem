@@ -33,7 +33,7 @@ public class ProductController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String brand,
             @RequestParam(required = false) String status) {
-        Page<ProductVO> page = productService.getProductPage(current, size, categoryId, keyword, brand, status);
+        Page<ProductVO> page = productService.getProductPage(current, size, categoryId, keyword, brand, status, "default");
         return Result.success("获取成功", page);
     }
 

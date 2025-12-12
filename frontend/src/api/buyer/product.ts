@@ -40,10 +40,11 @@ export const getProductPage = (
   size: number,
   categoryId?: number,
   keyword?: string,
-  brand?: string
+  brand?: string,
+  sortBy?: string
 ): Promise<PageResponse<ProductVO>> => {
   return request.get('/api/buyer/product/page', {
-    params: { current, size, categoryId, keyword, brand }
+    params: { current, size, categoryId, keyword, brand, sortBy }
   })
 }
 
