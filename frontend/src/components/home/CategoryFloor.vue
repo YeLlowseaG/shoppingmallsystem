@@ -95,7 +95,7 @@ const goToCategory = () => {
 
 // 跳转到商品详情页
 const goToProduct = (id: number) => {
-  router.push(`/product/${id}`)
+  router.push(`/products/${id}`)
 }
 </script>
 
