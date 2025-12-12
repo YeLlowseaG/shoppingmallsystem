@@ -65,27 +65,34 @@
 
       <!-- 主导航 -->
       <nav class="main-nav">
-        <router-link to="/" class="nav-item active">首页</router-link>
-        <router-link to="/products?type=new" class="nav-item">新品专区</router-link>
-        <router-link to="/products?brand=angus" class="nav-item">虚姬-Angus</router-link>
-        <router-link to="/products?type=special" class="nav-item">特惠区</router-link>
-        <router-link to="/training" class="nav-item">两性培训营</router-link>
-        <router-link to="/news" class="nav-item">最新公告</router-link>
-        <router-link to="/cooperation" class="nav-item">合作开店</router-link>
-        <router-link to="/stores" class="nav-item">实体店热销</router-link>
+        <router-link 
+          v-for="menu in navigationMenus" 
+          :key="menu.id"
+          :to="generateMenuUrl(menu)" 
+          :target="menu.target"
+          class="nav-item"
+          :class="{ active: isActiveMenu(menu) }"
+        >
+          {{ menu.menuName }}
+        </router-link>
       </nav>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { Menu, ArrowRight } from '@element-plus/icons-vue'
+import { getNavigationMenus, type NavigationMenu } from '@/api/buyer/navigationMenu'
 
 const router = useRouter()
+const route = useRoute()
 const showCategories = ref(false)
 const hoveredCategory = ref<any>(null)
+
+// 导航菜单
+const navigationMenus = ref<NavigationMenu[]>([])
 
 // 模拟分类数据（后续从接口获取）
 const categories = ref([
@@ -216,6 +223,59 @@ const handleCategoryLeave = () => {
   }, 100)
 }
 
+// 加载导航菜单
+const loadNavigationMenus = async () => {
+  try {
+    navigationMenus.value = await getNavigationMenus()
+  } catch (error) {
+    console.error('加载导航菜单失败:', error)
+    // 使用默认菜单作为兜底
+    navigationMenus.value = [
+      { id: 1, menuName: '首页', menuUrl: '/', menuType: 'link', sortOrder: 1, status: 1, target: '_self' },
+      { id: 2, menuName: '新品专区', menuUrl: '/products', menuType: 'type', menuParams: '{"type": "new"}', sortOrder: 2, status: 1, target: '_self' }
+    ]
+  }
+}
+
+// 生成菜单URL
+const generateMenuUrl = (menu: NavigationMenu) => {
+  if (menu.menuType === 'link') {
+    return menu.menuUrl
+  }
+  
+  // 解析菜单参数
+  let params = {}
+  try {
+    params = menu.menuParams ? JSON.parse(menu.menuParams) : {}
+  } catch (error) {
+    console.error('解析菜单参数失败:', error)
+  }
+  
+  return {
+    path: menu.menuUrl,
+    query: params
+  }
+}
+
+// 判断菜单是否激活
+const isActiveMenu = (menu: NavigationMenu) => {
+  if (menu.menuType === 'link') {
+    return route.path === menu.menuUrl
+  }
+  
+  // 对于带参数的菜单，检查路径和参数是否匹配
+  if (route.path === menu.menuUrl && menu.menuParams) {
+    try {
+      const params = JSON.parse(menu.menuParams)
+      return Object.keys(params).every(key => route.query[key] === params[key])
+    } catch (error) {
+      return false
+    }
+  }
+  
+  return false
+}
+
 // 跳转到分类列表页
 const goToCategory = (categoryId: number) => {
   showCategories.value = false
@@ -224,6 +284,11 @@ const goToCategory = (categoryId: number) => {
     query: { categoryId: String(categoryId) }
   })
 }
+
+// 组件挂载时加载导航菜单
+onMounted(() => {
+  loadNavigationMenus()
+})
 </script>
 
 <style scoped lang="scss">

@@ -4,7 +4,7 @@
       <!-- Logo -->
       <div class="logo">
         <router-link to="/">
-          <img src="https://via.placeholder.com/150x60/E4393C/ffffff?text=JINGVO" alt="JINGVO 净果" />
+          <img :src="siteConfig.logo" :alt="siteConfig.name" />
         </router-link>
       </div>
 
@@ -38,14 +38,14 @@
       <div class="contact">
         <div class="phone">
           <div class="label">服务热线：</div>
-          <div class="number">400-166-1683</div>
+          <div class="number">{{ siteConfig.servicePhone }}</div>
         </div>
         <div class="phone">
           <div class="label">咨询热线：</div>
-          <div class="number">13049338552</div>
+          <div class="number">{{ siteConfig.consultPhone }}</div>
         </div>
         <div class="qrcode">
-          <img src="https://via.placeholder.com/60x60/666666/ffffff?text=QR" alt="二维码" />
+          <img :src="siteConfig.qrcode" alt="二维码" />
         </div>
       </div>
     </div>
@@ -53,14 +53,46 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { getPublicConfigs } from '@/api/buyer/systemConfig'
 
 const router = useRouter()
 const searchKeyword = ref('')
 
+// 网站配置
+const siteConfig = reactive({
+  logo: 'https://via.placeholder.com/150x60/E4393C/ffffff?text=JINGVO',
+  name: 'JINGVO 净果',
+  servicePhone: '400-166-1683',
+  consultPhone: '13049338552',
+  qrcode: 'https://via.placeholder.com/60x60/666666/ffffff?text=QR'
+})
+
 // 热门关键词
-const hotKeywords = ['飞机杯', '跳蛋名器', '情趣跳蛋', '情趣内衣', '安全套', '延时喷雾']
+const hotKeywords = ref<string[]>(['飞机杯', '跳蛋名器', '情趣跳蛋', '情趣内衣', '安全套', '延时喷雾'])
+
+// 加载系统配置
+const loadSiteConfig = async () => {
+  try {
+    const configs = await getPublicConfigs()
+    
+    // 更新网站配置
+    if (configs['site.logo']) siteConfig.logo = configs['site.logo']
+    if (configs['site.name']) siteConfig.name = configs['site.name']
+    if (configs['site.service_phone']) siteConfig.servicePhone = configs['site.service_phone']
+    if (configs['site.consult_phone']) siteConfig.consultPhone = configs['site.consult_phone']
+    if (configs['site.qrcode']) siteConfig.qrcode = configs['site.qrcode']
+    
+    // 更新热门关键词
+    if (configs['search.hot_keywords']) {
+      hotKeywords.value = configs['search.hot_keywords'].split(',').map(k => k.trim()).filter(k => k)
+    }
+  } catch (error) {
+    console.error('加载系统配置失败:', error)
+    // 保持默认配置
+  }
+}
 
 const handleSearch = () => {
   if (searchKeyword.value.trim()) {
@@ -75,6 +107,11 @@ const handleKeywordClick = (keyword: string) => {
   searchKeyword.value = keyword
   handleSearch()
 }
+
+// 组件挂载时加载配置
+onMounted(() => {
+  loadSiteConfig()
+})
 </script>
 
 <style scoped lang="scss">

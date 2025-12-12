@@ -8,11 +8,31 @@
         style="width: 100%"
         @change="handleTypeChange"
       >
-        <el-option label="无链接" :value="0" />
-        <el-option label="商品分类" :value="1" />
-        <el-option label="商品详情" :value="2" />
-        <el-option label="促销活动" :value="3" />
-        <el-option label="外部链接" :value="4" />
+        <el-option 
+          v-if="!props.excludeTypes.includes('0')"
+          label="无链接" 
+          :value="0" 
+        />
+        <el-option 
+          v-if="!props.excludeTypes.includes('1')"
+          label="商品分类" 
+          :value="1" 
+        />
+        <el-option 
+          v-if="!props.excludeTypes.includes('2')"
+          label="商品详情" 
+          :value="2" 
+        />
+        <el-option 
+          v-if="!props.excludeTypes.includes('3')"
+          label="促销活动" 
+          :value="3" 
+        />
+        <el-option 
+          v-if="!props.excludeTypes.includes('4')"
+          label="外部链接" 
+          :value="4" 
+        />
       </el-select>
     </el-form-item>
 
@@ -170,6 +190,7 @@ import { getCategoryTree, type ProductCategoryVO } from '@/api/admin/productCate
 interface Props {
   modelLinkType?: number
   modelLinkValue?: string
+  excludeTypes?: string[] // 排除的链接类型
 }
 
 interface Emits {
@@ -179,7 +200,8 @@ interface Emits {
 
 const props = withDefaults(defineProps<Props>(), {
   modelLinkType: 0,
-  modelLinkValue: ''
+  modelLinkValue: '',
+  excludeTypes: () => []
 })
 
 const emit = defineEmits<Emits>()
