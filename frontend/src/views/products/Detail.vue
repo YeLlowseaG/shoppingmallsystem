@@ -50,10 +50,6 @@
               <img :src="img" :alt="`${product.name} ${index + 1}`" />
             </div>
           </div>
-          <div class="view-detail-btn">
-            <el-icon><Document /></el-icon>
-            查看商品详情
-          </div>
         </div>
 
         <!-- 右侧：商品信息 -->
@@ -141,11 +137,6 @@
             <span class="stock-status">库存-充足</span>
           </div>
 
-          <!-- 显示购买模式提示 -->
-          <div class="buy-mode-tip">
-            <el-icon color="#f56c6c"><Warning /></el-icon>
-            <span>显示批发购买模式</span>
-          </div>
 
           <!-- 操作按钮 -->
           <div class="action-buttons">
@@ -312,7 +303,7 @@ const cartStore = useCartStore()
 const currentImage = ref('')
 
 // 选中的规格
-const selectedSpec = ref('2只装')
+const selectedSpec = ref('')
 
 // 购买数量
 const quantity = ref(1)
@@ -423,6 +414,11 @@ const loadProductDetail = async (productId: number) => {
     // 设置默认图片
     if (product.value.images.length > 0) {
       currentImage.value = product.value.images[0]
+    }
+
+    // 设置默认规格
+    if (product.value.specs.length > 0) {
+      selectedSpec.value = product.value.specs[0]
     }
   } catch (error) {
     console.error('加载商品详情失败:', error)
