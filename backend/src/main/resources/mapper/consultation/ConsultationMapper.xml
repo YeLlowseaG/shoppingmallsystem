@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shoppingmall.repository.consultation.ConsultationRepository">
+
+    <!-- 分页查询咨询记录（管理端） -->
+    <select id="selectPageWithProduct" resultType="com.shoppingmall.entity.Consultation">
+        SELECT 
+            c.id,
+            c.product_id,
+            c.user_id,
+            c.contact_name,
+            c.contact_phone,
+            c.contact_email,
+            c.consultation_content,
+            c.reply_content,
+            c.status,
+            c.created_time as create_time,
+            c.updated_time as update_time,
+            p.product_name
+        FROM consultation c
+        LEFT JOIN product p ON c.product_id = p.id
+        WHERE 1=1
+        <if test="productName != null and productName != ''">
+            AND p.product_name LIKE CONCAT('%', #{productName}, '%')
+        </if>
+        <if test="contactName != null and contactName != ''">
+            AND c.contact_name LIKE CONCAT('%', #{contactName}, '%')
+        </if>
+        <if test="status != null">
+            AND c.status = #{status}
+        </if>
+        ORDER BY c.created_time DESC
+    </select>
+
+    <!-- 分页查询用户的咨询记录 -->
+    <select id="selectUserConsultations" resultType="com.shoppingmall.entity.Consultation">
+        SELECT 
+            c.id,
+            c.product_id,
+            c.user_id,
+            c.contact_name,
+            c.contact_phone,
+            c.contact_email,
+            c.consultation_content,
+            c.reply_content,
+            c.status,
+            c.created_time as create_time,
+            c.updated_time as update_time,
+            p.product_name
+        FROM consultation c
+        LEFT JOIN product p ON c.product_id = p.id
+        WHERE c.user_id = #{userId}
+        ORDER BY c.created_time DESC
+    </select>
+
+</mapper>

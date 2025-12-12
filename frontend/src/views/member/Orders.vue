@@ -219,6 +219,17 @@
                               </div>
                             </div>
                           </div>
+                          <!-- 已完成订单显示评价按钮 -->
+                          <div v-if="order.status === 3" class="review-actions">
+                            <el-button
+                              type="text"
+                              size="small"
+                              class="review-btn"
+                              @click.stop="handleReviewOrder(order)"
+                            >
+                              评价商品
+                            </el-button>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -585,6 +596,18 @@ const handleCopyTrackingNo = (trackingNo: string) => {
   })
 }
 
+// 评价订单商品
+const handleReviewOrder = (order: OrderListVO) => {
+  // 跳转到评价页面，传递订单ID
+  router.push({
+    path: '/member/review',
+    query: {
+      orderId: order.id,
+      orderNo: order.orderNo
+    }
+  })
+}
+
 // 查看物流跟踪（保留用于后续功能扩展）
 // const handleViewTracking = (trackingNo: string) => {
 //   // TODO: 打开物流跟踪页面
@@ -940,7 +963,8 @@ watch(() => route.query.status, (newStatus) => {
                       }
                     }
 
-                    .logistics-info {
+                    .logistics-info,
+                    .review-actions {
                       margin-top: 8px;
                       font-size: 12px;
                       color: #666;
@@ -955,6 +979,20 @@ watch(() => route.query.status, (newStatus) => {
                           text-decoration: underline;
                         }
                       }
+
+                      .review-btn {
+                        padding: 0;
+                        font-size: 12px;
+                        color: #e4393c;
+                        height: auto;
+                        min-height: auto;
+
+                        &:hover {
+                          color: #c9302c;
+                          text-decoration: underline;
+                        }
+                      }
+                    }
 
                       .logistics-details {
                         margin-top: 5px;
