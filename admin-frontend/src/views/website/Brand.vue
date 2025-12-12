@@ -94,12 +94,22 @@
         </el-form-item>
         <el-form-item label="LOGO" prop="logoUrl">
           <div class="upload-wrapper">
+            <!-- 图片要求说明 -->
+            <div class="image-requirements">
+              <el-alert
+                title="图片要求：建议尺寸200x80像素，格式JPG/PNG，大小不超过2MB"
+                type="info"
+                :closable="false"
+                show-icon
+                style="margin-bottom: 10px;"
+              />
+            </div>
             <!-- 图片预览 -->
             <div v-if="formData.logoUrl" class="image-preview">
               <el-image
                 :src="formData.logoUrl"
                 fit="contain"
-                style="width: 120px; height: 120px"
+                style="width: 200px; height: 80px; border: 1px solid #eee"
                 :preview-src-list="[formData.logoUrl]"
               />
               <el-button
@@ -314,15 +324,15 @@ const handleDelete = async (row: Brand) => {
 
 // 上传前的验证
 const beforeImageUpload = (file: File) => {
-  const isImage = file.type.startsWith('image/')
-  const isLt10M = file.size / 1024 / 1024 < 10
+  const isJpgOrPng = file.type === 'image/jpeg' || file.type === 'image/jpg' || file.type === 'image/png'
+  const isLt2M = file.size / 1024 / 1024 < 2
 
-  if (!isImage) {
-    ElMessage.error('只能上传图片文件!')
+  if (!isJpgOrPng) {
+    ElMessage.error('只能上传JPG或PNG格式的图片!')
     return false
   }
-  if (!isLt10M) {
-    ElMessage.error('图片大小不能超过 10MB!')
+  if (!isLt2M) {
+    ElMessage.error('图片大小不能超过2MB!')
     return false
   }
   return true
