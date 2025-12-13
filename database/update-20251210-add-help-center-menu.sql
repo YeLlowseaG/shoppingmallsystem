@@ -32,3 +32,26 @@ WHERE NOT EXISTS (SELECT 1 FROM `sys_role_menu` WHERE `role_id` = 2 AND `menu_id
 AND EXISTS (SELECT 1 FROM `sys_role` WHERE `id` = 2);
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

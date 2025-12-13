@@ -58,6 +58,7 @@
                       <el-option label="已发货" value="shipped" />
                       <el-option label="已完成" value="completed" />
                       <el-option label="已退款" value="refunded" />
+                      <el-option label="已退货" value="returned" />
                       <el-option label="已作废" value="cancelled" />
                     </el-select>
                   </div>
@@ -270,8 +271,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElTooltip } from 'element-plus'
 import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
@@ -284,6 +285,7 @@ import type { OrderListVO, OrderPageResponse } from '@/api/buyer/order'
 import { formatDateTime } from '@/utils'
 
 const router = useRouter()
+const route = useRoute()
 const unreadMessageCount = ref(0)
 const loading = ref(false)
 
@@ -397,7 +399,7 @@ const loadOrderList = async () => {
       pageSize: pagination.pageSize,
       orderNo: searchForm.orderNo || undefined,
       recipientName: searchForm.recipientName || undefined,
-      status: statusStr,
+      orderStatus: statusStr,
       startDate: searchForm.startDate || undefined,
       endDate: searchForm.endDate || undefined,
       contactPhone: searchForm.contactPhone || undefined,
@@ -425,10 +427,20 @@ const loadOrderList = async () => {
 }
 
 // 筛选订单列表（标签页切换）
-const filterOrders = () => {
+const filterOrders = async () => {
   searchForm.status = activeTab.value
   pagination.currentPage = 1
-  loadOrderList()
+  // 更新URL参数
+  router.push({
+    path: route.path,
+    query: {
+      ...route.query,
+      status: activeTab.value || undefined
+    }
+  })
+  // 滚动到顶部
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+  await loadOrderList()
 }
 
 // 自动展开所有已发货订单的物流信息
@@ -476,10 +488,13 @@ const convertStatusNumberToString = (statusNum: number): string => {
 }
 
 // 标签页切换
-const handleTabChange = (value: string) => {
+const handleTabChange = async (value: string) => {
+  if (activeTab.value === value) {
+    return // 如果点击的是当前标签，不执行任何操作
+  }
   activeTab.value = value
   searchForm.status = value
-  filterOrders()
+  await filterOrders()
 }
 
 // 全选/取消全选
@@ -600,18 +615,20 @@ const handleReviewOrder = (order: OrderListVO) => {
 // }
 
 // 分页变化
-const handlePageChange = (page: number) => {
+const handlePageChange = async (page: number) => {
   pagination.currentPage = page
   // 滚动到顶部
   window.scrollTo({ top: 0, behavior: 'smooth' })
+  await loadOrderList()
 }
 
 // 每页条数变化
-const handleSizeChange = (size: number) => {
+const handleSizeChange = async (size: number) => {
   pagination.pageSize = size
   pagination.currentPage = 1
   // 滚动到顶部
   window.scrollTo({ top: 0, behavior: 'smooth' })
+  await loadOrderList()
 }
 
 // 计算当前页显示的订单列表
@@ -641,10 +658,30 @@ const formatAmount = (amount: number | string) => {
   return amount || '0.00'
 }
 
+// 从路由参数初始化状态
+const initFromRoute = () => {
+  const status = route.query.status as string
+  if (status) {
+    activeTab.value = status
+    searchForm.status = status
+  }
+}
+
 // 初始化
 onMounted(() => {
-  // 初始化时加载全部订单
+  // 从路由参数初始化状态
+  initFromRoute()
+  // 初始化时加载订单列表
   loadOrderList()
+})
+
+// 监听路由变化
+watch(() => route.query.status, (newStatus) => {
+  if (newStatus && newStatus !== activeTab.value) {
+    activeTab.value = newStatus as string
+    searchForm.status = newStatus as string
+    loadOrderList()
+  }
 })
 </script>
 

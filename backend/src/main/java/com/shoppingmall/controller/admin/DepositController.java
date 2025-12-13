@@ -3,8 +3,10 @@ package com.shoppingmall.controller.admin;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.shoppingmall.common.util.Result;
 import com.shoppingmall.dto.AdminDepositQueryDTO;
+import com.shoppingmall.dto.RefundRequestDTO;
 import com.shoppingmall.service.admin.DepositService;
 import com.shoppingmall.vo.AdminDepositRecordVO;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -49,6 +51,41 @@ public class DepositController {
         }
         return Result.success(record);
     }
+
+    /**
+     * 预存款充值退款
+     */
+    @PostMapping("/refund")
+    public Result<Void> refundDepositRecharge(@Valid @RequestBody RefundRequestDTO refundDTO) {
+        if (refundDTO.getDepositDetailId() == null) {
+            return Result.error(400, "充值记录ID不能为空");
+        }
+        depositService.refundDepositRecharge(refundDTO);
+        return Result.success();
+    }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

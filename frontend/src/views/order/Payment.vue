@@ -80,13 +80,42 @@
 
           <!-- 立即付款按钮 -->
           <div class="payment-action">
-            <el-button type="warning" size="large" class="pay-now-btn" @click="handlePayNow">
+            <el-button type="warning" size="large" class="pay-now-btn" @click="handlePayNow" :loading="paying">
               立刻付款
             </el-button>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- 支付密码输入对话框 -->
+    <el-dialog
+      v-model="showPaymentPasswordDialog"
+      title="请输入支付密码"
+      width="400px"
+      :close-on-click-modal="false"
+    >
+      <!-- 提示信息 -->
+      <div class="payment-password-tip">
+        (如未设置过支付密码,默认支付密码为您的账号登陆密码!)
+      </div>
+      <el-form>
+        <el-form-item label="支付密码">
+          <el-input
+            v-model="paymentPassword"
+            type="password"
+            placeholder="请输入支付密码"
+            show-password
+            @keyup.enter="confirmPayment"
+            autofocus
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showPaymentPasswordDialog = false">取消</el-button>
+        <el-button type="primary" @click="confirmPayment" :loading="paying">确认支付</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 底部 -->
     <Footer />
@@ -101,22 +130,30 @@ import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
+import { payOrder, type OrderPaymentDTO, type PaymentResponseVO } from '@/api/buyer/order'
+import { getDepositBalance } from '@/api/buyer/deposit'
+import request from '@/utils/request'
 
 const router = useRouter()
 const route = useRoute()
 
 // 订单编号（从路由参数或订单信息获取）
-const orderNumber = ref('20251208115856')
+const orderNumber = ref('')
 
 // 支付金额（从订单信息获取）
-const totalAmount = ref(6.5)
+const totalAmount = ref(0)
 
 // 支付方式相关
 const showPaymentOptions = ref(false)
 const selectedPaymentMethodId = ref('alipay')
 
-// 预存款余额（模拟数据，后续从后端获取）
+// 预存款余额
 const depositBalance = ref(0.00)
+
+// 支付密码相关
+const showPaymentPasswordDialog = ref(false)
+const paymentPassword = ref('')
+const paying = ref(false)
 
 // 支付方式列表
 const paymentMethods = ref([
@@ -154,32 +191,150 @@ const handleViewDetail = () => {
 }
 
 // 立即付款
-const handlePayNow = () => {
+const handlePayNow = async () => {
   if (!selectedPaymentMethodId.value) {
     ElMessage.warning('请选择支付方式')
     return
   }
 
-  // 模拟支付过程
-  ElMessage.info('正在处理支付...')
-  
-  // 模拟支付API调用，延迟1秒后返回支付成功
-  setTimeout(() => {
-    // 模拟支付成功
-    ElMessage.success('支付成功！')
+  // 预存款支付需要输入密码
+  if (selectedPaymentMethodId.value === 'pre_deposit') {
+    // 检查余额
+    if (depositBalance.value < totalAmount.value) {
+      ElMessage.error('预存款余额不足，请选择其他支付方式或充值')
+      return
+    }
     
-    // 延迟跳转到订单详情页面
-    setTimeout(() => {
-      router.push({
-        path: '/order/detail',
-        query: {
-          orderNumber: orderNumber.value,
-          amount: totalAmount.value.toFixed(2),
-          paymentStatus: 'success'
+    // 显示支付密码输入对话框
+    paymentPassword.value = ''
+    showPaymentPasswordDialog.value = true
+    return
+  }
+
+  // 支付宝/微信支付
+  await processPayment()
+}
+
+// 确认支付（预存款支付）
+const confirmPayment = async () => {
+  if (!paymentPassword.value) {
+    ElMessage.warning('请输入支付密码')
+    return
+  }
+  
+  showPaymentPasswordDialog.value = false
+  await processPayment()
+}
+
+// 处理支付
+const processPayment = async () => {
+  if (paying.value) {
+    return
+  }
+
+  try {
+    paying.value = true
+
+    // 转换支付方式
+    const paymentMethodMap: Record<string, string> = {
+      'pre_deposit': 'PRE_DEPOSIT',
+      'alipay': 'ALIPAY',
+      'wechat': 'WECHAT'
+    }
+    const backendPaymentMethod = paymentMethodMap[selectedPaymentMethodId.value] || 'ALIPAY'
+
+    // 构建支付请求
+    const paymentDTO: OrderPaymentDTO = {
+      orderNo: orderNumber.value,
+      paymentMethod: backendPaymentMethod
+    }
+
+    // 预存款支付需要支付密码
+    if (selectedPaymentMethodId.value === 'pre_deposit') {
+      paymentDTO.paymentPassword = paymentPassword.value
+    }
+
+    // 调用支付接口
+    const response: PaymentResponseVO = await payOrder(orderNumber.value, paymentDTO)
+
+    // 根据支付方式处理
+    if (selectedPaymentMethodId.value === 'pre_deposit') {
+      // 预存款支付直接成功
+      ElMessage.success('支付成功！')
+      setTimeout(() => {
+        router.push({
+          path: '/order/detail',
+          query: {
+            orderNumber: orderNumber.value,
+            amount: totalAmount.value.toFixed(2),
+            paymentStatus: 'success'
+          }
+        })
+      }, 1000)
+    } else {
+      // 支付宝/微信支付
+      if (response.isMock) {
+        // 模拟支付，调用模拟支付成功接口
+        ElMessage.info('正在处理支付...')
+        
+        // 调用模拟支付成功接口
+        try {
+          await request.post(`/api/buyer/payment/mock/success?orderNo=${orderNumber.value}&paymentMethod=${backendPaymentMethod}`)
+          
+          ElMessage.success('支付成功！')
+          setTimeout(() => {
+            router.push({
+              path: '/order/detail',
+              query: {
+                orderNumber: orderNumber.value,
+                amount: totalAmount.value.toFixed(2),
+                paymentStatus: 'success'
+              }
+            })
+          }, 1000)
+        } catch (error: any) {
+          // request拦截器已经显示了错误消息，这里不需要再显示
+          console.error('支付处理失败:', error)
         }
-      })
-    }, 1000)
-  }, 1000)
+      } else {
+        // 真实支付，跳转到支付URL
+        if (response.paymentUrl) {
+          window.location.href = response.paymentUrl
+        } else {
+          ElMessage.warning('支付URL未生成')
+        }
+      }
+    }
+  } catch (error: any) {
+    // request拦截器已经显示了错误消息，这里不需要再显示
+    // 如果是支付密码错误，重新打开密码输入对话框
+    if (selectedPaymentMethodId.value === 'pre_deposit') {
+      const errorMessage = error.message || error.response?.data?.message || ''
+      if (errorMessage.includes('支付密码错误')) {
+        paymentPassword.value = ''
+        showPaymentPasswordDialog.value = true
+      }
+    }
+    console.error('支付失败:', error)
+  } finally {
+    paying.value = false
+    // 只有在非预存款支付或支付成功时才清空密码
+    // 预存款支付失败时不清空，让用户重新输入
+    if (selectedPaymentMethodId.value !== 'pre_deposit') {
+      paymentPassword.value = ''
+    }
+  }
+}
+
+// 加载预存款余额
+const loadDepositBalance = async () => {
+  try {
+    const data = await getDepositBalance()
+    depositBalance.value = data.availableBalance || 0
+  } catch (error: any) {
+    console.error('加载预存款余额失败:', error)
+    depositBalance.value = 0
+  }
 }
 
 onMounted(() => {
@@ -197,6 +352,9 @@ onMounted(() => {
       selectedPaymentMethodId.value = paymentMethod
     }
   }
+  
+  // 加载预存款余额
+  loadDepositBalance()
 })
 </script>
 
@@ -452,6 +610,20 @@ onMounted(() => {
       background: #ff6b00;
       border-color: #ff6b00;
     }
+  }
+}
+
+// 支付密码对话框提示样式
+:deep(.el-dialog__body) {
+  .payment-password-tip {
+    background: #fffbe6;
+    border: 1px solid #ffe58f;
+    padding: 10px 15px;
+    margin-bottom: 20px;
+    color: #666;
+    font-size: 13px;
+    line-height: 1.5;
+    border-radius: 4px;
   }
 }
 </style>

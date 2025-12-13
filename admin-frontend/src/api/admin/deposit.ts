@@ -67,3 +67,19 @@ export const getDepositRecordById = (id: number): Promise<DepositRecordVO> => {
   return request.get(`/api/admin/deposit/record/${id}`)
 }
 
+/**
+ * 退款请求DTO
+ */
+export interface RefundRequestDTO {
+  depositDetailId: number
+  refundAmount: number
+  refundReason: string
+}
+
+/**
+ * 预存款充值退款
+ */
+export const refundDepositRecharge = (data: RefundRequestDTO): Promise<void> => {
+  return request.post('/api/admin/deposit/refund', data)
+}
+

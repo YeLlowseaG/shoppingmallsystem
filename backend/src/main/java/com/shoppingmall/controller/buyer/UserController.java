@@ -51,6 +51,15 @@ public class UserController {
     }
 
     /**
+     * 重置密码（通过验证码）
+     */
+    @PostMapping("/reset-password")
+    public Result<?> resetPassword(@Valid @RequestBody ResetPasswordDTO resetPasswordDTO) {
+        userService.resetPassword(resetPasswordDTO);
+        return Result.success("密码重置成功，请使用新密码登录");
+    }
+
+    /**
      * 获取当前用户信息
      */
     @GetMapping("/info")
@@ -83,6 +92,19 @@ public class UserController {
         Long userId = (Long) request.getAttribute("userId");
         userService.changePassword(userId, oldPassword, newPassword);
         return Result.success("密码修改成功");
+    }
+
+    /**
+     * 修改支付密码
+     */
+    @PutMapping("/payment-password")
+    public Result<?> changePaymentPassword(
+            HttpServletRequest request,
+            @RequestParam String oldPaymentPassword,
+            @RequestParam String newPaymentPassword) {
+        Long userId = (Long) request.getAttribute("userId");
+        userService.changePaymentPassword(userId, oldPaymentPassword, newPaymentPassword);
+        return Result.success("支付密码修改成功");
     }
 }
 

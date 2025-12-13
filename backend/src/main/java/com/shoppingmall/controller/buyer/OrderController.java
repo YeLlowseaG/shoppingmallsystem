@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.shoppingmall.common.util.Result;
 import com.shoppingmall.dto.CreateOrderDTO;
 import com.shoppingmall.dto.OrderQueryDTO;
+import com.shoppingmall.dto.OrderPaymentDTO;
+import com.shoppingmall.dto.PaymentResponseDTO;
 import com.shoppingmall.service.buyer.OrderService;
 import com.shoppingmall.vo.OrderDetailVO;
 import com.shoppingmall.vo.OrderListVO;
@@ -89,6 +91,23 @@ public class OrderController {
         }
         orderService.confirmReceipt(orderNo, userId);
         return Result.success("确认收货成功");
+    }
+
+    /**
+     * 订单支付
+     */
+    @PostMapping("/{orderNo}/pay")
+    public Result<PaymentResponseDTO> payOrder(@PathVariable String orderNo, @Valid @RequestBody OrderPaymentDTO paymentDTO) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) {
+            return Result.error(401, "未授权，请重新登录");
+        }
+        
+        // 设置订单号
+        paymentDTO.setOrderNo(orderNo);
+        
+        PaymentResponseDTO response = orderService.payOrder(orderNo, userId, paymentDTO);
+        return Result.success("支付成功", response);
     }
 }
 

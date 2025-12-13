@@ -11,9 +11,13 @@ import com.shoppingmall.dto.ShippingAddressDTO;
 import com.shoppingmall.entity.Order;
 import com.shoppingmall.entity.OrderItem;
 import com.shoppingmall.entity.OrderLogistics;
+import com.shoppingmall.entity.Product;
+import com.shoppingmall.entity.ProductStock;
 import com.shoppingmall.repository.order.OrderItemRepository;
 import com.shoppingmall.repository.order.OrderLogisticsRepository;
 import com.shoppingmall.repository.order.OrderRepository;
+import com.shoppingmall.repository.product.ProductRepository;
+import com.shoppingmall.repository.product.ProductStockRepository;
 import com.shoppingmall.service.admin.OrderService;
 import com.shoppingmall.vo.OrderDetailVO;
 import com.shoppingmall.vo.OrderListVO;
@@ -42,6 +46,8 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderLogisticsRepository orderLogisticsRepository;
+    private final ProductRepository productRepository;
+    private final ProductStockRepository productStockRepository;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -200,6 +206,61 @@ public class OrderServiceImpl implements OrderService {
         orderRepository.updateById(order);
 
         log.info("添加订单备注成功: orderNo={}", orderNo);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void cancelOrder(String orderNo) {
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Order::getOrderNo, orderNo);
+
+        Order order = orderRepository.selectOne(wrapper);
+        if (order == null) {
+            throw new BusinessException(404, "订单不存在");
+        }
+
+        // 只有待付款订单可以取消
+        if (!OrderStatus.PENDING_PAYMENT.equals(order.getOrderStatus())) {
+            throw new BusinessException(400, "只有待付款订单可以取消");
+        }
+
+        // 恢复库存
+        LambdaQueryWrapper<OrderItem> itemWrapper = new LambdaQueryWrapper<>();
+        itemWrapper.eq(OrderItem::getOrderId, order.getId());
+        List<OrderItem> orderItems = orderItemRepository.selectList(itemWrapper);
+
+        for (OrderItem orderItem : orderItems) {
+            // 恢复product表的库存
+            Product product = productRepository.selectById(orderItem.getProductId());
+            if (product != null && product.getStock() != null) {
+                product.setStock(product.getStock() + orderItem.getQuantity());
+                productRepository.updateById(product);
+            }
+
+            // 恢复product_stock表的库存
+            LambdaQueryWrapper<ProductStock> stockWrapper = new LambdaQueryWrapper<>();
+            stockWrapper.eq(ProductStock::getProductId, orderItem.getProductId());
+            ProductStock productStock = productStockRepository.selectOne(stockWrapper);
+
+            if (productStock != null) {
+                // 减少锁定库存
+                int newLockedStock = (productStock.getLockedStock() != null ? productStock.getLockedStock() : 0) - orderItem.getQuantity();
+                if (newLockedStock < 0) {
+                    newLockedStock = 0;
+                }
+                productStock.setLockedStock(newLockedStock);
+
+                // 增加可用库存
+                int newAvailableStock = (productStock.getAvailableStock() != null ? productStock.getAvailableStock() : 0) + orderItem.getQuantity();
+                productStock.setAvailableStock(newAvailableStock);
+                productStockRepository.updateById(productStock);
+            }
+        }
+
+        order.setOrderStatus(OrderStatus.CANCELLED);
+        orderRepository.updateById(order);
+
+        log.info("管理员取消订单成功: orderNo={}", orderNo);
     }
 
     /**

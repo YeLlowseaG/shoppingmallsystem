@@ -53,11 +53,28 @@
         </el-form-item>
       </el-form>
 
+      <!-- 订单状态标签页 -->
+      <div class="order-tabs">
+        <div
+          v-for="tab in orderTabs"
+          :key="tab.value === undefined ? 'all' : tab.value"
+          :class="['tab-item', { active: activeTab === tab.value }]"
+          @click="handleTabChange(tab.value)"
+        >
+          {{ tab.label }}
+        </div>
+      </div>
+
       <!-- 订单列表 -->
       <el-table :data="orderList" v-loading="loading" border>
-        <el-table-column prop="orderNo" label="订单号" width="180" />
+        <el-table-column prop="orderNo" label="订单号" width="180">
+          <template #default="{ row }">
+            <el-link type="primary" :underline="false" @click="handleView(row)" style="cursor: pointer;">
+              {{ row.orderNo }}
+            </el-link>
+          </template>
+        </el-table-column>
         <el-table-column prop="recipientName" label="收货人" width="120" />
-        <el-table-column prop="recipientAddress" label="收货地址" width="250" show-overflow-tooltip />
         <el-table-column prop="description" label="订单描述" width="300" show-overflow-tooltip />
         <el-table-column prop="orderDate" label="下单日期" width="180">
           <template #default="{ row }">
@@ -76,35 +93,26 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="物流信息" width="200" v-if="hasLogistics">
-          <template #default="{ row }">
-            <div v-if="row.logistics">
-              <div>{{ row.logistics.carrier }}</div>
-              <div style="font-size: 12px; color: #999;">{{ row.logistics.trackingNo }}</div>
-            </div>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
         <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link @click="handleView(row)">查看</el-button>
+            <el-button type="primary" size="small" @click="handleViewLogistics(row)">物流信息</el-button>
             <el-button
               v-if="row.status === 0"
-              type="success"
-              link
-              @click="handleConfirm(row)"
+              type="danger"
+              size="small"
+              @click="handleCancel(row)"
             >
-              确认订单
+              取消订单
             </el-button>
             <el-button
               v-if="row.status === 1"
               type="warning"
-              link
+              size="small"
               @click="handleShip(row)"
             >
               发货
             </el-button>
-            <el-button type="info" link @click="handleRemark(row)">备注</el-button>
+            <el-button type="info" size="small" @click="handleRemark(row)">备注</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -143,6 +151,25 @@
       <!-- 商品列表 -->
       <el-divider>商品信息</el-divider>
       <el-table :data="currentOrder?.items" border style="margin-top: 20px">
+        <el-table-column label="图片" width="100">
+          <template #default="{ row }">
+            <el-image
+              :src="getImageUrl(row.image)"
+              :alt="row.name"
+              fit="cover"
+              style="width: 60px; height: 60px;"
+              :preview-src-list="[getImageUrl(row.image)]"
+              :initial-index="0"
+              preview-teleported
+            >
+              <template #error>
+                <div class="image-slot">
+                  <el-icon><Picture /></el-icon>
+                </div>
+              </template>
+            </el-image>
+          </template>
+        </el-table-column>
         <el-table-column prop="productCode" label="商品编码" width="120" />
         <el-table-column prop="name" label="商品名称" width="300" />
         <el-table-column prop="price" label="单价" width="100">
@@ -209,18 +236,54 @@
         <el-button type="primary" @click="handleRemarkSubmit">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 物流信息对话框 -->
+    <el-dialog v-model="logisticsDialogVisible" title="物流信息" width="600px">
+      <div v-if="currentLogisticsOrder">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="订单号">{{ currentLogisticsOrder.orderNo }}</el-descriptions-item>
+          <el-descriptions-item label="收货人">{{ currentLogisticsOrder.recipientName }}</el-descriptions-item>
+        </el-descriptions>
+        <el-divider />
+        <div v-if="currentLogisticsOrder.logistics">
+          <el-descriptions :column="1" border>
+            <el-descriptions-item label="承运公司">{{ currentLogisticsOrder.logistics.carrier }}</el-descriptions-item>
+            <el-descriptions-item label="发货日期">{{ currentLogisticsOrder.logistics.shipDate }}</el-descriptions-item>
+            <el-descriptions-item label="发货时间">{{ currentLogisticsOrder.logistics.shipTime }}</el-descriptions-item>
+            <el-descriptions-item label="物流单号">
+              <span>{{ currentLogisticsOrder.logistics.trackingNo }}</span>
+              <el-button
+                type="text"
+                size="small"
+                style="margin-left: 10px;"
+                @click="handleCopyTrackingNo(currentLogisticsOrder.logistics!.trackingNo)"
+              >
+                复制
+              </el-button>
+            </el-descriptions-item>
+          </el-descriptions>
+        </div>
+        <div v-else style="text-align: center; padding: 40px; color: #999;">
+          暂无物流信息
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="logisticsDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
+import { Picture } from '@element-plus/icons-vue'
 import { formatDateTime } from '@/utils'
 import {
   getOrderList,
   getOrderDetail,
-  confirmOrder,
+  cancelOrder,
   shipOrder,
   addOrderRemark
 } from '@/api/admin/order'
@@ -246,7 +309,9 @@ const pagination = reactive({
 const detailDialogVisible = ref(false)
 const shipDialogVisible = ref(false)
 const remarkDialogVisible = ref(false)
+const logisticsDialogVisible = ref(false)
 const currentOrder = ref<OrderDetailVO | null>(null)
+const currentLogisticsOrder = ref<OrderListVO | null>(null)
 
 const shipForm = reactive({
   logisticsCompany: '',
@@ -265,10 +330,20 @@ const shipRules: FormRules = {
   logisticsNo: [{ required: true, message: '请输入物流单号', trigger: 'blur' }]
 }
 
-// 检查是否有物流信息
-const hasLogistics = computed(() => {
-  return orderList.value.some(order => order.logistics)
-})
+// 订单状态标签页配置
+const orderTabs = [
+  { label: '全部订单', value: undefined },
+  { label: '待付款', value: 0 },
+  { label: '已付款未发货', value: 1 },
+  { label: '已发货', value: 2 },
+  { label: '已完成', value: 3 },
+  { label: '已取消', value: 4 },
+  { label: '已退款', value: 5 },
+  { label: '已退货', value: 6 }
+]
+
+const activeTab = ref<number | undefined>(undefined)
+
 
 // 加载订单列表
 const loadOrderList = async () => {
@@ -292,8 +367,25 @@ const loadOrderList = async () => {
   }
 }
 
+// 标签页切换
+const handleTabChange = (value: number | undefined) => {
+  if (activeTab.value === value) {
+    return // 如果点击的是当前标签，不执行任何操作
+  }
+  activeTab.value = value
+  searchForm.orderStatus = value
+  pagination.page = 1
+  loadOrderList()
+}
+
 // 搜索
 const handleSearch = () => {
+  // 如果搜索时没有指定状态，使用当前tab的状态
+  if (searchForm.orderStatus === undefined && activeTab.value !== undefined) {
+    searchForm.orderStatus = activeTab.value
+  }
+  // 同步tab状态
+  activeTab.value = searchForm.orderStatus
   pagination.page = 1
   loadOrderList()
 }
@@ -305,6 +397,7 @@ const handleReset = () => {
   searchForm.orderStatus = undefined
   searchForm.startDate = ''
   searchForm.endDate = ''
+  activeTab.value = undefined
   handleSearch()
 }
 
@@ -319,14 +412,29 @@ const handleView = async (row: OrderListVO) => {
   }
 }
 
-// 确认订单
-const handleConfirm = async (row: OrderListVO) => {
+// 查看物流信息
+const handleViewLogistics = (row: OrderListVO) => {
+  currentLogisticsOrder.value = row
+  logisticsDialogVisible.value = true
+}
+
+// 复制物流单号
+const handleCopyTrackingNo = (trackingNo: string) => {
+  navigator.clipboard.writeText(trackingNo).then(() => {
+    ElMessage.success('已复制到剪贴板')
+  }).catch(() => {
+    ElMessage.error('复制失败')
+  })
+}
+
+// 取消订单
+const handleCancel = async (row: OrderListVO) => {
   try {
-    await ElMessageBox.confirm('确定要确认该订单吗？', '提示', {
+    await ElMessageBox.confirm('确定要取消该订单吗？取消后库存将自动恢复。', '提示', {
       type: 'warning'
     })
-    await confirmOrder(row.orderNo)
-    ElMessage.success('确认成功')
+    await cancelOrder(row.orderNo)
+    ElMessage.success('取消成功')
     loadOrderList()
   } catch (error: any) {
     if (error !== 'cancel') {
@@ -400,6 +508,21 @@ const handlePageChange = () => {
   loadOrderList()
 }
 
+// 获取图片URL（处理相对路径）
+const getImageUrl = (url: string | undefined): string => {
+  if (!url) return ''
+  // 如果已经是完整URL，直接返回
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  // 如果是相对路径，添加基础URL
+  if (url.startsWith('/')) {
+    const baseURL = import.meta.env.VITE_API_BASE_URL || ''
+    return baseURL + url
+  }
+  return url
+}
+
 // 获取状态标签类型
 const getStatusTagType = (status: number): string => {
   const typeMap: Record<number, string> = {
@@ -414,6 +537,11 @@ const getStatusTagType = (status: number): string => {
   return typeMap[status] || 'info'
 }
 
+// 监听搜索表单中的订单状态变化，同步到tab
+watch(() => searchForm.orderStatus, (newStatus) => {
+  activeTab.value = newStatus
+})
+
 // 初始化
 onMounted(() => {
   loadOrderList()
@@ -426,11 +554,51 @@ onMounted(() => {
     margin-bottom: 20px;
   }
 
+  // 订单状态标签页样式
+  .order-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid #e5e5e5;
+    margin-bottom: 20px;
+
+    .tab-item {
+      padding: 12px 20px;
+      font-size: 14px;
+      color: #666;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.3s;
+
+      &:hover {
+        color: #409eff;
+      }
+
+      &.active {
+        color: #409eff;
+        font-weight: bold;
+        border-bottom-color: #409eff;
+      }
+    }
+  }
+
   .pagination {
     margin-top: 20px;
     display: flex;
     justify-content: flex-end;
   }
+}
+
+// 图片占位符样式
+.image-slot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  background: #f5f7fa;
+  color: #909399;
+  font-size: 20px;
 }
 </style>
 

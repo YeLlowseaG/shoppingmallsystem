@@ -102,11 +102,9 @@
                     <span class="required-mark">*</span>收货地区:
                   </td>
                   <td class="form-input">
-                    <el-cascader
-                      v-model="addressForm.region"
-                      :options="regionOptions"
-                      placeholder="请选择省/市/区"
-                      style="width: 500px"
+                    <RegionSelector
+                      v-model="regionData"
+                      @change="handleRegionChange"
                     />
                   </td>
                 </tr>
@@ -399,7 +397,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElForm } from 'element-plus'
 import { ShoppingCart } from '@element-plus/icons-vue'
@@ -407,19 +405,26 @@ import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
+import RegionSelector from '@/components/common/RegionSelector.vue'
 import { getCartList } from '@/api/buyer/cart'
-import { getAddressList, addAddress } from '@/api/buyer/address'
+import { getAddressList, addAddress, updateAddress } from '@/api/buyer/address'
 import { createOrder } from '@/api/buyer/order'
+import { getDepositBalance } from '@/api/buyer/deposit'
+import { useUserStore } from '@/stores/user'
+import { getProvinces, getChildrenByParentId } from '@/api/common/region'
 import type { CartVO } from '@/api/buyer/cart'
 import type { AddressVO, AddressDTO } from '@/api/buyer/address'
 
 const router = useRouter()
 const route = useRoute()
+const userStore = useUserStore()
 
 // 选中的地址ID
 const selectedAddressId = ref<number | string>('')
 const showAddressForm = ref(false)
 const loading = ref(false)
+// 正在编辑的地址ID（用于区分编辑和新增）
+const editingAddressId = ref<number | null>(null)
 
 // 收货地址列表
 const addressList = ref<AddressVO[]>([])
@@ -427,7 +432,9 @@ const addressList = ref<AddressVO[]>([])
 // 地址表单
 const addressFormRef = ref<InstanceType<typeof ElForm>>()
 const addressForm = ref({
-  region: [] as string[], // 不设置默认值
+  province: '',
+  city: '',
+  district: '',
   detailAddress: '',
   zipCode: '',
   receiverName: '',
@@ -436,9 +443,15 @@ const addressForm = ref({
   saveAddress: false
 })
 
+// 地区选择器数据
+const regionData = ref<{
+  provinceId?: number;
+  cityId?: number;
+  districtId?: number;
+}>({})
+
 // 地址验证规则（用于表单验证）
 const addressRules = {
-  region: [{ required: true, message: '请选择收货地区', trigger: 'change' }],
   detailAddress: [{ required: true, message: '请输入街道地址', trigger: 'blur' }],
   receiverName: [{ required: true, message: '请输入收货人姓名', trigger: 'blur' }],
   receiverPhone: [{ required: false, message: '请输入联系电话', trigger: 'blur' }],
@@ -457,22 +470,45 @@ const addressRules = {
   ]
 }
 
-// 地区选项（模拟数据，后续从API获取）
-const regionOptions = ref([
-  {
-    value: 'shaanxi',
-    label: '陕西省',
-    children: [
-      {
-        value: 'xian',
-        label: '西安市',
-        children: [
-          { value: 'yanta', label: '雁塔区' }
-        ]
-      }
-    ]
+// 地区选择器change事件处理
+const handleRegionChange = (value: {
+  provinceId?: number;
+  cityId?: number;
+  districtId?: number;
+  provinceName?: string;
+  cityName?: string;
+  districtName?: string;
+}) => {
+  addressForm.value.province = value.provinceName || ''
+  addressForm.value.city = value.cityName || ''
+  addressForm.value.district = value.districtName || ''
+}
+
+// 监听地址选择变化，选择"其他收货地址"时清空表单
+watch(selectedAddressId, (newVal, oldVal) => {
+  // 只有当从非'other'变为'other'时才清空表单
+  // 避免编辑地址时触发清空
+  if (newVal === 'other' && oldVal !== 'other') {
+    // 清空所有收货人信息字段
+    addressForm.value = {
+      province: '',
+      city: '',
+      district: '',
+      detailAddress: '',
+      zipCode: '',
+      receiverName: '',
+      receiverPhone: '',
+      receiverMobile: '',
+      saveAddress: false
+    }
+    // 清空地区选择器数据
+    regionData.value = {}
+    // 清空编辑地址ID（选择其他收货地址时，是新增操作）
+    editingAddressId.value = null
+    // 显示地址表单
+    showAddressForm.value = true
   }
-])
+})
 
 // 送货日期和时间
 const deliveryDate = ref('any')
@@ -487,7 +523,7 @@ const paymentCurrency = ref('CNY')
 // 支付方式相关
 const showPaymentOptions = ref(false)
 const paymentMethod = ref('alipay')
-// 预存款余额（模拟数据，后续从后端获取）
+// 预存款余额
 const depositBalance = ref(0.00)
 
 // 支付方式列表
@@ -628,19 +664,68 @@ const totalAmount = computed(() => {
   return totalProductPrice.value + shippingFee.value + tax.value
 })
 
+// 根据名称查找地区ID
+const loadRegionIdsByName = async (provinceName: string, cityName: string, districtName: string) => {
+  try {
+    // 1. 查找省份ID
+    const provinces = await getProvinces()
+    const province = provinces.find(p => p.name === provinceName)
+    if (!province) {
+      console.warn('未找到省份:', provinceName)
+      return
+    }
+    
+    // 2. 查找城市ID
+    const cities = await getChildrenByParentId(province.id)
+    const city = cities.find(c => c.name === cityName)
+    if (!city) {
+      console.warn('未找到城市:', cityName)
+      return
+    }
+    
+    // 3. 查找区县ID
+    const districts = await getChildrenByParentId(city.id)
+    const district = districts.find(d => d.name === districtName)
+    if (!district) {
+      console.warn('未找到区县:', districtName)
+      return
+    }
+    
+    // 4. 设置regionData
+    regionData.value = {
+      provinceId: province.id,
+      cityId: city.id,
+      districtId: district.id
+    }
+  } catch (error) {
+    console.error('加载地区ID失败:', error)
+    // 失败时不影响表单数据，用户仍可以重新选择
+  }
+}
+
 // 编辑地址
-const handleEditAddress = (address: AddressVO) => {
-  selectedAddressId.value = 'other'
+const handleEditAddress = async (address: AddressVO) => {
+  // 不改变selectedAddressId，保持当前选中的地址ID，只显示编辑表单
   showAddressForm.value = true
-  // 填充表单数据
+  // 保存正在编辑的地址ID
+  editingAddressId.value = address.id
+  
+  // 填充表单数据，编辑时默认勾选保存
   addressForm.value = {
-    region: [address.province, address.city, address.district], // 使用实际地址数据
+    province: address.province || '',
+    city: address.city || '',
+    district: address.district || '',
     detailAddress: address.address || '',
     zipCode: address.zipCode || '',
     receiverName: address.recipient || '',
     receiverPhone: address.phone || '',
     receiverMobile: address.mobile || '',
-    saveAddress: false
+    saveAddress: true  // 编辑时默认勾选保存
+  }
+  
+  // 根据名称查找ID，设置到regionData中
+  if (address.province && address.city && address.district) {
+    await loadRegionIdsByName(address.province, address.city, address.district)
   }
 }
 
@@ -676,8 +761,8 @@ const handlePlaceOrder = async () => {
     }
     
     // 验证其他必填项
-    if (!addressForm.value.region || addressForm.value.region.length === 0) {
-      ElMessage.warning('请选择收货地区')
+    if (!addressForm.value.province || !addressForm.value.city || !addressForm.value.district) {
+      ElMessage.warning('请完整选择收货地区')
       return
     }
     
@@ -686,22 +771,31 @@ const handlePlaceOrder = async () => {
       return
     }
     
-    // 如果选择保存地址，先创建地址
+    // 如果选择保存地址，根据是编辑还是新增进行操作
     if (addressForm.value.saveAddress) {
       try {
         const addressDTO: AddressDTO = {
           recipient: addressForm.value.receiverName,
           phone: addressForm.value.receiverPhone || undefined,
           mobile: addressForm.value.receiverMobile || undefined,
-          province: addressForm.value.region[0] || '',
-          city: addressForm.value.region[1] || '',
-          district: addressForm.value.region[2] || '',
+          province: addressForm.value.province,
+          city: addressForm.value.city,
+          district: addressForm.value.district,
           address: addressForm.value.detailAddress,
           zipCode: addressForm.value.zipCode || undefined,
           isDefault: false
         }
-        const newAddressId = await addAddress(addressDTO)
-        addressId = newAddressId
+        
+        // 如果是编辑操作，更新地址；否则新增地址
+        if (editingAddressId.value !== null) {
+          // 编辑：更新已有地址
+          await updateAddress(editingAddressId.value, addressDTO)
+          addressId = editingAddressId.value
+        } else {
+          // 新增：创建新地址
+          const newAddressId = await addAddress(addressDTO)
+          addressId = newAddressId
+        }
       } catch (error: any) {
         ElMessage.error(error.message || '保存地址失败')
         return
@@ -791,7 +885,9 @@ const loadAddressList = async () => {
       selectedAddressId.value = 'other'
       showAddressForm.value = true
       addressForm.value = {
-        region: [],
+        province: '',
+        city: '',
+        district: '',
         detailAddress: '',
         zipCode: '',
         receiverName: '',
@@ -799,12 +895,15 @@ const loadAddressList = async () => {
         receiverMobile: '',
         saveAddress: false
       }
+      regionData.value = {}
     }
   } catch (error: any) {
     ElMessage.error(error.message || '加载收货地址失败')
     // 加载失败时也清空表单默认值
     addressForm.value = {
-      region: [],
+      province: '',
+      city: '',
+      district: '',
       detailAddress: '',
       zipCode: '',
       receiverName: '',
@@ -812,6 +911,7 @@ const loadAddressList = async () => {
       receiverMobile: '',
       saveAddress: false
     }
+    regionData.value = {}
   }
 }
 
@@ -838,9 +938,29 @@ const loadCartItems = async () => {
   }
 }
 
+// 加载预存款余额
+const loadDepositBalance = async () => {
+  try {
+    const response = await getDepositBalance()
+    if (response) {
+      depositBalance.value = response.availableBalance || 0
+    }
+  } catch (error: any) {
+    console.error('获取预存款余额失败:', error)
+    // 如果用户未登录或其他错误，不显示错误提示，保持默认值0
+    if (error?.response?.status !== 401) {
+      // 静默失败，不影响页面正常使用
+    }
+  }
+}
+
 onMounted(() => {
   loadAddressList()
   loadCartItems()
+  // 如果用户已登录，加载预存款余额
+  if (userStore.isLoggedIn()) {
+    loadDepositBalance()
+  }
 })
 </script>
 

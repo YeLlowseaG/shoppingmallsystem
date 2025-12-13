@@ -115,48 +115,10 @@
                         <span class="required">*</span>地区:
                       </td>
                       <td class="input-cell">
-                        <div class="region-selectors">
-                          <el-select
-                            v-model="addressForm.province"
-                            placeholder="请选择..."
-                            class="region-select"
-                            @change="handleProvinceChange"
-                          >
-                            <el-option
-                              v-for="province in provinces"
-                              :key="province.value"
-                              :label="province.label"
-                              :value="province.value"
-                            />
-                          </el-select>
-                          <el-select
-                            v-model="addressForm.city"
-                            placeholder="请选择..."
-                            class="region-select"
-                            :disabled="!addressForm.province"
-                            @change="handleCityChange"
-                          >
-                            <el-option
-                              v-for="city in cities"
-                              :key="city.value"
-                              :label="city.label"
-                              :value="city.value"
-                            />
-                          </el-select>
-                          <el-select
-                            v-model="addressForm.district"
-                            placeholder="请选择..."
-                            class="region-select"
-                            :disabled="!addressForm.city"
-                          >
-                            <el-option
-                              v-for="district in districts"
-                              :key="district.value"
-                              :label="district.label"
-                              :value="district.value"
-                            />
-                          </el-select>
-                        </div>
+                        <RegionSelector
+                          v-model="regionData"
+                          @change="handleRegionChange"
+                        />
                       </td>
                     </tr>
                   </table>
@@ -244,7 +206,9 @@ import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
 import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
 import MemberSidebar from '@/components/member/MemberSidebar.vue'
+import RegionSelector from '@/components/common/RegionSelector.vue'
 import { getAddressById, addAddress, updateAddress, type AddressDTO } from '@/api/buyer/address'
+import { getProvinces, getChildrenByParentId } from '@/api/common/region'
 
 const router = useRouter()
 const route = useRoute()
@@ -296,53 +260,26 @@ const rules: FormRules = {
   ]
 }
 
-// 地区数据（简化版，实际应该从后端获取）
-const provinces = ref([
-  { label: '北京市', value: '北京' },
-  { label: '上海市', value: '上海' },
-  { label: '广东省', value: '广东' },
-  { label: '浙江省', value: '浙江' },
-  { label: '江苏省', value: '江苏' },
-  { label: '陕西省', value: '陕西' },
-  { label: '山东省', value: '山东' },
-  { label: '河南省', value: '河南' },
-  { label: '四川省', value: '四川' },
-  { label: '湖北省', value: '湖北' }
-])
 
-const cities = ref<Array<{ label: string; value: string }>>([])
-const districts = ref<Array<{ label: string; value: string }>>([])
+// 地区选择器数据
+const regionData = ref<{
+  provinceId?: number;
+  cityId?: number;
+  districtId?: number;
+}>({})
 
-// 简化版地区数据
-const regionData: Record<string, Record<string, string[]>> = {
-  '北京': {
-    '北京市': ['东城区', '西城区', '朝阳区', '海淀区', '丰台区', '石景山区']
-  },
-  '上海': {
-    '上海市': ['黄浦区', '徐汇区', '长宁区', '静安区', '普陀区', '虹口区']
-  },
-  '广东': {
-    '广州市': ['越秀区', '海珠区', '天河区', '白云区', '番禺区', '花都区'],
-    '深圳市': ['罗湖区', '福田区', '南山区', '宝安区', '龙岗区', '盐田区']
-  },
-  '陕西': {
-    '西安市': ['雁塔区', '碑林区', '莲湖区', '新城区', '未央区', '灞桥区']
-  }
-}
-
-const handleProvinceChange = () => {
-  addressForm.city = ''
-  addressForm.district = ''
-  const provinceData = regionData[addressForm.province] || {}
-  cities.value = Object.keys(provinceData).map(city => ({ label: city, value: city }))
-  districts.value = []
-}
-
-const handleCityChange = () => {
-  addressForm.district = ''
-  const provinceData = regionData[addressForm.province] || {}
-  const cityData = provinceData[addressForm.city] || []
-  districts.value = cityData.map(district => ({ label: district, value: district }))
+// 地区选择器change事件处理
+const handleRegionChange = (value: {
+  provinceId?: number;
+  cityId?: number;
+  districtId?: number;
+  provinceName?: string;
+  cityName?: string;
+  districtName?: string;
+}) => {
+  addressForm.province = value.provinceName || ''
+  addressForm.city = value.cityName || ''
+  addressForm.district = value.districtName || ''
 }
 
 // 菜单选择逻辑已移至 MemberSidebar 组件中
@@ -353,8 +290,13 @@ const handleSave = async () => {
 
   await addressFormRef.value.validate(async (valid) => {
     if (valid) {
-      // 验证地区是否完整
-      if (!addressForm.province || !addressForm.city || !addressForm.district) {
+      // 验证地区是否完整（检查addressForm中的值，因为RegionSelector的change事件会更新这些值）
+      // 如果addressForm已经有值（编辑时加载的数据），说明地区已选择
+      const hasProvince = addressForm.province && addressForm.province.trim() !== ''
+      const hasCity = addressForm.city && addressForm.city.trim() !== ''
+      const hasDistrict = addressForm.district && addressForm.district.trim() !== ''
+      
+      if (!hasProvince || !hasCity || !hasDistrict) {
         ElMessage.warning('请完整选择地区')
         return
       }
@@ -422,17 +364,53 @@ const loadAddressData = async () => {
     addressForm.zipCode = addressData.zipCode || ''
     addressForm.isDefault = addressData.isDefault || false
 
-    // 加载地区数据
-    if (addressForm.province) {
-      handleProvinceChange()
-      if (addressForm.city) {
-        handleCityChange()
-      }
+    // 根据名称查找ID，设置到regionData中
+    if (addressData.province && addressData.city && addressData.district) {
+      await loadRegionIdsByName(addressData.province, addressData.city, addressData.district)
     }
   } catch (error: any) {
     console.error('加载收货地址失败:', error)
     ElMessage.error(error.message || '加载收货地址失败')
     router.push('/member/settings/address')
+  }
+}
+
+// 根据名称查找地区ID
+const loadRegionIdsByName = async (provinceName: string, cityName: string, districtName: string) => {
+  try {
+    // 1. 查找省份ID
+    const provinces = await getProvinces()
+    const province = provinces.find(p => p.name === provinceName)
+    if (!province) {
+      console.warn('未找到省份:', provinceName)
+      return
+    }
+    
+    // 2. 查找城市ID
+    const cities = await getChildrenByParentId(province.id)
+    const city = cities.find(c => c.name === cityName)
+    if (!city) {
+      console.warn('未找到城市:', cityName)
+      return
+    }
+    
+    // 3. 查找区县ID
+    const districts = await getChildrenByParentId(city.id)
+    const district = districts.find(d => d.name === districtName)
+    if (!district) {
+      console.warn('未找到区县:', districtName)
+      return
+    }
+    
+    // 4. 设置regionData
+    regionData.value = {
+      provinceId: province.id,
+      cityId: city.id,
+      districtId: district.id
+    }
+  } catch (error) {
+    console.error('加载地区ID失败:', error)
+    // 失败时不影响表单数据，用户仍可以重新选择
   }
 }
 
@@ -540,14 +518,6 @@ onMounted(() => {
                 flex-shrink: 0;
               }
 
-              .region-selectors {
-                display: flex;
-                gap: 10px;
-
-                .region-select {
-                  width: 150px;
-                }
-              }
 
               .save-button {
                 width: 120px;

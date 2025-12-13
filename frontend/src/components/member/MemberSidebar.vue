@@ -2,6 +2,7 @@
   <div class="member-sidebar">
     <el-menu
       :default-active="activeMenu"
+      :default-openeds="defaultOpeneds"
       class="sidebar-menu"
       @select="handleMenuSelect"
     >
@@ -37,6 +38,7 @@
         </template>
         <el-menu-item index="settings/profile">个人信息</el-menu-item>
         <el-menu-item index="settings/password">修改密码</el-menu-item>
+        <el-menu-item index="settings/payment-password">修改预存款支付密码</el-menu-item>
         <el-menu-item index="settings/address">收货地址</el-menu-item>
       </el-sub-menu>
 
@@ -80,6 +82,9 @@ const props = withDefaults(defineProps<{
 const route = useRoute()
 const router = useRouter()
 
+// 默认展开所有子菜单
+const defaultOpeneds = ['transaction', 'favorites', 'messages', 'settings', 'deposit', 'site-messages']
+
 // 如果没有传入activeMenu，则根据当前路由自动判断
 const activeMenu = computed(() => {
   if (props.activeMenu) {
@@ -89,6 +94,7 @@ const activeMenu = computed(() => {
   const path = route.path
   if (path.includes('/settings/profile')) return 'settings/profile'
   if (path.includes('/settings/password')) return 'settings/password'
+  if (path.includes('/settings/payment-password')) return 'settings/payment-password'
   if (path.includes('/settings/address')) return 'settings/address'
   if (path.includes('/favorites/products')) return 'favorites/products'
   if (path.includes('/transaction/orders')) return 'transaction/orders'
@@ -103,6 +109,7 @@ const handleMenuSelect = (index: string) => {
   const routeMap: Record<string, string> = {
     'settings/profile': '/member/settings/profile',
     'settings/password': '/member/settings/password',
+    'settings/payment-password': '/member/settings/payment-password',
     'settings/address': '/member/settings/address',
     'transaction/orders': '/member/transaction/orders',
     'favorites/products': '/member/favorites/products',

@@ -71,3 +71,26 @@ public class ShippingRuleDTO {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

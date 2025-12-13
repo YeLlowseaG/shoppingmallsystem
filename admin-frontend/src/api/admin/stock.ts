@@ -56,10 +56,11 @@ export const getStockPage = (
   productId?: number,
   productCode?: string,
   productName?: string,
+  productStatus?: number,
   onlyWarning?: boolean
 ): Promise<PageResponse<StockVO>> => {
   return request.get('/api/admin/stock/page', {
-    params: { current, size, productId, productCode, productName, onlyWarning }
+    params: { current, size, productId, productCode, productName, productStatus, onlyWarning }
   })
 }
 

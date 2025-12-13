@@ -17,3 +17,26 @@ public interface ShippingRuleRepository extends BaseMapper<ShippingRule> {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

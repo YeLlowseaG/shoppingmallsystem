@@ -30,6 +30,11 @@ public class StockQueryDTO {
      * 是否只查询预警商品（true-只查询预警商品，false/null-查询全部）
      */
     private Boolean onlyWarning;
+
+    /**
+     * 商品状态（0-下架，1-上架）
+     */
+    private Integer productStatus;
 }
 
 

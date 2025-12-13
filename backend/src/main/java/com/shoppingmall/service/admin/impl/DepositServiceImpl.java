@@ -4,10 +4,14 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shoppingmall.common.constant.DepositType;
+import com.shoppingmall.common.exception.BusinessException;
 import com.shoppingmall.dto.AdminDepositQueryDTO;
+import com.shoppingmall.dto.RefundRequestDTO;
+import com.shoppingmall.entity.PreDeposit;
 import com.shoppingmall.entity.PreDepositDetail;
 import com.shoppingmall.entity.User;
 import com.shoppingmall.repository.deposit.PreDepositDetailRepository;
+import com.shoppingmall.repository.deposit.PreDepositRepository;
 import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.service.admin.DepositService;
 import com.shoppingmall.vo.AdminDepositRecordVO;
@@ -15,8 +19,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -37,6 +43,7 @@ import java.util.stream.Collectors;
 public class DepositServiceImpl implements DepositService {
 
     private final PreDepositDetailRepository preDepositDetailRepository;
+    private final PreDepositRepository preDepositRepository;
     private final UserRepository userRepository;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -232,6 +239,80 @@ public class DepositServiceImpl implements DepositService {
         }
 
         return vo;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void refundDepositRecharge(RefundRequestDTO refundDTO) {
+        // 1. 验证充值记录
+        PreDepositDetail detail = preDepositDetailRepository.selectById(refundDTO.getDepositDetailId());
+        if (detail == null) {
+            throw new BusinessException(404, "充值记录不存在");
+        }
+
+        // 2. 验证是否为充值记录
+        if (!DepositType.RECHARGE.equals(detail.getType())) {
+            throw new BusinessException(400, "该记录不是充值记录");
+        }
+
+        // 3. 验证状态
+        if (detail.getStatus() != 1) {
+            throw new BusinessException(400, "只有已通过的充值记录才能退款");
+        }
+
+        // 4. 验证退款金额
+        BigDecimal depositAmount = detail.getDepositAmount() != null 
+                ? detail.getDepositAmount() 
+                : detail.getAmount();
+        
+        if (refundDTO.getRefundAmount().compareTo(depositAmount) > 0) {
+            throw new BusinessException(400, "退款金额不能超过充值金额：" + depositAmount);
+        }
+
+        if (refundDTO.getRefundAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(400, "退款金额必须大于0");
+        }
+
+        // 5. 检查预存款余额（如果已消费部分，需要确保余额足够）
+        PreDeposit preDeposit = preDepositRepository.selectOne(
+                new LambdaQueryWrapper<PreDeposit>()
+                        .eq(PreDeposit::getUserId, detail.getUserId())
+        );
+
+        if (preDeposit == null) {
+            throw new BusinessException(404, "预存款账户不存在");
+        }
+
+        // 6. 从预存款账户扣除退款金额
+        BigDecimal newBalance = preDeposit.getBalance().subtract(refundDTO.getRefundAmount());
+        BigDecimal newAvailableBalance = preDeposit.getAvailableBalance().subtract(refundDTO.getRefundAmount());
+
+        if (newAvailableBalance.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(400, "预存款余额不足，无法退款");
+        }
+
+        preDeposit.setBalance(newBalance);
+        preDeposit.setAvailableBalance(newAvailableBalance);
+        preDepositRepository.updateById(preDeposit);
+
+        // 7. 创建退款记录
+        PreDepositDetail refundDetail = new PreDepositDetail();
+        refundDetail.setUserId(detail.getUserId());
+        refundDetail.setAmount(refundDTO.getRefundAmount());
+        refundDetail.setDepositAmount(BigDecimal.ZERO);
+        refundDetail.setExpenseAmount(refundDTO.getRefundAmount());
+        refundDetail.setFrozenAmount(BigDecimal.ZERO);
+        refundDetail.setUnfrozenAmount(BigDecimal.ZERO);
+        refundDetail.setCurrentBalance(newBalance);
+        refundDetail.setAvailableBalance(newAvailableBalance);
+        refundDetail.setType(DepositType.REFUND);
+        refundDetail.setStatus(1); // 已通过
+        refundDetail.setEvent("充值退款");
+        refundDetail.setRemark("充值退款，原充值记录ID：" + detail.getId() + "，退款原因：" + refundDTO.getRefundReason());
+        preDepositDetailRepository.insert(refundDetail);
+
+        log.info("预存款充值退款成功：depositDetailId={}, refundAmount={}, userId={}", 
+                refundDTO.getDepositDetailId(), refundDTO.getRefundAmount(), detail.getUserId());
     }
 }
 

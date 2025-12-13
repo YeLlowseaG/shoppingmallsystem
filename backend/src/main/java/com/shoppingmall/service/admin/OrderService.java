@@ -54,6 +54,13 @@ public interface OrderService {
     void addOrderRemark(String orderNo, String remark);
 
     /**
+     * 取消订单（管理员）
+     *
+     * @param orderNo 订单号
+     */
+    void cancelOrder(String orderNo);
+
+    /**
      * 导出订单
      *
      * @param orderQueryDTO 查询条件

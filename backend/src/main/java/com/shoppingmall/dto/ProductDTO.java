@@ -60,7 +60,7 @@ public class ProductDTO {
     private String description;
 
     /**
-     * 基础批发价（销售价格）
+     * 销售价格
      */
     @NotNull(message = "价格不能为空")
     @DecimalMin(value = "0.01", message = "价格必须大于0")

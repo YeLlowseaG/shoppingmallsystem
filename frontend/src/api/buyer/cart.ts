@@ -12,7 +12,6 @@ export interface CartVO {
   image: string
   salesPrice: number
   memberPrice: number
-  wholesalePrice?: number
   quantity: number
   weight: number
   selected?: boolean

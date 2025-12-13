@@ -13,7 +13,7 @@
     <div class="forgot-password-content">
       <div class="container">
         <h2 class="page-title">取回密码</h2>
-        <p class="description">说明:当你填写邮箱或手机号并提交后,密码会自动发到您注册的邮箱或手机,请及时查收,取回密码!</p>
+        <p class="description">说明:当你填写邮箱并提交后,密码会自动发到您注册的邮箱,请及时查收,取回密码!</p>
 
         <!-- 忘记密码表单 -->
         <div class="forgot-password-form-box">
@@ -40,26 +40,12 @@
             <!-- 邮箱 -->
             <div class="form-row">
               <div class="form-label">
-                请输入您的邮箱:
+                <span class="required">*</span>请输入您的邮箱:
               </div>
               <div class="form-input-wrapper">
                 <el-input
                   v-model="forgotPasswordForm.email"
                   placeholder="请输入邮箱"
-                  class="form-input"
-                />
-              </div>
-            </div>
-
-            <!-- 手机号 -->
-            <div class="form-row">
-              <div class="form-label">
-                请输入您的手机号:
-              </div>
-              <div class="form-input-wrapper">
-                <el-input
-                  v-model="forgotPasswordForm.phone"
-                  placeholder="请输入手机号"
                   class="form-input"
                   @keyup.enter="handleSubmit"
                 />
@@ -106,8 +92,7 @@ const loading = ref(false)
 
 const forgotPasswordForm = reactive<ForgotPasswordDTO>({
   username: '',
-  email: '',
-  phone: ''
+  email: ''
 })
 
 const rules: FormRules = {
@@ -115,10 +100,8 @@ const rules: FormRules = {
     { required: true, message: '请输入用户名', trigger: 'blur' }
   ],
   email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
     { type: 'email', message: '邮箱格式不正确', trigger: 'blur' }
-  ],
-  phone: [
-    { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' }
   ]
 }
 
@@ -126,18 +109,12 @@ const rules: FormRules = {
 const handleSubmit = async () => {
   if (!forgotPasswordFormRef.value) return
 
-  // 验证至少填写邮箱或手机号之一
-  if (!forgotPasswordForm.email && !forgotPasswordForm.phone) {
-    ElMessage.warning('请至少填写邮箱或手机号之一')
-    return
-  }
-
   await forgotPasswordFormRef.value.validate((valid) => {
     if (valid) {
       loading.value = true
       forgotPasswordApi(forgotPasswordForm)
         .then(() => {
-          ElMessage.success('密码重置信息已发送到您的邮箱或手机，请查收')
+          ElMessage.success('密码重置信息已发送到您的邮箱，请查收')
           setTimeout(() => {
             router.push('/login')
           }, 2000)
@@ -240,7 +217,7 @@ const handleSubmit = async () => {
         width: 200px;
         height: 40px;
         font-size: 16px;
-        background: #999;
+        background: #ff6600;
         border: none;
         border-radius: 4px;
         color: #fff;
@@ -248,11 +225,11 @@ const handleSubmit = async () => {
         transition: all 0.3s;
 
         &:hover {
-          background: #888;
+          background: #ff8533;
         }
 
         &:active {
-          background: #777;
+          background: #e55a00;
         }
       }
     }

@@ -21,6 +21,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.Map;
+import com.shoppingmall.entity.PasswordResetCode;
+import com.shoppingmall.repository.user.PasswordResetCodeRepository;
+import com.shoppingmall.service.EmailService;
+import com.shoppingmall.dto.ResetPasswordDTO;
+import java.time.LocalDateTime;
+import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 
 /**
  * 用户服务实现类
@@ -37,6 +44,11 @@ public class UserServiceImpl implements UserService {
     private final JwtUtil jwtUtil;
     private final ObjectMapper objectMapper;
     private final CaptchaController captchaController;
+    private final PasswordResetCodeRepository passwordResetCodeRepository;
+    private final EmailService emailService;
+
+    @Value("${app.password.reset.token-expire-minutes:30}")
+    private int tokenExpireMinutes;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -169,11 +181,11 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void forgotPassword(ForgotPasswordDTO forgotPasswordDTO) {
-        // 验证至少填写邮箱或手机号之一
-        if ((forgotPasswordDTO.getEmail() == null || forgotPasswordDTO.getEmail().trim().isEmpty()) &&
-            (forgotPasswordDTO.getPhone() == null || forgotPasswordDTO.getPhone().trim().isEmpty())) {
-            throw new BusinessException(400, "请至少填写邮箱或手机号之一");
+        // 验证邮箱必填
+        if (forgotPasswordDTO.getEmail() == null || forgotPasswordDTO.getEmail().trim().isEmpty()) {
+            throw new BusinessException(400, "请输入邮箱");
         }
 
         // 查询用户
@@ -185,44 +197,93 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(404, "该用户不存在！");
         }
 
-        // 验证邮箱或手机号是否匹配
-        boolean emailMatch = false;
-        boolean phoneMatch = false;
-
-        if (forgotPasswordDTO.getEmail() != null && !forgotPasswordDTO.getEmail().trim().isEmpty()) {
-            if (user.getEmail() != null && user.getEmail().equals(forgotPasswordDTO.getEmail().trim())) {
-                emailMatch = true;
-            }
+        // 验证邮箱是否匹配
+        if (user.getEmail() == null || !user.getEmail().equals(forgotPasswordDTO.getEmail().trim())) {
+            throw new BusinessException(400, "您填写的邮箱与注册时的不一致，请重新填写");
         }
 
-        if (forgotPasswordDTO.getPhone() != null && !forgotPasswordDTO.getPhone().trim().isEmpty()) {
-            if (user.getPhone() != null && user.getPhone().equals(forgotPasswordDTO.getPhone().trim())) {
-                phoneMatch = true;
-            }
-        }
-
-        // 如果填写了邮箱但邮箱不匹配，或者填写了手机号但手机号不匹配
-        if ((forgotPasswordDTO.getEmail() != null && !forgotPasswordDTO.getEmail().trim().isEmpty() && !emailMatch) ||
-            (forgotPasswordDTO.getPhone() != null && !forgotPasswordDTO.getPhone().trim().isEmpty() && !phoneMatch)) {
-            throw new BusinessException(400, "您填写的邮箱或手机号与注册时的不一致，请重新填写");
-        }
-
-        // 至少有一个匹配才能继续
-        if (!emailMatch && !phoneMatch) {
-            throw new BusinessException(400, "您填写的邮箱或手机号与注册时的不一致，请重新填写");
-        }
-
-        // TODO: 发送密码重置邮件到用户邮箱或手机
-        // 这里暂时只记录日志，后续实现邮件/短信发送功能
-        if (emailMatch) {
-            log.info("用户{}申请密码重置，邮箱: {}", user.getUsername(), user.getEmail());
-        }
-        if (phoneMatch) {
-            log.info("用户{}申请密码重置，手机号: {}", user.getUsername(), user.getPhone());
-        }
+        // 生成重置验证码（使用UUID，取16位大写字母数字）
+        String resetCode = UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
         
-        // 实际应该发送邮件或短信，这里先抛出异常提示需要实现邮件/短信功能
-        // throw new BusinessException(500, "密码重置功能暂未实现，请联系管理员");
+        // 计算过期时间
+        LocalDateTime expireTime = LocalDateTime.now().plusMinutes(tokenExpireMinutes);
+        
+        // 创建密码重置记录
+        PasswordResetCode passwordResetCode = new PasswordResetCode();
+        passwordResetCode.setUserId(user.getId());
+        passwordResetCode.setUsername(user.getUsername());
+        passwordResetCode.setEmail(user.getEmail());
+        passwordResetCode.setCode(resetCode);
+        passwordResetCode.setCodeType("RESET_PASSWORD");
+        passwordResetCode.setStatus(0); // 0-未使用
+        passwordResetCode.setExpireTime(expireTime);
+        
+        // 发送邮件并获取邮件内容
+        try {
+            String emailContent = emailService.sendPasswordResetEmail(
+                user.getEmail(), 
+                user.getUsername(), 
+                resetCode,
+                tokenExpireMinutes
+            );
+            passwordResetCode.setEmailContent(emailContent);
+            
+            // 保存到数据库
+            passwordResetCodeRepository.insert(passwordResetCode);
+            
+            log.info("密码重置验证码已发送: userId={}, username={}, email={}, code={}, expireTime={}", 
+                    user.getId(), user.getUsername(), user.getEmail(), resetCode, expireTime);
+        } catch (Exception e) {
+            log.error("发送密码重置邮件失败: userId={}, username={}, email={}", 
+                    user.getId(), user.getUsername(), user.getEmail(), e);
+            throw new BusinessException(500, "邮件发送失败，请稍后重试");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void resetPassword(ResetPasswordDTO resetPasswordDTO) {
+        // 验证密码一致性
+        if (!resetPasswordDTO.getNewPassword().equals(resetPasswordDTO.getConfirmPassword())) {
+            throw new BusinessException(400, "两次输入的密码不一致");
+        }
+
+        // 查询重置验证码记录
+        LambdaQueryWrapper<PasswordResetCode> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(PasswordResetCode::getCode, resetPasswordDTO.getCode().trim().toUpperCase());
+        wrapper.eq(PasswordResetCode::getStatus, 0); // 0-未使用
+        wrapper.eq(PasswordResetCode::getCodeType, "RESET_PASSWORD");
+        PasswordResetCode passwordResetCode = passwordResetCodeRepository.selectOne(wrapper);
+
+        if (passwordResetCode == null) {
+            throw new BusinessException(400, "验证码无效或已使用");
+        }
+
+        // 验证是否过期
+        if (passwordResetCode.getExpireTime().isBefore(LocalDateTime.now())) {
+            // 标记为已过期
+            passwordResetCode.setStatus(2); // 2-已过期
+            passwordResetCodeRepository.updateById(passwordResetCode);
+            throw new BusinessException(400, "验证码已过期，请重新申请");
+        }
+
+        // 查询用户
+        User user = userRepository.selectById(passwordResetCode.getUserId());
+        if (user == null) {
+            throw new BusinessException(404, "用户不存在");
+        }
+
+        // 更新用户密码
+        user.setPassword(EncryptUtil.bcryptEncode(resetPasswordDTO.getNewPassword()));
+        userRepository.updateById(user);
+
+        // 标记验证码为已使用
+        passwordResetCode.setStatus(1); // 1-已使用
+        passwordResetCode.setUsedTime(LocalDateTime.now());
+        passwordResetCodeRepository.updateById(passwordResetCode);
+
+        log.info("用户通过验证码重置密码成功: userId={}, username={}, code={}", 
+                user.getId(), user.getUsername(), resetPasswordDTO.getCode());
     }
 
     @Override
@@ -338,6 +399,36 @@ public class UserServiceImpl implements UserService {
         userRepository.updateById(user);
 
         log.info("用户密码修改成功: userId={}", userId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void changePaymentPassword(Long userId, String oldPaymentPassword, String newPaymentPassword) {
+        User user = userRepository.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(404, "用户不存在");
+        }
+
+        // 验证原支付密码
+        // 如果用户没有设置过支付密码，则使用登录密码作为默认支付密码
+        boolean passwordValid = false;
+        if (user.getPaymentPassword() == null || user.getPaymentPassword().isEmpty()) {
+            // 未设置过支付密码，使用登录密码验证
+            passwordValid = EncryptUtil.bcryptMatches(oldPaymentPassword, user.getPassword());
+        } else {
+            // 已设置过支付密码，使用支付密码验证
+            passwordValid = EncryptUtil.bcryptMatches(oldPaymentPassword, user.getPaymentPassword());
+        }
+
+        if (!passwordValid) {
+            throw new BusinessException(400, "原支付密码错误");
+        }
+
+        // 更新支付密码
+        user.setPaymentPassword(EncryptUtil.bcryptEncode(newPaymentPassword));
+        userRepository.updateById(user);
+
+        log.info("用户支付密码修改成功: userId={}", userId);
     }
 }
 
