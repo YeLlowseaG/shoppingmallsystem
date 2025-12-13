@@ -50,6 +50,15 @@ const router = createRouter({
       }
     },
     {
+      path: '/reset-password',
+      name: 'reset-password',
+      component: () => import('@/views/auth/ResetPassword.vue'),
+      meta: {
+        title: '重置密码',
+        requiresAuth: false
+      }
+    },
+    {
       path: '/products',
       name: 'products',
       component: () => import('@/views/products/List.vue'),

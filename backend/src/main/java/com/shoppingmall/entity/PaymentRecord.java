@@ -43,6 +43,11 @@ public class PaymentRecord {
     private BigDecimal amount;
 
     /**
+     * 已退款金额
+     */
+    private BigDecimal refundedAmount;
+
+    /**
      * 支付状态（0-待支付，1-已支付，2-已退款，3-已失败）
      */
     private Integer paymentStatus;
@@ -51,6 +56,26 @@ public class PaymentRecord {
      * 支付时间
      */
     private LocalDateTime paymentTime;
+
+    /**
+     * 退款时间
+     */
+    private LocalDateTime refundTime;
+
+    /**
+     * 退款原因
+     */
+    private String refundReason;
+
+    /**
+     * 退款操作人ID（管理员）
+     */
+    private Long refundOperatorId;
+
+    /**
+     * 退款操作人姓名
+     */
+    private String refundOperatorName;
 
     /**
      * 回调数据（JSON格式）
@@ -69,6 +94,17 @@ public class PaymentRecord {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 }
+
+
+
+
+
+
+
+
+
+
+
 
 
 

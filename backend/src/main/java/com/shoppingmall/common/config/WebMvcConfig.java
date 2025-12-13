@@ -34,6 +34,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/buyer/user/login",
                         "/api/buyer/user/register",
                         "/api/buyer/user/forgot-password",
+                        "/api/buyer/user/reset-password",
                         "/api/buyer/product/**",
                         "/api/buyer/product-category/**",
                         "/api/buyer/website/**",  // 网站内容模块允许游客访问

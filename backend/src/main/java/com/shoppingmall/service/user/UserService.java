@@ -68,5 +68,12 @@ public interface UserService {
      * @param newPaymentPassword 新支付密码
      */
     void changePaymentPassword(Long userId, String oldPaymentPassword, String newPaymentPassword);
+
+    /**
+     * 重置密码（通过验证码）
+     *
+     * @param resetPasswordDTO 重置密码信息
+     */
+    void resetPassword(ResetPasswordDTO resetPasswordDTO);
 }
 

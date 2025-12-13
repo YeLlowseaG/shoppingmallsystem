@@ -131,48 +131,10 @@
                         <span class="required">*</span>地区:
                       </td>
                       <td class="input-cell">
-                        <div class="region-selectors">
-                          <el-select
-                            v-model="profileForm.province"
-                            placeholder="请选择..."
-                            class="region-select"
-                            @change="handleProvinceChange"
-                          >
-                            <el-option
-                              v-for="province in provinces"
-                              :key="province.value"
-                              :label="province.label"
-                              :value="province.value"
-                            />
-                          </el-select>
-                          <el-select
-                            v-model="profileForm.city"
-                            placeholder="请选择..."
-                            class="region-select"
-                            :disabled="!profileForm.province"
-                            @change="handleCityChange"
-                          >
-                            <el-option
-                              v-for="city in cities"
-                              :key="city.value"
-                              :label="city.label"
-                              :value="city.value"
-                            />
-                          </el-select>
-                          <el-select
-                            v-model="profileForm.district"
-                            placeholder="请选择..."
-                            class="region-select"
-                            :disabled="!profileForm.city"
-                          >
-                            <el-option
-                              v-for="district in districts"
-                              :key="district.value"
-                              :label="district.label"
-                              :value="district.value"
-                            />
-                          </el-select>
-                        </div>
+                        <RegionSelector
+                          v-model="regionData"
+                          @change="handleRegionChange"
+                        />
                       </td>
                     </tr>
                   </table>
@@ -367,12 +329,14 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, FormInstance, FormRules } from 'element-plus'
 import { getUserInfo, updateUserInfo, type UserInfoVO, type UserInfoDTO } from '@/api/buyer/user'
 import { useUserStore } from '@/stores/user'
+import { getProvinces, getChildrenByParentId } from '@/api/common/region'
 import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
 import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
 import MemberSidebar from '@/components/member/MemberSidebar.vue'
+import RegionSelector from '@/components/common/RegionSelector.vue'
 
 const userStore = useUserStore()
 const profileFormRef = ref<FormInstance>()
@@ -424,60 +388,64 @@ const rules: FormRules = {
   ]
 }
 
-// 地区数据（简化版，实际应该从后端获取）
-const provinces = ref([
-  { label: '北京市', value: '北京' },
-  { label: '上海市', value: '上海' },
-  { label: '广东省', value: '广东' },
-  { label: '浙江省', value: '浙江' },
-  { label: '江苏省', value: '江苏' },
-  { label: '山东省', value: '山东' },
-  { label: '河南省', value: '河南' },
-  { label: '四川省', value: '四川' },
-  { label: '湖北省', value: '湖北' },
-  { label: '湖南省', value: '湖南' }
-])
+// 地区选择器数据
+const regionData = ref<{
+  provinceId?: number;
+  cityId?: number;
+  districtId?: number;
+}>({})
 
-const cities = ref<Array<{ label: string; value: string }>>([])
-const districts = ref<Array<{ label: string; value: string }>>([])
+// 地区选择器change事件处理
+const handleRegionChange = (value: {
+  provinceId?: number;
+  cityId?: number;
+  districtId?: number;
+  provinceName?: string;
+  cityName?: string;
+  districtName?: string;
+}) => {
+  profileForm.province = value.provinceName || ''
+  profileForm.city = value.cityName || ''
+  profileForm.district = value.districtName || ''
+}
 
-// 简化版地区数据
-const regionData: Record<string, Record<string, string[]>> = {
-  '北京': {
-    '北京市': ['东城区', '西城区', '朝阳区', '海淀区', '丰台区', '石景山区']
-  },
-  '上海': {
-    '上海市': ['黄浦区', '徐汇区', '长宁区', '静安区', '普陀区', '虹口区']
-  },
-  '广东': {
-    '广州市': ['越秀区', '海珠区', '天河区', '白云区', '番禺区', '花都区'],
-    '深圳市': ['罗湖区', '福田区', '南山区', '宝安区', '龙岗区', '盐田区'],
-    '东莞市': ['莞城区', '南城区', '东城区', '万江区'],
-    '佛山市': ['禅城区', '南海区', '顺德区', '三水区']
-  },
-  '浙江': {
-    '杭州市': ['上城区', '下城区', '江干区', '拱墅区', '西湖区'],
-    '宁波市': ['海曙区', '江北区', '北仑区', '镇海区', '鄞州区']
-  },
-  '江苏': {
-    '南京市': ['玄武区', '秦淮区', '建邺区', '鼓楼区', '浦口区'],
-    '苏州市': ['虎丘区', '吴中区', '相城区', '姑苏区', '工业园区']
+// 根据名称查找地区ID
+const loadRegionIdsByName = async (provinceName: string, cityName: string, districtName: string) => {
+  try {
+    // 1. 查找省份ID
+    const provinces = await getProvinces()
+    const province = provinces.find(p => p.name === provinceName)
+    if (!province) {
+      console.warn('未找到省份:', provinceName)
+      return
+    }
+    
+    // 2. 查找城市ID
+    const cities = await getChildrenByParentId(province.id)
+    const city = cities.find(c => c.name === cityName)
+    if (!city) {
+      console.warn('未找到城市:', cityName)
+      return
+    }
+    
+    // 3. 查找区县ID
+    const districts = await getChildrenByParentId(city.id)
+    const district = districts.find(d => d.name === districtName)
+    if (!district) {
+      console.warn('未找到区县:', districtName)
+      return
+    }
+    
+    // 4. 设置regionData
+    regionData.value = {
+      provinceId: province.id,
+      cityId: city.id,
+      districtId: district.id
+    }
+  } catch (error) {
+    console.error('加载地区ID失败:', error)
+    // 失败时不影响表单数据，用户仍可以重新选择
   }
-}
-
-const handleProvinceChange = () => {
-  profileForm.city = ''
-  profileForm.district = ''
-  const provinceData = regionData[profileForm.province] || {}
-  cities.value = Object.keys(provinceData).map(city => ({ label: city, value: city }))
-  districts.value = []
-}
-
-const handleCityChange = () => {
-  profileForm.district = ''
-  const provinceData = regionData[profileForm.province] || {}
-  const cityData = provinceData[profileForm.city] || []
-  districts.value = cityData.map(district => ({ label: district, value: district }))
 }
 
 // 菜单选择逻辑已移至 MemberSidebar 组件中
@@ -563,18 +531,12 @@ const loadUserInfo = async () => {
     profileForm.operator = userInfo.operator || ''
     
     // 设置地区信息
-    if (userInfo.province) {
+    if (userInfo.province && userInfo.city && userInfo.district) {
       profileForm.province = userInfo.province
-      // 如果选择了省份，加载城市列表
-      handleProvinceChange()
-    }
-    if (userInfo.city) {
       profileForm.city = userInfo.city
-      // 如果选择了城市，加载区县列表
-      handleCityChange()
-    }
-    if (userInfo.district) {
       profileForm.district = userInfo.district
+      // 根据名称查找地区ID，用于初始化RegionSelector组件
+      await loadRegionIdsByName(userInfo.province, userInfo.city, userInfo.district)
     }
   } catch (error: any) {
     console.error('加载用户信息失败:', error)
@@ -663,14 +625,6 @@ onMounted(() => {
                 width: 200px;
               }
 
-              .region-selectors {
-                display: flex;
-                gap: 10px;
-
-                .region-select {
-                  width: 150px;
-                }
-              }
 
               .save-button {
                 width: 120px;

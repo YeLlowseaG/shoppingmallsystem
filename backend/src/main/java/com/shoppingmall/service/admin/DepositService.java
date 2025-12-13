@@ -2,6 +2,7 @@ package com.shoppingmall.service.admin;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.shoppingmall.dto.AdminDepositQueryDTO;
+import com.shoppingmall.dto.RefundRequestDTO;
 import com.shoppingmall.vo.AdminDepositRecordVO;
 
 /**
@@ -27,7 +28,25 @@ public interface DepositService {
      * @return 交易记录详情
      */
     AdminDepositRecordVO getDepositRecordById(Long id);
+
+    /**
+     * 预存款充值退款
+     *
+     * @param refundDTO 退款请求
+     */
+    void refundDepositRecharge(RefundRequestDTO refundDTO);
 }
+
+
+
+
+
+
+
+
+
+
+
 
 
 

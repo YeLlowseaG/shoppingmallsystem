@@ -47,6 +47,15 @@ export interface ForgotPasswordDTO {
 }
 
 /**
+ * 重置密码DTO
+ */
+export interface ResetPasswordDTO {
+  code: string
+  newPassword: string
+  confirmPassword: string
+}
+
+/**
  * 用户信息DTO
  */
 export interface UserInfoDTO {
@@ -119,6 +128,13 @@ export const login = (data: LoginDTO): Promise<LoginVO> => {
  */
 export const forgotPassword = (data: ForgotPasswordDTO): Promise<ApiResponse> => {
   return request.post('/api/buyer/user/forgot-password', data)
+}
+
+/**
+ * 重置密码（通过验证码）
+ */
+export const resetPassword = (data: ResetPasswordDTO): Promise<ApiResponse> => {
+  return request.post('/api/buyer/user/reset-password', data)
 }
 
 /**

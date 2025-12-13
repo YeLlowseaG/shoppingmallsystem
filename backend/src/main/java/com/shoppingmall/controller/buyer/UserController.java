@@ -51,6 +51,15 @@ public class UserController {
     }
 
     /**
+     * 重置密码（通过验证码）
+     */
+    @PostMapping("/reset-password")
+    public Result<?> resetPassword(@Valid @RequestBody ResetPasswordDTO resetPasswordDTO) {
+        userService.resetPassword(resetPasswordDTO);
+        return Result.success("密码重置成功，请使用新密码登录");
+    }
+
+    /**
      * 获取当前用户信息
      */
     @GetMapping("/info")

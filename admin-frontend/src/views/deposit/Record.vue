@@ -145,9 +145,17 @@
             {{ formatDateTime(row.createTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link @click="handleView(row)">查看详情</el-button>
+            <el-button type="primary" size="small" @click="handleView(row)">查看详情</el-button>
+            <el-button
+              v-if="row.type === 1 && row.status === 1"
+              type="danger"
+              size="small"
+              @click="handleRefund(row)"
+            >
+              退款
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -229,14 +237,48 @@
         <el-button @click="detailDialogVisible = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- 退款对话框 -->
+    <el-dialog v-model="refundDialogVisible" title="退款" width="500px" @close="handleRefundDialogClose">
+      <el-form :model="refundForm" :rules="refundRules" ref="refundFormRef" label-width="100px">
+        <el-form-item label="充值金额">
+          <span>¥{{ getRechargeAmount(currentRecord).toFixed(2) }}</span>
+        </el-form-item>
+        <el-form-item label="退款金额" prop="refundAmount">
+          <el-input-number
+            v-model="refundForm.refundAmount"
+            :min="0.01"
+            :max="getRechargeAmount(currentRecord)"
+            :precision="2"
+            :step="0.01"
+            placeholder="请输入退款金额"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="退款原因" prop="refundReason">
+          <el-input
+            v-model="refundForm.refundReason"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入退款原因"
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="refundDialogVisible = false">取消</el-button>
+        <el-button type="danger" @click="handleConfirmRefund" :loading="refundLoading">确认退款</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
-import { getDepositRecordList, getDepositRecordById, type DepositRecordVO, type DepositQueryDTO } from '@/api/admin/deposit'
+import { getDepositRecordList, getDepositRecordById, refundDepositRecharge, type DepositRecordVO, type DepositQueryDTO, type RefundRequestDTO } from '@/api/admin/deposit'
 import { formatDateTime } from '@/utils'
 
 const router = useRouter()
@@ -265,6 +307,34 @@ const pagination = reactive({
 
 const detailDialogVisible = ref(false)
 const currentRecord = ref<DepositRecordVO | null>(null)
+
+// 退款对话框
+const refundDialogVisible = ref(false)
+const refundLoading = ref(false)
+const refundFormRef = ref()
+const refundForm = reactive({
+  refundAmount: 0,
+  refundReason: ''
+})
+
+const refundRules = {
+  refundAmount: [
+    { required: true, message: '请输入退款金额', trigger: 'blur' },
+    {
+      validator: (rule: any, value: number, callback: any) => {
+        if (value <= 0) {
+          callback(new Error('退款金额必须大于0'))
+        } else if (currentRecord.value && value > getRechargeAmount(currentRecord.value)) {
+          callback(new Error(`退款金额不能超过充值金额：¥${getRechargeAmount(currentRecord.value).toFixed(2)}`))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ],
+  refundReason: [{ required: true, message: '请输入退款原因', trigger: 'blur' }]
+}
 
 // 加载交易记录列表
 const loadRecordList = async () => {
@@ -380,6 +450,65 @@ const getPaymentMethodName = (paymentMethod?: string) => {
     default:
       return paymentMethod
   }
+}
+
+// 获取充值金额
+const getRechargeAmount = (record: DepositRecordVO | null) => {
+  if (!record) return 0
+  return record.depositAmount > 0 ? record.depositAmount : record.amount || 0
+}
+
+// 退款
+const handleRefund = (row: DepositRecordVO) => {
+  currentRecord.value = row
+  refundForm.refundAmount = 0
+  refundForm.refundReason = ''
+  refundDialogVisible.value = true
+}
+
+// 确认退款
+const handleConfirmRefund = async () => {
+  if (!refundFormRef.value) return
+
+  await refundFormRef.value.validate(async (valid: boolean) => {
+    if (!valid) return
+
+    // 二次确认
+    try {
+      await ElMessageBox.confirm(
+        `确认退款 ¥${refundForm.refundAmount.toFixed(2)} 吗？此操作不可撤销！`,
+        '退款确认',
+        {
+          confirmButtonText: '确认退款',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }
+      )
+
+      refundLoading.value = true
+      try {
+        await refundDepositRecharge({
+          depositDetailId: currentRecord.value!.id,
+          refundAmount: refundForm.refundAmount,
+          refundReason: refundForm.refundReason
+        })
+        ElMessage.success('退款成功')
+        refundDialogVisible.value = false
+        loadRecordList()
+      } catch (error: any) {
+        ElMessage.error(error.message || '退款失败')
+      } finally {
+        refundLoading.value = false
+      }
+    } catch {
+      // 用户取消
+    }
+  })
+}
+
+// 关闭退款对话框
+const handleRefundDialogClose = () => {
+  refundFormRef.value?.resetFields()
 }
 
 onMounted(() => {

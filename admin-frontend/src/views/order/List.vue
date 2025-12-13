@@ -95,7 +95,7 @@
         </el-table-column>
         <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
-            <el-button type="info" size="small" @click="handleViewLogistics(row)">物流信息</el-button>
+            <el-button type="primary" size="small" @click="handleViewLogistics(row)">物流信息</el-button>
             <el-button
               v-if="row.status === 0"
               type="danger"

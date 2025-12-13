@@ -38,6 +38,24 @@ spring:
       max-file-size: 10MB
       max-request-size: 50MB
 
+  # 邮件配置（QQ邮箱）
+  mail:
+    host: smtp.qq.com
+    port: 587
+    username: 501360872@qq.com  # 请修改为实际的QQ邮箱地址
+    password: bokvnbgivdjwbjhb  # 请修改为QQ邮箱授权码（不是登录密码）
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
 # MyBatis Plus配置
 mybatis-plus:
   configuration:
@@ -96,3 +114,11 @@ springdoc:
 order:
   # 待付款订单自动取消时间（小时），默认6小时
   payment-timeout-hours: 6
+
+# 应用配置
+app:
+  frontend:
+    url: http://localhost:3002  # 前端地址，用于生成重置密码链接
+  password:
+    reset:
+      token-expire-minutes: 30  # 密码重置令牌有效期（分钟）
