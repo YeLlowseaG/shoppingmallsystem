@@ -25,6 +25,7 @@ export interface AddCartDTO {
   productId?: number
   productCode?: string
   quantity: number
+  skuId?: number
 }
 
 /**

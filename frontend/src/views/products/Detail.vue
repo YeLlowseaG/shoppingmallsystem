@@ -263,14 +263,6 @@
 
     <!-- 底部 -->
     <Footer />
-
-    <!-- 立即购买订单确认弹框 -->
-    <OrderConfirm
-      v-model="showOrderConfirm"
-      :product-info="getCurrentProductInfo()"
-      :quantity="quantity"
-      @order-created="handleOrderCreated"
-    />
   </div>
 </template>
 
@@ -296,7 +288,6 @@ import { addFavorite, removeFavorite, checkFavorite } from '@/api/buyer/favorite
 import { getSkusByProductId, getSpecKeysByProductId, type ProductSkuVO, type ProductSpecKeyVO } from '@/api/buyer/sku'
 import { useCartStore } from '@/stores/cart'
 import SpecSelector from '@/components/product/SpecSelector.vue'
-import OrderConfirm from '@/components/order/OrderConfirm.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -388,8 +379,6 @@ const loading = ref(true)
 // 加入购物车按钮加载状态
 const addingToCart = ref(false)
 
-// 立即购买订单确认弹框
-const showOrderConfirm = ref(false)
 
 // 加载商品详情
 const loadProductDetail = async (productId: number) => {
@@ -532,7 +521,7 @@ onMounted(async () => {
 })
 
 // 立即购买
-const buyNow = () => {
+const buyNow = async () => {
   // 检查商品信息是否存在
   if (!product.value.id) {
     ElMessage.error('商品信息不存在')
@@ -557,39 +546,30 @@ const buyNow = () => {
     return
   }
 
-  // 打开订单确认弹框
-  showOrderConfirm.value = true
-}
+  try {
+    // 先加入购物车
+    const cartData: AddCartDTO = {
+      productId: product.value.id,
+      quantity: quantity.value,
+      ...(currentSku.value?.id && { skuId: currentSku.value.id })
+    }
 
-// 计算当前商品信息用于订单确认
-const getCurrentProductInfo = () => {
-  // 如果有选中的SKU，解析规格信息
-  const specs = currentSku.value 
-    ? (() => {
-        try {
-          return JSON.parse(currentSku.value.specCombination)
-        } catch {
-          return undefined
-        }
-      })()
-    : undefined
-
-  return {
-    id: product.value.id,
-    name: product.value.name,
-    mainImage: product.value.images[0] || product.value.mainImage,
-    price: currentSku.value ? currentSku.value.price : product.value.price,
-    specs: specs,
-    skuId: currentSku.value?.id
+    const response = await addToCartAPI(cartData)
+    const cartId = response.data || response // 兼容不同的返回格式
+    
+    // 跳转到结算页面，传递cartIds参数
+    router.push(`/cart/checkout?cartIds=${cartId}`)
+  } catch (error: any) {
+    console.error('立即购买失败:', error)
+    if (error.response?.status === 401) {
+      ElMessage.error('请先登录')
+      router.push('/login')
+    } else {
+      ElMessage.error(error.response?.data?.message || '立即购买失败，请重试')
+    }
   }
 }
 
-// 处理订单创建成功
-const handleOrderCreated = (orderNo: string) => {
-  ElMessage.success('订单创建成功！')
-  // 跳转到订单详情页或支付页
-  router.push(`/user/orders/${orderNo}`)
-}
 
 // 加入购物车
 const addToCart = async () => {
