@@ -22,6 +22,7 @@ export interface CreateOrderDTO {
   items?: Array<{
     productId: number
     quantity: number
+    skuId?: number
   }>
   shippingMethod?: string
   deliveryDate?: string

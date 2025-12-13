@@ -98,11 +98,24 @@ const hasSelectedAllSpecs = computed(() => {
 const currentSku = computed(() => {
   if (!hasSelectedAllSpecs.value) return null
   
-  // 构建规格组合字符串
-  const specCombination = JSON.stringify(selectedSpecs.value)
-  
-  // 查找匹配的SKU
-  return props.skuList.find(sku => sku.specCombination === specCombination) || null
+  // 查找匹配的SKU（使用深度比较而非字符串比较）
+  return props.skuList.find(sku => {
+    try {
+      const skuSpecs = JSON.parse(sku.specCombination)
+      const selectedKeys = Object.keys(selectedSpecs.value)
+      const skuKeys = Object.keys(skuSpecs)
+      
+      // 检查键数量是否相同
+      if (selectedKeys.length !== skuKeys.length) return false
+      
+      // 检查每个规格是否匹配
+      return selectedKeys.every(key => 
+        skuSpecs[key] && skuSpecs[key] === selectedSpecs.value[key]
+      )
+    } catch {
+      return false
+    }
+  }) || null
 })
 
 // 判断规格值是否禁用（无库存或不可选）
@@ -115,8 +128,16 @@ const isSpecValueDisabled = (specName: string, specValue: string): boolean => {
   
   if (unselectedKeys.length === 0) {
     // 所有规格都已选择，直接检查SKU是否存在且有库存
-    const specCombination = JSON.stringify(tempSpecs)
-    const sku = props.skuList.find(sku => sku.specCombination === specCombination)
+    const sku = props.skuList.find(sku => {
+      try {
+        const skuSpecs = JSON.parse(sku.specCombination)
+        return Object.keys(tempSpecs).every(key => 
+          skuSpecs[key] && skuSpecs[key] === tempSpecs[key]
+        )
+      } catch {
+        return false
+      }
+    })
     return !sku || sku.stock <= 0 || sku.status === 0
   } else {
     // 还有未选择的规格，检查是否有任何可能的组合有库存

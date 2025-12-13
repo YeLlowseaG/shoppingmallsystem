@@ -379,6 +379,7 @@ const loading = ref(true)
 // 加入购物车按钮加载状态
 const addingToCart = ref(false)
 
+
 // 加载商品详情
 const loadProductDetail = async (productId: number) => {
   loading.value = true
@@ -479,7 +480,9 @@ const getStockStatusText = () => {
       return '库存-充足'
     }
   }
-  return '库存-充足'
+  // 没有SKU时显示商品基础库存状态
+  const baseStock = product.value.stock
+  return baseStock > 0 ? '库存-充足' : '库存-缺货'
 }
 
 // 获取库存状态样式类
@@ -492,6 +495,12 @@ const getStockStatusClass = () => {
       return 'out-of-stock'
     } else if (stock <= warningStock) {
       return 'low-stock'
+    }
+  } else {
+    // 没有SKU时检查商品基础库存
+    const baseStock = product.value.stock
+    if (baseStock <= 0) {
+      return 'out-of-stock'
     }
   }
   return ''
@@ -512,9 +521,55 @@ onMounted(async () => {
 })
 
 // 立即购买
-const buyNow = () => {
-  ElMessage.warning('立即购买功能开发中...')
+const buyNow = async () => {
+  // 检查商品信息是否存在
+  if (!product.value.id) {
+    ElMessage.error('商品信息不存在')
+    return
+  }
+
+  // 检查规格选择（仅当商品启用了规格且有规格数据时）
+  if (productSpecKeys.value.length > 0 && !currentSku.value) {
+    ElMessage.warning('请选择商品规格')
+    return
+  }
+
+  // 检查库存（如果有SKU用SKU库存，否则用商品基础库存）
+  const availableStock = currentSku.value ? currentSku.value.stock : product.value.stock
+  if (availableStock <= 0) {
+    ElMessage.error('商品库存不足')
+    return
+  }
+
+  if (quantity.value > availableStock) {
+    ElMessage.error(`购买数量不能超过库存数量 ${availableStock}`)
+    return
+  }
+
+  try {
+    // 静默加入购物车（用户无感知）
+    const cartData: AddCartDTO = {
+      productId: product.value.id,
+      quantity: quantity.value,
+      ...(currentSku.value?.id && { skuId: currentSku.value.id })
+    }
+
+    const response = await addToCartAPI(cartData)
+    const cartId = response.data || response // 兼容不同的返回格式
+    
+    // 直接跳转到结算页面，用户无感知购物车过程
+    router.push(`/cart/checkout?cartIds=${cartId}`)
+  } catch (error: any) {
+    console.error('立即购买失败:', error)
+    if (error.response?.status === 401) {
+      ElMessage.error('请先登录')
+      router.push('/login')
+    } else {
+      ElMessage.error(error.response?.data?.message || '立即购买失败，请重试')
+    }
+  }
 }
+
 
 // 加入购物车
 const addToCart = async () => {
