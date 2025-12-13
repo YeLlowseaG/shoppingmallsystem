@@ -290,6 +290,7 @@ import {
   Search
 } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
+import request from '@/utils/request'
 import StockAdjustDialog from './components/StockAdjustDialog.vue'
 import BatchStockAdjustDialog from './components/BatchStockAdjustDialog.vue'
 
@@ -429,37 +430,170 @@ const loadCategories = async () => {
   }
 }
 
-// 加载库存列表
+// 加载库存列表 - 获取所有商品的库存信息
 const loadInventoryList = async () => {
   loading.value = true
   try {
-    // 这里应该调用实际的库存API
-    // 模拟数据
-    inventoryList.value = [
-      {
-        id: 1,
-        productId: 15,
-        skuId: 18,
-        productName: '杜蕾斯至薄装安全套 12只',
-        productCode: 'P0018',
-        productImage: 'https://via.placeholder.com/60',
-        categoryName: '避孕润滑',
-        skuSpecs: '包装规格: 标准',
-        currentStock: 400,
-        warningStock: 80,
-        unitPrice: 45.00,
-        stockValue: 18000.00,
-        stockStatus: 'normal',
-        lastUpdateTime: '2025-01-13 14:26:39'
-      }
-    ]
+    // 调用商品列表API获取所有商品
+    const productParams = {
+      current: pagination.value.current,
+      size: pagination.value.size,
+      keyword: searchForm.value.keyword,
+      categoryId: searchForm.value.categoryId
+    }
     
-    pagination.value.total = 1
+    const response = await request.get('/api/admin/product/page', { params: productParams })
+    
+    console.log('商品API响应:', response)
+    
+    // 检查响应数据结构
+    let products, total
+    if (response.code === 200) {
+      products = response.data.records || []
+      total = response.data.total || 0
+    } else if (response.records) {
+      // 直接返回分页对象的情况
+      products = response.records || []
+      total = response.total || 0
+    } else {
+      products = []
+      total = 0
+    }
+    
+    console.log('获取到商品数量:', products.length)
+      
+      // 并行获取每个商品的SKU信息
+      const inventoryPromises = products.map(async (product: any) => {
+        try {
+          // 获取商品的SKU列表
+          const skuResponse = await request.get(`/api/admin/product-sku/product/${product.id}`)
+          const skuList = skuResponse.code === 200 ? (skuResponse.data || []) : []
+          
+          if (skuList.length > 0) {
+            // 有SKU的商品，每个SKU一行
+            return skuList.map((sku: any) => ({
+              id: `${product.id}-${sku.id}`,
+              productId: product.id,
+              skuId: sku.id,
+              productName: product.productName,
+              productCode: product.productCode,
+              productImage: product.mainImage || 'https://via.placeholder.com/60',
+              categoryName: product.categoryName,
+              skuSpecs: sku.specCombination ? parseSkuSpecs(sku.specCombination) : '默认规格',
+              currentStock: sku.stock || 0,
+              warningStock: sku.warningStock || 20,
+              unitPrice: sku.price || product.basePrice,
+              stockValue: (sku.stock || 0) * (sku.price || product.basePrice),
+              stockStatus: getStockStatus(sku.stock || 0, sku.warningStock || 20),
+              lastUpdateTime: sku.updateTime || product.updateTime
+            }))
+          } else {
+            // 没有SKU的商品，使用基础库存
+            return [{
+              id: product.id,
+              productId: product.id,
+              skuId: null,
+              productName: product.productName,
+              productCode: product.productCode,
+              productImage: product.mainImage || 'https://via.placeholder.com/60',
+              categoryName: product.categoryName,
+              skuSpecs: '默认规格',
+              currentStock: product.stock || 0,
+              warningStock: product.warningStock || 20,
+              unitPrice: product.basePrice,
+              stockValue: (product.stock || 0) * product.basePrice,
+              stockStatus: getStockStatus(product.stock || 0, product.warningStock || 20),
+              lastUpdateTime: product.updateTime
+            }]
+          }
+        } catch (error) {
+          console.error(`获取商品 ${product.id} 的SKU信息失败:`, error)
+          console.log(`商品信息:`, product)
+          // 如果SKU获取失败，使用基础库存信息
+          return [{
+            id: product.id,
+            productId: product.id,
+            skuId: null,
+            productName: product.productName,
+            productCode: product.productCode,
+            productImage: product.mainImage || 'https://via.placeholder.com/60',
+            categoryName: product.categoryName,
+            skuSpecs: '默认规格',
+            currentStock: product.stock || 0,
+            warningStock: product.warningStock || 20,
+            unitPrice: product.basePrice,
+            stockValue: (product.stock || 0) * product.basePrice,
+            stockStatus: getStockStatus(product.stock || 0, product.warningStock || 20),
+            lastUpdateTime: product.updateTime
+          }]
+        }
+      })
+      
+      const inventoryResults = await Promise.all(inventoryPromises)
+      inventoryList.value = inventoryResults.flat()
+      
+      // 应用筛选条件
+      if (searchForm.value.stockStatus) {
+        inventoryList.value = inventoryList.value.filter(item => 
+          item.stockStatus === searchForm.value.stockStatus
+        )
+      }
+      
+      // 应用排序
+      if (searchForm.value.sortBy === 'stock') {
+        inventoryList.value.sort((a, b) => a.currentStock - b.currentStock)
+      } else if (searchForm.value.sortBy === 'value') {
+        inventoryList.value.sort((a, b) => a.stockValue - b.stockValue)
+      } else if (searchForm.value.sortBy === 'time') {
+        inventoryList.value.sort((a, b) => 
+          new Date(b.lastUpdateTime).getTime() - new Date(a.lastUpdateTime).getTime()
+        )
+      }
+      
+      pagination.value.total = total
+      
+      // 更新统计数据
+      updateInventoryStats()
+      
+      console.log('库存列表处理完成，共', inventoryList.value.length, '条记录')
   } catch (error) {
     console.error('加载库存列表失败:', error)
     ElMessage.error('加载库存列表失败')
   } finally {
     loading.value = false
+  }
+}
+
+// 解析SKU规格组合
+const parseSkuSpecs = (specCombination: string) => {
+  try {
+    const specs = JSON.parse(specCombination)
+    return Object.entries(specs).map(([key, value]) => `${key}: ${value}`).join(', ')
+  } catch {
+    return specCombination || '默认规格'
+  }
+}
+
+// 判断库存状态
+const getStockStatus = (currentStock: number, warningStock: number) => {
+  if (currentStock <= 0) return 'out'
+  if (currentStock <= warningStock) return 'low'
+  return 'normal'
+}
+
+// 更新库存统计数据
+const updateInventoryStats = () => {
+  const totalValue = inventoryList.value.reduce((sum, item) => sum + item.stockValue, 0)
+  const lowStockCount = inventoryList.value.filter(item => item.stockStatus === 'low').length
+  const outOfStockCount = inventoryList.value.filter(item => item.stockStatus === 'out').length
+  const normalCount = inventoryList.value.filter(item => item.stockStatus === 'normal').length
+  
+  inventoryStats.value = {
+    totalValue,
+    lowStockCount,
+    outOfStockCount,
+    normalCount,
+    avgDays: Math.round(totalValue / 1000) // 简单计算平均库存天数
   }
 }
 

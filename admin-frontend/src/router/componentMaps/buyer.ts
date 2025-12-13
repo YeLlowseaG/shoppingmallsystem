@@ -2,5 +2,6 @@
 export const buyerComponentMap = {
   'buyer/List': () => import('@/views/buyer/List.vue'),
   'buyer/Audit': () => import('@/views/buyer/Audit.vue'),
+  'buyer/Level': () => import('@/views/buyer/Level.vue'),
 }
 
