@@ -26,3 +26,6 @@ public interface LogisticsCompanyRepository extends BaseMapper<LogisticsCompany>
 
 
 
+
+
+
