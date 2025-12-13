@@ -61,18 +61,31 @@
       </el-form>
 
       <!-- 支付记录列表 -->
-      <el-table :data="recordList" v-loading="loading" border stripe>
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="orderNo" label="订单号" width="180" />
-        <el-table-column prop="username" label="用户名" width="120" />
-        <el-table-column prop="paymentNo" label="支付流水号" width="200" />
-        <el-table-column prop="paymentMethodName" label="支付方式" width="100" />
-        <el-table-column label="支付金额" width="120" align="right">
+      <el-table 
+        :data="recordList" 
+        v-loading="loading" 
+        border 
+        stripe
+        height="600"
+        :row-class-name="getRowClassName"
+      >
+        <el-table-column prop="id" label="ID" width="70" />
+        <el-table-column prop="orderNo" label="订单号" width="180" show-overflow-tooltip />
+        <el-table-column prop="username" label="用户名" width="100" />
+        <el-table-column prop="paymentNo" label="支付流水号" width="190" show-overflow-tooltip />
+        <el-table-column prop="paymentMethodName" label="支付方式" width="90">
+          <template #default="{ row }">
+            <el-tag :type="getPaymentMethodTagType(row.paymentMethod)" size="small">
+              {{ row.paymentMethodName }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="支付金额" width="90" align="right">
           <template #default="{ row }">
             <span>¥{{ row.amount.toFixed(2) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="已退款金额" width="120" align="right">
+        <el-table-column label="已退款金额" width="100" align="right">
           <template #default="{ row }">
             <span v-if="row.refundedAmount > 0" style="color: #f56c6c">
               ¥{{ row.refundedAmount.toFixed(2) }}
@@ -80,7 +93,7 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="可退款金额" width="120" align="right">
+        <el-table-column label="可退款金额" width="100" align="right">
           <template #default="{ row }">
             <span v-if="row.refundableAmount > 0" style="color: #67c23a">
               ¥{{ row.refundableAmount.toFixed(2) }}
@@ -88,24 +101,24 @@
             <span v-else style="color: #909399">¥0.00</span>
           </template>
         </el-table-column>
-        <el-table-column prop="paymentStatusName" label="支付状态" width="100">
+        <el-table-column prop="paymentStatusName" label="支付状态" width="90">
           <template #default="{ row }">
-            <el-tag :type="getStatusTagType(row.paymentStatus)">
+            <el-tag :type="getStatusTagType(row.paymentStatus)" size="small">
               {{ row.paymentStatusName }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="paymentTime" label="支付时间" width="180">
+        <el-table-column prop="paymentTime" label="支付时间" width="160">
           <template #default="{ row }">
             {{ row.paymentTime ? formatDateTime(row.paymentTime) : '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="180">
+        <el-table-column prop="createTime" label="创建时间" width="160">
           <template #default="{ row }">
             {{ formatDateTime(row.createTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleView(row)">查看详情</el-button>
             <el-button
@@ -417,6 +430,36 @@ const getStatusTagType = (status: number) => {
   }
 }
 
+// 获取支付方式标签类型
+const getPaymentMethodTagType = (paymentMethod: string) => {
+  switch (paymentMethod) {
+    case 'WECHAT':
+      return 'success' // 微信支付 - 绿色
+    case 'ALIPAY':
+      return 'primary' // 支付宝 - 蓝色
+    case 'PRE_DEPOSIT':
+      return 'warning' // 预存款 - 橙色
+    default:
+      return ''
+  }
+}
+
+// 获取行样式类名（用于设置行背景色）
+const getRowClassName = ({ row }: { row: PaymentRecordVO }) => {
+  if (!row.paymentMethod) return ''
+  
+  switch (row.paymentMethod) {
+    case 'WECHAT':
+      return 'payment-row-wechat'
+    case 'ALIPAY':
+      return 'payment-row-alipay'
+    case 'PRE_DEPOSIT':
+      return 'payment-row-deposit'
+    default:
+      return ''
+  }
+}
+
 // 格式化日期时间
 const formatDateTime = (dateTime: string) => {
   if (!dateTime) return '-'
@@ -439,6 +482,43 @@ onMounted(() => {
     margin-top: 20px;
     display: flex;
     justify-content: flex-end;
+  }
+
+  // 表头固定样式
+  :deep(.el-table) {
+    .el-table__header-wrapper {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: #fff;
+    }
+  }
+
+  // 不同支付方式的行背景色
+  :deep(.el-table__body) {
+    .payment-row-wechat {
+      background-color: #f0f9ff !important; // 微信支付 - 浅蓝色背景
+      
+      &:hover {
+        background-color: #e0f2fe !important;
+      }
+    }
+
+    .payment-row-alipay {
+      background-color: #fef3f2 !important; // 支付宝 - 浅红色背景
+      
+      &:hover {
+        background-color: #fee4e2 !important;
+      }
+    }
+
+    .payment-row-deposit {
+      background-color: #fff7ed !important; // 预存款 - 浅橙色背景
+      
+      &:hover {
+        background-color: #ffedd5 !important;
+      }
+    }
   }
 }
 </style>
