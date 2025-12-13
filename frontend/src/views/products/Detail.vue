@@ -263,6 +263,14 @@
 
     <!-- 底部 -->
     <Footer />
+
+    <!-- 立即购买订单确认弹框 -->
+    <OrderConfirm
+      v-model="showOrderConfirm"
+      :product-info="getCurrentProductInfo()"
+      :quantity="quantity"
+      @order-created="handleOrderCreated"
+    />
   </div>
 </template>
 
@@ -288,6 +296,7 @@ import { addFavorite, removeFavorite, checkFavorite } from '@/api/buyer/favorite
 import { getSkusByProductId, getSpecKeysByProductId, type ProductSkuVO, type ProductSpecKeyVO } from '@/api/buyer/sku'
 import { useCartStore } from '@/stores/cart'
 import SpecSelector from '@/components/product/SpecSelector.vue'
+import OrderConfirm from '@/components/order/OrderConfirm.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -378,6 +387,9 @@ const loading = ref(true)
 
 // 加入购物车按钮加载状态
 const addingToCart = ref(false)
+
+// 立即购买订单确认弹框
+const showOrderConfirm = ref(false)
 
 // 加载商品详情
 const loadProductDetail = async (productId: number) => {
@@ -479,7 +491,9 @@ const getStockStatusText = () => {
       return '库存-充足'
     }
   }
-  return '库存-充足'
+  // 没有SKU时显示商品基础库存状态
+  const baseStock = product.value.stock
+  return baseStock > 0 ? '库存-充足' : '库存-缺货'
 }
 
 // 获取库存状态样式类
@@ -492,6 +506,12 @@ const getStockStatusClass = () => {
       return 'out-of-stock'
     } else if (stock <= warningStock) {
       return 'low-stock'
+    }
+  } else {
+    // 没有SKU时检查商品基础库存
+    const baseStock = product.value.stock
+    if (baseStock <= 0) {
+      return 'out-of-stock'
     }
   }
   return ''
@@ -513,7 +533,62 @@ onMounted(async () => {
 
 // 立即购买
 const buyNow = () => {
-  ElMessage.warning('立即购买功能开发中...')
+  // 检查商品信息是否存在
+  if (!product.value.id) {
+    ElMessage.error('商品信息不存在')
+    return
+  }
+
+  // 检查规格选择（仅当商品启用了规格且有规格数据时）
+  if (productSpecKeys.value.length > 0 && !currentSku.value) {
+    ElMessage.warning('请选择商品规格')
+    return
+  }
+
+  // 检查库存（如果有SKU用SKU库存，否则用商品基础库存）
+  const availableStock = currentSku.value ? currentSku.value.stock : product.value.stock
+  if (availableStock <= 0) {
+    ElMessage.error('商品库存不足')
+    return
+  }
+
+  if (quantity.value > availableStock) {
+    ElMessage.error(`购买数量不能超过库存数量 ${availableStock}`)
+    return
+  }
+
+  // 打开订单确认弹框
+  showOrderConfirm.value = true
+}
+
+// 计算当前商品信息用于订单确认
+const getCurrentProductInfo = () => {
+  // 如果有选中的SKU，解析规格信息
+  const specs = currentSku.value 
+    ? (() => {
+        try {
+          return JSON.parse(currentSku.value.specCombination)
+        } catch {
+          return undefined
+        }
+      })()
+    : undefined
+
+  return {
+    id: product.value.id,
+    name: product.value.name,
+    mainImage: product.value.images[0] || product.value.mainImage,
+    price: currentSku.value ? currentSku.value.price : product.value.price,
+    specs: specs,
+    skuId: currentSku.value?.id
+  }
+}
+
+// 处理订单创建成功
+const handleOrderCreated = (orderNo: string) => {
+  ElMessage.success('订单创建成功！')
+  // 跳转到订单详情页或支付页
+  router.push(`/user/orders/${orderNo}`)
 }
 
 // 加入购物车
