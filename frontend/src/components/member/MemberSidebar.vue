@@ -28,7 +28,8 @@
         <template #title>
           <span>商品留言</span>
         </template>
-        <el-menu-item index="messages/comments">评论与咨询</el-menu-item>
+        <el-menu-item index="messages/reviews">我的评论</el-menu-item>
+        <el-menu-item index="messages/consultations">我的咨询</el-menu-item>
       </el-sub-menu>
 
       <!-- 个人设置 -->
@@ -100,6 +101,8 @@ const activeMenu = computed(() => {
   if (path.includes('/transaction/orders')) return 'transaction/orders'
   if (path.includes('/deposit/recharge')) return 'deposit/recharge'
   if (path.includes('/deposit/balance')) return 'deposit/balance'
+  if (path.includes('/reviews')) return 'messages/reviews'
+  if (path.includes('/consultations')) return 'messages/consultations'
   return ''
 })
 
@@ -114,7 +117,8 @@ const handleMenuSelect = (index: string) => {
     'transaction/orders': '/member/transaction/orders',
     'favorites/products': '/member/favorites/products',
     'favorites/out-of-stock': '/member',
-    'messages/comments': '/member',
+    'messages/reviews': '/member/reviews',
+    'messages/consultations': '/member/consultations',
     'deposit/balance': '/member/deposit/balance',
     'deposit/recharge': '/member/deposit/recharge',
     'deposit/review': '/member',

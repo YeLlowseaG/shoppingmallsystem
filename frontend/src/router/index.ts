@@ -167,6 +167,24 @@ const router = createRouter({
       }
     },
     {
+      path: '/member/reviews',
+      name: 'member-reviews',
+      component: () => import('@/views/member/Reviews.vue'),
+      meta: {
+        title: '我的评论',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/member/consultations',
+      name: 'member-consultations',
+      component: () => import('@/views/member/Consultations.vue'),
+      meta: {
+        title: '我的咨询',
+        requiresAuth: true
+      }
+    },
+    {
       path: '/cart',
       name: 'cart',
       component: () => import('@/views/cart/Index.vue'),
