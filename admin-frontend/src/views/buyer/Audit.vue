@@ -3,7 +3,7 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>采购者审核</span>
+          <span>会员审核</span>
         </div>
       </template>
 
@@ -24,7 +24,7 @@
         </el-form-item>
       </el-form>
 
-      <!-- 待审核采购者列表 -->
+      <!-- 待审核会员列表 -->
       <el-table :data="auditList" v-loading="loading" border>
         <el-table-column prop="username" label="用户名" width="150" />
         <el-table-column prop="realName" label="姓名" width="120" />
@@ -65,7 +65,7 @@
     </el-card>
 
     <!-- 详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="采购者详情" width="800px">
+    <el-dialog v-model="detailDialogVisible" title="会员详情" width="800px">
       <el-descriptions :column="2" border v-if="currentBuyer">
         <el-descriptions-item label="用户名">{{ currentBuyer.username }}</el-descriptions-item>
         <el-descriptions-item label="姓名">{{ currentBuyer.realName }}</el-descriptions-item>

@@ -74,26 +74,26 @@
             </el-link>
           </template>
         </el-table-column>
-        <el-table-column prop="recipientName" label="收货人" width="120" />
-        <el-table-column prop="description" label="订单描述" width="300" show-overflow-tooltip />
-        <el-table-column prop="orderDate" label="下单日期" width="180">
+        <el-table-column prop="recipientName" label="收货人" width="100" />
+        <el-table-column prop="description" label="订单描述" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="orderDate" label="下单日期" width="170">
           <template #default="{ row }">
             {{ formatDateTime(row.orderDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="totalAmount" label="总金额" width="120">
+        <el-table-column prop="totalAmount" label="总金额" width="100" align="center">
           <template #default="{ row }">
             ¥{{ row.totalAmount.toFixed(2) }}
           </template>
         </el-table-column>
-        <el-table-column prop="statusText" label="状态" width="120">
+        <el-table-column prop="statusText" label="状态" width="140" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusTagType(row.status)">
               {{ row.statusText }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="300" fixed="right">
+        <el-table-column label="操作" width="320" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleViewLogistics(row)">物流信息</el-button>
             <el-button

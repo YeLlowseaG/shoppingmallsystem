@@ -3,7 +3,7 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>采购者列表</span>
+          <span>会员列表</span>
         </div>
       </template>
 
@@ -26,9 +26,12 @@
         <el-form-item label="等级">
           <el-select v-model="searchForm.userLevel" placeholder="请选择等级" clearable style="width: 150px">
             <el-option label="全部" :value="undefined" />
-            <el-option label="普通" :value="0" />
-            <el-option label="VIP" :value="1" />
-            <el-option label="金牌" :value="2" />
+            <el-option
+              v-for="level in memberLevels"
+              :key="level.id"
+              :label="level.levelName"
+              :value="level.id"
+            />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -37,7 +40,7 @@
         </el-form-item>
       </el-form>
 
-      <!-- 采购者列表 -->
+      <!-- 会员列表 -->
       <el-table :data="buyerList" v-loading="loading" border>
         <el-table-column prop="username" label="用户名" width="150" />
         <el-table-column prop="realName" label="姓名" width="120" />
@@ -93,7 +96,7 @@
     </el-card>
 
     <!-- 详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="采购者详情" width="800px">
+    <el-dialog v-model="detailDialogVisible" title="会员详情" width="800px">
       <el-descriptions :column="2" border v-if="currentBuyer">
         <el-descriptions-item label="用户名">{{ currentBuyer.username }}</el-descriptions-item>
         <el-descriptions-item label="姓名">{{ currentBuyer.realName }}</el-descriptions-item>
@@ -153,9 +156,12 @@
         </el-form-item>
         <el-form-item label="新等级">
           <el-select v-model="levelForm.userLevel" placeholder="请选择等级" style="width: 100%">
-            <el-option label="普通" :value="0" />
-            <el-option label="VIP" :value="1" />
-            <el-option label="金牌" :value="2" />
+            <el-option
+              v-for="level in memberLevels"
+              :key="level.id"
+              :label="level.levelName"
+              :value="level.id"
+            />
           </el-select>
         </el-form-item>
       </el-form>
@@ -172,6 +178,8 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getBuyerList, getBuyerById, updateBuyerStatus, updateBuyerLevel } from '@/api/admin/buyer'
 import type { BuyerVO } from '@/api/admin/buyer'
+import { getAllEnabledMemberLevels } from '@/api/admin/memberLevel'
+import type { MemberLevelVO } from '@/api/admin/memberLevel'
 import { formatDateTime } from '@/utils'
 
 const loading = ref(false)
@@ -198,7 +206,20 @@ const levelForm = reactive({
   userLevel: 0
 })
 
-// 加载采购者列表
+// 会员等级列表
+const memberLevels = ref<MemberLevelVO[]>([])
+
+// 加载会员等级列表
+const loadMemberLevels = async () => {
+  try {
+    memberLevels.value = await getAllEnabledMemberLevels()
+  } catch (error: any) {
+    ElMessage.error('加载会员等级失败')
+    console.error('加载会员等级失败:', error)
+  }
+}
+
+// 加载会员列表
 const loadBuyerList = async () => {
   loading.value = true
   try {
@@ -250,7 +271,7 @@ const handleStatusChange = async (row: BuyerVO) => {
   try {
     const newStatus = row.status === 1 ? 2 : 1
     const statusText = newStatus === 1 ? '启用' : '禁用'
-    await ElMessageBox.confirm(`确定要${statusText}该采购者吗？`, '提示', {
+    await ElMessageBox.confirm(`确定要${statusText}该会员吗？`, '提示', {
       type: 'warning'
     })
     await updateBuyerStatus(row.id, newStatus)
@@ -266,7 +287,14 @@ const handleStatusChange = async (row: BuyerVO) => {
 // 修改等级
 const handleLevelChange = (row: BuyerVO) => {
   currentBuyer.value = row
-  levelForm.userLevel = row.userLevel
+  // 如果当前等级不在可用等级列表中，使用第一个可用等级
+  if (row.userLevel && memberLevels.value.some(level => level.id === row.userLevel)) {
+    levelForm.userLevel = row.userLevel
+  } else if (memberLevels.value.length > 0) {
+    levelForm.userLevel = memberLevels.value[0].id
+  } else {
+    levelForm.userLevel = 0
+  }
   levelDialogVisible.value = true
 }
 
@@ -301,17 +329,26 @@ const getRegionText = (row: BuyerVO): string => {
   return parts.length > 0 ? parts.join(' ') : '-'
 }
 
-// 获取等级标签类型
+// 获取等级标签类型（根据等级在列表中的位置动态设置）
 const getLevelTagType = (level?: number): string => {
-  switch (level) {
-    case 0:
-      return 'info'
-    case 1:
-      return 'warning'
-    case 2:
-      return 'success'
-    default:
-      return ''
+  if (level === undefined || level === null) {
+    return ''
+  }
+  
+  // 根据等级在列表中的位置设置不同的颜色
+  const levelIndex = memberLevels.value.findIndex(l => l.id === level)
+  if (levelIndex === -1) {
+    return 'info'
+  }
+  
+  // 使用不同的颜色：第一个用info，中间用warning，最后一个用success
+  const total = memberLevels.value.length
+  if (levelIndex === 0) {
+    return 'info'
+  } else if (levelIndex === total - 1) {
+    return 'success'
+  } else {
+    return 'warning'
   }
 }
 
@@ -344,6 +381,7 @@ const getAuditStatusTagType = (status?: number): string => {
 }
 
 onMounted(() => {
+  loadMemberLevels()
   loadBuyerList()
 })
 </script>

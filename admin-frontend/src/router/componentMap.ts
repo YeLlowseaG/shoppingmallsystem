@@ -37,7 +37,6 @@ export const componentMap: Record<string, () => Promise<any>> = {
   'announcement/Index': () => import('@/views/announcement/Index.vue'),
   
   // 以下组件文件尚未创建，待开发时添加：
-  // - buyer/Level
   // - marketing/Promotion, marketing/Price
   // - statistics/Sales, statistics/Order, statistics/Product, statistics/Buyer
   // - system/Basic, system/Payment, system/Logistics, system/Notification

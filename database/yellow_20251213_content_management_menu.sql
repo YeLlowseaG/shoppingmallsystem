@@ -15,12 +15,12 @@ SET @content_menu_id = (SELECT id FROM sys_menu WHERE menu_name = '内容管理'
 -- 添加咨询管理子菜单
 INSERT IGNORE INTO sys_menu (menu_name, path, component, menu_type, parent_id, sort_order, icon, permission, status, create_time, update_time) 
 VALUES 
-('咨询管理', 'content/consultation', 'content/Consultation', 1, @content_menu_id, 1, 'el-icon-chat-dot-round', 'content:consultation:list', 1, NOW(), NOW());
+('咨询管理', 'consultation', 'content/Consultation', 1, @content_menu_id, 1, 'el-icon-chat-dot-round', 'content:consultation:list', 1, NOW(), NOW());
 
 -- 添加评价管理子菜单
 INSERT IGNORE INTO sys_menu (menu_name, path, component, menu_type, parent_id, sort_order, icon, permission, status, create_time, update_time) 
 VALUES 
-('评价管理', 'content/review', 'content/Review', 1, @content_menu_id, 2, 'el-icon-star-on', 'content:review:list', 1, NOW(), NOW());
+('评价管理', 'review', 'content/Review', 1, @content_menu_id, 2, 'el-icon-star-on', 'content:review:list', 1, NOW(), NOW());
 
 -- 为超级管理员角色分配菜单权限
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id) 

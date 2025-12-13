@@ -11,7 +11,9 @@ import com.shoppingmall.entity.UserAudit;
 import com.shoppingmall.repository.user.UserAuditRepository;
 import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.service.buyer.BuyerService;
+import com.shoppingmall.service.member.MemberLevelService;
 import com.shoppingmall.vo.BuyerVO;
+import com.shoppingmall.vo.MemberLevelVO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 采购者管理服务实现类
@@ -36,7 +40,11 @@ public class BuyerServiceImpl implements BuyerService {
 
     private final UserRepository userRepository;
     private final UserAuditRepository userAuditRepository;
+    private final MemberLevelService memberLevelService;
     private final ObjectMapper objectMapper;
+    
+    // 缓存会员等级映射（提高性能）
+    private Map<Long, String> memberLevelCache = null;
 
     @Override
     public Page<BuyerVO> getBuyerList(Integer page, Integer pageSize, String username, String phone, Integer status, Integer userLevel) {
@@ -200,21 +208,10 @@ public class BuyerServiceImpl implements BuyerService {
             }
         }
 
-        // 设置用户等级名称
+        // 设置用户等级名称（从会员等级表查询）
         if (user.getUserLevel() != null) {
-            switch (user.getUserLevel()) {
-                case 0:
-                    vo.setUserLevelName("普通");
-                    break;
-                case 1:
-                    vo.setUserLevelName("VIP");
-                    break;
-                case 2:
-                    vo.setUserLevelName("金牌");
-                    break;
-                default:
-                    vo.setUserLevelName("未知");
-            }
+            String levelName = getMemberLevelName(user.getUserLevel());
+            vo.setUserLevelName(levelName != null ? levelName : "未知");
         }
 
         // 设置状态名称
@@ -267,6 +264,55 @@ public class BuyerServiceImpl implements BuyerService {
         }
 
         return vo;
+    }
+
+    /**
+     * 获取会员等级名称（带缓存）
+     *
+     * @param levelId 等级ID（Integer类型，转换为Long）
+     * @return 等级名称
+     */
+    private String getMemberLevelName(Integer levelId) {
+        if (levelId == null) {
+            return null;
+        }
+        
+        // 将Integer转换为Long
+        Long levelIdLong = levelId.longValue();
+        
+        // 如果缓存为空，初始化缓存
+        if (memberLevelCache == null) {
+            refreshMemberLevelCache();
+        }
+        
+        // 从缓存中获取等级名称
+        String levelName = memberLevelCache.get(levelIdLong);
+        
+        // 如果缓存中没有，尝试重新加载缓存（可能等级被删除了）
+        if (levelName == null) {
+            refreshMemberLevelCache();
+            levelName = memberLevelCache.get(levelIdLong);
+        }
+        
+        return levelName;
+    }
+
+    /**
+     * 刷新会员等级缓存
+     */
+    private void refreshMemberLevelCache() {
+        try {
+            List<MemberLevelVO> levels = memberLevelService.getAllEnabledMemberLevels();
+            memberLevelCache = levels.stream()
+                    .collect(Collectors.toMap(
+                            MemberLevelVO::getId,
+                            MemberLevelVO::getLevelName,
+                            (existing, replacement) -> existing
+                    ));
+        } catch (Exception e) {
+            log.warn("加载会员等级缓存失败", e);
+            memberLevelCache = new HashMap<>();
+        }
     }
 }
 

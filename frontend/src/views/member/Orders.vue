@@ -124,13 +124,6 @@
                 </div>
               </div>
 
-              <!-- 订单管理操作 -->
-              <div class="order-actions">
-                <el-checkbox v-model="selectAll" @change="handleSelectAll">全选</el-checkbox>
-                <el-button @click="handleMergePayment" :disabled="selectedOrders.length === 0">合并付款</el-button>
-                <el-button @click="handleExportOrders" :disabled="selectedOrders.length === 0">导出订单</el-button>
-              </div>
-
               <!-- 订单状态标签页 -->
               <div class="order-tabs">
                 <div
@@ -148,9 +141,6 @@
                 <table class="order-table">
                   <thead>
                     <tr>
-                      <th width="50">
-                        <el-checkbox v-model="selectAll" @change="handleSelectAll" />
-                      </th>
                       <th width="150">订单号</th>
                       <th width="120">收货人信息</th>
                       <th>订单描述</th>
@@ -161,12 +151,6 @@
                   </thead>
                   <tbody>
                     <tr v-for="order in displayedOrders" :key="order.id">
-                      <td>
-                        <el-checkbox
-                          :model-value="selectedOrders.includes(order.id)"
-                          @change="(val: boolean) => handleSelectOrder(order.id, val)"
-                        />
-                      </td>
                       <td>
                         <a href="#" class="order-link" @click.prevent="handleViewOrder(order.orderNo)">
                           {{ order.orderNo }}
@@ -219,8 +203,19 @@
                               </div>
                             </div>
                           </div>
+                          <!-- 已发货订单显示确认收货按钮 -->
+                          <div v-if="order.status === 2" class="confirm-receipt-actions">
+                            <el-button
+                              type="primary"
+                              size="small"
+                              @click.stop="handleConfirmReceipt(order)"
+                            >
+                              确认收货
+                            </el-button>
+                          </div>
                           <!-- 已完成订单显示评价按钮 -->
-                          <div v-if="order.status === 3" class="review-actions">
+                          <!-- 暂时屏蔽评价功能 -->
+                          <!-- <div v-if="order.status === 3" class="review-actions">
                             <el-button
                               type="text"
                               size="small"
@@ -229,22 +224,15 @@
                             >
                               评价商品
                             </el-button>
-                          </div>
+                          </div> -->
                         </div>
                       </td>
                     </tr>
                     <tr v-if="displayedOrders.length === 0">
-                      <td colspan="7" class="empty-data">暂无订单数据</td>
+                      <td colspan="6" class="empty-data">暂无订单数据</td>
                     </tr>
                   </tbody>
                 </table>
-              </div>
-
-              <!-- 底部操作栏 -->
-              <div class="order-actions bottom-actions">
-                <el-checkbox v-model="selectAll" @change="handleSelectAll">全选</el-checkbox>
-                <el-button @click="handleMergePayment" :disabled="selectedOrders.length === 0">合并付款</el-button>
-                <el-button @click="handleExportOrders" :disabled="selectedOrders.length === 0">导出订单</el-button>
               </div>
 
               <!-- 分页 -->
@@ -273,7 +261,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessage, ElTooltip } from 'element-plus'
+import { ElMessage, ElMessageBox, ElTooltip } from 'element-plus'
 import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
@@ -320,10 +308,6 @@ const activeTab = ref('')
 
 // 订单列表数据
 const orderList = ref<OrderListVO[]>([])
-
-// 选中订单
-const selectAll = ref(false)
-const selectedOrders = ref<number[]>([])
 
 // 展开的物流信息（使用Set存储已展开的订单ID）
 const expandedLogistics = ref<Set<number>>(new Set())
@@ -411,10 +395,6 @@ const loadOrderList = async () => {
     orderList.value = response.records || []
     pagination.total = response.total || 0
     
-    // 重置选中状态
-    selectedOrders.value = []
-    selectAll.value = false
-    
     // 自动展开所有已发货订单的物流信息
     autoExpandLogistics()
   } catch (error: any) {
@@ -497,48 +477,6 @@ const handleTabChange = async (value: string) => {
   await filterOrders()
 }
 
-// 全选/取消全选
-const handleSelectAll = (val: boolean) => {
-  if (val) {
-    selectedOrders.value = displayedOrders.value.map(order => order.id)
-  } else {
-    selectedOrders.value = []
-  }
-}
-
-// 选择单个订单
-const handleSelectOrder = (orderId: number, selected: boolean) => {
-  if (selected) {
-    if (!selectedOrders.value.includes(orderId)) {
-      selectedOrders.value.push(orderId)
-    }
-  } else {
-    selectedOrders.value = selectedOrders.value.filter(id => id !== orderId)
-  }
-  // 更新全选状态
-  selectAll.value = selectedOrders.value.length === displayedOrders.value.length && displayedOrders.value.length > 0
-}
-
-// 合并付款
-const handleMergePayment = () => {
-  if (selectedOrders.value.length === 0) {
-    ElMessage.warning('请选择要合并付款的订单')
-    return
-  }
-  // TODO: 实现合并付款逻辑
-  ElMessage.info('合并付款功能待实现')
-}
-
-// 导出订单
-const handleExportOrders = () => {
-  if (selectedOrders.value.length === 0) {
-    ElMessage.warning('请选择要导出的订单')
-    return
-  }
-  // TODO: 实现导出订单逻辑
-  ElMessage.info('导出订单功能待实现')
-}
-
 // 查看订单详情
 const handleViewOrder = (orderNo: string) => {
   router.push({
@@ -594,6 +532,35 @@ const handleCopyTrackingNo = (trackingNo: string) => {
   }).catch(() => {
     ElMessage.error('复制失败')
   })
+}
+
+// 确认收货
+const handleConfirmReceipt = async (order: OrderListVO) => {
+  try {
+    await ElMessageBox.confirm(
+      `确认收到订单 ${order.orderNo} 的商品吗？`,
+      '确认收货',
+      {
+        confirmButtonText: '确认收货',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    // 调用确认收货接口
+    await confirmReceipt(order.orderNo)
+    ElMessage.success('确认收货成功')
+    
+    // 刷新订单列表
+    await loadOrderList()
+  } catch (error: any) {
+    // 用户取消操作
+    if (error === 'cancel') {
+      return
+    }
+    // 接口调用失败
+    ElMessage.error(error.message || '确认收货失败')
+  }
 }
 
 // 评价订单商品
@@ -806,33 +773,6 @@ watch(() => route.query.status, (newStatus) => {
           }
         }
 
-        // 订单管理操作
-        .order-actions {
-          display: flex;
-          align-items: center;
-          gap: 15px;
-          padding: 15px 0;
-          border-bottom: 1px solid #e5e5e5;
-
-          &.bottom-actions {
-            border-top: 1px solid #e5e5e5;
-            border-bottom: none;
-            margin-top: 20px;
-          }
-
-          :deep(.el-checkbox) {
-            .el-checkbox__label {
-              font-size: 14px;
-              color: #333;
-            }
-          }
-
-          :deep(.el-button) {
-            padding: 8px 20px;
-            font-size: 14px;
-          }
-        }
-
         // 订单状态标签页
         .order-tabs {
           display: flex;
@@ -964,7 +904,8 @@ watch(() => route.query.status, (newStatus) => {
                     }
 
                     .logistics-info,
-                    .review-actions {
+                    .review-actions,
+                    .confirm-receipt-actions {
                       margin-top: 8px;
                       font-size: 12px;
                       color: #666;
@@ -983,9 +924,9 @@ watch(() => route.query.status, (newStatus) => {
                       .review-btn {
                         padding: 0;
                         font-size: 12px;
-                        color: #e4393c;
                         height: auto;
                         min-height: auto;
+                        color: #e4393c;
 
                         &:hover {
                           color: #c9302c;
@@ -994,6 +935,7 @@ watch(() => route.query.status, (newStatus) => {
                       }
                     }
 
+                    .logistics-info {
                       .logistics-details {
                         margin-top: 5px;
                         padding-left: 0;
