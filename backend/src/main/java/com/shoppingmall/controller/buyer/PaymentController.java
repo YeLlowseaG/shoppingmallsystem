@@ -99,10 +99,11 @@ public class PaymentController {
                 return Result.error(404, "支付记录不存在");
             }
             
-            // 如果已经处理过，直接返回成功
-            if (PaymentStatus.PAID.equals(paymentRecord.getPaymentStatus())) {
-                log.info("支付回调：订单已支付，忽略重复回调，orderNo={}", orderNo);
-                return Result.success("订单已支付");
+            // 如果已经处理过（已支付或已退款），直接返回成功
+            if (PaymentStatus.PAID.equals(paymentRecord.getPaymentStatus()) 
+                    || PaymentStatus.REFUNDED.equals(paymentRecord.getPaymentStatus())) {
+                log.info("支付回调：订单已处理，忽略重复回调，orderNo={}, status={}", orderNo, paymentRecord.getPaymentStatus());
+                return Result.success("订单已处理");
             }
             
             // 验证回调数据（模拟支付模式下跳过验证）
@@ -139,11 +140,20 @@ public class PaymentController {
                 
                 log.info("支付回调处理成功: orderNo={}, tradeNo={}", orderNo, tradeNo);
             } else {
-                // 支付失败
-                paymentRecord.setPaymentStatus(PaymentStatus.FAILED); // 已失败
-                paymentRecordRepository.updateById(paymentRecord);
+                // 判断是支付失败还是用户取消/关闭
+                // 如果状态是CLOSED或CANCEL，设置为已关闭；否则设置为已失败
+                boolean isClosed = "TRADE_CLOSED".equals(tradeStatus) 
+                        || "CLOSED".equals(tradeStatus)
+                        || "CANCEL".equals(tradeStatus);
                 
-                log.warn("支付回调：支付失败，orderNo={}, tradeStatus={}", orderNo, tradeStatus);
+                if (isClosed) {
+                    paymentRecord.setPaymentStatus(PaymentStatus.CLOSED); // 已关闭
+                    log.info("支付回调：订单已关闭，orderNo={}, tradeStatus={}", orderNo, tradeStatus);
+                } else {
+                    paymentRecord.setPaymentStatus(PaymentStatus.FAILED); // 已失败
+                    log.warn("支付回调：支付失败，orderNo={}, tradeStatus={}", orderNo, tradeStatus);
+                }
+                paymentRecordRepository.updateById(paymentRecord);
             }
             
             return Result.success("回调处理成功");

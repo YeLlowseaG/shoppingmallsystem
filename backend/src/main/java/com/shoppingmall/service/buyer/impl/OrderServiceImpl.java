@@ -786,13 +786,13 @@ public class OrderServiceImpl implements OrderService {
             
             PaymentResponseDTO paymentResponse = paymentService.createPayment(paymentRequest);
             
-            // 2.2 创建支付记录（待支付状态）
+            // 2.2 创建支付记录（支付中状态）
             PaymentRecord paymentRecord = new PaymentRecord();
             paymentRecord.setOrderId(order.getId());
             paymentRecord.setPaymentNo("PAY_" + System.currentTimeMillis() + "_" + orderNo);
             paymentRecord.setPaymentMethod(paymentMethod);
             paymentRecord.setAmount(order.getActualAmount());
-            paymentRecord.setPaymentStatus(PaymentStatus.UNPAID); // 待支付
+            paymentRecord.setPaymentStatus(PaymentStatus.PAYING); // 支付中（用户已发起支付）
             paymentRecordRepository.insert(paymentRecord);
             
             log.info("创建支付订单成功: orderNo={}, paymentMethod={}, paymentNo={}", 

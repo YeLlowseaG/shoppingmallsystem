@@ -48,7 +48,7 @@ public class PaymentRecord {
     private BigDecimal refundedAmount;
 
     /**
-     * 支付状态（0-待支付，1-已支付，2-已退款，3-已失败）
+     * 支付状态（0-待支付，1-支付中，2-已支付，3-已关闭，4-已失败，5-已退款）
      */
     private Integer paymentStatus;
 

@@ -8,24 +8,34 @@ package com.shoppingmall.common.constant;
  */
 public class PaymentStatus {
     /**
-     * 未支付/待支付
+     * 待支付
      */
     public static final Integer UNPAID = 0;
 
     /**
-     * 已支付
+     * 支付中（用户已发起支付，等待支付完成）
      */
-    public static final Integer PAID = 1;
+    public static final Integer PAYING = 1;
 
     /**
-     * 已退款
+     * 已支付
      */
-    public static final Integer REFUNDED = 2;
+    public static final Integer PAID = 2;
+
+    /**
+     * 已关闭（订单超时未支付被关闭）
+     */
+    public static final Integer CLOSED = 3;
 
     /**
      * 已失败
      */
-    public static final Integer FAILED = 3;
+    public static final Integer FAILED = 4;
+
+    /**
+     * 已退款（全额退款）
+     */
+    public static final Integer REFUNDED = 5;
 }
 
 
