@@ -4,39 +4,118 @@
       <template #header>
         <div class="card-header">
           <span>商品管理</span>
-          <el-button type="primary" @click="router.push('/admin/product/add')">添加商品</el-button>
         </div>
       </template>
 
       <!-- 搜索栏 -->
-      <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item label="分类">
-          <el-select v-model="searchForm.categoryId" placeholder="请选择分类" clearable style="width: 200px">
-            <el-option
-              v-for="category in flatCategories"
-              :key="category.id"
-              :label="category.categoryName"
-              :value="category.id"
+      <div class="search-section">
+        <!-- 筛选条件 -->
+        <div class="filters-row">
+          <div class="filter-item">
+            <label>分类</label>
+            <el-select v-model="searchForm.categoryId" placeholder="请选择分类" clearable>
+              <el-option
+                v-for="category in flatCategories"
+                :key="category.id"
+                :label="category.categoryName"
+                :value="category.id"
+              />
+            </el-select>
+          </div>
+          
+          <div class="filter-item">
+            <label>关键词</label>
+            <el-input 
+              v-model="searchForm.keyword" 
+              placeholder="商品名称/编码" 
+              clearable 
+              @keyup.enter="handleSearch"
             />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="关键词">
-          <el-input v-model="searchForm.keyword" placeholder="商品名称/编码" clearable style="width: 200px" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="searchForm.status" placeholder="请选择状态" clearable style="width: 120px">
-            <el-option label="上架" value="上架" />
-            <el-option label="下架" value="下架" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">搜索</el-button>
-          <el-button @click="handleReset">重置</el-button>
-        </el-form-item>
-      </el-form>
+          </div>
+          
+          <div class="filter-item">
+            <label>状态</label>
+            <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
+              <el-option label="上架" value="上架" />
+              <el-option label="下架" value="下架" />
+            </el-select>
+          </div>
+          
+          <div class="action-buttons">
+            <el-button type="primary" @click="handleSearch">
+              <el-icon><Search /></el-icon>
+              搜索
+            </el-button>
+            <el-button @click="handleReset">重置</el-button>
+          </div>
+        </div>
+        
+        <!-- 排序和操作栏 -->
+        <div class="toolbar-row">
+          <div class="sort-section">
+            <span class="sort-label">排序:</span>
+            <div class="sort-buttons">
+              <el-button 
+                :class="{ 'is-active': searchForm.sortBy === 'create_time_desc' }"
+                class="sort-btn"
+                @click="handleQuickSort('create_time_desc')"
+              >
+                添加时间 <el-icon class="sort-icon"><ArrowDown /></el-icon>
+              </el-button>
+              <el-button 
+                :class="{ 'is-active': searchForm.sortBy === 'create_time_asc' }"
+                class="sort-btn"
+                @click="handleQuickSort('create_time_asc')"
+              >
+                添加时间 <el-icon class="sort-icon"><ArrowUp /></el-icon>
+              </el-button>
+              <el-button 
+                :class="{ 'is-active': searchForm.sortBy === 'price_desc' }"
+                class="sort-btn"
+                @click="handleQuickSort('price_desc')"
+              >
+                价格 <el-icon class="sort-icon"><ArrowDown /></el-icon>
+              </el-button>
+              <el-button 
+                :class="{ 'is-active': searchForm.sortBy === 'price_asc' }"
+                class="sort-btn"
+                @click="handleQuickSort('price_asc')"
+              >
+                价格 <el-icon class="sort-icon"><ArrowUp /></el-icon>
+              </el-button>
+              <el-button 
+                :class="{ 'is-active': searchForm.sortBy === 'sales_desc' }"
+                class="sort-btn"
+                @click="handleQuickSort('sales_desc')"
+              >
+                销量 <el-icon class="sort-icon"><ArrowDown /></el-icon>
+              </el-button>
+              <el-button 
+                :class="{ 'is-active': searchForm.sortBy === 'stock_desc' }"
+                class="sort-btn"
+                @click="handleQuickSort('stock_desc')"
+              >
+                库存 <el-icon class="sort-icon"><ArrowDown /></el-icon>
+              </el-button>
+            </div>
+          </div>
+          
+          <div class="page-actions">
+            <el-button type="primary" @click="router.push('/admin/product/add')">
+              <el-icon><Plus /></el-icon>
+              添加商品
+            </el-button>
+          </div>
+        </div>
+      </div>
 
       <!-- 商品列表 -->
-      <el-table :data="productList" border style="width: 100%">
+      <el-table 
+        :data="productList" 
+        border 
+        style="width: 100%"
+        @sort-change="handleTableSortChange"
+      >
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="mainImage" label="商品图片" width="100">
           <template #default="{ row }">
@@ -51,13 +130,13 @@
         <el-table-column prop="productCode" label="商品编码" width="120" />
         <el-table-column prop="productName" label="商品名称" min-width="200" show-overflow-tooltip />
         <el-table-column prop="categoryName" label="分类" width="120" />
-        <el-table-column prop="basePrice" label="价格" width="100">
+        <el-table-column prop="basePrice" label="价格" width="100" sortable="custom">
           <template #default="{ row }">
             ¥{{ parseFloat(row.basePrice).toFixed(2) }}
           </template>
         </el-table-column>
-        <el-table-column prop="stock" label="库存" width="80" />
-        <el-table-column prop="salesCount" label="销量" width="80" />
+        <el-table-column prop="stock" label="库存" width="80" sortable="custom" />
+        <el-table-column prop="salesCount" label="销量" width="80" sortable="custom" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="row.status === '上架' ? 'success' : 'info'">
@@ -652,7 +731,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadFile, type UploadUserFile } from 'element-plus'
-import { Plus, Delete, Upload } from '@element-plus/icons-vue'
+import { Plus, Delete, Upload, Search, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import {
   getProductPage,
   updateProduct,
@@ -681,7 +760,8 @@ const router = useRouter()
 const searchForm = ref({
   categoryId: undefined as number | undefined,
   keyword: '',
-  status: ''
+  status: '',
+  sortBy: 'create_time_desc'
 })
 
 // 分页
@@ -822,16 +902,21 @@ const loadBrands = async () => {
 // 加载商品列表
 const loadProductList = async () => {
   try {
+    console.log('排序参数:', searchForm.value.sortBy)
     const res = await getProductPage(
       pagination.value.current,
       pagination.value.size,
       searchForm.value.categoryId,
       searchForm.value.keyword,
-      searchForm.value.status
+      undefined, // brand 参数
+      searchForm.value.status,
+      searchForm.value.sortBy
     )
+    console.log('API返回数据:', res)
     productList.value = res.records
     pagination.value.total = res.total
   } catch (error) {
+    console.error('加载商品列表失败:', error)
     ElMessage.error('加载商品列表失败')
   }
 }
@@ -847,9 +932,48 @@ const handleReset = () => {
   searchForm.value = {
     categoryId: undefined,
     keyword: '',
-    status: ''
+    status: '',
+    sortBy: 'create_time_desc'
   }
   handleSearch()
+}
+
+// 排序变化处理
+const handleSortChange = () => {
+  pagination.value.current = 1
+  loadProductList()
+}
+
+// 快速排序处理
+const handleQuickSort = (sortBy: string) => {
+  searchForm.value.sortBy = sortBy
+  pagination.value.current = 1
+  loadProductList()
+}
+
+// 表格排序处理
+const handleTableSortChange = (sortInfo: any) => {
+  const { prop, order } = sortInfo
+  if (!prop || !order) {
+    searchForm.value.sortBy = 'create_time_desc'
+  } else {
+    const direction = order === 'ascending' ? 'asc' : 'desc'
+    switch (prop) {
+      case 'basePrice':
+        searchForm.value.sortBy = `price_${direction}`
+        break
+      case 'stock':
+        searchForm.value.sortBy = `stock_${direction}`
+        break
+      case 'salesCount':
+        searchForm.value.sortBy = `sales_${direction}`
+        break
+      default:
+        searchForm.value.sortBy = 'create_time_desc'
+    }
+  }
+  pagination.value.current = 1
+  loadProductList()
 }
 
 // 图片上传前的校验
@@ -1295,8 +1419,115 @@ onMounted(() => {
     align-items: center;
   }
 
-  .search-form {
+  .search-section {
     margin-bottom: 20px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+    
+    .filters-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 20px 24px;
+      border-bottom: 1px solid #f0f0f0;
+      flex-wrap: wrap;
+      
+      .filter-item {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 160px;
+        
+        label {
+          font-size: 14px;
+          color: #606266;
+          font-weight: 500;
+        }
+        
+        .el-select,
+        .el-input {
+          width: 100%;
+        }
+      }
+      
+      .action-buttons {
+        margin-left: auto;
+        display: flex;
+        gap: 12px;
+        
+        .el-button {
+          border-radius: 6px;
+        }
+      }
+    }
+    
+    .toolbar-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: #fafafa;
+      
+      .sort-section {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        
+        .sort-label {
+          font-size: 14px;
+          color: #606266;
+          font-weight: 500;
+        }
+        
+        .sort-buttons {
+          display: flex;
+          gap: 8px;
+          
+          .sort-btn {
+            height: 32px;
+            padding: 0 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            border: 1px solid #d9d9d9;
+            background: #fff;
+            color: #606266;
+            transition: all 0.2s;
+            
+            &:hover {
+              border-color: #409eff;
+              color: #409eff;
+              background: #ecf5ff;
+            }
+            
+            &.is-active {
+              border-color: #409eff;
+              background: #409eff;
+              color: #fff;
+              
+              &:hover {
+                background: #337ecc;
+                border-color: #337ecc;
+              }
+            }
+            
+            .sort-icon {
+              margin-left: 4px;
+              font-size: 12px;
+            }
+          }
+        }
+      }
+      
+      .page-actions {
+        .el-button {
+          border-radius: 6px;
+          height: 36px;
+          padding: 0 16px;
+        }
+      }
+    }
   }
 }
 

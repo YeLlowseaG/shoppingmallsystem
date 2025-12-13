@@ -87,21 +87,31 @@ public class ProductServiceImpl implements ProductService {
                 case "price_desc":
                     wrapper.orderByDesc(Product::getBasePrice);
                     break;
-                case "sales":
+                case "stock_asc":
+                    wrapper.orderByAsc(Product::getStock);
+                    break;
+                case "stock_desc":
+                    wrapper.orderByDesc(Product::getStock);
+                    break;
+                case "sales_asc":
+                    wrapper.orderByAsc(Product::getSalesCount);
+                    break;
+                case "sales_desc":
                     wrapper.orderByDesc(Product::getSalesCount);
                     break;
-                case "newest":
+                case "create_time_asc":
+                    wrapper.orderByAsc(Product::getCreateTime);
+                    break;
+                case "create_time_desc":
                     wrapper.orderByDesc(Product::getCreateTime);
                     break;
                 case "default":
                 default:
-                    // 默认综合排序：销量降序
-                    wrapper.orderByDesc(Product::getSalesCount);
+                    wrapper.orderByDesc(Product::getCreateTime);
                     break;
             }
         } else {
-            // 默认按销量降序
-            wrapper.orderByDesc(Product::getSalesCount);
+            wrapper.orderByDesc(Product::getCreateTime);
         }
 
         Page<Product> productPage = productRepository.selectPage(page, wrapper);
