@@ -547,7 +547,7 @@ const buyNow = async () => {
   }
 
   try {
-    // 先加入购物车
+    // 静默加入购物车（用户无感知）
     const cartData: AddCartDTO = {
       productId: product.value.id,
       quantity: quantity.value,
@@ -557,7 +557,7 @@ const buyNow = async () => {
     const response = await addToCartAPI(cartData)
     const cartId = response.data || response // 兼容不同的返回格式
     
-    // 跳转到结算页面，传递cartIds参数
+    // 直接跳转到结算页面，用户无感知购物车过程
     router.push(`/cart/checkout?cartIds=${cartId}`)
   } catch (error: any) {
     console.error('立即购买失败:', error)
