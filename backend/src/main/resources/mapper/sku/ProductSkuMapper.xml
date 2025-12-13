@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shoppingmall.repository.sku.ProductSkuRepository">
+
+    <!-- 根据商品ID查询SKU列表 -->
+    <select id="findByProductId" parameterType="java.lang.Long" resultType="com.shoppingmall.entity.ProductSku">
+        SELECT * FROM product_sku 
+        WHERE product_id = #{productId}
+        ORDER BY id ASC
+    </select>
+    
+    <!-- 根据SKU编码查询SKU -->
+    <select id="findBySkuCode" parameterType="java.lang.String" resultType="com.shoppingmall.entity.ProductSku">
+        SELECT * FROM product_sku WHERE sku_code = #{skuCode} LIMIT 1
+    </select>
+    
+    <!-- 根据商品ID和规格组合查询SKU -->
+    <select id="findByProductIdAndSpecCombination" resultType="com.shoppingmall.entity.ProductSku">
+        SELECT * FROM product_sku 
+        WHERE product_id = #{productId} AND spec_combination = #{specCombination}
+        LIMIT 1
+    </select>
+    
+    <!-- 根据商品ID删除SKU -->
+    <delete id="deleteByProductId" parameterType="java.lang.Long">
+        DELETE FROM product_sku WHERE product_id = #{productId}
+    </delete>
+    
+    <!-- 更新SKU库存 -->
+    <update id="updateStock">
+        UPDATE product_sku 
+        SET stock = #{stock}, update_time = CURRENT_TIMESTAMP
+        WHERE id = #{skuId}
+    </update>
+    
+    <!-- 增加SKU销量 -->
+    <update id="increaseSalesCount">
+        UPDATE product_sku 
+        SET sales_count = sales_count + #{salesCount}, update_time = CURRENT_TIMESTAMP
+        WHERE id = #{skuId}
+    </update>
+    
+    <!-- 查询库存警戒的SKU -->
+    <select id="findLowStockSkus" resultType="com.shoppingmall.entity.ProductSku">
+        SELECT * FROM product_sku 
+        WHERE status = 1 AND stock &lt;= warning_stock 
+        ORDER BY stock ASC, id ASC
+    </select>
+
+</mapper>

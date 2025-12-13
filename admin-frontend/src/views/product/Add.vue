@@ -51,7 +51,7 @@
         <el-divider content-position="left">价格与库存</el-divider>
 
         <div class="price-stock-grid">
-          <el-form-item label="销售价格" prop="basePrice" required>
+          <el-form-item label="初始会员价" prop="basePrice" required>
             <el-input-number
               v-model="productForm.basePrice"
               :min="0"
@@ -62,7 +62,7 @@
             />
           </el-form-item>
 
-          <el-form-item label="市场价格" prop="marketPrice">
+          <el-form-item label="建议零售价" prop="marketPrice">
             <el-input-number
               v-model="productForm.marketPrice"
               :min="0"
@@ -73,7 +73,7 @@
             />
           </el-form-item>
 
-          <el-form-item label="成本价格" prop="costPrice">
+          <el-form-item label="市场零售价" prop="costPrice">
             <el-input-number
               v-model="productForm.costPrice"
               :min="0"
@@ -113,6 +113,172 @@
               controls-position="right"
               style="width: 100%"
             />
+          </el-form-item>
+        </div>
+
+        <!-- 商品规格配置 -->
+        <el-divider content-position="left">商品规格配置</el-divider>
+        
+        <el-form-item label="是否启用规格" prop="enableSpec">
+          <el-switch v-model="productForm.enableSpec" @change="handleEnableSpecChange" />
+          <div class="form-tip">启用后可为商品配置不同规格的SKU（如颜色、尺寸等）</div>
+        </el-form-item>
+
+        <!-- 规格配置区域 -->
+        <div v-if="productForm.enableSpec" class="spec-config-area">
+          <!-- 规格属性配置 -->
+          <el-form-item label="规格属性" required>
+            <div class="spec-keys-wrapper">
+              <div 
+                v-for="(specKey, keyIndex) in specKeys" 
+                :key="keyIndex"
+                class="spec-key-item"
+              >
+                <div class="spec-key-header">
+                  <el-input 
+                    v-model="specKey.specName" 
+                    placeholder="请输入规格名称（如：颜色、尺寸）"
+                    style="width: 200px"
+                  />
+                  <el-button 
+                    type="danger" 
+                    size="small" 
+                    :icon="Delete" 
+                    @click="removeSpecKey(keyIndex)"
+                    :disabled="specKeys.length <= 1"
+                  >
+                    删除规格
+                  </el-button>
+                </div>
+                
+                <div class="spec-values-wrapper">
+                  <div class="spec-values-header">规格值：</div>
+                  <div class="spec-values-list">
+                    <div 
+                      v-for="(specValue, valueIndex) in specKey.values" 
+                      :key="valueIndex"
+                      class="spec-value-item"
+                    >
+                      <el-input 
+                        v-model="specValue.specValue" 
+                        placeholder="规格值"
+                        style="width: 150px"
+                      />
+                      <el-button 
+                        type="danger" 
+                        size="small" 
+                        :icon="Delete" 
+                        @click="removeSpecValue(keyIndex, valueIndex)"
+                        :disabled="specKey.values.length <= 1"
+                      />
+                    </div>
+                    <el-button 
+                      type="primary" 
+                      size="small" 
+                      :icon="Plus" 
+                      @click="addSpecValue(keyIndex)"
+                    >
+                      添加规格值
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+              
+              <el-button 
+                type="primary" 
+                :icon="Plus" 
+                @click="addSpecKey"
+              >
+                添加规格属性
+              </el-button>
+            </div>
+          </el-form-item>
+
+          <!-- SKU列表 -->
+          <el-form-item label="SKU列表" required>
+            <div class="sku-list-wrapper">
+              <div class="sku-list-header">
+                <el-button 
+                  type="primary" 
+                  @click="generateSkuList"
+                  :disabled="!canGenerateSkus"
+                >
+                  生成SKU
+                </el-button>
+                <span class="tip">根据规格属性自动生成SKU组合</span>
+              </div>
+              
+              <el-table 
+                v-if="skuList.length > 0"
+                :data="skuList" 
+                border 
+                class="sku-table"
+              >
+                <el-table-column prop="specCombinationText" label="规格组合" width="200" />
+                <el-table-column label="SKU编码" width="150">
+                  <template #default="{ row, $index }">
+                    <el-input 
+                      v-model="row.skuCode" 
+                      placeholder="SKU编码"
+                      size="small"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column label="价格" width="120">
+                  <template #default="{ row, $index }">
+                    <el-input-number 
+                      v-model="row.price" 
+                      :min="0"
+                      :precision="2"
+                      :step="0.01"
+                      size="small"
+                      style="width: 100%"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column label="库存" width="100">
+                  <template #default="{ row, $index }">
+                    <el-input-number 
+                      v-model="row.stock" 
+                      :min="0"
+                      size="small"
+                      style="width: 100%"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column label="警戒库存" width="100">
+                  <template #default="{ row, $index }">
+                    <el-input-number 
+                      v-model="row.warningStock" 
+                      :min="0"
+                      size="small"
+                      style="width: 100%"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column label="重量(g)" width="100">
+                  <template #default="{ row, $index }">
+                    <el-input-number 
+                      v-model="row.weight" 
+                      :min="0"
+                      :precision="2"
+                      size="small"
+                      style="width: 100%"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="80">
+                  <template #default="{ row, $index }">
+                    <el-button 
+                      type="danger" 
+                      size="small" 
+                      :icon="Delete" 
+                      @click="removeSku($index)"
+                    />
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
           </el-form-item>
         </div>
 
@@ -208,7 +374,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
@@ -234,11 +400,32 @@ const productForm = ref({
   weight: 0,
   description: '',
   mainImage: '',
-  status: '下架'
+  status: '下架',
+  enableSpec: false
 })
 
 // 详情图列表
 const detailImageList = ref<UploadUserFile[]>([])
+
+// SKU规格相关数据
+const specKeys = ref([
+  {
+    specName: '',
+    values: [{ specValue: '' }]
+  }
+])
+
+const skuList = ref<any[]>([])
+
+// 计算属性：是否可以生成SKU
+const canGenerateSkus = computed(() => {
+  if (!productForm.value.enableSpec) return false
+  return specKeys.value.every(key => 
+    key.specName.trim() && 
+    key.values.length > 0 && 
+    key.values.every(value => value.specValue.trim())
+  )
+})
 
 const formRules: FormRules = {
   productName: [{ required: true, message: '请输入商品名称', trigger: 'blur' }],
@@ -378,6 +565,98 @@ const handleCancel = () => {
   router.push('/admin/product/list')
 }
 
+// SKU规格管理方法
+const handleEnableSpecChange = (value: boolean) => {
+  if (!value) {
+    // 禁用规格时清空数据
+    skuList.value = []
+    specKeys.value = [{ specName: '', values: [{ specValue: '' }] }]
+  }
+}
+
+const addSpecKey = () => {
+  specKeys.value.push({
+    specName: '',
+    values: [{ specValue: '' }]
+  })
+}
+
+const removeSpecKey = (index: number) => {
+  if (specKeys.value.length > 1) {
+    specKeys.value.splice(index, 1)
+    // 重新生成SKU
+    if (skuList.value.length > 0) {
+      generateSkuList()
+    }
+  }
+}
+
+const addSpecValue = (keyIndex: number) => {
+  specKeys.value[keyIndex].values.push({ specValue: '' })
+}
+
+const removeSpecValue = (keyIndex: number, valueIndex: number) => {
+  const specKey = specKeys.value[keyIndex]
+  if (specKey.values.length > 1) {
+    specKey.values.splice(valueIndex, 1)
+    // 重新生成SKU
+    if (skuList.value.length > 0) {
+      generateSkuList()
+    }
+  }
+}
+
+const generateSkuList = () => {
+  if (!canGenerateSkus.value) {
+    ElMessage.warning('请先完善规格属性配置')
+    return
+  }
+
+  // 生成笛卡尔积
+  const combinations = generateCartesianProduct(specKeys.value)
+  
+  skuList.value = combinations.map((combination, index) => {
+    const specCombination: Record<string, string> = {}
+    const specCombinationTextArray: string[] = []
+    
+    combination.forEach((value, keyIndex) => {
+      const specName = specKeys.value[keyIndex].specName
+      specCombination[specName] = value
+      specCombinationTextArray.push(`${specName}:${value}`)
+    })
+    
+    return {
+      specCombination: JSON.stringify(specCombination),
+      specCombinationText: specCombinationTextArray.join(', '),
+      skuCode: `${productForm.value.productCode || 'SKU'}-${index + 1}`,
+      price: productForm.value.basePrice,
+      stock: productForm.value.stock,
+      warningStock: productForm.value.warningStock,
+      weight: productForm.value.weight,
+      status: 1
+    }
+  })
+  
+  ElMessage.success(`已生成 ${skuList.value.length} 个SKU`)
+}
+
+// 生成笛卡尔积
+const generateCartesianProduct = (specKeys: any[]): string[][] => {
+  const values = specKeys.map(key => key.values.map((v: any) => v.specValue))
+  
+  function cartesian(arr: string[][]): string[][] {
+    return arr.reduce((a, b) => {
+      return a.flatMap((x: string[]) => b.map(y => [...x, y]))
+    }, [[]] as string[][])
+  }
+  
+  return cartesian(values)
+}
+
+const removeSku = (index: number) => {
+  skuList.value.splice(index, 1)
+}
+
 onMounted(() => {
   loadCategories()
   loadBrands()
@@ -476,6 +755,77 @@ onMounted(() => {
     margin-top: 10px;
     font-size: 12px;
     color: #999;
+  }
+}
+
+// SKU配置样式
+.form-tip {
+  margin-top: 5px;
+  font-size: 12px;
+  color: #666;
+}
+
+.spec-config-area {
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  padding: 20px;
+  margin-bottom: 20px;
+  background-color: #fafbfc;
+}
+
+.spec-keys-wrapper {
+  .spec-key-item {
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px solid #e4e7ed;
+    border-radius: 4px;
+    background-color: #fff;
+
+    .spec-key-header {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .spec-values-wrapper {
+      .spec-values-header {
+        margin-bottom: 10px;
+        font-weight: bold;
+        color: #333;
+      }
+
+      .spec-values-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+
+        .spec-value-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+      }
+    }
+  }
+}
+
+.sku-list-wrapper {
+  .sku-list-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 15px;
+
+    .tip {
+      color: #666;
+      font-size: 12px;
+    }
+  }
+
+  .sku-table {
+    margin-top: 15px;
   }
 }
 </style>

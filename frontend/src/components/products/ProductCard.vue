@@ -10,8 +10,8 @@
         <div class="category">{{ product.category }}</div>
         <div class="name" :title="product.name">{{ product.name }}</div>
         <div class="price-row">
-          <span class="price">¥{{ product.price }}</span>
-          <span v-if="product.originalPrice" class="original-price">¥{{ product.originalPrice }}</span>
+          <span class="price">¥{{ parseFloat(product.price).toFixed(2) }}</span>
+          <span v-if="product.originalPrice" class="original-price">¥{{ parseFloat(product.originalPrice).toFixed(2) }}</span>
         </div>
         <div class="meta">
           <span class="sales">销量: {{ formatSales(product.sales) }}</span>
@@ -43,8 +43,8 @@
           <span v-if="product.brand" class="brand">品牌: {{ product.brand }}</span>
         </div>
         <div class="price-row">
-          <span class="price">¥{{ product.price }}</span>
-          <span v-if="product.originalPrice" class="original-price">¥{{ product.originalPrice }}</span>
+          <span class="price">¥{{ parseFloat(product.price).toFixed(2) }}</span>
+          <span v-if="product.originalPrice" class="original-price">¥{{ parseFloat(product.originalPrice).toFixed(2) }}</span>
         </div>
         <div class="meta">
           <span class="sales">销量: {{ formatSales(product.sales) }}</span>

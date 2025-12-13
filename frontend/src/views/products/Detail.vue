@@ -50,10 +50,6 @@
               <img :src="img" :alt="`${product.name} ${index + 1}`" />
             </div>
           </div>
-          <div class="view-detail-btn">
-            <el-icon><Document /></el-icon>
-            查看商品详情
-          </div>
         </div>
 
         <!-- 右侧：商品信息 -->
@@ -99,34 +95,24 @@
           <div class="price-info">
             <div class="price-row">
               <span class="price-label">市场零售价：</span>
-              <span class="market-price">¥{{ product.marketPrice }}</span>
+              <span class="market-price">¥{{ parseFloat(product.marketPrice).toFixed(2) }}</span>
             </div>
             <div class="price-row">
               <span class="price-label">建议零售价：</span>
-              <span class="suggest-price">¥ {{ product.price }}</span>
+              <span class="suggest-price">
+                ¥{{ currentSku ? parseFloat(currentSku.price).toFixed(2) : parseFloat(product.price).toFixed(2) }}
+              </span>
             </div>
           </div>
 
-          <!-- 规格选择 -->
+          <!-- 规格选择器 -->
           <div class="spec-selection">
-            <div class="spec-row">
-              <span class="spec-label">您已选择：</span>
-              <span class="spec-value">"{{ selectedSpec }}"</span>
-            </div>
-            <div class="spec-row">
-              <span class="spec-label">规格：</span>
-              <div class="spec-options">
-                <div
-                  v-for="spec in product.specs"
-                  :key="spec"
-                  class="spec-option"
-                  :class="{ active: selectedSpec === spec }"
-                  @click="selectedSpec = spec"
-                >
-                  {{ spec }}
-                </div>
-              </div>
-            </div>
+            <SpecSelector
+              :spec-keys="productSpecKeys"
+              :sku-list="productSkuList"
+              :default-specs="defaultSpecs"
+              @spec-change="handleSpecChange"
+            />
           </div>
 
           <!-- 购买数量 -->
@@ -138,14 +124,11 @@
               :max="999"
               size="large"
             />
-            <span class="stock-status">库存-充足</span>
+            <span class="stock-status" :class="getStockStatusClass()">
+              {{ getStockStatusText() }}
+            </span>
           </div>
 
-          <!-- 显示购买模式提示 -->
-          <div class="buy-mode-tip">
-            <el-icon color="#f56c6c"><Warning /></el-icon>
-            <span>显示批发购买模式</span>
-          </div>
 
           <!-- 操作按钮 -->
           <div class="action-buttons">
@@ -165,9 +148,12 @@
           </div>
 
           <!-- 收藏 -->
-          <div class="favorite-link">
-            <el-icon><Star /></el-icon>
-            加入收藏
+          <div class="favorite-link" @click="toggleFavorite">
+            <el-icon v-if="favoritLoading"><Loading /></el-icon>
+            <el-icon v-else>
+              <Star :class="{ favorited: isFavorited }" />
+            </el-icon>
+            {{ isFavorited ? '已收藏' : '加入收藏' }}
           </div>
         </div>
         </template>
@@ -298,7 +284,10 @@ import Footer from '@/components/home/Footer.vue'
 import { getProductById, type ProductVO } from '@/api/buyer/product'
 import { addToCart as addToCartAPI, type AddCartDTO } from '@/api/buyer/cart'
 import { submitConsultation as submitConsultationAPI, type ConsultationDTO } from '@/api/buyer/consultation'
+import { addFavorite, removeFavorite, checkFavorite } from '@/api/buyer/favorite'
+import { getSkusByProductId, getSpecKeysByProductId, type ProductSkuVO, type ProductSpecKeyVO } from '@/api/buyer/sku'
 import { useCartStore } from '@/stores/cart'
+import SpecSelector from '@/components/product/SpecSelector.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -307,8 +296,12 @@ const cartStore = useCartStore()
 // 当前选中的图片
 const currentImage = ref('')
 
-// 选中的规格
-const selectedSpec = ref('2只装')
+// SKU规格相关数据
+const productSpecKeys = ref<ProductSpecKeyVO[]>([])
+const productSkuList = ref<ProductSkuVO[]>([])
+const selectedSpecs = ref<Record<string, string>>({})
+const currentSku = ref<ProductSkuVO | null>(null)
+const defaultSpecs = ref<Record<string, string>>({})
 
 // 购买数量
 const quantity = ref(1)
@@ -349,6 +342,10 @@ const consultationRules: FormRules = {
 
 // 提交咨询状态
 const submittingConsultation = ref(false)
+
+// 收藏相关状态
+const isFavorited = ref(false)
+const favoritLoading = ref(false)
 
 // 评论表单
 const reviewForm = ref({
@@ -416,6 +413,9 @@ const loadProductDetail = async (productId: number) => {
     if (product.value.images.length > 0) {
       currentImage.value = product.value.images[0]
     }
+
+    // 加载SKU规格数据
+    await loadProductSkuData(Number(productId))
   } catch (error) {
     console.error('加载商品详情失败:', error)
     ElMessage.error('加载商品详情失败')
@@ -424,12 +424,87 @@ const loadProductDetail = async (productId: number) => {
   }
 }
 
+// 加载商品SKU数据
+const loadProductSkuData = async (productId: number) => {
+  try {
+    // 并行加载规格属性和SKU列表
+    const [specKeys, skuList] = await Promise.all([
+      getSpecKeysByProductId(productId),
+      getSkusByProductId(productId)
+    ])
+    
+    productSpecKeys.value = specKeys
+    productSkuList.value = skuList
+    
+    // 如果有SKU数据，设置默认选中第一个可用SKU的规格
+    if (skuList.length > 0 && specKeys.length > 0) {
+      const firstAvailableSku = skuList.find(sku => sku.status === 1 && sku.stock > 0)
+      if (firstAvailableSku) {
+        try {
+          const specCombination = JSON.parse(firstAvailableSku.specCombination)
+          defaultSpecs.value = specCombination
+          selectedSpecs.value = { ...specCombination }
+          currentSku.value = firstAvailableSku
+        } catch (error) {
+          console.error('解析默认SKU规格失败:', error)
+        }
+      }
+    }
+  } catch (error) {
+    console.error('加载商品SKU数据失败:', error)
+    // 如果SKU数据加载失败，不影响商品基本信息显示
+  }
+}
+
+// 处理规格选择变化
+const handleSpecChange = (newSelectedSpecs: Record<string, string>, newCurrentSku: ProductSkuVO | null) => {
+  selectedSpecs.value = newSelectedSpecs
+  currentSku.value = newCurrentSku
+  
+  // 重置购买数量为1
+  quantity.value = 1
+}
+
+// 获取库存状态文本
+const getStockStatusText = () => {
+  if (currentSku.value) {
+    const stock = currentSku.value.stock
+    const warningStock = currentSku.value.warningStock
+    
+    if (stock <= 0) {
+      return '库存-缺货'
+    } else if (stock <= warningStock) {
+      return `库存-紧张 (剩余${stock}件)`
+    } else {
+      return '库存-充足'
+    }
+  }
+  return '库存-充足'
+}
+
+// 获取库存状态样式类
+const getStockStatusClass = () => {
+  if (currentSku.value) {
+    const stock = currentSku.value.stock
+    const warningStock = currentSku.value.warningStock
+    
+    if (stock <= 0) {
+      return 'out-of-stock'
+    } else if (stock <= warningStock) {
+      return 'low-stock'
+    }
+  }
+  return ''
+}
+
 // 初始化
-onMounted(() => {
+onMounted(async () => {
   // 根据路由参数加载商品数据
   const productId = route.params.id
   if (productId) {
-    loadProductDetail(Number(productId))
+    await loadProductDetail(Number(productId))
+    // 加载商品后检查收藏状态
+    await checkFavoriteStatus()
   } else {
     ElMessage.error('商品ID不存在')
     router.push('/')
@@ -525,6 +600,42 @@ const submitConsultation = async () => {
 // 提交评论
 const submitReview = () => {
   ElMessage.success('评论提交成功！')
+}
+
+// 检查收藏状态
+const checkFavoriteStatus = async () => {
+  if (!product.value.id) return
+  try {
+    isFavorited.value = await checkFavorite(product.value.id)
+  } catch (error) {
+    console.error('检查收藏状态失败:', error)
+  }
+}
+
+// 切换收藏状态
+const toggleFavorite = async () => {
+  if (!product.value.id) {
+    ElMessage.error('商品信息不存在')
+    return
+  }
+
+  favoritLoading.value = true
+  try {
+    if (isFavorited.value) {
+      await removeFavorite(product.value.id)
+      isFavorited.value = false
+      ElMessage.success('已取消收藏')
+    } else {
+      await addFavorite(product.value.id)
+      isFavorited.value = true
+      ElMessage.success('已加入收藏')
+    }
+  } catch (error) {
+    console.error('操作收藏失败:', error)
+    ElMessage.error('操作失败，请重试')
+  } finally {
+    favoritLoading.value = false
+  }
 }
 </script>
 
@@ -790,6 +901,14 @@ const submitReview = () => {
       .stock-status {
         color: #52c41a;
         font-size: 14px;
+        
+        &.low-stock {
+          color: #faad14;
+        }
+        
+        &.out-of-stock {
+          color: #ff4d4f;
+        }
       }
     }
 
@@ -839,6 +958,10 @@ const submitReview = () => {
       transition: color 0.3s;
 
       &:hover {
+        color: #e4393c;
+      }
+
+      .favorited {
         color: #e4393c;
       }
     }

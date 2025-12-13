@@ -26,8 +26,8 @@
               <div class="product-tag">{{ product.tag }}</div>
               <div class="product-name">{{ product.name }}</div>
               <div class="product-price">
-                <span class="original-price">市场零售价: ¥{{ product.originalPrice }}</span>
-                <span class="current-price">¥ {{ product.price }}</span>
+                <span class="original-price">市场零售价: ¥{{ parseFloat(product.originalPrice).toFixed(2) }}</span>
+                <span class="current-price">¥ {{ parseFloat(product.price).toFixed(2) }}</span>
               </div>
             </div>
           </div>
@@ -49,8 +49,8 @@
             <div class="product-category">[{{ product.category }}]</div>
             <div class="product-title">{{ product.name }}</div>
             <div class="product-prices">
-              <span class="old-price">市场零售价: ¥{{ product.originalPrice }}</span>
-              <span class="new-price">¥ {{ product.price }}</span>
+              <span class="old-price">市场零售价: ¥{{ parseFloat(product.originalPrice).toFixed(2) }}</span>
+              <span class="new-price">¥ {{ parseFloat(product.price).toFixed(2) }}</span>
             </div>
           </div>
         </div>

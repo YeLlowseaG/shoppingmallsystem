@@ -53,7 +53,7 @@
         <el-table-column prop="categoryName" label="分类" width="120" />
         <el-table-column prop="basePrice" label="价格" width="100">
           <template #default="{ row }">
-            ¥{{ row.basePrice }}
+            ¥{{ parseFloat(row.basePrice).toFixed(2) }}
           </template>
         </el-table-column>
         <el-table-column prop="stock" label="库存" width="80" />
@@ -142,7 +142,7 @@
         <el-divider content-position="left">价格与库存</el-divider>
 
         <div class="price-stock-grid">
-          <el-form-item label="销售价格" prop="basePrice" required>
+          <el-form-item label="初始会员价" prop="basePrice" required>
             <el-input-number
               v-model="formData.basePrice"
               :min="0"
@@ -153,7 +153,7 @@
             />
           </el-form-item>
 
-          <el-form-item label="市场价格" prop="marketPrice">
+          <el-form-item label="建议零售价" prop="marketPrice">
             <el-input-number
               v-model="formData.marketPrice"
               :min="0"
@@ -164,7 +164,7 @@
             />
           </el-form-item>
 
-          <el-form-item label="成本价格" prop="costPrice">
+          <el-form-item label="市场零售价" prop="costPrice">
             <el-input-number
               v-model="formData.costPrice"
               :min="0"
@@ -204,6 +204,173 @@
               controls-position="right"
               style="width: 100%"
             />
+          </el-form-item>
+        </div>
+
+        <!-- 商品规格配置 -->
+        <el-divider content-position="left">商品规格配置</el-divider>
+        
+        <el-form-item label="是否启用规格" prop="enableSpec">
+          <el-switch v-model="formData.enableSpec" @change="handleEnableSpecChange" />
+          <div class="form-tip">启用后可为商品配置不同规格的SKU（如颜色、尺寸等）</div>
+        </el-form-item>
+
+        <!-- 规格配置区域 -->
+        <div v-if="formData.enableSpec" class="spec-config-area">
+          <!-- 规格属性配置 -->
+          <el-form-item label="规格属性" required>
+            <div class="spec-keys-wrapper">
+              <div 
+                v-for="(specKey, keyIndex) in editSpecKeys" 
+                :key="keyIndex"
+                class="spec-key-item"
+              >
+                <div class="spec-key-header">
+                  <el-input 
+                    v-model="specKey.specName" 
+                    placeholder="请输入规格名称（如：颜色、尺寸）"
+                    style="width: 200px"
+                  />
+                  <el-button 
+                    type="danger" 
+                    size="small" 
+                    :icon="Delete" 
+                    @click="removeEditSpecKey(keyIndex)"
+                    :disabled="editSpecKeys.length <= 1"
+                  >
+                    删除规格
+                  </el-button>
+                </div>
+                
+                <div class="spec-values-wrapper">
+                  <div class="spec-values-header">规格值：</div>
+                  <div class="spec-values-list">
+                    <div 
+                      v-for="(specValue, valueIndex) in specKey.values" 
+                      :key="valueIndex"
+                      class="spec-value-item"
+                    >
+                      <el-input 
+                        v-model="specValue.specValue" 
+                        placeholder="规格值"
+                        style="width: 150px"
+                      />
+                      <el-button 
+                        type="danger" 
+                        size="small" 
+                        :icon="Delete" 
+                        @click="removeEditSpecValue(keyIndex, valueIndex)"
+                        :disabled="specKey.values.length <= 1"
+                      />
+                    </div>
+                    <el-button 
+                      type="primary" 
+                      size="small" 
+                      :icon="Plus" 
+                      @click="addEditSpecValue(keyIndex)"
+                    >
+                      添加规格值
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+              
+              <el-button 
+                type="primary" 
+                :icon="Plus" 
+                @click="addEditSpecKey"
+              >
+                添加规格属性
+              </el-button>
+            </div>
+          </el-form-item>
+
+          <!-- SKU列表 -->
+          <el-form-item label="SKU列表" required>
+            <div class="sku-list-wrapper">
+              <div class="sku-list-header">
+                <el-button 
+                  type="primary" 
+                  @click="generateEditSkuList"
+                  :disabled="!canGenerateEditSkus"
+                >
+                  生成SKU
+                </el-button>
+                <span class="tip">根据规格属性自动生成SKU组合</span>
+              </div>
+              
+              <el-table 
+                v-if="editSkuList.length > 0"
+                :data="editSkuList" 
+                border 
+                class="sku-table"
+                size="small"
+              >
+                <el-table-column prop="specCombinationText" label="规格组合" width="180" />
+                <el-table-column label="SKU编码" width="130">
+                  <template #default="{ row, $index }">
+                    <el-input 
+                      v-model="row.skuCode" 
+                      placeholder="SKU编码"
+                      size="small"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column label="价格" width="100">
+                  <template #default="{ row, $index }">
+                    <el-input-number 
+                      v-model="row.price" 
+                      :min="0"
+                      :precision="2"
+                      :step="0.01"
+                      size="small"
+                      style="width: 100%"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column label="库存" width="80">
+                  <template #default="{ row, $index }">
+                    <el-input-number 
+                      v-model="row.stock" 
+                      :min="0"
+                      size="small"
+                      style="width: 100%"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column label="警戒库存" width="90">
+                  <template #default="{ row, $index }">
+                    <el-input-number 
+                      v-model="row.warningStock" 
+                      :min="0"
+                      size="small"
+                      style="width: 100%"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column label="重量(g)" width="90">
+                  <template #default="{ row, $index }">
+                    <el-input-number 
+                      v-model="row.weight" 
+                      :min="0"
+                      :precision="2"
+                      size="small"
+                      style="width: 100%"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="60">
+                  <template #default="{ row, $index }">
+                    <el-button 
+                      type="danger" 
+                      size="small" 
+                      :icon="Delete" 
+                      @click="removeEditSku($index)"
+                    />
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
           </el-form-item>
         </div>
 
@@ -278,6 +445,7 @@
             height="500px"
           />
         </el-form-item>
+
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="formData.status">
             <el-radio label="上架">上架</el-radio>
@@ -288,6 +456,193 @@
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" @click="handleSubmit">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- SKU规格管理对话框 -->
+    <el-dialog
+      v-model="skuDialogVisible"
+      title="SKU规格管理"
+      width="1200px"
+      :before-close="handleSkuDialogClose"
+    >
+      <div class="sku-manager">
+        <!-- 规格属性配置 -->
+        <el-card class="spec-card" shadow="never">
+          <template #header>
+            <div class="card-header">
+              <span>规格属性配置</span>
+              <el-button type="primary" size="small" @click="addSpecKey">添加规格</el-button>
+            </div>
+          </template>
+          
+          <div class="spec-keys-list">
+            <div 
+              v-for="(specKey, keyIndex) in skuSpecKeys" 
+              :key="keyIndex"
+              class="spec-key-item"
+            >
+              <div class="spec-key-header">
+                <el-input 
+                  v-model="specKey.specName" 
+                  placeholder="规格名称（如：颜色、尺寸）"
+                  style="width: 200px"
+                />
+                <el-button 
+                  type="danger" 
+                  size="small" 
+                  :icon="Delete" 
+                  @click="removeSpecKey(keyIndex)"
+                  :disabled="skuSpecKeys.length <= 1"
+                >
+                  删除
+                </el-button>
+              </div>
+              
+              <div class="spec-values-wrapper">
+                <div class="spec-values-header">规格值：</div>
+                <div class="spec-values-list">
+                  <div 
+                    v-for="(specValue, valueIndex) in specKey.values" 
+                    :key="valueIndex"
+                    class="spec-value-item"
+                  >
+                    <el-input 
+                      v-model="specValue.specValue" 
+                      placeholder="规格值"
+                      style="width: 150px"
+                    />
+                    <el-button 
+                      type="danger" 
+                      size="small" 
+                      :icon="Delete" 
+                      @click="removeSpecValue(keyIndex, valueIndex)"
+                      :disabled="specKey.values.length <= 1"
+                    />
+                  </div>
+                  <el-button 
+                    type="primary" 
+                    size="small" 
+                    :icon="Plus" 
+                    @click="addSpecValue(keyIndex)"
+                  >
+                    添加规格值
+                  </el-button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="spec-actions">
+            <el-button 
+              type="primary" 
+              @click="generateSkuList"
+              :disabled="!canGenerateSkus"
+            >
+              生成SKU
+            </el-button>
+            <span class="tip">根据规格属性自动生成SKU组合</span>
+          </div>
+        </el-card>
+
+        <!-- SKU列表配置 -->
+        <el-card class="sku-card" shadow="never" style="margin-top: 20px">
+          <template #header>
+            <div class="card-header">
+              <span>SKU列表配置</span>
+              <div class="header-actions">
+                <el-button size="small" @click="batchSetPrice">批量设价格</el-button>
+                <el-button size="small" @click="batchSetStock">批量设库存</el-button>
+              </div>
+            </div>
+          </template>
+          
+          <el-table 
+            :data="skuManageList" 
+            border 
+            class="sku-manage-table"
+            max-height="400"
+          >
+            <el-table-column type="selection" width="55" />
+            <el-table-column prop="specCombinationText" label="规格组合" width="200" />
+            <el-table-column label="SKU编码" width="150">
+              <template #default="{ row, $index }">
+                <el-input 
+                  v-model="row.skuCode" 
+                  placeholder="SKU编码"
+                  size="small"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column label="价格" width="120">
+              <template #default="{ row }">
+                <el-input-number 
+                  v-model="row.price" 
+                  :min="0"
+                  :precision="2"
+                  :step="0.01"
+                  size="small"
+                  style="width: 100%"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column label="库存" width="100">
+              <template #default="{ row }">
+                <el-input-number 
+                  v-model="row.stock" 
+                  :min="0"
+                  size="small"
+                  style="width: 100%"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column label="警戒库存" width="100">
+              <template #default="{ row }">
+                <el-input-number 
+                  v-model="row.warningStock" 
+                  :min="0"
+                  size="small"
+                  style="width: 100%"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column label="重量(g)" width="100">
+              <template #default="{ row }">
+                <el-input-number 
+                  v-model="row.weight" 
+                  :min="0"
+                  :precision="2"
+                  size="small"
+                  style="width: 100%"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="100">
+              <template #default="{ row }">
+                <el-switch 
+                  v-model="row.status" 
+                  :active-value="1"
+                  :inactive-value="0"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="80">
+              <template #default="{ row, $index }">
+                <el-button 
+                  type="danger" 
+                  size="small" 
+                  :icon="Delete" 
+                  @click="removeSku($index)"
+                />
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </div>
+      
+      <template #footer>
+        <el-button @click="skuDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveSkuChanges">保存SKU配置</el-button>
       </template>
     </el-dialog>
   </div>
@@ -308,6 +663,16 @@ import {
 } from '@/api/admin/product'
 import { getCategoryTree, type ProductCategoryVO } from '@/api/admin/productCategory'
 import { getBrandOptions } from '@/api/admin/brand'
+import { 
+  getSkusByProductId,
+  batchCreateSkus,
+  updateSku,
+  deleteSku,
+  getSpecKeysByProductId,
+  type ProductSkuVO,
+  type ProductSkuDTO,
+  type ProductSpecKeyVO
+} from '@/api/admin/sku'
 import RichTextEditor from '@/components/common/RichTextEditor.vue'
 
 const router = useRouter()
@@ -372,7 +737,47 @@ const formData = ref<ProductDTO>({
   mainImage: '',
   images: '',
   description: '',
-  status: '下架'
+  status: '下架',
+  enableSpec: false
+})
+
+// SKU管理相关状态
+const skuDialogVisible = ref(false)
+const currentSkuList = ref<ProductSkuVO[]>([])
+const skuSpecKeys = ref([
+  {
+    specName: '',
+    values: [{ specValue: '' }]
+  }
+])
+const skuManageList = ref<any[]>([])
+
+// 编辑弹框的SKU规格数据
+const editSpecKeys = ref([
+  {
+    specName: '',
+    values: [{ specValue: '' }]
+  }
+])
+const editSkuList = ref<any[]>([])
+
+// 计算属性：是否可以生成SKU
+const canGenerateSkus = computed(() => {
+  return skuSpecKeys.value.every(key => 
+    key.specName.trim() && 
+    key.values.length > 0 && 
+    key.values.every(value => value.specValue.trim())
+  )
+})
+
+// 计算属性：编辑弹框是否可以生成SKU
+const canGenerateEditSkus = computed(() => {
+  if (!formData.value.enableSpec) return false
+  return editSpecKeys.value.every(key => 
+    key.specName.trim() && 
+    key.values.length > 0 && 
+    key.values.every(value => value.specValue.trim())
+  )
 })
 
 // 表单验证规则
@@ -586,6 +991,292 @@ const handleDelete = async (row: ProductVO) => {
   }
 }
 
+// SKU管理相关方法
+const handleEnableSpecChange = (value: boolean) => {
+  if (!value) {
+    // 禁用规格时清空数据
+    currentSkuList.value = []
+    skuSpecKeys.value = [{ specName: '', values: [{ specValue: '' }] }]
+    skuManageList.value = []
+    // 清空编辑弹框的规格数据
+    editSpecKeys.value = [{ specName: '', values: [{ specValue: '' }] }]
+    editSkuList.value = []
+  } else {
+    // 启用规格时初始化默认数据
+    if (editSpecKeys.value.length === 0 || (editSpecKeys.value.length === 1 && !editSpecKeys.value[0].specName)) {
+      editSpecKeys.value = [{ specName: '', values: [{ specValue: '' }] }]
+    }
+  }
+}
+
+// 编辑弹框规格管理方法
+const addEditSpecKey = () => {
+  editSpecKeys.value.push({
+    specName: '',
+    values: [{ specValue: '' }]
+  })
+}
+
+const removeEditSpecKey = (index: number) => {
+  if (editSpecKeys.value.length > 1) {
+    editSpecKeys.value.splice(index, 1)
+    // 重新生成SKU
+    if (editSkuList.value.length > 0) {
+      generateEditSkuList()
+    }
+  }
+}
+
+const addEditSpecValue = (keyIndex: number) => {
+  editSpecKeys.value[keyIndex].values.push({ specValue: '' })
+}
+
+const removeEditSpecValue = (keyIndex: number, valueIndex: number) => {
+  const specKey = editSpecKeys.value[keyIndex]
+  if (specKey.values.length > 1) {
+    specKey.values.splice(valueIndex, 1)
+    // 重新生成SKU
+    if (editSkuList.value.length > 0) {
+      generateEditSkuList()
+    }
+  }
+}
+
+const generateEditSkuList = () => {
+  if (!canGenerateEditSkus.value) {
+    ElMessage.warning('请先完善规格属性配置')
+    return
+  }
+
+  // 生成笛卡尔积
+  const combinations = generateCartesianProduct(editSpecKeys.value)
+  
+  editSkuList.value = combinations.map((combination, index) => {
+    const specCombination: Record<string, string> = {}
+    const specCombinationTextArray: string[] = []
+    
+    combination.forEach((value, keyIndex) => {
+      const specName = editSpecKeys.value[keyIndex].specName
+      specCombination[specName] = value
+      specCombinationTextArray.push(`${specName}:${value}`)
+    })
+    
+    return {
+      specCombination: JSON.stringify(specCombination),
+      specCombinationText: specCombinationTextArray.join(', '),
+      skuCode: `${formData.value.productCode || 'SKU'}-${index + 1}`,
+      price: formData.value.basePrice,
+      stock: formData.value.stock,
+      warningStock: formData.value.warningStock,
+      weight: formData.value.weight,
+      status: 1
+    }
+  })
+  
+  ElMessage.success(`已生成 ${editSkuList.value.length} 个SKU`)
+}
+
+// 生成笛卡尔积
+const generateCartesianProduct = (specKeys: any[]): string[][] => {
+  const values = specKeys.map(key => key.values.map((v: any) => v.specValue))
+  
+  function cartesian(arr: string[][]): string[][] {
+    return arr.reduce((a, b) => {
+      return a.flatMap((x: string[]) => b.map(y => [...x, y]))
+    }, [[]] as string[][])
+  }
+  
+  return cartesian(values)
+}
+
+const removeEditSku = (index: number) => {
+  editSkuList.value.splice(index, 1)
+}
+
+const openSkuManager = () => {
+  if (!formData.value.id) {
+    ElMessage.warning('请先保存商品基本信息后再管理SKU')
+    return
+  }
+  skuDialogVisible.value = true
+  loadCurrentSkuData()
+}
+
+const loadCurrentSkuData = async () => {
+  try {
+    // 加载当前商品的SKU数据
+    currentSkuList.value = await getSkusByProductId(formData.value.id!)
+    
+    // 加载规格属性数据
+    const specKeys = await getSpecKeysByProductId(formData.value.id!)
+    if (specKeys.length > 0) {
+      skuSpecKeys.value = specKeys.map(key => ({
+        id: key.id,
+        specName: key.specName,
+        values: key.specValues.map(value => ({
+          id: value.id,
+          specValue: value.specValue
+        }))
+      }))
+    }
+    
+    // 转换SKU数据为管理格式
+    skuManageList.value = currentSkuList.value.map(sku => {
+      // 解析规格组合文本
+      const specCombination = JSON.parse(sku.specCombination)
+      const specTexts = Object.entries(specCombination).map(([key, value]) => `${key}:${value}`)
+      
+      return {
+        ...sku,
+        specCombinationText: specTexts.join(', '),
+        status: sku.status || 1
+      }
+    })
+  } catch (error) {
+    console.error('加载SKU数据失败:', error)
+    ElMessage.error('加载SKU数据失败')
+  }
+}
+
+const addSpecKey = () => {
+  skuSpecKeys.value.push({
+    specName: '',
+    values: [{ specValue: '' }]
+  })
+}
+
+const removeSpecKey = (index: number) => {
+  if (skuSpecKeys.value.length > 1) {
+    skuSpecKeys.value.splice(index, 1)
+  }
+}
+
+const addSpecValue = (keyIndex: number) => {
+  skuSpecKeys.value[keyIndex].values.push({ specValue: '' })
+}
+
+const removeSpecValue = (keyIndex: number, valueIndex: number) => {
+  const specKey = skuSpecKeys.value[keyIndex]
+  if (specKey.values.length > 1) {
+    specKey.values.splice(valueIndex, 1)
+  }
+}
+
+const generateSkuList = () => {
+  if (!canGenerateSkus.value) {
+    ElMessage.warning('请先完善规格属性配置')
+    return
+  }
+
+  // 生成笛卡尔积
+  const combinations = generateCartesianProduct(skuSpecKeys.value)
+  
+  skuManageList.value = combinations.map((combination, index) => {
+    const specCombination: Record<string, string> = {}
+    const specCombinationTextArray: string[] = []
+    
+    combination.forEach((value, keyIndex) => {
+      const specName = skuSpecKeys.value[keyIndex].specName
+      specCombination[specName] = value
+      specCombinationTextArray.push(`${specName}:${value}`)
+    })
+    
+    return {
+      specCombination: JSON.stringify(specCombination),
+      specCombinationText: specCombinationTextArray.join(', '),
+      skuCode: `${formData.value.productCode || 'SKU'}-${index + 1}`,
+      price: formData.value.basePrice,
+      stock: formData.value.stock,
+      warningStock: formData.value.warningStock,
+      weight: formData.value.weight,
+      status: 1
+    }
+  })
+  
+  ElMessage.success(`已生成 ${skuManageList.value.length} 个SKU`)
+}
+
+// 生成笛卡尔积
+const removeSku = (index: number) => {
+  skuManageList.value.splice(index, 1)
+}
+
+const batchSetPrice = () => {
+  ElMessageBox.prompt('请输入价格', '批量设置价格', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    inputValidator: (value) => {
+      const price = parseFloat(value)
+      if (isNaN(price) || price < 0) {
+        return '请输入有效的价格'
+      }
+      return true
+    }
+  }).then(({ value }) => {
+    const price = parseFloat(value)
+    skuManageList.value.forEach(sku => {
+      sku.price = price
+    })
+    ElMessage.success('批量设置价格成功')
+  }).catch(() => {})
+}
+
+const batchSetStock = () => {
+  ElMessageBox.prompt('请输入库存数量', '批量设置库存', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    inputValidator: (value) => {
+      const stock = parseInt(value)
+      if (isNaN(stock) || stock < 0) {
+        return '请输入有效的库存数量'
+      }
+      return true
+    }
+  }).then(({ value }) => {
+    const stock = parseInt(value)
+    skuManageList.value.forEach(sku => {
+      sku.stock = stock
+    })
+    ElMessage.success('批量设置库存成功')
+  }).catch(() => {})
+}
+
+const saveSkuChanges = async () => {
+  try {
+    // 删除原有SKU
+    for (const sku of currentSkuList.value) {
+      await deleteSku(sku.id)
+    }
+    
+    // 批量创建新SKU
+    const skuDTOs: ProductSkuDTO[] = skuManageList.value.map(sku => ({
+      productId: formData.value.id!,
+      skuCode: sku.skuCode,
+      specCombination: sku.specCombination,
+      price: sku.price,
+      stock: sku.stock,
+      warningStock: sku.warningStock || 0,
+      weight: sku.weight || 0,
+      status: sku.status
+    }))
+    
+    await batchCreateSkus(skuDTOs)
+    
+    // 重新加载SKU数据
+    await loadCurrentSkuData()
+    
+    ElMessage.success('SKU配置保存成功')
+    skuDialogVisible.value = false
+  } catch (error) {
+    console.error('保存SKU配置失败:', error)
+    ElMessage.error('保存SKU配置失败')
+  }
+}
+
+const handleSkuDialogClose = () => {
+  skuDialogVisible.value = false
+}
+
 // 初始化
 onMounted(() => {
   loadCategoryTree()
@@ -679,6 +1370,105 @@ onMounted(() => {
   .upload-tip {
     font-size: 12px;
     color: #909399;
+  }
+}
+
+// SKU管理样式
+.form-tip {
+  margin-top: 5px;
+  font-size: 12px;
+  color: #666;
+}
+
+.spec-config-area {
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  padding: 15px;
+  margin-bottom: 15px;
+  background-color: #fafbfc;
+}
+
+.sku-overview-table {
+  margin-top: 15px;
+}
+
+.no-sku-tip {
+  padding: 20px;
+  text-align: center;
+  color: #999;
+  background-color: #f9f9f9;
+  border: 1px dashed #d9d9d9;
+  border-radius: 4px;
+}
+
+.sku-manager {
+  .spec-card, .sku-card {
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+    }
+  }
+
+  .spec-keys-list {
+    .spec-key-item {
+      margin-bottom: 20px;
+      padding: 15px;
+      border: 1px solid #e4e7ed;
+      border-radius: 4px;
+      background-color: #fff;
+
+      .spec-key-header {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 15px;
+      }
+
+      .spec-values-wrapper {
+        .spec-values-header {
+          margin-bottom: 10px;
+          font-weight: bold;
+          color: #333;
+        }
+
+        .spec-values-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          align-items: center;
+
+          .spec-value-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+        }
+      }
+    }
+  }
+
+  .spec-actions {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #e4e7ed;
+
+    .tip {
+      color: #666;
+      font-size: 12px;
+    }
+  }
+
+  .sku-manage-table {
+    margin-top: 15px;
   }
 }
 </style>
