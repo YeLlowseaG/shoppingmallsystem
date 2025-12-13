@@ -2,6 +2,71 @@
 
 **Project**: B2B Adult Products Distribution System
 **Start Date**: 2025-12-03
+**Last Updated**: 2025-12-13
+
+---
+
+## 2025-12-13
+
+### Session: Advanced Features Implementation
+
+**Topic**: SKU System, Instant Buy, and Inventory Management
+
+**Major Features Implemented**:
+
+1. **Complete SKU/Product Specification System**:
+   - ✅ Database schema (product_spec_key, product_spec_value, product_sku tables)
+   - ✅ Backend entities, DTOs, VOs, repositories, services, and controllers
+   - ✅ Frontend specification selector component with real-time price/stock updates
+   - ✅ Admin product management with SKU configuration UI
+   - ✅ Data migration for 79 existing products to SKU structure
+   - ✅ Fixed SKU matching logic using deep object comparison instead of JSON string comparison
+
+2. **Instant Buy Functionality ("立即购买")**:
+   - ✅ Direct checkout flow bypassing cart display
+   - ✅ SKU specification validation and inventory checking
+   - ✅ Silent cart addition with immediate redirect to checkout page
+   - ✅ Support for both SKU-enabled and regular products
+   - ✅ Real inventory checking (no fake stock assumptions)
+
+3. **Professional Inventory Management System**:
+   - ✅ Unified inventory dashboard with statistics (total value, low stock, out of stock, avg days)
+   - ✅ Interactive inventory distribution charts (ECharts integration)
+   - ✅ Comprehensive inventory detail list with search/filter/sort
+   - ✅ Individual stock adjustment dialog (add/reduce/set with reason tracking)
+   - ✅ Batch stock adjustment with preview and percentage options
+   - ✅ Simplified menu structure (single-level inventory management page)
+
+**Technical Achievements**:
+- Fixed validation imports (javax → jakarta) for Spring Boot 3.x compatibility
+- Resolved SKU specification matching issues with deep comparison logic
+- Implemented proper inventory status display and management
+- Created reusable components for stock adjustment workflows
+- Added ECharts dependency for professional data visualization
+- Unified UI/UX between product upload and edit dialogs
+
+**User Experience Improvements**:
+- Instant buy flow: Product Detail → Silent Cart Add → Checkout Page
+- Real-time stock status updates based on actual inventory data
+- Professional inventory management matching standard e-commerce platforms
+- Consistent specification selection across all product interfaces
+
+**Database Updates**:
+- Migrated 79 existing products to SKU structure
+- Updated menu configuration for streamlined inventory management
+- Added proper permissions and role assignments
+
+**Bug Fixes**:
+- Fixed SKU matching logic in SpecSelector component
+- Resolved component routing issues for inventory management
+- Fixed validation import errors across backend files
+- Corrected inventory display for non-SKU products
+
+**Code Quality**:
+- Proper error handling and user feedback
+- Real inventory checking (removed fake stock assumptions)
+- Professional component architecture
+- Standard e-commerce workflow implementation
 
 ---
 
