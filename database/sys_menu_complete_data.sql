@@ -1,0 +1,65 @@
+-- sys_menu 完整数据插入脚本
+-- 生成时间: 2025-12-13
+-- 说明: 包含完整的菜单数据，使用 ON DUPLICATE KEY UPDATE 避免重复插入
+
+USE `chengren_shopping_mall`;
+
+-- 清空现有菜单数据（可选，如果需要完全重置）
+-- DELETE FROM sys_menu;
+-- ALTER TABLE sys_menu AUTO_INCREMENT = 1;
+
+-- 插入完整菜单数据
+INSERT INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `path`, `component`, `icon`, `permission`, `sort_order`, `status`, `deleted`, `create_time`, `update_time`) VALUES 
+(1,0,'首页',0,'/dashboard','Layout','HomeFilled',NULL,1,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(2,0,'商品管理',0,'/product','Layout','Goods',NULL,2,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(3,0,'订单管理',0,'/order','Layout','Document',NULL,3,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(4,0,'库存管理',1,'inventory','inventory/Index','Box','inventory:view',4,1,0,'2025-12-05 13:44:56','2025-12-13 13:38:48'),
+(5,0,'采购者管理',0,'/buyer','Layout','User',NULL,5,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(6,0,'营销管理',0,'/marketing','Layout','Promotion',NULL,6,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(7,0,'数据统计',0,'/statistics','Layout','DataAnalysis',NULL,7,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(8,0,'系统设置',0,'/system','Layout','Setting',NULL,8,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(9,0,'权限管理',0,'/permission','Layout','Lock',NULL,9,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(10,1,'数据概览',1,'index','dashboard/Index','DataLine','admin:dashboard:view',1,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(11,2,'商品列表',1,'list','product/List','List','admin:product:list',1,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(12,2,'商品发布',1,'add','product/Add','Plus','admin:product:add',2,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(13,2,'商品分类',1,'category','product/Category','Menu','admin:product:category',3,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(14,3,'订单列表',1,'list','order/List','List','admin:order:list',1,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(19,5,'采购者列表',1,'list','buyer/List','List','admin:buyer:list',1,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(20,5,'采购者审核',1,'audit','buyer/Audit','Check','admin:buyer:audit',2,0,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(21,5,'等级管理',1,'level','buyer/Level','Star','admin:buyer:level',3,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(22,6,'促销活动',1,'promotion','marketing/Promotion','Promotion','admin:marketing:promotion',1,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(23,6,'价格策略',1,'price','marketing/Price','Money','admin:marketing:price',2,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(24,7,'销售统计',1,'sales','statistics/Sales','TrendCharts','admin:statistics:sales',1,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(25,7,'订单统计',1,'order','statistics/Order','Document','admin:statistics:order',2,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(26,7,'商品统计',1,'product','statistics/Product','Goods','admin:statistics:product',3,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(27,7,'采购者统计',1,'buyer','statistics/Buyer','User','admin:statistics:buyer',4,1,0,'2025-12-05 13:44:56','2025-12-05 13:44:56'),
+(28,8,'基础配置',1,'basic','system/Basic','Setting','admin:system:basic',1,1,0,'2025-12-05 13:44:57','2025-12-05 13:44:57'),
+(29,8,'支付配置',1,'payment','system/Payment','CreditCard','admin:system:payment',2,1,0,'2025-12-05 13:44:57','2025-12-05 13:44:57'),
+(30,8,'物流配置',1,'logistics','logistics/Index','Truck','admin:logistics:list',3,1,0,'2025-12-05 13:44:57','2025-12-10 10:46:21'),
+(31,8,'通知设置',1,'notification','system/Notification','Bell','admin:system:notification',4,1,0,'2025-12-05 13:44:57','2025-12-05 13:44:57'),
+(32,9,'用户管理',1,'user','permission/User','User','admin:permission:user:list',1,1,0,'2025-12-05 13:44:57','2025-12-05 13:44:57'),
+(33,9,'角色管理',1,'role','permission/Role','UserFilled','admin:permission:role:list',2,1,0,'2025-12-05 13:44:57','2025-12-05 13:44:57'),
+(34,9,'菜单管理',1,'menu','permission/Menu','Menu','admin:permission:menu:list',3,1,0,'2025-12-05 13:44:57','2025-12-05 13:44:57'),
+(40,0,'内容管理',0,'content',NULL,'Document',NULL,8,1,0,'2025-12-10 17:45:05','2025-12-13 00:26:56'),
+(41,40,'帮助中心',1,'/admin/content/help','help/Index','QuestionFilled','admin:help:list',1,1,0,'2025-12-10 17:45:05','2025-12-10 17:45:05'),
+(42,40,'公告管理',1,'/admin/content/announcement','announcement/Index','Money','admin:announcement:list',2,1,0,'2025-12-10 21:26:19','2025-12-10 22:54:58'),
+(43,51,'预存款交易记录',1,'deposit','deposit/Record','Money','admin:deposit:list',4,1,0,'2025-12-10 23:24:42','2025-12-13 18:06:47'),
+(44,8,'轮播图管理',1,'banner','website/Banner','Picture','admin:website:banner:list',4,1,0,'2025-12-11 10:39:32','2025-12-11 10:39:32'),
+(45,8,'品牌管理',1,'brand','website/Brand','ShoppingBag','admin:website:brand:list',5,1,0,'2025-12-11 10:39:32','2025-12-11 10:39:32'),
+(46,8,'广告位管理',1,'advertisement','website/Advertisement','Postcard','admin:website:advertisement:list',6,1,0,'2025-12-11 10:39:32','2025-12-11 10:39:32'),
+(48,8,'导航菜单',1,'navigation','system/NavigationMenu','Menu',NULL,10,1,0,'2025-12-12 17:50:05','2025-12-12 17:50:05'),
+(50,40,'咨询管理',1,'consultation','content/Consultation','ChatDotRound','content:consultation:list',3,1,0,'2025-12-13 00:02:10','2025-12-13 01:01:51'),
+(51,0,'财务管理',0,'/finance','Layout','Money',NULL,10,1,0,'2025-12-13 18:06:47','2025-12-13 18:06:47'),
+(52,51,'支付记录',1,'payment-record','finance/PaymentRecord','CreditCard','admin:finance:payment:list',1,1,0,'2025-12-13 18:06:47','2025-12-13 18:06:47'),
+(53,40,'评论管理',1,'review','review/Index','ChatDotRound','admin:review:list',4,1,0,NOW(),NOW())
+ON DUPLICATE KEY UPDATE 
+  `parent_id` = VALUES(`parent_id`),
+  `menu_name` = VALUES(`menu_name`),
+  `menu_type` = VALUES(`menu_type`),
+  `path` = VALUES(`path`),
+  `component` = VALUES(`component`),
+  `icon` = VALUES(`icon`),
+  `permission` = VALUES(`permission`),
+  `sort_order` = VALUES(`sort_order`),
+  `status` = VALUES(`status`),
+  `update_time` = NOW();
