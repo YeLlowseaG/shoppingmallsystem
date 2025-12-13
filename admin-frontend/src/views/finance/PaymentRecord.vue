@@ -27,9 +27,11 @@
           <el-select v-model="searchForm.paymentStatus" placeholder="请选择支付状态" clearable style="width: 120px">
             <el-option label="全部" :value="undefined" />
             <el-option label="待支付" :value="0" />
-            <el-option label="已支付" :value="1" />
-            <el-option label="已退款" :value="2" />
-            <el-option label="已失败" :value="3" />
+            <el-option label="支付中" :value="1" />
+            <el-option label="已支付" :value="2" />
+            <el-option label="已关闭" :value="3" />
+            <el-option label="已失败" :value="4" />
+            <el-option label="已退款" :value="5" />
           </el-select>
         </el-form-item>
         <el-form-item label="开始时间">
@@ -107,7 +109,7 @@
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleView(row)">查看详情</el-button>
             <el-button
-              v-if="row.paymentStatus === 1 && row.refundableAmount > 0"
+              v-if="row.paymentStatus === 2 && row.refundableAmount > 0"
               type="danger"
               size="small"
               @click="handleRefund(row)"
@@ -399,13 +401,17 @@ const handleRefundDialogClose = () => {
 const getStatusTagType = (status: number) => {
   switch (status) {
     case 0:
-      return 'info'
+      return 'info' // 待支付
     case 1:
-      return 'success'
+      return 'warning' // 支付中
     case 2:
-      return 'warning'
+      return 'success' // 已支付
     case 3:
-      return 'danger'
+      return '' // 已关闭
+    case 4:
+      return 'danger' // 已失败
+    case 5:
+      return 'warning' // 已退款
     default:
       return ''
   }

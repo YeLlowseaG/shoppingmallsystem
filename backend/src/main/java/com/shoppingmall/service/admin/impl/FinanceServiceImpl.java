@@ -113,9 +113,12 @@ public class FinanceServiceImpl implements FinanceService {
                 .distinct()
                 .collect(Collectors.toList());
 
-        // 查询订单信息
-        Map<Long, Order> orderMap = orderRepository.selectBatchIds(orderIds).stream()
-                .collect(Collectors.toMap(Order::getId, order -> order));
+        // 查询订单信息（如果列表为空，返回空Map）
+        Map<Long, Order> orderMap = new java.util.HashMap<>();
+        if (!orderIds.isEmpty()) {
+            orderMap = orderRepository.selectBatchIds(orderIds).stream()
+                    .collect(Collectors.toMap(Order::getId, order -> order));
+        }
 
         // 获取所有用户ID
         List<Long> userIds = orderMap.values().stream()
@@ -123,9 +126,12 @@ public class FinanceServiceImpl implements FinanceService {
                 .distinct()
                 .collect(Collectors.toList());
 
-        // 查询用户信息
-        Map<Long, User> userMap = userRepository.selectBatchIds(userIds).stream()
-                .collect(Collectors.toMap(User::getId, user -> user));
+        // 查询用户信息（如果列表为空，返回空Map）
+        Map<Long, User> userMap = new java.util.HashMap<>();
+        if (!userIds.isEmpty()) {
+            userMap = userRepository.selectBatchIds(userIds).stream()
+                    .collect(Collectors.toMap(User::getId, user -> user));
+        }
 
         // 转换为VO
         List<PaymentRecordVO> voList = new ArrayList<>();
@@ -292,13 +298,19 @@ public class FinanceServiceImpl implements FinanceService {
                     vo.setPaymentStatusName("待支付");
                     break;
                 case 1:
-                    vo.setPaymentStatusName("已支付");
+                    vo.setPaymentStatusName("支付中");
                     break;
                 case 2:
-                    vo.setPaymentStatusName("已退款");
+                    vo.setPaymentStatusName("已支付");
                     break;
                 case 3:
+                    vo.setPaymentStatusName("已关闭");
+                    break;
+                case 4:
                     vo.setPaymentStatusName("已失败");
+                    break;
+                case 5:
+                    vo.setPaymentStatusName("已退款");
                     break;
                 default:
                     vo.setPaymentStatusName("未知");
