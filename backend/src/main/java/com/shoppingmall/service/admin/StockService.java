@@ -62,6 +62,14 @@ public interface StockService {
      * @return 库存统计信息
      */
     StockStatisticsVO getStockStatistics();
+
+    /**
+     * 直接更新商品库存（由ProductService调用，避免双向同步冲突）
+     *
+     * @param productId 商品ID
+     * @param totalStock 总库存
+     */
+    void updateProductTotalStock(Long productId, Integer totalStock);
 }
 
 

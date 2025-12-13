@@ -149,6 +149,15 @@ const router = createRouter({
       }
     },
     {
+      path: '/member/favorites/out-of-stock',
+      name: 'member-stock-notifications',
+      component: () => import('@/views/member/StockNotifications.vue'),
+      meta: {
+        title: '缺货登记',
+        requiresAuth: true
+      }
+    },
+    {
       path: '/member/deposit/recharge',
       name: 'member-deposit-recharge',
       component: () => import('@/views/member/DepositRecharge.vue'),

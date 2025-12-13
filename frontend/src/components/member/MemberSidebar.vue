@@ -98,6 +98,7 @@ const activeMenu = computed(() => {
   if (path.includes('/settings/payment-password')) return 'settings/payment-password'
   if (path.includes('/settings/address')) return 'settings/address'
   if (path.includes('/favorites/products')) return 'favorites/products'
+  if (path.includes('/favorites/out-of-stock')) return 'favorites/out-of-stock'
   if (path.includes('/transaction/orders')) return 'transaction/orders'
   if (path.includes('/deposit/recharge')) return 'deposit/recharge'
   if (path.includes('/deposit/balance')) return 'deposit/balance'
@@ -116,7 +117,7 @@ const handleMenuSelect = (index: string) => {
     'settings/address': '/member/settings/address',
     'transaction/orders': '/member/transaction/orders',
     'favorites/products': '/member/favorites/products',
-    'favorites/out-of-stock': '/member',
+    'favorites/out-of-stock': '/member/favorites/out-of-stock',
     'messages/reviews': '/member/reviews',
     'messages/consultations': '/member/consultations',
     'deposit/balance': '/member/deposit/balance',

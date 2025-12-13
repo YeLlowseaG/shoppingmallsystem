@@ -1,0 +1,25 @@
+-- 缺货登记表
+CREATE TABLE `stock_notification` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `product_id` bigint NOT NULL COMMENT '商品ID',
+  `product_name` varchar(255) NOT NULL COMMENT '商品名称（冗余字段，避免商品删除后无法显示）',
+  `product_code` varchar(100) NOT NULL COMMENT '商品编码（冗余字段）',
+  `main_image` varchar(500) DEFAULT NULL COMMENT '商品主图（冗余字段）',
+  `base_price` decimal(10,2) DEFAULT NULL COMMENT '商品价格（冗余字段）',
+  `contact_phone` varchar(20) DEFAULT NULL COMMENT '联系电话',
+  `contact_email` varchar(100) DEFAULT NULL COMMENT '联系邮箱',
+  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状态（0-待通知，1-已通知，2-已取消）',
+  `notify_type` varchar(50) DEFAULT 'email' COMMENT '通知方式（email-邮箱，sms-短信，both-两种）',
+  `notified_at` datetime DEFAULT NULL COMMENT '通知时间',
+  `expired_at` datetime DEFAULT NULL COMMENT '登记过期时间',
+  `remark` varchar(500) DEFAULT NULL COMMENT '用户备注',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` tinyint NOT NULL DEFAULT '0' COMMENT '逻辑删除（0-未删除，1-已删除）',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_product_id` (`product_id`),
+  KEY `idx_status` (`status`),
+  KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='缺货登记表';
