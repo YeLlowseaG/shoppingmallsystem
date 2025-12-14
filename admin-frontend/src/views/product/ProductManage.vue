@@ -176,7 +176,7 @@
     <el-dialog
       v-model="dialogVisible"
       title="编辑商品"
-      width="800px"
+      width="980px"
     >
       <el-form
         ref="formRef"
@@ -385,8 +385,8 @@
                 class="sku-table"
                 size="small"
               >
-                <el-table-column prop="specCombinationText" label="规格组合" width="180" />
-                <el-table-column label="SKU编码" width="130">
+                <el-table-column prop="specCombinationText" label="规格组合" width="80" />
+                <el-table-column label="SKU编码" width="160">
                   <template #default="{ row, $index }">
                     <el-input 
                       v-model="row.skuCode" 
@@ -395,7 +395,7 @@
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="价格" width="100">
+                <el-table-column label="价格" width="110">
                   <template #default="{ row, $index }">
                     <el-input-number 
                       v-model="row.price" 
@@ -407,7 +407,7 @@
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="库存" width="80">
+                <el-table-column label="库存" width="110">
                   <template #default="{ row, $index }">
                     <el-input-number 
                       v-model="row.stock" 
@@ -417,7 +417,7 @@
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="警戒库存" width="90">
+                <el-table-column label="警戒库存" width="110">
                   <template #default="{ row, $index }">
                     <el-input-number 
                       v-model="row.warningStock" 
@@ -427,7 +427,7 @@
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="重量(g)" width="90">
+                <el-table-column label="重量(g)" width="110">
                   <template #default="{ row, $index }">
                     <el-input-number 
                       v-model="row.weight" 
@@ -544,6 +544,12 @@
       title="SKU规格管理"
       width="1200px"
       :before-close="handleSkuDialogClose"
+      :close-on-click-modal="false"
+      class="sku-management-dialog"
+      top="3vh"
+      :fullscreen="false"
+      :modal="true"
+      :destroy-on-close="false"
     >
       <div class="sku-manager">
         <!-- 规格属性配置 -->
@@ -636,15 +642,16 @@
             </div>
           </template>
           
-          <el-table 
-            :data="skuManageList" 
-            border 
-            class="sku-manage-table"
-            max-height="400"
-          >
+          <div class="sku-table-container">
+            <el-table 
+              :data="skuManageList" 
+              border 
+              class="sku-manage-table"
+              height="200"
+            >
             <el-table-column type="selection" width="55" />
-            <el-table-column prop="specCombinationText" label="规格组合" width="200" />
-            <el-table-column label="SKU编码" width="150">
+            <el-table-column prop="specCombinationText" label="规格组合" width="80" />
+            <el-table-column label="SKU编码" width="160">
               <template #default="{ row, $index }">
                 <el-input 
                   v-model="row.skuCode" 
@@ -653,7 +660,7 @@
                 />
               </template>
             </el-table-column>
-            <el-table-column label="价格" width="120">
+            <el-table-column label="价格" width="150">
               <template #default="{ row }">
                 <el-input-number 
                   v-model="row.price" 
@@ -665,7 +672,7 @@
                 />
               </template>
             </el-table-column>
-            <el-table-column label="库存" width="100">
+            <el-table-column label="库存" width="150">
               <template #default="{ row }">
                 <el-input-number 
                   v-model="row.stock" 
@@ -675,7 +682,7 @@
                 />
               </template>
             </el-table-column>
-            <el-table-column label="警戒库存" width="100">
+            <el-table-column label="警戒库存" width="150">
               <template #default="{ row }">
                 <el-input-number 
                   v-model="row.warningStock" 
@@ -685,7 +692,7 @@
                 />
               </template>
             </el-table-column>
-            <el-table-column label="重量(g)" width="100">
+            <el-table-column label="重量(g)" width="150">
               <template #default="{ row }">
                 <el-input-number 
                   v-model="row.weight" 
@@ -716,6 +723,7 @@
               </template>
             </el-table-column>
           </el-table>
+          </div>
         </el-card>
       </div>
       
@@ -1026,7 +1034,16 @@ const handleUploadError = () => {
 }
 
 // 编辑商品
-const handleEdit = (row: ProductVO) => {
+const handleEdit = async (row: ProductVO) => {
+  console.log('=== 开始编辑商品 ID:', row.id, '===')
+
+  // 完全重置所有规格和SKU相关数据，防止数据残留
+  editSpecKeys.value = []
+  editSkuList.value = []
+  currentSkuList.value = []
+
+  console.log('已重置：editSpecKeys, editSkuList, currentSkuList')
+
   formData.value = {
     id: row.id,
     productCode: row.productCode,
@@ -1042,7 +1059,8 @@ const handleEdit = (row: ProductVO) => {
     mainImage: row.mainImage,
     images: JSON.stringify(row.imageList),
     description: row.description,
-    status: row.status
+    status: row.status,
+    enableSpec: false  // 默认关闭，稍后根据SKU数据设置
   }
 
   // 初始化详情图片列表
@@ -1053,6 +1071,59 @@ const handleEdit = (row: ProductVO) => {
     }))
   } else {
     detailImageList.value = []
+  }
+
+  // 加载SKU数据
+  try {
+    const skus = await getSkusByProductId(row.id)
+    // 保存当前SKU列表，用于后续删除
+    currentSkuList.value = skus || []
+
+    if (skus && skus.length > 0) {
+      // 有SKU数据，设置启用规格
+      formData.value.enableSpec = true
+
+      // 从SKU数据重建规格属性和SKU列表
+      const specMap = new Map<string, Set<string>>()
+
+      skus.forEach(sku => {
+        // 解析规格组合，格式如: {"颜色":"白色","尺码":"M"}
+        try {
+          const specs = JSON.parse(sku.specCombination)
+          Object.entries(specs).forEach(([key, value]) => {
+            if (!specMap.has(key)) {
+              specMap.set(key, new Set())
+            }
+            specMap.get(key)!.add(value as string)
+          })
+        } catch (e) {
+          console.error('解析SKU规格组合失败:', e)
+        }
+
+        // 添加到editSkuList
+        editSkuList.value.push({
+          skuCode: sku.skuCode,
+          specCombination: sku.specCombination,
+          specCombinationText: Object.values(JSON.parse(sku.specCombination)).join('/'),
+          price: sku.price,
+          stock: sku.stock,
+          warningStock: sku.warningStock,
+          weight: sku.weight,
+          status: sku.status
+        })
+      })
+
+      // 重建规格属性
+      specMap.forEach((values, key) => {
+        editSpecKeys.value.push({
+          specName: key,
+          values: Array.from(values).map(v => ({ specValue: v }))
+        })
+      })
+    }
+  } catch (error) {
+    console.error('加载SKU数据失败:', error)
+    currentSkuList.value = []
   }
 
   dialogVisible.value = true
@@ -1066,6 +1137,94 @@ const handleSubmit = async () => {
     if (!valid) return
 
     try {
+      console.log('=== 开始保存商品数据 ===')
+      console.log('当前正在编辑的商品ID:', formData.value.id)
+      console.log('当前商品编码:', formData.value.productCode)
+      console.log('当前商品名称:', formData.value.productName)
+      console.log('当前editSkuList:', editSkuList.value)
+
+      // 数据一致性校验
+      if (editSkuList.value.length > 0) {
+        // 检查是否有重复的规格组合
+        const specCombinations = editSkuList.value.map(s => s.specCombination)
+        const uniqueSpecs = new Set(specCombinations)
+        if (specCombinations.length !== uniqueSpecs.size) {
+          ElMessage.error('SKU列表中存在重复的规格组合，请检查后重新生成SKU')
+          return
+        }
+
+        // 检查所有SKU是否都有完整的数据
+        const invalidSkus = editSkuList.value.filter(sku =>
+          !sku.skuCode || !sku.specCombination || sku.price === undefined || sku.stock === undefined
+        )
+        if (invalidSkus.length > 0) {
+          ElMessage.error('存在数据不完整的SKU，请检查后重试')
+          console.error('不完整的SKU:', invalidSkus)
+          return
+        }
+        console.log('✓ SKU数据校验通过')
+      }
+
+      // 先保存SKU数据
+      if (editSkuList.value.length > 0) {
+        console.log('检测到SKU数据,开始保存SKU')
+
+        // 重新从数据库查询该商品的所有SKU，确保删除的是最新数据
+        console.log('重新查询商品ID:', formData.value.id, '的所有SKU')
+        const latestSkus = await getSkusByProductId(formData.value.id!)
+
+        if (latestSkus && latestSkus.length > 0) {
+          console.log('查询到最新SKU:', latestSkus.length, '个')
+          console.log('要删除的SKU列表:', latestSkus.map(s => ({id: s.id, productId: s.productId, spec: s.specCombination})))
+          for (const sku of latestSkus) {
+            console.log('正在删除SKU - ID:', sku.id, 'ProductID:', sku.productId, '规格:', sku.specCombination)
+            await deleteSku(sku.id)
+          }
+          console.log('所有旧SKU删除完成')
+        } else {
+          console.log('该商品没有旧SKU，直接创建新SKU')
+        }
+
+        // 批量创建新SKU
+        const skuDTOs: ProductSkuDTO[] = editSkuList.value.map(sku => ({
+          productId: formData.value.id!,
+          skuCode: sku.skuCode,
+          specCombination: sku.specCombination,
+          price: sku.price,
+          stock: sku.stock,
+          warningStock: sku.warningStock || 0,
+          weight: sku.weight || 0,
+          status: sku.status || 1
+        }))
+
+        console.log('!!! CRITICAL: 即将创建的SKU数据，商品ID为:', formData.value.id)
+        console.log('准备批量创建SKU:', skuDTOs)
+        await batchCreateSkus(skuDTOs)
+        console.log('SKU保存成功')
+
+        // 更新商品的启用规格状态
+        formData.value.enableSpec = true
+      } else {
+        console.log('没有SKU数据,设置enableSpec为false')
+
+        // 重新从数据库查询该商品的所有SKU，确保删除的是最新数据
+        console.log('重新查询商品ID:', formData.value.id, '的所有SKU并删除')
+        const latestSkus = await getSkusByProductId(formData.value.id!)
+
+        if (latestSkus && latestSkus.length > 0) {
+          console.log('删除所有旧SKU:', latestSkus.length, '个')
+          for (const sku of latestSkus) {
+            console.log('正在删除SKU - ID:', sku.id, '规格:', sku.specCombination)
+            await deleteSku(sku.id)
+          }
+          console.log('所有SKU删除完成')
+        } else {
+          console.log('该商品没有SKU，无需删除')
+        }
+
+        formData.value.enableSpec = false
+      }
+
       // 提取详情图片URL列表
       const detailImages = detailImageList.value
         .map(file => file.url || (file.response as any)?.data?.url)
@@ -1074,12 +1233,16 @@ const handleSubmit = async () => {
       // 更新formData的images字段
       formData.value.images = JSON.stringify(detailImages)
 
+      console.log('保存商品基本信息, enableSpec:', formData.value.enableSpec)
       await updateProduct(formData.value)
+      console.log('=== 商品保存完成 ===')
+
       ElMessage.success('更新成功')
       dialogVisible.value = false
       loadProductList()
     } catch (error) {
-      ElMessage.error('操作失败')
+      console.error('保存失败:', error)
+      ElMessage.error('操作失败: ' + (error.response?.data?.message || error.message))
     }
   })
 }
@@ -1172,19 +1335,23 @@ const generateEditSkuList = () => {
     return
   }
 
+  console.log('=== 生成SKU开始 ===')
+  console.log('生成前 currentSkuList:', currentSkuList.value.map(s => s.specCombination))
+  console.log('生成前 editSkuList:', editSkuList.value.map(s => s.specCombination))
+
   // 生成笛卡尔积
   const combinations = generateCartesianProduct(editSpecKeys.value)
-  
+
   editSkuList.value = combinations.map((combination, index) => {
     const specCombination: Record<string, string> = {}
     const specCombinationTextArray: string[] = []
-    
+
     combination.forEach((value, keyIndex) => {
       const specName = editSpecKeys.value[keyIndex].specName
       specCombination[specName] = value
       specCombinationTextArray.push(`${specName}:${value}`)
     })
-    
+
     return {
       specCombination: JSON.stringify(specCombination),
       specCombinationText: specCombinationTextArray.join(', '),
@@ -1196,6 +1363,10 @@ const generateEditSkuList = () => {
       status: 1
     }
   })
+
+  console.log('生成后 editSkuList:', editSkuList.value.map(s => s.specCombination))
+  console.log('注意: currentSkuList仍然是旧数据，保存时会删除所有旧SKU并创建新SKU')
+  console.log('=== 生成SKU完成 ===')
   
   ElMessage.success(`已生成 ${editSkuList.value.length} 个SKU`)
 }
@@ -1384,16 +1555,32 @@ const saveSkuChanges = async () => {
       status: sku.status
     }))
     
-    await batchCreateSkus(skuDTOs)
+    console.log('准备保存SKU:', skuDTOs)
+    const result = await batchCreateSkus(skuDTOs)
+    console.log('SKU保存结果:', result)
+    
+    // 同步更新商品的启用规格状态
+    const hasSkus = skuDTOs.length > 0
+    await updateProduct({
+      ...formData.value,
+      enableSpec: hasSkus
+    })
+    console.log('更新商品启用规格状态为:', hasSkus)
+    
+    // 更新本地数据
+    formData.value.enableSpec = hasSkus
     
     // 重新加载SKU数据
     await loadCurrentSkuData()
+    
+    // 重新加载商品列表
+    await loadProductList()
     
     ElMessage.success('SKU配置保存成功')
     skuDialogVisible.value = false
   } catch (error) {
     console.error('保存SKU配置失败:', error)
-    ElMessage.error('保存SKU配置失败')
+    ElMessage.error('保存SKU配置失败: ' + (error.response?.data?.message || error.message))
   }
 }
 
@@ -1700,6 +1887,84 @@ onMounted(() => {
 
   .sku-manage-table {
     margin-top: 15px;
+  }
+}
+
+// SKU管理对话框样式
+:deep(.sku-management-dialog) {
+  .el-dialog {
+    max-height: 85vh !important;
+    height: 85vh !important;
+    margin: 3vh auto !important;
+    overflow: hidden !important;
+  }
+  
+  .el-dialog__header {
+    padding: 20px 20px 10px 20px;
+    flex-shrink: 0;
+  }
+  
+  .el-dialog__body {
+    padding: 10px 20px !important;
+    flex: 1 !important;
+    overflow-y: auto !important;
+    height: calc(85vh - 120px) !important;
+  }
+  
+  .el-dialog__footer {
+    padding: 10px 20px 20px 20px;
+    flex-shrink: 0;
+  }
+}
+
+.sku-manager {
+  height: 100%;
+}
+
+.sku-card {
+  margin-bottom: 20px;
+  
+  .el-card__body {
+    padding: 15px !important;
+  }
+}
+
+.sku-table-container {
+  margin-top: 15px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+// SKU表格样式优化
+.sku-manage-table {
+  width: 100%;
+  
+  :deep(.el-table__header-wrapper) {
+    th {
+      background-color: #fafafa;
+      font-weight: 600;
+    }
+  }
+  
+  :deep(.el-table__body-wrapper) {
+    &::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    &::-webkit-scrollbar-thumb {
+      background-color: #c1c1c1;
+      border-radius: 4px;
+      
+      &:hover {
+        background-color: #a8a8a8;
+      }
+    }
+    
+    &::-webkit-scrollbar-track {
+      background-color: #f1f1f1;
+      border-radius: 4px;
+    }
   }
 }
 </style>
