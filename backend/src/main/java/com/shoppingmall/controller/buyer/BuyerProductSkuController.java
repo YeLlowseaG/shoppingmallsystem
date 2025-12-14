@@ -30,9 +30,9 @@ public class BuyerProductSkuController {
     public Result<List<ProductSkuVO>> getSkusByProductId(@PathVariable Long productId) {
         try {
             List<ProductSkuVO> skus = skuService.getSkusByProductId(productId);
-            // 只返回启用状态且有库存的SKU
+            // 只返回启用状态的SKU（包括库存为0的，方便用户看到所有规格）
             List<ProductSkuVO> availableSkus = skus.stream()
-                    .filter(sku -> sku.getStatus() == 1 && sku.getStock() > 0)
+                    .filter(sku -> sku.getStatus() == 1)
                     .toList();
             return Result.success(availableSkus);
         } catch (Exception e) {

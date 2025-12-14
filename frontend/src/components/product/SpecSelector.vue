@@ -7,8 +7,8 @@
     </div>
 
     <!-- 规格选择区域 -->
-    <div 
-      v-for="specKey in specKeys" 
+    <div
+      v-for="specKey in specKeys"
       :key="specKey.id"
       class="spec-group"
     >
@@ -24,9 +24,9 @@
           }"
           @click="handleSpecValueClick(specKey.specName, specValue.specValue)"
         >
-          <img 
-            v-if="specValue.specImage" 
-            :src="specValue.specImage" 
+          <img
+            v-if="specValue.specImage"
+            :src="specValue.specImage"
             :alt="specValue.specValue"
             class="spec-image"
           />
@@ -118,38 +118,39 @@ const currentSku = computed(() => {
   }) || null
 })
 
-// 判断规格值是否禁用（无库存或不可选）
+// 判断规格值是否禁用（SKU不存在或已停用时禁用，但库存为0时仍可选）
 const isSpecValueDisabled = (specName: string, specValue: string): boolean => {
   // 创建临时的规格组合
   const tempSpecs = { ...selectedSpecs.value, [specName]: specValue }
-  
+
   // 如果还没有选择完所有规格，检查是否有可用的SKU组合
   const unselectedKeys = props.specKeys.filter(key => !tempSpecs[key.specName])
-  
+
   if (unselectedKeys.length === 0) {
-    // 所有规格都已选择，直接检查SKU是否存在且有库存
+    // 所有规格都已选择，直接检查SKU是否存在且已启用
     const sku = props.skuList.find(sku => {
       try {
         const skuSpecs = JSON.parse(sku.specCombination)
-        return Object.keys(tempSpecs).every(key => 
+        return Object.keys(tempSpecs).every(key =>
           skuSpecs[key] && skuSpecs[key] === tempSpecs[key]
         )
       } catch {
         return false
       }
     })
-    return !sku || sku.stock <= 0 || sku.status === 0
+    // 只有SKU不存在或已停用时才禁用，库存为0时仍可选择
+    return !sku || sku.status === 0
   } else {
-    // 还有未选择的规格，检查是否有任何可能的组合有库存
+    // 还有未选择的规格，检查是否有任何可能的组合存在
     return !hasAvailableSkuForPartialSpecs(tempSpecs)
   }
 }
 
-// 检查部分规格选择是否有可用的SKU
+// 检查部分规格选择是否有可用的SKU（只检查SKU是否存在且启用，不检查库存）
 const hasAvailableSkuForPartialSpecs = (partialSpecs: Record<string, string>): boolean => {
   return props.skuList.some(sku => {
-    if (sku.stock <= 0 || sku.status === 0) return false
-    
+    if (sku.status === 0) return false
+
     try {
       const skuSpecs = JSON.parse(sku.specCombination)
       // 检查是否匹配已选择的规格

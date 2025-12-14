@@ -85,12 +85,22 @@ public class StockServiceImpl implements StockService {
         List<Long> productIds = products.getRecords().stream()
                 .map(Product::getId)
                 .collect(Collectors.toList());
-        
-        // 批量查询库存信息
+
+        // 批量查询SKU信息，用于判断是否启用了规格
+        LambdaQueryWrapper<ProductSku> skuWrapper = new LambdaQueryWrapper<>();
+        skuWrapper.in(ProductSku::getProductId, productIds);
+        skuWrapper.eq(ProductSku::getStatus, 1); // 只查询启用的SKU
+        List<ProductSku> allSkus = productSkuRepository.selectList(skuWrapper);
+
+        // 按商品ID分组SKU
+        Map<Long, List<ProductSku>> skusByProduct = allSkus.stream()
+                .collect(Collectors.groupingBy(ProductSku::getProductId));
+
+        // 批量查询库存信息（用于没有SKU的商品）
         LambdaQueryWrapper<ProductStock> stockWrapper = new LambdaQueryWrapper<>();
         stockWrapper.in(ProductStock::getProductId, productIds);
         List<ProductStock> stocks = stockRepository.selectList(stockWrapper);
-        
+
         // 创建库存Map，方便查找
         Map<Long, ProductStock> stockMap = stocks.stream()
                 .collect(Collectors.toMap(ProductStock::getProductId, stock -> stock));
@@ -100,13 +110,36 @@ public class StockServiceImpl implements StockService {
         if (Boolean.TRUE.equals(queryDTO.getOnlyWarning())) {
             filteredProducts = products.getRecords().stream()
                     .filter(product -> {
-                        ProductStock stock = stockMap.get(product.getId());
-                        if (stock == null) {
-                            return false; // 没有库存记录的商品不预警
+                        List<ProductSku> productSkus = skusByProduct.get(product.getId());
+
+                        // 如果有SKU，检查SKU汇总库存是否预警
+                        if (productSkus != null && !productSkus.isEmpty()) {
+                            int totalStock = productSkus.stream()
+                                    .mapToInt(sku -> sku.getStock() != null ? sku.getStock() : 0)
+                                    .sum();
+                            int warningStock = productSkus.stream()
+                                    .mapToInt(sku -> sku.getWarningStock() != null ? sku.getWarningStock() : 10)
+                                    .min()
+                                    .orElse(10);
+                            return totalStock <= warningStock;
                         }
-                        Integer available = stock.getAvailableStock();
-                        Integer threshold = stock.getWarningThreshold();
-                        return available != null && threshold != null && available <= threshold;
+
+                        // 否则检查 product_stock 表
+                        ProductStock stock = stockMap.get(product.getId());
+                        if (stock != null) {
+                            Integer available = stock.getAvailableStock();
+                            Integer threshold = stock.getWarningThreshold();
+                            return available != null && threshold != null && available <= threshold;
+                        }
+
+                        // 最后检查商品表
+                        Integer productStock = product.getStock();
+                        Integer productWarning = product.getWarningStock();
+                        if (productStock != null && productWarning != null) {
+                            return productStock <= productWarning;
+                        }
+
+                        return false;
                     })
                     .collect(Collectors.toList());
         }
@@ -114,8 +147,9 @@ public class StockServiceImpl implements StockService {
         // 转换为VO
         List<StockVO> voList = filteredProducts.stream()
                 .map(product -> {
+                    List<ProductSku> productSkus = skusByProduct.get(product.getId());
                     ProductStock stock = stockMap.get(product.getId());
-                    return convertToVO(product, stock);
+                    return convertToVO(product, stock, productSkus);
                 })
                 .collect(Collectors.toList());
         
@@ -276,43 +310,81 @@ public class StockServiceImpl implements StockService {
     /**
      * 转换为VO（支持商品和库存信息）
      */
-    private StockVO convertToVO(Product product, ProductStock stock) {
+    /**
+     * 转换为VO（支持SKU库存汇总）
+     */
+    private StockVO convertToVO(Product product, ProductStock stock, List<ProductSku> productSkus) {
         StockVO vo = new StockVO();
-        
+
         // 设置商品信息
         vo.setProductId(product.getId());
         vo.setProductCode(product.getProductCode());
         vo.setProductName(product.getProductName());
         vo.setMainImage(product.getMainImage());
         vo.setProductStatus(product.getStatus());
-        
-        // 设置库存信息（如果存在）
-        if (stock != null) {
+
+        // 如果有SKU，优先使用SKU汇总库存
+        if (productSkus != null && !productSkus.isEmpty()) {
+            // 汇总所有SKU的库存
+            int totalStock = productSkus.stream()
+                    .mapToInt(sku -> sku.getStock() != null ? sku.getStock() : 0)
+                    .sum();
+
+            // 汇总所有SKU的警戒库存（取最小值）
+            int warningStock = productSkus.stream()
+                    .mapToInt(sku -> sku.getWarningStock() != null ? sku.getWarningStock() : 10)
+                    .min()
+                    .orElse(10);
+
+            vo.setId(stock != null ? stock.getId() : null);
+            vo.setAvailableStock(totalStock);
+            vo.setLockedStock(0); // SKU没有锁定库存概念
+            vo.setTotalStock(totalStock);
+            vo.setWarningThreshold(warningStock);
+            vo.setUpdateTime(product.getUpdateTime());
+
+            // 判断是否预警
+            vo.setIsWarning(totalStock <= warningStock);
+        }
+        // 否则使用 product_stock 表的库存
+        else if (stock != null) {
             vo.setId(stock.getId());
             vo.setAvailableStock(stock.getAvailableStock() != null ? stock.getAvailableStock() : 0);
             vo.setLockedStock(stock.getLockedStock() != null ? stock.getLockedStock() : 0);
             vo.setTotalStock(stock.getTotalStock() != null ? stock.getTotalStock() : 0);
             vo.setWarningThreshold(stock.getWarningThreshold() != null ? stock.getWarningThreshold() : 10);
             vo.setUpdateTime(stock.getUpdateTime());
-            
+
             // 判断是否预警
             if (stock.getAvailableStock() != null && stock.getWarningThreshold() != null) {
                 vo.setIsWarning(stock.getAvailableStock() <= stock.getWarningThreshold());
             } else {
                 vo.setIsWarning(false);
             }
-        } else {
-            // 没有库存记录，使用默认值
-            vo.setId(null);
-            vo.setAvailableStock(0);
-            vo.setLockedStock(0);
-            vo.setTotalStock(0);
-            vo.setWarningThreshold(10);
-            vo.setUpdateTime(product.getUpdateTime());
-            vo.setIsWarning(false);
         }
-        
+        // 都没有，使用商品表的库存
+        else {
+            vo.setId(null);
+            vo.setAvailableStock(product.getStock() != null ? product.getStock() : 0);
+            vo.setLockedStock(0);
+            vo.setTotalStock(product.getStock() != null ? product.getStock() : 0);
+            vo.setWarningThreshold(product.getWarningStock() != null ? product.getWarningStock() : 10);
+            vo.setUpdateTime(product.getUpdateTime());
+
+            // 判断是否预警
+            int availableStock = product.getStock() != null ? product.getStock() : 0;
+            int warningThreshold = product.getWarningStock() != null ? product.getWarningStock() : 10;
+            vo.setIsWarning(availableStock <= warningThreshold);
+        }
+
         return vo;
+    }
+
+    /**
+     * 转换为VO（旧方法，兼容性保留）
+     */
+    private StockVO convertToVO(Product product, ProductStock stock) {
+        return convertToVO(product, stock, null);
     }
 
     /**
