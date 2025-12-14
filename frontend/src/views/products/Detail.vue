@@ -525,13 +525,13 @@ const loadProductDetail = async (productId: number) => {
       id: productData.id,
       name: productData.productName,
       productNo: productData.productCode,
-      weight: 0, // API 暂无重量字段
+      weight: productData.weight || 0, // 从API获取重量字段
       sku: productData.productCode,
       barcode: '', // API 暂无条码字段
-      brand: '', // API 暂无品牌字段
+      brand: productData.brandName || '暂无', // 从API获取品牌字段
       unit: '盒',
-      marketPrice: productData.basePrice * 1.5, // 原价设为基础价的1.5倍
-      price: productData.basePrice,
+      marketPrice: productData.marketPrice || productData.basePrice * 1.5,
+      price: productData.salePrice || productData.basePrice,
       stock: productData.stock || 0, // 添加库存字段映射
       specs: ['标准'],
       promoText: '',
