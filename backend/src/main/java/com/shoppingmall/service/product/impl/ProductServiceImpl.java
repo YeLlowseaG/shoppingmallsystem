@@ -24,6 +24,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -158,10 +159,17 @@ public class ProductServiceImpl implements ProductService {
         }
 
         Product product = new Product();
-        BeanUtils.copyProperties(productDTO, product, "status");
+        BeanUtils.copyProperties(productDTO, product, "status", "weight");
 
         // 状态映射：上架=1，下架=0
         product.setStatus("上架".equals(productDTO.getStatus()) ? 1 : 0);
+
+        // 手动处理 weight 字段：BigDecimal 转 Integer（单位：克）
+        if (productDTO.getWeight() != null) {
+            product.setWeight(productDTO.getWeight().intValue());
+        } else {
+            product.setWeight(null);
+        }
 
         if (product.getStock() == null) {
             product.setStock(0);
@@ -212,10 +220,17 @@ public class ProductServiceImpl implements ProductService {
         Integer oldStock = product.getStock();
         boolean wasOutOfStock = (oldStock == null || oldStock <= 0);
 
-        BeanUtils.copyProperties(productDTO, product, "id", "salesCount", "status");
+        BeanUtils.copyProperties(productDTO, product, "id", "salesCount", "status", "weight");
 
         // 状态映射：上架=1，下架=0
         product.setStatus("上架".equals(productDTO.getStatus()) ? 1 : 0);
+
+        // 手动处理 weight 字段：BigDecimal 转 Integer（单位：克）
+        if (productDTO.getWeight() != null) {
+            product.setWeight(productDTO.getWeight().intValue());
+        } else {
+            product.setWeight(null);
+        }
 
         productRepository.updateById(product);
         
@@ -308,10 +323,17 @@ public class ProductServiceImpl implements ProductService {
      */
     private ProductVO convertToVO(Product product) {
         ProductVO vo = new ProductVO();
-        BeanUtils.copyProperties(product, vo, "status");
+        BeanUtils.copyProperties(product, vo, "status", "weight");
 
         // 状态映射：1=上架，0=下架
         vo.setStatus(product.getStatus() == 1 ? "上架" : "下架");
+
+        // 手动处理 weight 字段：Integer 转 BigDecimal（单位：克）
+        if (product.getWeight() != null) {
+            vo.setWeight(BigDecimal.valueOf(product.getWeight()));
+        } else {
+            vo.setWeight(null);
+        }
 
         // 获取分类名称
         ProductCategory category = categoryRepository.selectById(product.getCategoryId());

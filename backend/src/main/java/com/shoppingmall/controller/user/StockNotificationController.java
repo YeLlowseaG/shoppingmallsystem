@@ -1,6 +1,7 @@
 package com.shoppingmall.controller.user;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.shoppingmall.common.exception.BusinessException;
 import com.shoppingmall.common.util.Result;
 import com.shoppingmall.dto.StockNotificationDTO;
 import com.shoppingmall.service.user.StockNotificationService;
@@ -17,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
  * @date 2025-12-13
  */
 @RestController("userStockNotificationController")
-@RequestMapping("/api/user/stock-notification")
+@RequestMapping("/api/buyer/stock-notification")
 @RequiredArgsConstructor
 public class StockNotificationController {
 
@@ -74,11 +75,13 @@ public class StockNotificationController {
 
     /**
      * 从请求中获取用户ID
-     * TODO: 实际项目中应该从JWT token中解析用户信息
+     * JWT拦截器已经将userId设置到request attribute中
      */
     private Long getUserIdFromRequest(HttpServletRequest request) {
-        // 暂时返回固定值，实际应该从token中获取
-        String userIdHeader = request.getHeader("X-User-Id");
-        return userIdHeader != null ? Long.parseLong(userIdHeader) : 1L;
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) {
+            throw new BusinessException(401, "未授权，请重新登录");
+        }
+        return userId;
     }
 }

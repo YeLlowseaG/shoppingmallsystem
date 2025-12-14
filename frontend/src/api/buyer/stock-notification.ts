@@ -47,14 +47,14 @@ export interface PageResponse<T> {
  * 创建缺货登记
  */
 export const createStockNotification = (data: StockNotificationDTO): Promise<number> => {
-  return request.post('/api/user/stock-notification', data)
+  return request.post('/api/buyer/stock-notification', data)
 }
 
 /**
  * 取消缺货登记
  */
 export const cancelStockNotification = (id: number): Promise<void> => {
-  return request.delete(`/api/user/stock-notification/${id}`)
+  return request.delete(`/api/buyer/stock-notification/${id}`)
 }
 
 /**
@@ -64,7 +64,7 @@ export const getStockNotificationList = (
   current: number,
   size: number
 ): Promise<PageResponse<StockNotificationVO>> => {
-  return request.get('/api/user/stock-notification/list', {
+  return request.get('/api/buyer/stock-notification/list', {
     params: { current, size }
   })
 }
@@ -73,5 +73,5 @@ export const getStockNotificationList = (
  * 检查是否已登记某商品
  */
 export const checkStockNotificationRegistered = (productId: number): Promise<boolean> => {
-  return request.get(`/api/user/stock-notification/check/${productId}`)
+  return request.get(`/api/buyer/stock-notification/check/${productId}`)
 }

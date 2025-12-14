@@ -138,12 +138,8 @@
                       <span class="info-value">{{ recipientInfo.zipCode || '-' }}</span>
                     </div>
                     <div class="info-item">
-                      <span class="info-label">配送方式:</span>
-                      <span class="info-value">{{ recipientInfo.shippingMethod }}</span>
-                    </div>
-                    <div class="info-item">
                       <span class="info-label">商品重量:</span>
-                      <span class="info-value">{{ recipientInfo.weight }} g</span>
+                      <span class="info-value">{{ formatWeight(recipientInfo.weight) }}</span>
                     </div>
                     <div class="info-item">
                       <span class="info-label">收货人地址:</span>
@@ -162,10 +158,6 @@
                     <div class="info-item">
                       <span class="info-label">联系电话:</span>
                       <span class="info-value">{{ recipientInfo.phone }}</span>
-                    </div>
-                    <div class="info-item">
-                      <span class="info-label">送货时间:</span>
-                      <span class="info-value">{{ recipientInfo.deliveryTime || '-' }}</span>
                     </div>
                     <div class="info-item">
                       <span class="info-label">付款方式:</span>
@@ -427,6 +419,15 @@ const formatDateTime = (dateTime: string | Date) => {
   const hours = String(date.getHours()).padStart(2, '0')
   const minutes = String(date.getMinutes()).padStart(2, '0')
   return `${year}-${month}-${day} ${hours}:${minutes}`
+}
+
+// 格式化重量（统一显示为克）
+const formatWeight = (weight: number | string | null | undefined) => {
+  if (!weight) return '-'
+  const weightNum = typeof weight === 'string' ? parseFloat(weight) : weight
+  if (isNaN(weightNum) || weightNum <= 0) return '-'
+  // 统一显示为克（g）
+  return `${weightNum.toFixed(0)} g`
 }
 
 // 旧代码（保留作为备用，但不再使用）

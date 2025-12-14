@@ -5,6 +5,7 @@ import com.shoppingmall.dto.CreateOrderDTO;
 import com.shoppingmall.dto.OrderQueryDTO;
 import com.shoppingmall.vo.OrderDetailVO;
 import com.shoppingmall.vo.OrderListVO;
+import com.shoppingmall.vo.OrderStatisticsVO;
 
 /**
  * 订单服务接口
@@ -66,6 +67,14 @@ public interface OrderService {
      * @return 支付响应（包含支付URL等）
      */
     com.shoppingmall.dto.PaymentResponseDTO payOrder(String orderNo, Long userId, com.shoppingmall.dto.OrderPaymentDTO paymentDTO);
+
+    /**
+     * 获取订单统计信息
+     *
+     * @param userId 用户ID
+     * @return 订单统计信息
+     */
+    OrderStatisticsVO getOrderStatistics(Long userId);
 }
 
 

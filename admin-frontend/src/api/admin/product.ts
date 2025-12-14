@@ -10,12 +10,18 @@ export interface ProductDTO {
   productCode: string
   productName: string
   categoryId: number
+  brandId?: number | null
   mainImage?: string
   images?: string
   description?: string
   basePrice: number
+  marketPrice?: number
+  costPrice?: number
   stock: number
+  warningStock?: number
+  weight?: number
   status?: string
+  enableSpec?: boolean
 }
 
 // 商品VO
@@ -25,12 +31,18 @@ export interface ProductVO {
   productName: string
   categoryId: number
   categoryName: string
+  brandId?: number | null
+  brandName?: string
   mainImage: string
   imageList: string[]
   description: string
   basePrice: number
+  marketPrice?: number
+  costPrice?: number
   userLevelPrice: number
   stock: number
+  warningStock?: number
+  weight?: number
   salesCount: number
   status: string
   createTime: string

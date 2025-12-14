@@ -66,9 +66,11 @@
                   <el-button
                     type="danger"
                     class="add-cart-btn"
+                    :loading="addingToCart[item.id]"
+                    :disabled="addingToCart[item.id]"
                     @click="handleAddToCart(item)"
                   >
-                    加入购物车
+                    {{ addingToCart[item.id] ? '加入中...' : '加入购物车' }}
                   </el-button>
                 </div>
               </div>
@@ -90,6 +92,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
@@ -98,7 +101,11 @@ import Footer from '@/components/home/Footer.vue'
 import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
 import MemberSidebar from '@/components/member/MemberSidebar.vue'
 import { getFavoritePage, removeFavorite, type FavoriteVO } from '@/api/buyer/favorite'
+import { addToCart as addToCartAPI, type AddCartDTO } from '@/api/buyer/cart'
+import { useCartStore } from '@/stores/cart'
 
+const router = useRouter()
+const cartStore = useCartStore()
 const unreadMessageCount = ref(0)
 const loading = ref(false)
 
@@ -107,6 +114,9 @@ const favoritesList = ref<FavoriteVO[]>([])
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
+
+// 加入购物车加载状态（使用对象记录每个商品的加载状态）
+const addingToCart = ref<Record<number, boolean>>({})
 
 // 加载收藏列表
 const loadFavorites = async () => {
@@ -149,9 +159,53 @@ const handleDelete = async (item: FavoriteVO) => {
 }
 
 // 加入购物车
-const handleAddToCart = (item: FavoriteVO) => {
-  // TODO: 调用加入购物车API
-  ElMessage.success('已加入购物车')
+const handleAddToCart = async (item: FavoriteVO) => {
+  // 如果正在加载，直接返回
+  if (addingToCart.value[item.id]) {
+    return
+  }
+
+  try {
+    // 检查商品信息
+    if (!item.productId) {
+      ElMessage.error('商品信息不存在')
+      return
+    }
+
+    // 检查库存
+    if (item.stock !== undefined && item.stock <= 0) {
+      ElMessage.warning('商品已缺货')
+      return
+    }
+
+    // 设置加载状态
+    addingToCart.value[item.id] = true
+
+    // 构建购物车数据
+    const cartData: AddCartDTO = {
+      productId: item.productId,
+      quantity: 1 // 默认数量为1
+    }
+
+    // 调用加入购物车API
+    await addToCartAPI(cartData)
+
+    // 更新购物车数量
+    await cartStore.updateCartCount()
+
+    ElMessage.success('已成功加入购物车！')
+  } catch (error: any) {
+    console.error('加入购物车失败:', error)
+    if (error.response?.status === 401) {
+      ElMessage.error('请先登录')
+      router.push('/login')
+    } else {
+      ElMessage.error(error.response?.data?.message || '加入购物车失败，请重试')
+    }
+  } finally {
+    // 清除加载状态
+    addingToCart.value[item.id] = false
+  }
 }
 
 onMounted(() => {

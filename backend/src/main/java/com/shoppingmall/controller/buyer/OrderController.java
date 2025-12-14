@@ -9,6 +9,7 @@ import com.shoppingmall.dto.PaymentResponseDTO;
 import com.shoppingmall.service.buyer.OrderService;
 import com.shoppingmall.vo.OrderDetailVO;
 import com.shoppingmall.vo.OrderListVO;
+import com.shoppingmall.vo.OrderStatisticsVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -108,6 +109,19 @@ public class OrderController {
         
         PaymentResponseDTO response = orderService.payOrder(orderNo, userId, paymentDTO);
         return Result.success("支付成功", response);
+    }
+
+    /**
+     * 获取订单统计信息
+     */
+    @GetMapping("/statistics")
+    public Result<OrderStatisticsVO> getOrderStatistics() {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) {
+            return Result.error(401, "未授权，请重新登录");
+        }
+        OrderStatisticsVO statistics = orderService.getOrderStatistics(userId);
+        return Result.success("获取成功", statistics);
     }
 }
 

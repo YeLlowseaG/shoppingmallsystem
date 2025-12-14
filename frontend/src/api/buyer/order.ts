@@ -172,3 +172,19 @@ export const payOrder = (orderNo: string, data: OrderPaymentDTO): Promise<Paymen
   return request.post(`/api/buyer/orders/${orderNo}/pay`, data)
 }
 
+/**
+ * 订单统计VO
+ */
+export interface OrderStatisticsVO {
+  unpaidOrderCount: number
+  shippedOrderCount: number
+  cancelledOrderCount: number
+}
+
+/**
+ * 获取订单统计信息
+ */
+export const getOrderStatistics = (): Promise<OrderStatisticsVO> => {
+  return request.get('/api/buyer/orders/statistics')
+}
+

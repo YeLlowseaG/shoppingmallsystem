@@ -1,4 +1,378 @@
+## 2025-12-13 - 修复商品销量统计逻辑
+
+### 功能说明
+修复商品列表页面（`/admin/product/list`）的销量数据统计问题，按照标准电商的扣减逻辑来统计商品销量：订单完成时增加销量，订单取消/退款/退货时扣减销量。
+
+### 修改文件
+
+#### 后端
+1. `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java` - 添加销量更新逻辑
+2. `backend/src/main/java/com/shoppingmall/service/admin/impl/FinanceServiceImpl.java` - 添加退款时的销量扣减逻辑
+
+### 具体修改
+
+#### 1. 订单确认收货时增加销量
+- **confirmReceipt 方法**：订单状态从"已发货"变为"已完成"时，调用 `updateProductSalesCount` 增加商品销量
+- **销量计算**：将订单中每个商品的数量累加到对应商品的销量中
+
+#### 2. 订单取消时扣减销量
+- **cancelOrder 方法**：如果订单之前是"已完成"状态，在取消订单时扣减销量
+- **防止重复扣减**：只有已完成状态的订单取消时才扣减，待付款订单取消不扣减（因为从未增加过）
+
+#### 3. 订单退款时扣减销量
+- **refundPaymentRecord 方法**：在 FinanceServiceImpl 中，当订单全额退款且订单之前是"已完成"状态时，扣减销量
+- **注入依赖**：添加 OrderItemRepository 和 ProductRepository 依赖
+
+#### 4. 添加更新商品销量方法
+- **updateProductSalesCount 方法**：
+  - 查询订单的所有商品项
+  - 根据 increase 参数决定增加或扣减销量
+  - 扣减时确保销量不为负数
+  - 更新商品表的 salesCount 字段
+
+### 功能特性
+- ✅ 订单完成时自动增加商品销量
+- ✅ 订单取消时（如果之前已完成）自动扣减销量
+- ✅ 订单退款时（如果之前已完成）自动扣减销量
+- ✅ 销量数据准确，符合标准电商统计逻辑
+- ✅ 防止销量为负数
+
+### 技术细节
+- 销量存储在商品表的 `salesCount` 字段中
+- 订单完成时：销量 += 订单商品数量
+- 订单取消/退款/退货时：销量 -= 订单商品数量（如果之前已完成）
+- 扣减时使用 `Math.max(0, newSalesCount)` 确保销量不为负数
+- 使用事务保证数据一致性
+
+### 标准电商销量统计规则
+1. **订单完成（COMPLETED）**：增加销量
+2. **订单取消（CANCELLED）**：如果之前已完成，扣减销量
+3. **订单退款（REFUNDED）**：如果之前已完成，扣减销量
+4. **订单退货（RETURNED）**：如果之前已完成，扣减销量（预留接口）
+
+### 影响
+- ✅ 商品列表的销量数据准确反映实际销售情况
+- ✅ 符合标准电商的销量统计逻辑
+- ✅ 订单状态变化时自动更新销量，数据实时准确
+- ✅ 支持订单取消和退款时的销量扣减
+
+---
+
+## 2025-12-14 - 修复商品编辑页面重量数据保存问题
+
+### 功能说明
+修复商品编辑页面（`/admin/product/list`）中重量数据无法保存的问题，确保编辑商品时能正确保存重量数据到数据库。
+
+### 修改文件
+
+#### 前端
+1. `admin-frontend/src/api/admin/product.ts` - 在 ProductVO 和 ProductDTO 接口中添加 weight 字段
+
+#### 后端
+1. `backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java` - 修复 weight 字段的类型转换问题
+
+### 具体修改
+
+#### 1. 前端接口定义修复
+
+##### ProductVO 接口
+- **添加 weight 字段**：`weight?: number` - 商品重量（克）
+- **添加其他缺失字段**：
+  - `brandId?: number | null` - 品牌ID
+  - `brandName?: string` - 品牌名称
+  - `marketPrice?: number` - 市场价格
+  - `costPrice?: number` - 成本价格
+  - `warningStock?: number` - 警戒库存
+
+##### ProductDTO 接口
+- **添加 weight 字段**：`weight?: number` - 商品重量（克）
+- **添加其他缺失字段**：
+  - `brandId?: number | null` - 品牌ID
+  - `marketPrice?: number` - 市场价格
+  - `costPrice?: number` - 成本价格
+  - `warningStock?: number` - 警戒库存
+  - `enableSpec?: boolean` - 是否启用规格
+
+#### 2. 后端类型转换修复
+
+##### 问题分析
+- **Product 实体类**中 weight 字段类型为 `Integer`（数据库存储）
+- **ProductDTO** 中 weight 字段类型为 `BigDecimal`（API 传输）
+- **ProductVO** 中 weight 字段类型为 `BigDecimal`（API 返回）
+- 使用 `BeanUtils.copyProperties` 时，`BigDecimal` 无法直接复制到 `Integer`，导致 weight 字段丢失
+
+##### 修复方案
+
+###### updateProduct 方法
+- **排除 weight 字段**：在 `BeanUtils.copyProperties` 的排除列表中添加 `"weight"`
+- **手动转换**：将 `ProductDTO.weight`（BigDecimal）转换为 `Product.weight`（Integer）
+  ```java
+  if (productDTO.getWeight() != null) {
+      product.setWeight(productDTO.getWeight().intValue());
+  } else {
+      product.setWeight(null);
+  }
+  ```
+
+###### createProduct 方法
+- **排除 weight 字段**：在 `BeanUtils.copyProperties` 的排除列表中添加 `"weight"`
+- **手动转换**：同上，确保创建商品时 weight 字段也能正确保存
+
+###### convertToVO 方法
+- **排除 weight 字段**：在 `BeanUtils.copyProperties` 的排除列表中添加 `"weight"`
+- **手动转换**：将 `Product.weight`（Integer）转换为 `ProductVO.weight`（BigDecimal）
+  ```java
+  if (product.getWeight() != null) {
+      vo.setWeight(BigDecimal.valueOf(product.getWeight()));
+  } else {
+      vo.setWeight(null);
+  }
+  ```
+
+### 问题原因
+1. **类型不匹配**：Product 实体使用 `Integer`，而 DTO/VO 使用 `BigDecimal`
+2. **自动复制失败**：`BeanUtils.copyProperties` 无法自动转换 `BigDecimal` 到 `Integer`
+3. **前端接口缺失**：前端 TypeScript 接口定义中缺少 `weight` 字段
+
+### 功能特性
+- ✅ 商品编辑页面正确显示重量数据
+- ✅ 支持编辑和保存商品重量
+- ✅ 创建商品时 weight 字段正确保存
+- ✅ 查询商品时 weight 字段正确返回
+- ✅ 类型转换正确处理，避免数据丢失
+
+### 技术细节
+- **数据库存储**：weight 字段使用 `Integer` 类型（单位：克）
+- **API 传输**：DTO 和 VO 使用 `BigDecimal` 类型，支持小数精度
+- **类型转换**：
+  - 保存时：`BigDecimal.intValue()` 转换为 Integer（取整）
+  - 查询时：`BigDecimal.valueOf(Integer)` 转换为 BigDecimal
+- **空值处理**：正确处理 null 值，避免空指针异常
+
+### 影响
+- ✅ 商品编辑页面重量字段可以正常保存
+- ✅ 修复了重量数据无法保存到数据库的问题
+- ✅ 创建和更新商品时 weight 字段都能正确处理
+- ✅ 完善了前后端接口定义，提升代码可维护性
+
+---
+
+## 2025-12-13 - 优化订单详情页面收货人信息显示
+
+### 功能说明
+优化订单详情页面（`/order/detail`）的收货人信息模块，屏蔽不需要的字段，并修复商品重量计算逻辑。
+
+### 修改文件
+
+#### 前端
+1. `frontend/src/views/order/Detail.vue` - 屏蔽配送方式和送货时间字段，修复重量显示
+
+#### 后端
+1. `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java` - 修复商品重量计算逻辑
+
+### 具体修改
+
+#### 1. 前端修改
+
+##### 屏蔽字段
+- **屏蔽"配送方式"字段**：从收货人信息左侧区域移除"配送方式"显示项
+- **屏蔽"送货时间"字段**：从收货人信息右侧区域移除"送货时间"显示项
+
+##### 修复重量显示
+- **添加 formatWeight 函数**：格式化重量显示，统一显示为克（g）
+  - 商品表保存的重量单位是克（g）
+  - 统一按照克（g）来显示，不进行单位转换
+- **修复重量计算**：使用 formatWeight 函数格式化显示，确保数据正确
+
+#### 2. 后端修改
+
+##### 修复重量计算逻辑
+- **问题分析**：
+  - OrderItem.weight 存储的是单个商品的重量（克）
+  - 原代码只累加了单个商品重量，没有乘以数量
+  - 原代码还错误地乘以了 1000，导致数据不正确
+- **修复方案**：
+  - 移除错误的乘以 1000 的转换（OrderItem.weight 已经是克）
+  - 将每个商品的重量乘以数量，然后累加得到总重量
+  - 总重量单位保持为克
+
+### 功能特性
+- ✅ 收货人信息模块更加简洁，只显示必要信息
+- ✅ 商品重量计算正确，考虑了商品数量
+- ✅ 重量显示统一为克（g），与商品表单位一致
+- ✅ 提升用户体验，信息更加清晰
+
+### 技术细节
+- 前端使用 formatWeight 函数格式化重量显示
+- 后端计算总重量时，将每个商品的重量乘以数量后累加
+- OrderItem.weight 单位是克，不需要再转换
+- 商品表（Product）保存的重量单位是克（g），统一按照克（g）来显示
+
+### 影响
+- ✅ 订单详情页面收货人信息更加简洁
+- ✅ 商品重量数据计算正确
+- ✅ 重量显示更加友好，自动选择合适的单位
+- ✅ 提升用户体验
+
+---
+
+## 2025-12-13 - 完善商品收藏页面加入购物车功能
+
+### 功能说明
+完善商品收藏页面（`/member/favorites/products`）的加入购物车功能，参考商品详情页面的加入购物车逻辑，实现完整的加入购物车流程。
+
+### 修改文件
+
+#### 前端
+1. `frontend/src/views/member/Favorites.vue` - 实现加入购物车功能
+
+### 具体修改
+
+#### 1. 导入必要的模块
+- **导入 useRouter**：用于未登录时跳转到登录页面
+- **导入购物车API**：`addToCart` 和 `AddCartDTO` 类型
+- **导入购物车Store**：`useCartStore` 用于更新购物车数量
+
+#### 2. 添加状态管理
+- **addingToCart状态**：使用对象记录每个商品的加载状态，支持多个商品同时操作
+
+#### 3. 实现加入购物车函数
+- **handleAddToCart函数**：
+  - 检查商品信息是否存在
+  - 检查商品库存（如果库存为0或负数，提示缺货）
+  - 设置加载状态，防止重复点击
+  - 构建购物车数据（productId + quantity: 1）
+  - 调用加入购物车API
+  - 更新购物车数量（通过cartStore）
+  - 显示成功提示
+  - 完善的错误处理（包括401未登录跳转）
+
+#### 4. 按钮状态优化
+- **添加loading状态**：按钮显示"加入中..."文字和加载动画
+- **添加disabled状态**：加载时禁用按钮，防止重复提交
+
+### 功能特性
+- ✅ 完整的加入购物车流程
+- ✅ 商品库存检查，缺货时提示用户
+- ✅ 加载状态显示，提升用户体验
+- ✅ 自动更新购物车数量
+- ✅ 未登录时自动跳转到登录页面
+- ✅ 完善的错误处理和用户提示
+
+### 技术细节
+- 使用 `Record<number, boolean>` 类型记录每个商品的加载状态
+- 默认购买数量为1（收藏页面不支持选择数量）
+- 参考商品详情页面的实现逻辑，保持代码一致性
+- 使用购物车Store统一管理购物车数量
+
+### 影响
+- ✅ 用户可以在收藏页面直接加入购物车
+- ✅ 提升用户体验，操作更加便捷
+- ✅ 购物车数量实时更新
+- ✅ 与商品详情页面的加入购物车逻辑保持一致
+
+---
+
 <<<<<<< HEAD
+## 2025-12-14 - 会员首页订单统计功能对接后端
+
+### 功能说明
+将会员首页（`/member`）的订单相关模块功能与后端对接，实现订单统计数据的实时获取和按钮跳转功能。
+
+### 创建文件
+
+#### 后端
+1. `backend/src/main/java/com/shoppingmall/vo/OrderStatisticsVO.java` - 订单统计VO
+
+### 修改文件
+
+#### 后端
+1. `backend/src/main/java/com/shoppingmall/service/buyer/OrderService.java` - 添加订单统计方法接口
+2. `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java` - 实现订单统计方法
+3. `backend/src/main/java/com/shoppingmall/controller/buyer/OrderController.java` - 添加订单统计接口
+4. `backend/src/main/java/com/shoppingmall/controller/user/StockNotificationController.java` - 修复API路径和用户ID获取方式
+
+#### 前端
+1. `frontend/src/api/buyer/order.ts` - 添加获取订单统计的API方法
+2. `frontend/src/api/buyer/stock-notification.ts` - 修复API路径
+3. `frontend/src/views/member/Index.vue` - 对接订单统计API并实现按钮跳转
+
+### 具体修改
+
+#### 1. 后端实现
+
+##### 订单统计VO
+- **OrderStatisticsVO**：包含未付款订单数量、已发货订单数量、已作废订单数量
+
+##### 订单统计服务
+- **OrderService接口**：添加 `getOrderStatistics(Long userId)` 方法
+- **OrderServiceImpl实现**：
+  - 统计未付款订单（status = 0）
+  - 统计已发货订单（status = 2）
+  - 统计已作废订单（status = 4）
+
+##### 订单统计接口
+- **GET /api/buyer/orders/statistics**：获取当前用户的订单统计信息
+
+##### 修复缺货登记API路径
+- **StockNotificationController**：将路径从 `/api/user/stock-notification` 改为 `/api/buyer/stock-notification`
+- **获取用户ID方式**：从 `request.getAttribute("userId")` 获取（JWT拦截器已设置）
+
+#### 2. 前端实现
+
+##### API接口
+- **getOrderStatistics**：调用后端订单统计接口
+
+##### 会员首页
+- **数据获取**：页面加载时调用 `fetchOrderStatistics` 获取订单统计数据
+- **按钮跳转**：
+  - "付款"按钮：跳转到订单列表页面，筛选未付款订单（status=pending_payment）
+  - "查看"按钮（已发货）：跳转到订单列表页面，筛选已发货订单（status=shipped）
+  - "查看"按钮（已作废）：跳转到订单列表页面，筛选已作废订单（status=cancelled）
+
+##### 修复缺货登记API路径
+- 所有API调用路径从 `/api/user/` 改为 `/api/buyer/`
+
+### 功能特性
+- ✅ 订单统计数据实时从后端获取
+- ✅ 未付款订单数量统计
+- ✅ 已发货订单数量统计
+- ✅ 已作废订单数量统计
+- ✅ 按钮跳转到对应状态的订单列表
+- ✅ 修复缺货登记API的404错误
+
+### 技术细节
+- 使用 MyBatis-Plus 的 `selectCount` 方法统计订单数量
+- 根据订单状态（orderStatus）进行筛选统计
+- 前端使用 Vue Router 的 `query` 参数传递订单状态筛选条件
+- JWT拦截器自动设置userId到request attribute中
+
+### API接口
+
+#### GET /api/buyer/orders/statistics
+获取订单统计信息
+
+**响应数据：**
+```json
+{
+  "code": 200,
+  "message": "获取成功",
+  "data": {
+    "unpaidOrderCount": 5,
+    "shippedOrderCount": 12,
+    "cancelledOrderCount": 3
+  }
+}
+```
+
+### 影响
+- ✅ 会员首页订单统计数据实时更新
+- ✅ 提升用户体验，快速查看不同状态的订单
+- ✅ 修复缺货登记API的404错误
+- ✅ 统一API路径规范，使用 `/api/buyer/` 前缀
+
+---
+
 ## 2025-12-13 - 屏蔽评价商品按钮
 
 ### 功能说明

@@ -34,6 +34,7 @@ import com.shoppingmall.common.constant.PaymentStatus;
 import com.shoppingmall.common.util.EncryptUtil;
 import com.shoppingmall.vo.OrderDetailVO;
 import com.shoppingmall.vo.OrderListVO;
+import com.shoppingmall.vo.OrderStatisticsVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -347,6 +348,11 @@ public class OrderServiceImpl implements OrderService {
             }
         }
         
+        // 如果订单之前是已完成状态，需要扣减销量
+        if (OrderStatus.COMPLETED.equals(order.getOrderStatus())) {
+            updateProductSalesCount(order.getId(), false);
+        }
+        
         order.setOrderStatus(OrderStatus.CANCELLED);
         orderRepository.updateById(order);
         
@@ -373,6 +379,9 @@ public class OrderServiceImpl implements OrderService {
         order.setOrderStatus(OrderStatus.COMPLETED);
         order.setCompleteTime(LocalDateTime.now());
         orderRepository.updateById(order);
+        
+        // 增加商品销量（订单完成时）
+        updateProductSalesCount(order.getId(), true);
         
         log.info("确认收货成功: orderNo={}, userId={}", orderNo, userId);
     }
@@ -562,10 +571,10 @@ public class OrderServiceImpl implements OrderService {
             recipientInfo.setAddress("未知");
         }
         recipientInfo.setShippingMethod("包邮订单"); // TODO: 从订单或配送方式表获取
+        // 计算商品总重量（OrderItem.weight 是单个商品重量（克），需要乘以数量）
         recipientInfo.setWeight(items.stream()
-            .map(OrderItem::getWeight)
-            .reduce(BigDecimal.ZERO, BigDecimal::add)
-            .multiply(BigDecimal.valueOf(1000))); // 转换为克
+            .map(item -> item.getWeight().multiply(BigDecimal.valueOf(item.getQuantity())))
+            .reduce(BigDecimal.ZERO, BigDecimal::add)); // 总重量单位是克
         recipientInfo.setDeliveryTime(order.getDeliveryTime());
         recipientInfo.setPaymentMethod(order.getPaymentMethod() != null ? 
             getPaymentMethodText(order.getPaymentMethod()) : "未知");
@@ -804,6 +813,68 @@ public class OrderServiceImpl implements OrderService {
         }
         
         return response;
+    }
+
+    @Override
+    public OrderStatisticsVO getOrderStatistics(Long userId) {
+        OrderStatisticsVO statistics = new OrderStatisticsVO();
+
+        // 统计未付款订单数量（status = 0）
+        LambdaQueryWrapper<Order> unpaidWrapper = new LambdaQueryWrapper<>();
+        unpaidWrapper.eq(Order::getUserId, userId)
+                .eq(Order::getOrderStatus, OrderStatus.PENDING_PAYMENT);
+        Long unpaidCount = orderRepository.selectCount(unpaidWrapper);
+        statistics.setUnpaidOrderCount(unpaidCount);
+
+        // 统计已发货订单数量（status = 2）
+        LambdaQueryWrapper<Order> shippedWrapper = new LambdaQueryWrapper<>();
+        shippedWrapper.eq(Order::getUserId, userId)
+                .eq(Order::getOrderStatus, OrderStatus.SHIPPED);
+        Long shippedCount = orderRepository.selectCount(shippedWrapper);
+        statistics.setShippedOrderCount(shippedCount);
+
+        // 统计已作废订单数量（status = 4）
+        LambdaQueryWrapper<Order> cancelledWrapper = new LambdaQueryWrapper<>();
+        cancelledWrapper.eq(Order::getUserId, userId)
+                .eq(Order::getOrderStatus, OrderStatus.CANCELLED);
+        Long cancelledCount = orderRepository.selectCount(cancelledWrapper);
+        statistics.setCancelledOrderCount(cancelledCount);
+
+        return statistics;
+    }
+
+    /**
+     * 更新商品销量
+     * 
+     * @param orderId 订单ID
+     * @param increase true-增加销量，false-扣减销量
+     */
+    private void updateProductSalesCount(Long orderId, boolean increase) {
+        // 查询订单商品
+        LambdaQueryWrapper<OrderItem> itemWrapper = new LambdaQueryWrapper<>();
+        itemWrapper.eq(OrderItem::getOrderId, orderId);
+        List<OrderItem> orderItems = orderItemRepository.selectList(itemWrapper);
+        
+        for (OrderItem orderItem : orderItems) {
+            Product product = productRepository.selectById(orderItem.getProductId());
+            if (product != null) {
+                int currentSalesCount = product.getSalesCount() != null ? product.getSalesCount() : 0;
+                int quantity = orderItem.getQuantity() != null ? orderItem.getQuantity() : 0;
+                
+                if (increase) {
+                    // 增加销量
+                    product.setSalesCount(currentSalesCount + quantity);
+                } else {
+                    // 扣减销量（确保不为负数）
+                    int newSalesCount = currentSalesCount - quantity;
+                    product.setSalesCount(Math.max(0, newSalesCount));
+                }
+                
+                productRepository.updateById(product);
+                log.info("更新商品销量: productId={}, quantity={}, increase={}, newSalesCount={}", 
+                        orderItem.getProductId(), quantity, increase, product.getSalesCount());
+            }
+        }
     }
 }
 

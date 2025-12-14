@@ -10,9 +10,11 @@ import com.shoppingmall.common.exception.BusinessException;
 import com.shoppingmall.dto.PaymentRecordQueryDTO;
 import com.shoppingmall.dto.RefundRequestDTO;
 import com.shoppingmall.entity.*;
+import com.shoppingmall.repository.order.OrderItemRepository;
 import com.shoppingmall.repository.order.OrderRepository;
 import com.shoppingmall.repository.payment.PaymentRecordRepository;
 import com.shoppingmall.repository.permission.AdminUserRepository;
+import com.shoppingmall.repository.product.ProductRepository;
 import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.service.admin.FinanceService;
 import com.shoppingmall.service.buyer.DepositService;
@@ -47,6 +49,8 @@ public class FinanceServiceImpl implements FinanceService {
 
     private final PaymentRecordRepository paymentRecordRepository;
     private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
+    private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final AdminUserRepository adminUserRepository;
     private final DepositService depositService;
@@ -242,6 +246,11 @@ public class FinanceServiceImpl implements FinanceService {
             // 更新订单支付状态
             Order order = orderRepository.selectById(paymentRecord.getOrderId());
             if (order != null) {
+                // 如果订单之前是已完成状态，需要扣减销量
+                if (OrderStatus.COMPLETED.equals(order.getOrderStatus())) {
+                    updateProductSalesCount(order.getId(), false);
+                }
+                
                 order.setPaymentStatus(PaymentStatus.REFUNDED);
                 order.setOrderStatus(OrderStatus.REFUNDED);
                 orderRepository.updateById(order);
@@ -351,5 +360,39 @@ public class FinanceServiceImpl implements FinanceService {
     private Long getCurrentAdminId() {
         Long adminId = (Long) request.getAttribute("adminId");
         return adminId != null ? adminId : 0L;
+    }
+
+    /**
+     * 更新商品销量
+     * 
+     * @param orderId 订单ID
+     * @param increase true-增加销量，false-扣减销量
+     */
+    private void updateProductSalesCount(Long orderId, boolean increase) {
+        // 查询订单商品
+        LambdaQueryWrapper<OrderItem> itemWrapper = new LambdaQueryWrapper<>();
+        itemWrapper.eq(OrderItem::getOrderId, orderId);
+        List<OrderItem> orderItems = orderItemRepository.selectList(itemWrapper);
+        
+        for (OrderItem orderItem : orderItems) {
+            Product product = productRepository.selectById(orderItem.getProductId());
+            if (product != null) {
+                int currentSalesCount = product.getSalesCount() != null ? product.getSalesCount() : 0;
+                int quantity = orderItem.getQuantity() != null ? orderItem.getQuantity() : 0;
+                
+                if (increase) {
+                    // 增加销量
+                    product.setSalesCount(currentSalesCount + quantity);
+                } else {
+                    // 扣减销量（确保不为负数）
+                    int newSalesCount = currentSalesCount - quantity;
+                    product.setSalesCount(Math.max(0, newSalesCount));
+                }
+                
+                productRepository.updateById(product);
+                log.info("更新商品销量: productId={}, quantity={}, increase={}, newSalesCount={}", 
+                        orderItem.getProductId(), quantity, increase, product.getSalesCount());
+            }
+        }
     }
 }
