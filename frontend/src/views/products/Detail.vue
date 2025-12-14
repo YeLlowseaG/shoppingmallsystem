@@ -571,16 +571,26 @@ const loadProductSkuData = async (productId: number) => {
     
     productSpecKeys.value = specKeys
     productSkuList.value = skuList
-    
-    // 如果有SKU数据，设置默认选中第一个可用SKU的规格
+
+    // 如果有SKU数据，设置默认选中第一个SKU的规格（无论库存多少，都显示所有规格）
     if (skuList.length > 0 && specKeys.length > 0) {
-      const firstAvailableSku = skuList.find(sku => sku.status === 1 && sku.stock > 0)
-      if (firstAvailableSku) {
+      // 优先选择启用且有库存的SKU，如果没有则选择第一个启用的SKU
+      let firstSku = skuList.find(sku => sku.status === 1 && sku.stock > 0)
+      if (!firstSku) {
+        firstSku = skuList.find(sku => sku.status === 1)
+      }
+      // 如果连启用的都没有，就选第一个
+      if (!firstSku) {
+        firstSku = skuList[0]
+      }
+
+      if (firstSku) {
         try {
-          const specCombination = JSON.parse(firstAvailableSku.specCombination)
+          const specCombination = JSON.parse(firstSku.specCombination)
           defaultSpecs.value = specCombination
           selectedSpecs.value = { ...specCombination }
-          currentSku.value = firstAvailableSku
+          currentSku.value = firstSku
+          console.log('默认选中规格:', specCombination, 'SKU ID:', firstSku.id)
         } catch (error) {
           console.error('解析默认SKU规格失败:', error)
         }
