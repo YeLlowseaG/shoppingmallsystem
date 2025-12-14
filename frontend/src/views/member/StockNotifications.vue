@@ -1,15 +1,28 @@
 <template>
-  <div class="stock-notifications">
-    <!-- Header -->
-    <MemberHeaderBar />
-    
-    <!-- Main Content -->
-    <div class="container">
-      <!-- Sidebar -->
-      <MemberSidebar active-menu="favorites/out-of-stock" />
-      
-      <!-- Content Area -->
-      <div class="content-area">
+  <div class="member-page">
+    <!-- 顶部提示条 -->
+    <TopBar />
+
+    <!-- Logo + 搜索 + 联系方式 -->
+    <Header />
+
+    <!-- 主导航 + 全部分类 -->
+    <Navbar />
+
+    <!-- 会员中心内容区域 -->
+    <div class="member-content">
+      <div class="container">
+        <!-- 会员中心标题栏 -->
+        <MemberHeaderBar />
+
+        <!-- 会员中心主体 -->
+        <div class="member-main">
+          <!-- 左侧导航菜单 -->
+          <MemberSidebar active-menu="favorites/out-of-stock" />
+
+          <!-- 右侧主内容区 -->
+          <div class="member-main-content">
+            <div class="content-area">
         <div class="page-header">
           <h2>缺货登记</h2>
           <p class="page-desc">查看您的缺货登记记录，商品补货时我们会及时通知您</p>
@@ -108,8 +121,14 @@
             @current-change="handleCurrentChange"
           />
         </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+
+    <!-- 底部 -->
+    <Footer />
   </div>
 </template>
 
@@ -118,12 +137,16 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Loading, DocumentRemove } from '@element-plus/icons-vue'
+import TopBar from '@/components/home/TopBar.vue'
+import Header from '@/components/home/Header.vue'
+import Navbar from '@/components/home/Navbar.vue'
+import Footer from '@/components/home/Footer.vue'
 import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
 import MemberSidebar from '@/components/member/MemberSidebar.vue'
-import { 
-  getStockNotificationList, 
+import {
+  getStockNotificationList,
   cancelStockNotification,
-  type StockNotificationVO 
+  type StockNotificationVO
 } from '@/api/buyer/stock-notification'
 
 const router = useRouter()
@@ -238,260 +261,279 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-.stock-notifications {
-  background: #f5f5f5;
+.member-page {
   min-height: 100vh;
+  background: #f5f5f5;
+}
+
+.member-content {
+  background: #fff;
+  padding: 20px 0 40px;
+  min-height: 600px;
 
   .container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 0 15px;
+  }
+
+  // 会员中心主体
+  .member-main {
     display: flex;
     gap: 20px;
-  }
+    align-items: flex-start;
 
-  .content-area {
-    flex: 1;
-    background: #fff;
-    border-radius: 8px;
-    overflow: hidden;
-  }
+    // 右侧主内容区
+    .member-main-content {
+      flex: 1;
+      background: #fff;
+      min-height: 500px;
+      padding: 20px;
 
-  .page-header {
-    padding: 24px;
-    border-bottom: 1px solid #f0f0f0;
+      .content-area {
+        background: #fff;
 
-    h2 {
-      font-size: 20px;
-      color: #333;
-      margin: 0 0 8px 0;
-    }
+        .page-header {
+          padding: 24px;
+          border-bottom: 1px solid #f0f0f0;
 
-    .page-desc {
-      color: #666;
-      margin: 0;
-      font-size: 14px;
-    }
-  }
-
-  .loading-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 80px 20px;
-    color: #999;
-
-    .el-icon {
-      margin-bottom: 16px;
-    }
-  }
-
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 80px 20px;
-    color: #999;
-
-    .el-icon {
-      margin-bottom: 16px;
-      color: #ddd;
-    }
-
-    h3 {
-      margin: 0 0 12px 0;
-      color: #666;
-      font-size: 16px;
-    }
-
-    p {
-      margin: 0 0 24px 0;
-      font-size: 14px;
-      text-align: center;
-      line-height: 1.6;
-    }
-  }
-
-  .notifications-list {
-    padding: 0;
-
-    .notification-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 20px;
-      padding: 20px 24px;
-      border-bottom: 1px solid #f0f0f0;
-      transition: background-color 0.2s;
-
-      &:hover {
-        background-color: #fafafa;
-      }
-
-      &:last-child {
-        border-bottom: none;
-      }
-
-      .product-info {
-        display: flex;
-        align-items: flex-start;
-        gap: 12px;
-        flex: 0 0 280px;
-
-        .product-image {
-          width: 80px;
-          height: 80px;
-          object-fit: cover;
-          border: 1px solid #eee;
-          border-radius: 4px;
-          flex-shrink: 0;
-        }
-
-        .product-details {
-          flex: 1;
-
-          .product-name {
-            font-size: 14px;
+          h2 {
+            font-size: 20px;
             color: #333;
-            margin: 0 0 6px 0;
-            line-height: 1.4;
-            font-weight: 500;
-            display: -webkit-box;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 2;
-            overflow: hidden;
+            margin: 0 0 8px 0;
           }
 
-          .product-code {
-            font-size: 12px;
-            color: #999;
-            margin: 0 0 6px 0;
-          }
-
-          .product-price {
-            font-size: 16px;
-            color: #e4393c;
-            font-weight: bold;
+          .page-desc {
+            color: #666;
             margin: 0;
-          }
-        }
-      }
-
-      .notification-info {
-        flex: 1;
-        min-width: 0;
-
-        .info-row {
-          display: flex;
-          align-items: flex-start;
-          margin-bottom: 6px;
-          font-size: 13px;
-          line-height: 1.4;
-
-          &:last-child {
-            margin-bottom: 0;
-          }
-
-          .label {
-            color: #999;
-            flex: 0 0 80px;
-          }
-
-          .value {
-            color: #333;
-            word-break: break-all;
-            margin-right: 8px;
-          }
-        }
-      }
-
-      .notification-actions {
-        flex: 0 0 120px;
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 12px;
-
-        .status-tag {
-          padding: 4px 12px;
-          border-radius: 4px;
-          font-size: 12px;
-          font-weight: 500;
-
-          &.status-pending {
-            background: #e6f7ff;
-            color: #1890ff;
-            border: 1px solid #d0ebff;
-          }
-
-          &.status-notified {
-            background: #f6ffed;
-            color: #52c41a;
-            border: 1px solid #b7eb8f;
-          }
-
-          &.status-cancelled {
-            background: #fff2f0;
-            color: #ff4d4f;
-            border: 1px solid #ffccc7;
+            font-size: 14px;
           }
         }
 
-        .action-buttons {
+        .loading-container {
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          align-items: center;
+          justify-content: center;
+          padding: 80px 20px;
+          color: #999;
 
-          .el-button {
-            padding: 4px 12px;
-            height: auto;
-            line-height: 1.4;
-            min-width: 80px;
+          .el-icon {
+            margin-bottom: 16px;
           }
+        }
+
+        .empty-state {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 80px 20px;
+          color: #999;
+
+          .el-icon {
+            margin-bottom: 16px;
+            color: #ddd;
+          }
+
+          h3 {
+            margin: 0 0 12px 0;
+            color: #666;
+            font-size: 16px;
+          }
+
+          p {
+            margin: 0 0 24px 0;
+            font-size: 14px;
+            text-align: center;
+            line-height: 1.6;
+          }
+        }
+
+        .notifications-list {
+          padding: 0;
+
+          .notification-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            padding: 20px 24px;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background-color 0.2s;
+
+            &:hover {
+              background-color: #fafafa;
+            }
+
+            &:last-child {
+              border-bottom: none;
+            }
+
+            .product-info {
+              display: flex;
+              align-items: flex-start;
+              gap: 12px;
+              flex: 0 0 280px;
+
+              .product-image {
+                width: 80px;
+                height: 80px;
+                object-fit: cover;
+                border: 1px solid #eee;
+                border-radius: 4px;
+                flex-shrink: 0;
+              }
+
+              .product-details {
+                flex: 1;
+
+                .product-name {
+                  font-size: 14px;
+                  color: #333;
+                  margin: 0 0 6px 0;
+                  line-height: 1.4;
+                  font-weight: 500;
+                  display: -webkit-box;
+                  -webkit-box-orient: vertical;
+                  -webkit-line-clamp: 2;
+                  overflow: hidden;
+                }
+
+                .product-code {
+                  font-size: 12px;
+                  color: #999;
+                  margin: 0 0 6px 0;
+                }
+
+                .product-price {
+                  font-size: 16px;
+                  color: #e4393c;
+                  font-weight: bold;
+                  margin: 0;
+                }
+              }
+            }
+
+            .notification-info {
+              flex: 1;
+              min-width: 0;
+
+              .info-row {
+                display: flex;
+                align-items: flex-start;
+                margin-bottom: 6px;
+                font-size: 13px;
+                line-height: 1.4;
+
+                &:last-child {
+                  margin-bottom: 0;
+                }
+
+                .label {
+                  color: #999;
+                  flex: 0 0 80px;
+                }
+
+                .value {
+                  color: #333;
+                  word-break: break-all;
+                  margin-right: 8px;
+                }
+              }
+            }
+
+            .notification-actions {
+              flex: 0 0 120px;
+              display: flex;
+              flex-direction: column;
+              align-items: flex-end;
+              gap: 12px;
+
+              .status-tag {
+                padding: 4px 12px;
+                border-radius: 4px;
+                font-size: 12px;
+                font-weight: 500;
+
+                &.status-pending {
+                  background: #e6f7ff;
+                  color: #1890ff;
+                  border: 1px solid #d0ebff;
+                }
+
+                &.status-notified {
+                  background: #f6ffed;
+                  color: #52c41a;
+                  border: 1px solid #b7eb8f;
+                }
+
+                &.status-cancelled {
+                  background: #fff2f0;
+                  color: #ff4d4f;
+                  border: 1px solid #ffccc7;
+                }
+              }
+
+              .action-buttons {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+
+                .el-button {
+                  padding: 4px 12px;
+                  height: auto;
+                  line-height: 1.4;
+                  min-width: 80px;
+                }
+              }
+            }
+          }
+        }
+
+        .pagination-wrapper {
+          padding: 24px;
+          border-top: 1px solid #f0f0f0;
+          display: flex;
+          justify-content: center;
         }
       }
     }
-  }
-
-  .pagination-wrapper {
-    padding: 24px;
-    border-top: 1px solid #f0f0f0;
-    display: flex;
-    justify-content: center;
   }
 }
 
 // 响应式设计
 @media (max-width: 768px) {
-  .stock-notifications {
-    .container {
+  .member-content {
+    .member-main {
       flex-direction: column;
-      padding: 10px;
-    }
 
-    .notifications-list {
-      .notification-item {
-        flex-direction: column;
-        gap: 16px;
+      .member-main-content {
+        .content-area {
+          .notifications-list {
+            .notification-item {
+              flex-direction: column;
+              gap: 16px;
 
-        .product-info {
-          flex: 1;
-          width: 100%;
-        }
+              .product-info {
+                flex: 1;
+                width: 100%;
+              }
 
-        .notification-info {
-          width: 100%;
-        }
+              .notification-info {
+                width: 100%;
+              }
 
-        .notification-actions {
-          flex-direction: row;
-          justify-content: space-between;
-          align-items: center;
-          width: 100%;
+              .notification-actions {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+                width: 100%;
 
-          .action-buttons {
-            flex-direction: row;
+                .action-buttons {
+                  flex-direction: row;
+                }
+              }
+            }
           }
         }
       }
