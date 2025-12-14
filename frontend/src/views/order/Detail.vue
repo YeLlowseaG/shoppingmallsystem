@@ -352,10 +352,16 @@ const toggleOrderHistory = () => {
 
 // 我已付款
 const handleMarkAsPaid = () => {
+  // 确保订单号存在
+  const currentOrderNumber = orderNumber.value || route.query.orderNumber as string
+  if (!currentOrderNumber) {
+    ElMessage.warning('订单号不存在')
+    return
+  }
   router.push({
     path: '/order/message',
     query: {
-      orderNumber: orderNumber.value,
+      orderNumber: currentOrderNumber,
       type: 'paid'
     }
   })
@@ -363,10 +369,16 @@ const handleMarkAsPaid = () => {
 
 // 我有问题
 const handleHaveQuestion = () => {
+  // 确保订单号存在
+  const currentOrderNumber = orderNumber.value || route.query.orderNumber as string
+  if (!currentOrderNumber) {
+    ElMessage.warning('订单号不存在')
+    return
+  }
   router.push({
     path: '/order/message',
     query: {
-      orderNumber: orderNumber.value,
+      orderNumber: currentOrderNumber,
       type: 'question'
     }
   })

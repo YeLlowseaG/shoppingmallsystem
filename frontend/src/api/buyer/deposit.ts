@@ -35,6 +35,7 @@ export interface DepositRecordVO {
   availableBalance: number
   createTime: string
   remark: string
+  orderNo?: string
 }
 
 /**

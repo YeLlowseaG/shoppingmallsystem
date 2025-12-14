@@ -1,0 +1,26 @@
+-- 订单问题/消息表
+CREATE TABLE IF NOT EXISTS `order_message` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `order_no` VARCHAR(50) NOT NULL COMMENT '订单号',
+  `user_id` BIGINT NOT NULL COMMENT '用户ID',
+  `message_type` TINYINT NOT NULL COMMENT '消息类型：1-我已付款，2-我有问题',
+  `title` VARCHAR(200) DEFAULT NULL COMMENT '问题标题（我有问题时必填）',
+  `content` TEXT DEFAULT NULL COMMENT '问题内容（我有问题时必填）',
+  `payment_amount` DECIMAL(10,2) DEFAULT NULL COMMENT '付款金额（我已付款时必填）',
+  `payment_method` VARCHAR(100) DEFAULT NULL COMMENT '付款方式（我已付款时必填）',
+  `payment_date` DATE DEFAULT NULL COMMENT '付款日期（我已付款时必填）',
+  `payment_time` TIME DEFAULT NULL COMMENT '付款时间（我已付款时必填）',
+  `remarks` TEXT DEFAULT NULL COMMENT '备注',
+  `status` TINYINT NOT NULL DEFAULT 0 COMMENT '处理状态：0-待处理，1-处理中，2-已处理，3-已关闭',
+  `handler_id` BIGINT DEFAULT NULL COMMENT '处理人ID（管理员）',
+  `handler_name` VARCHAR(50) DEFAULT NULL COMMENT '处理人姓名',
+  `handle_time` DATETIME DEFAULT NULL COMMENT '处理时间',
+  `handle_remark` TEXT DEFAULT NULL COMMENT '处理备注',
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_order_no` (`order_no`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_status` (`status`),
+  KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单问题/消息表';

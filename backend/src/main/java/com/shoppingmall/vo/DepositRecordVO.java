@@ -63,6 +63,11 @@ public class DepositRecordVO {
      * 备注
      */
     private String remark;
+
+    /**
+     * 关联订单号
+     */
+    private String orderNo;
 }
 
 

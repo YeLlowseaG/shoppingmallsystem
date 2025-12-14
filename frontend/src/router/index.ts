@@ -194,6 +194,15 @@ const router = createRouter({
       }
     },
     {
+      path: '/member/site-messages/inbox',
+      name: 'member-inbox',
+      component: () => import('@/views/member/Inbox.vue'),
+      meta: {
+        title: '收件箱',
+        requiresAuth: true
+      }
+    },
+    {
       path: '/cart',
       name: 'cart',
       component: () => import('@/views/cart/Index.vue'),

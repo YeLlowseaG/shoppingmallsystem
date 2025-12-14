@@ -59,11 +59,12 @@
         <template #title>
           <span>站内消息({{ unreadCount }})</span>
         </template>
-        <el-menu-item index="site-messages/send">发送消息</el-menu-item>
         <el-menu-item index="site-messages/inbox">收件箱</el-menu-item>
-        <el-menu-item index="site-messages/drafts">草稿箱</el-menu-item>
-        <el-menu-item index="site-messages/outbox">发件箱</el-menu-item>
-        <el-menu-item index="site-messages/admin">给管理员发消息</el-menu-item>
+        <!-- 其他菜单已屏蔽 -->
+        <!-- <el-menu-item index="site-messages/send">发送消息</el-menu-item> -->
+        <!-- <el-menu-item index="site-messages/drafts">草稿箱</el-menu-item> -->
+        <!-- <el-menu-item index="site-messages/outbox">发件箱</el-menu-item> -->
+        <!-- <el-menu-item index="site-messages/admin">给管理员发消息</el-menu-item> -->
       </el-sub-menu>
     </el-menu>
   </div>
@@ -123,11 +124,7 @@ const handleMenuSelect = (index: string) => {
     'deposit/balance': '/member/deposit/balance',
     'deposit/recharge': '/member/deposit/recharge',
     'deposit/review': '/member',
-    'site-messages/send': '/member',
-    'site-messages/inbox': '/member',
-    'site-messages/drafts': '/member',
-    'site-messages/outbox': '/member',
-    'site-messages/admin': '/member'
+    'site-messages/inbox': '/member/site-messages/inbox'
   }
   
   const targetRoute = routeMap[index]

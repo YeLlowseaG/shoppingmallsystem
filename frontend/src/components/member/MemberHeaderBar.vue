@@ -8,17 +8,19 @@
       <span class="greeting-text">
         您好:{{ userStore.userInfo?.realName || userStore.userInfo?.username }}{{ userLevelText }}
       </span>
-      <el-button type="text" class="notification-btn">通知</el-button>
-      <span class="new-feature">NEW 新功能展示</span>
+      <el-button type="text" class="notification-btn" @click="handleNotificationClick">通知</el-button>
+      <!-- <span class="new-feature">NEW 新功能展示</span> -->
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { User } from '@element-plus/icons-vue'
 
+const router = useRouter()
 const userStore = useUserStore()
 
 const userLevelText = computed(() => {
@@ -28,6 +30,11 @@ const userLevelText = computed(() => {
   }
   return ''
 })
+
+// 点击通知按钮跳转到收件箱
+const handleNotificationClick = () => {
+  router.push('/member/site-messages/inbox')
+}
 </script>
 
 <style scoped lang="scss">

@@ -302,19 +302,28 @@ public class DepositServiceImpl implements DepositService {
                         .eq(PreDeposit::getUserId, userId)
         );
 
-        if (preDeposit == null || preDeposit.getAvailableBalance().compareTo(amount) < 0) {
-            throw new BusinessException("预存款余额不足");
+        if (preDeposit == null) {
+            throw new BusinessException("预存款账户不存在，请先充值");
+        }
+
+        // 处理余额为null的情况
+        BigDecimal currentBalance = preDeposit.getBalance() != null ? preDeposit.getBalance() : BigDecimal.ZERO;
+        BigDecimal currentAvailableBalance = preDeposit.getAvailableBalance() != null ? preDeposit.getAvailableBalance() : BigDecimal.ZERO;
+
+        // 检查余额是否充足
+        if (currentAvailableBalance.compareTo(amount) < 0) {
+            throw new BusinessException("预存款余额不足，当前余额：" + currentAvailableBalance + "，需要支付：" + amount);
         }
 
         // 更新预存款余额
-        BigDecimal newBalance = preDeposit.getBalance().subtract(amount);
-        BigDecimal newAvailableBalance = preDeposit.getAvailableBalance().subtract(amount);
+        BigDecimal newBalance = currentBalance.subtract(amount);
+        BigDecimal newAvailableBalance = currentAvailableBalance.subtract(amount);
 
         preDeposit.setBalance(newBalance);
         preDeposit.setAvailableBalance(newAvailableBalance);
         preDepositRepository.updateById(preDeposit);
 
-        // 创建支付记录
+        // 创建消费记录
         PreDepositDetail detail = new PreDepositDetail();
         detail.setUserId(userId);
         detail.setAmount(amount);
@@ -333,7 +342,7 @@ public class DepositServiceImpl implements DepositService {
 
         preDepositDetailRepository.insert(detail);
 
-        log.info("用户{}使用预存款支付订单，订单号：{}，金额：{}", userId, orderNo, amount);
+        log.info("用户{}使用预存款支付订单，订单号：{}，金额：{}，扣减后余额：{}", userId, orderNo, amount, newAvailableBalance);
     }
 
     @Override
@@ -400,6 +409,7 @@ public class DepositServiceImpl implements DepositService {
         vo.setAvailableBalance(detail.getAvailableBalance() != null ? detail.getAvailableBalance() : BigDecimal.ZERO);
         vo.setCreateTime(detail.getCreateTime());
         vo.setRemark(detail.getRemark());
+        vo.setOrderNo(detail.getOrderNo());
         return vo;
     }
 }

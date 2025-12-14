@@ -1,3 +1,509 @@
+## 2025-12-14 - 优化会员中心首页消息功能
+
+### 功能说明
+优化会员中心首页（`/member`）的消息相关功能，包括：
+1. "您的未读消息"点击查看按钮跳转到收件箱页面
+2. 屏蔽"NEW 新功能展示"文案
+3. 点击"通知"按钮跳转到收件箱页面
+4. 添加获取未读消息数量的功能
+
+### 修改文件
+
+#### 前端
+1. `frontend/src/views/member/Index.vue` - 添加查看收件箱跳转功能和获取未读消息数量
+2. `frontend/src/components/member/MemberHeaderBar.vue` - 屏蔽"NEW 新功能展示"文案，添加通知按钮跳转功能
+
+### 具体修改
+
+#### 1. 会员中心首页（Index.vue）
+- **添加查看收件箱函数**：实现 `handleViewInbox` 函数，跳转到 `/member/site-messages/inbox`
+- **添加点击事件**：为"查看"按钮添加 `@click="handleViewInbox"` 事件
+- **添加获取未读消息数量**：
+  - 导入 `getUnreadCount` API
+  - 实现 `fetchUnreadMessageCount` 函数获取未读消息数量
+  - 在 `onMounted` 中调用获取未读消息数量
+
+#### 2. 会员中心头部栏（MemberHeaderBar.vue）
+- **屏蔽"NEW 新功能展示"文案**：使用注释方式屏蔽该文案显示
+- **添加通知按钮跳转功能**：
+  - 导入 `useRouter`
+  - 实现 `handleNotificationClick` 函数，跳转到 `/member/site-messages/inbox`
+  - 为"通知"按钮添加 `@click="handleNotificationClick"` 事件
+
+### 功能特性
+- ✅ "您的未读消息"点击查看按钮可跳转到收件箱页面
+- ✅ "NEW 新功能展示"文案已屏蔽，不再显示
+- ✅ 点击"通知"按钮可跳转到收件箱页面
+- ✅ 会员中心首页自动获取并显示未读消息数量
+
+### 技术细节
+- 使用 Vue Router 的 `router.push` 进行页面跳转
+- 使用 `getUnreadCount` API 获取未读消息数量
+- 错误处理：401 错误（未登录）时静默失败，不显示错误提示
+
+### 影响
+- ✅ 提升用户体验，用户可以快速访问收件箱
+- ✅ 界面更加简洁，移除了不需要的"NEW 新功能展示"文案
+- ✅ 未读消息数量实时显示，用户可以及时了解消息状态
+
+---
+
+## 2025-12-14 - 修复MessageServiceImpl中lambda表达式变量引用错误
+
+### 功能说明
+修复 `MessageServiceImpl.java` 文件中 lambda 表达式引用的本地变量必须是最终变量或实际上的最终变量的编译错误。
+
+### 修改文件
+
+#### 后端
+1. `backend/src/main/java/com/shoppingmall/service/buyer/impl/MessageServiceImpl.java` - 修复 senderNameMap 变量声明，使其成为 effectively final
+
+### 具体修改
+
+#### 问题分析
+- **编译错误**：从lambda 表达式引用的本地变量必须是最终变量或实际上的最终变量
+- **错误原因**：`senderNameMap` 变量先被初始化为 `Map.of()`，然后在 if 块中被重新赋值，导致它不是 effectively final 的，无法在 lambda 表达式中使用
+
+#### 修复方案
+- **声明为 final**：将 `senderNameMap` 声明为 `final` 变量
+- **使用 if-else 结构**：在 if-else 块中分别赋值，确保变量只被赋值一次，成为 effectively final
+
+### 功能特性
+- ✅ 修复了编译错误，项目可以正常编译
+- ✅ lambda 表达式可以正常使用 senderNameMap 变量
+
+### 技术细节
+- Java lambda 表达式中引用的局部变量必须是 final 或 effectively final 的
+- 使用 `final` 关键字声明变量，并在 if-else 块中分别赋值，确保变量只被赋值一次
+
+### 影响
+- ✅ 修复了编译错误，项目可以正常启动
+- ✅ lambda 表达式可以正常访问 senderNameMap 变量
+
+---
+
+## 2025-12-14 - 修复MessageServiceImpl中UserRepository导入错误
+
+### 功能说明
+修复 `MessageServiceImpl.java` 文件中 `UserRepository` 的导入路径错误，将导入路径从 `com.shoppingmall.repository.UserRepository` 修正为 `com.shoppingmall.repository.user.UserRepository`。
+
+### 修改文件
+
+#### 后端
+1. `backend/src/main/java/com/shoppingmall/service/buyer/impl/MessageServiceImpl.java` - 修复 UserRepository 导入路径
+
+### 具体修改
+
+#### 问题分析
+- **编译错误**：`UserRepository` 类找不到符号
+- **错误原因**：导入路径错误，`UserRepository` 实际位于 `com.shoppingmall.repository.user` 包中，而不是 `com.shoppingmall.repository` 包中
+
+#### 修复方案
+- **修正导入语句**：将 `import com.shoppingmall.repository.UserRepository;` 改为 `import com.shoppingmall.repository.user.UserRepository;`
+
+### 功能特性
+- ✅ 修复了编译错误，项目可以正常编译
+- ✅ 导入路径正确，可以正常使用 UserRepository
+
+### 技术细节
+- `UserRepository` 位于 `com.shoppingmall.repository.user` 包中
+- 使用 MyBatis-Plus 的 BaseMapper 接口
+
+### 影响
+- ✅ 修复了编译错误，项目可以正常启动
+- ✅ MessageServiceImpl 可以正常使用 UserRepository 查询用户信息
+
+---
+
+## 2025-12-14 - 实现站内消息收件箱功能
+
+### 功能说明
+实现会员中心站内消息模块的收件箱功能，用户可以查看接收到的站内消息通知信息，包括系统消息、订单消息等。
+
+### 修改文件
+
+#### 前端
+1. `frontend/src/components/member/MemberSidebar.vue` - 修改侧边栏，只保留收件箱菜单，屏蔽其他菜单
+2. `frontend/src/router/index.ts` - 添加收件箱路由配置
+
+#### 创建文件
+
+##### 前端
+1. `frontend/src/views/member/Inbox.vue` - 收件箱页面组件
+2. `frontend/src/api/buyer/message.ts` - 站内消息API接口
+
+##### 后端
+1. `backend/src/main/java/com/shoppingmall/entity/Message.java` - 站内消息实体类
+2. `backend/src/main/java/com/shoppingmall/repository/MessageRepository.java` - 站内消息Repository
+3. `backend/src/main/java/com/shoppingmall/vo/MessageVO.java` - 站内消息VO
+4. `backend/src/main/java/com/shoppingmall/vo/MessagePageVO.java` - 消息分页响应VO
+5. `backend/src/main/java/com/shoppingmall/dto/MessageQueryDTO.java` - 消息查询DTO
+6. `backend/src/main/java/com/shoppingmall/service/buyer/MessageService.java` - 站内消息服务接口
+7. `backend/src/main/java/com/shoppingmall/service/buyer/impl/MessageServiceImpl.java` - 站内消息服务实现
+8. `backend/src/main/java/com/shoppingmall/controller/buyer/MessageController.java` - 站内消息控制器
+
+### 具体修改
+
+#### 1. 侧边栏菜单优化
+- **屏蔽其他菜单**：只保留"收件箱"菜单项，屏蔽"发送消息"、"草稿箱"、"发件箱"、"给管理员发消息"等菜单
+- **路由映射**：更新路由映射，收件箱跳转到 `/member/site-messages/inbox`
+- **自动激活**：添加路由自动判断逻辑，当访问收件箱页面时自动激活对应菜单
+
+#### 2. 收件箱页面设计
+- **页面布局**：参考预存款余额页面布局，使用会员中心标准布局
+- **消息列表**：
+  - 显示消息标题、内容、时间
+  - 区分已读/未读消息（未读消息高亮显示）
+  - 显示消息类型标签（系统消息、订单消息等）
+  - 支持点击消息查看详情或跳转到关联订单
+- **操作功能**：
+  - 全部标记为已读
+  - 刷新消息列表
+  - 分页显示
+- **消息类型**：
+  - 普通消息（0）
+  - 系统消息（1）- 显示蓝色标签
+  - 订单消息（2）- 显示绿色标签，可跳转到订单详情
+  - 其他（3）
+
+#### 3. 后端API接口
+- **获取收件箱消息列表**：`GET /api/buyer/messages/inbox`
+  - 支持分页查询
+  - 支持按消息类型筛选
+  - 支持按已读状态筛选
+  - 返回未读消息数量
+- **标记消息为已读**：`PUT /api/buyer/messages/{id}/read`
+- **全部标记为已读**：`PUT /api/buyer/messages/read-all`
+- **删除消息**：`DELETE /api/buyer/messages/{id}`
+- **获取未读消息数量**：`GET /api/buyer/messages/unread-count`
+
+#### 4. 数据模型
+- **Message实体**：对应数据库 `message` 表
+  - 支持逻辑删除
+  - 包含发送人ID、接收人ID、标题、内容、消息类型、已读状态、订单号等字段
+- **消息类型**：使用 `MessageType` 常量类
+  - NORMAL = 0（普通消息）
+  - SYSTEM = 1（系统消息）
+  - ORDER = 2（订单消息）
+  - OTHER = 3（其他）
+
+### 功能特性
+- ✅ 收件箱页面，显示站内消息列表
+- ✅ 区分已读/未读消息，未读消息高亮显示
+- ✅ 消息类型标签显示（系统消息、订单消息等）
+- ✅ 支持点击消息查看详情
+- ✅ 订单消息支持跳转到订单详情页面
+- ✅ 全部标记为已读功能
+- ✅ 分页显示消息列表
+- ✅ 显示未读消息数量
+- ✅ 响应式设计，支持多设备访问
+
+### 技术细节
+- 使用 Element Plus 组件库构建UI
+- 使用 MyBatis-Plus 进行数据库操作
+- 支持逻辑删除，不会真正删除数据
+- 消息按创建时间倒序排列
+- 自动获取发送人姓名（如果存在）
+- 权限验证：只能查看自己的消息
+
+### 影响
+- ✅ 用户可以方便地查看站内消息通知
+- ✅ 提升用户体验，及时了解系统通知和订单消息
+- ✅ 简化了站内消息模块，只保留核心的收件箱功能
+- ✅ 为后续扩展消息功能打下基础
+
+---
+
+## 2025-12-14 - 修复订单详情页面跳转问题
+
+### 功能说明
+修复订单详情页面（`/order/detail`）中"我已付款"和"我有问题"按钮无法正确跳转到订单问题填写页面的问题。
+
+### 修改文件
+
+#### 前端
+1. `frontend/src/views/order/Detail.vue` - 修复按钮跳转逻辑，确保订单号正确传递
+2. `frontend/src/views/order/OrderMessage.vue` - 增强参数验证和错误处理
+
+### 具体修改
+
+#### 1. 订单详情页面跳转逻辑优化
+
+##### handleMarkAsPaid 函数
+- **添加订单号验证**：在跳转前检查订单号是否存在
+- **备用方案**：如果 `orderNumber.value` 为空，从 `route.query.orderNumber` 获取
+- **错误提示**：如果订单号不存在，显示警告并阻止跳转
+
+##### handleHaveQuestion 函数
+- **添加订单号验证**：同上，确保订单号存在
+- **备用方案**：从路由参数中获取订单号
+- **错误提示**：如果订单号不存在，显示警告并阻止跳转
+
+#### 2. 订单问题页面参数处理优化
+
+##### onMounted 函数
+- **参数验证**：检查订单号是否存在，如果不存在则跳转回订单列表
+- **类型验证**：验证消息类型是否为 'paid' 或 'question'
+- **默认值处理**：如果没有指定类型，默认使用 'question'
+- **错误处理**：订单号缺失时显示错误提示并跳转
+
+### 问题原因
+- 订单详情页面在加载时，`orderNumber.value` 可能还没有被正确设置
+- 跳转时只使用了 `orderNumber.value`，没有备用方案
+- 订单问题页面缺少参数验证，可能导致页面显示异常
+
+### 功能特性
+- ✅ 按钮跳转时确保订单号正确传递
+- ✅ 支持从多个来源获取订单号（响应式变量或路由参数）
+- ✅ 参数验证完善，避免页面异常
+- ✅ 错误提示友好，引导用户正确操作
+
+### 技术细节
+- 使用 `orderNumber.value || route.query.orderNumber` 确保订单号获取
+- 在跳转前验证订单号是否存在
+- 在目标页面验证必要参数，缺失时自动跳转
+
+### 影响
+- ✅ 修复了"我已付款"按钮无法跳转的问题
+- ✅ 修复了"我有问题"按钮无法跳转的问题
+- ✅ 提升了用户体验，避免页面异常
+- ✅ 增强了代码的健壮性
+
+---
+
+## 2025-12-14 - 实现订单问题管理功能
+
+### 功能说明
+实现完整的订单问题管理功能，包括用户端订单问题提交和管理端订单问题查询、处理功能。
+
+### 创建文件
+
+#### 数据库
+1. `database/update-20251214-create-order-message-table.sql` - 创建订单问题表
+2. `database/update-20251214-add-order-message-menu.sql` - 添加订单问题菜单和权限
+
+#### 后端
+1. `backend/src/main/java/com/shoppingmall/entity/OrderMessage.java` - 订单问题实体类
+2. `backend/src/main/java/com/shoppingmall/dto/OrderMessageDTO.java` - 订单问题提交DTO
+3. `backend/src/main/java/com/shoppingmall/dto/OrderMessageQueryDTO.java` - 订单问题查询DTO
+4. `backend/src/main/java/com/shoppingmall/dto/OrderMessageHandleDTO.java` - 订单问题处理DTO
+5. `backend/src/main/java/com/shoppingmall/vo/OrderMessageVO.java` - 订单问题VO
+6. `backend/src/main/java/com/shoppingmall/repository/order/OrderMessageRepository.java` - 订单问题Repository
+7. `backend/src/main/java/com/shoppingmall/service/buyer/OrderMessageService.java` - 用户端订单问题服务接口
+8. `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderMessageServiceImpl.java` - 用户端订单问题服务实现
+9. `backend/src/main/java/com/shoppingmall/service/admin/OrderMessageService.java` - 管理端订单问题服务接口
+10. `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderMessageServiceImpl.java` - 管理端订单问题服务实现
+11. `backend/src/main/java/com/shoppingmall/controller/buyer/OrderMessageController.java` - 用户端订单问题控制器
+12. `backend/src/main/java/com/shoppingmall/controller/admin/OrderMessageController.java` - 管理端订单问题控制器
+
+#### 前端
+1. `frontend/src/api/buyer/order-message.ts` - 用户端订单问题API
+2. `admin-frontend/src/api/admin/orderMessage.ts` - 管理端订单问题API
+3. `admin-frontend/src/views/order/OrderMessage.vue` - 管理端订单问题列表页面
+
+### 修改文件
+
+#### 前端
+1. `frontend/src/views/order/OrderMessage.vue` - 对接后端API，实现订单问题提交
+2. `admin-frontend/src/router/componentMaps/order.ts` - 添加订单问题页面组件映射
+
+### 功能特性
+
+#### 1. 用户端功能
+- **提交订单问题**：支持两种类型的问题提交
+  - **我已付款**：提交付款金额、付款方式、付款时间等信息
+  - **我有问题**：提交问题标题和内容
+- **数据验证**：完整的表单验证，确保必填字段已填写
+- **订单验证**：验证订单是否存在且属于当前用户
+
+#### 2. 管理端功能
+- **订单问题列表**：分页查询订单问题，支持多条件筛选
+  - 按订单号搜索
+  - 按问题类型筛选（我已付款/我有问题）
+  - 按处理状态筛选（待处理/处理中/已处理/已关闭）
+  - 按日期范围筛选
+- **问题详情查看**：查看订单问题的完整信息
+- **问题处理**：管理员可以处理订单问题
+  - 设置处理状态（处理中/已处理/已关闭）
+  - 添加处理备注
+  - 记录处理人和处理时间
+
+### 数据库设计
+
+#### order_message 表结构
+- `id` - 主键ID
+- `order_no` - 订单号
+- `user_id` - 用户ID
+- `message_type` - 消息类型（1-我已付款，2-我有问题）
+- `title` - 问题标题（我有问题时必填）
+- `content` - 问题内容（我有问题时必填）
+- `payment_amount` - 付款金额（我已付款时必填）
+- `payment_method` - 付款方式（我已付款时必填）
+- `payment_date` - 付款日期（我已付款时必填）
+- `payment_time` - 付款时间（我已付款时必填）
+- `remarks` - 备注
+- `status` - 处理状态（0-待处理，1-处理中，2-已处理，3-已关闭）
+- `handler_id` - 处理人ID（管理员）
+- `handler_name` - 处理人姓名
+- `handle_time` - 处理时间
+- `handle_remark` - 处理备注
+- `create_time` - 创建时间
+- `update_time` - 更新时间
+
+### API接口
+
+#### 用户端
+- **POST /api/buyer/order-messages** - 创建订单问题/消息
+
+#### 管理端
+- **GET /api/admin/order-messages/page** - 分页查询订单问题列表
+- **GET /api/admin/order-messages/{id}** - 获取订单问题详情
+- **PUT /api/admin/order-messages/handle** - 处理订单问题
+
+### 技术细节
+- 使用 MyBatis-Plus 进行数据访问
+- 前后端分离架构，RESTful API 设计
+- 完整的表单验证和错误处理
+- 支持分页查询和多条件筛选
+- 状态管理：待处理 -> 处理中 -> 已处理/已关闭
+
+### 菜单配置
+已创建菜单和权限脚本：`database/update-20251214-add-order-message-menu.sql`
+
+**菜单信息：**
+- 菜单ID: 55
+- 父菜单：订单管理 (parent_id=3)
+- 菜单名称：订单问题
+- 菜单路径：message（完整路径：/admin/order/message）
+- 组件路径：order/OrderMessage
+- 菜单类型：二级菜单 (menu_type=1)
+- 权限标识：admin:order:message:list
+- 排序号：2（在订单列表之后）
+- 图标：ChatLineRound
+
+**权限分配：**
+- 超级管理员 (role_id=1)：自动分配
+- 运营人员 (role_id=2)：自动分配（如果存在）
+- 客服人员 (role_id=5)：自动分配（如果存在）
+
+**执行脚本：**
+```sql
+-- 执行菜单和权限脚本
+source database/update-20251214-add-order-message-menu.sql;
+```
+
+### 影响
+- ✅ 用户可以通过订单详情页提交订单问题
+- ✅ 管理员可以查看和处理所有订单问题
+- ✅ 完善了订单问题处理流程
+- ✅ 提升了客户服务质量
+
+---
+
+## 2025-12-13 - 修复预存款余额列表订单号跳转问题
+
+### 功能说明
+修复预存款余额列表页面（`/member/deposit/balance`）中，当事件类型为"预存款支付"时，点击事件无法跳转到订单详情页面的问题。之前提示"无法获取订单号"。
+
+### 修改文件
+
+#### 后端
+1. `backend/src/main/java/com/shoppingmall/vo/DepositRecordVO.java` - 添加 orderNo 字段
+2. `backend/src/main/java/com/shoppingmall/service/buyer/impl/DepositServiceImpl.java` - 在转换方法中赋值 orderNo
+
+#### 前端
+1. `frontend/src/api/buyer/deposit.ts` - 在 DepositRecordVO 接口中添加 orderNo 字段
+2. `frontend/src/views/member/DepositBalance.vue` - 修复订单号提取逻辑，优先使用 orderNo 字段
+
+### 具体修改
+
+#### 问题分析
+- **缺少订单号字段**：后端的 `DepositRecordVO` 没有包含 `orderNo` 字段，导致前端无法直接获取订单号
+- **正则表达式不匹配**：前端的正则表达式 `/订单号\((\d+)\)/` 匹配的是圆括号格式，但后端备注使用的是花括号格式 `订单号{xxx}`
+- **数据获取方式不当**：前端只能从备注中提取订单号，但备注格式可能变化，不够可靠
+
+#### 修复方案
+
+##### 1. 后端添加订单号字段
+- **DepositRecordVO**：添加 `orderNo` 字段，用于直接返回订单号
+- **转换方法**：在 `convertToRecordVO` 方法中，将 `PreDepositDetail` 的 `orderNo` 赋值给 VO
+
+##### 2. 前端优化订单号获取逻辑
+- **优先使用 orderNo 字段**：如果记录中有 `orderNo` 字段，直接使用
+- **备用方案**：如果没有 `orderNo` 字段，则从备注中提取（支持花括号和圆括号两种格式）
+- **正则表达式优化**：修改为 `/订单号[{(](\d+)[})]/`，同时支持 `订单号{xxx}` 和 `订单号(xxx)` 两种格式
+
+### 功能特性
+- ✅ 预存款支付事件点击可直接跳转到订单详情页面
+- ✅ 预存款退款事件点击可直接跳转到订单详情页面
+- ✅ 优先使用 orderNo 字段，更可靠
+- ✅ 支持从备注中提取订单号作为备用方案
+- ✅ 兼容花括号和圆括号两种备注格式
+
+### 技术细节
+- 后端 VO 添加 `orderNo` 字段，类型为 `String`
+- 前端接口类型定义添加 `orderNo?: string`（可选字段）
+- 正则表达式：`/订单号[{(](\d+)[})]/` 匹配 `订单号{xxx}` 或 `订单号(xxx)` 格式
+- 跳转路径：`/order/detail?orderNumber=xxx`
+
+### 影响
+- ✅ 修复了预存款余额列表页面无法跳转到订单详情的问题
+- ✅ 提升了用户体验，用户可以方便地查看相关订单
+- ✅ 增强了代码的健壮性，支持多种数据格式
+
+---
+
+## 2025-12-13 - 修复预存款支付余额扣减和消费记录生成问题
+
+### 功能说明
+修复订单通过预存款支付成功后，没有生成消费类型的预存款交易记录和没有扣减预存款余额的问题。
+
+### 修改文件
+
+#### 后端
+1. `backend/src/main/java/com/shoppingmall/service/buyer/impl/DepositServiceImpl.java` - 修复 depositPayment 方法
+
+### 具体修改
+
+#### 问题分析
+- **NullPointerException风险**：如果预存款账户的余额字段（balance 或 availableBalance）为 null，直接调用 `compareTo` 或 `subtract` 方法会抛出 NullPointerException
+- **异常处理不完善**：原代码在检查余额时，如果账户不存在或余额为null，会抛出异常，但没有区分具体情况
+
+#### 修复方案
+
+##### 1. 处理余额为null的情况
+- **分离账户检查和余额检查**：先检查账户是否存在，再检查余额
+- **使用默认值**：如果余额为null，使用 `BigDecimal.ZERO` 作为默认值
+- **安全计算**：在计算新余额前，先获取当前余额（处理null值）
+
+##### 2. 完善异常信息
+- **账户不存在**：明确提示"预存款账户不存在，请先充值"
+- **余额不足**：显示当前余额和需要支付的金额，便于用户了解情况
+
+##### 3. 增强日志
+- **记录扣减后余额**：在日志中记录扣减后的余额，便于排查问题
+
+### 功能特性
+- ✅ 正确处理余额为null的情况，避免NullPointerException
+- ✅ 预存款支付成功后正确扣减余额
+- ✅ 预存款支付成功后正确创建消费类型的交易记录
+- ✅ 完善的异常提示，提升用户体验
+- ✅ 增强的日志记录，便于问题排查
+
+### 技术细节
+- 使用三元运算符处理null值：`preDeposit.getBalance() != null ? preDeposit.getBalance() : BigDecimal.ZERO`
+- 分离账户检查和余额检查，避免在检查余额时抛出NullPointerException
+- 使用事务保证余额扣减和记录创建的一致性
+- 消费记录类型：`DepositType.CONSUME`（值为2）
+
+### 影响
+- ✅ 修复了预存款支付时可能出现的NullPointerException
+- ✅ 确保预存款支付成功后正确扣减余额
+- ✅ 确保预存款支付成功后正确创建消费记录
+- ✅ 提升系统稳定性和用户体验
+
+---
+
 ## 2025-12-13 - 修复商品销量统计逻辑
 
 ### 功能说明

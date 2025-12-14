@@ -356,11 +356,11 @@ const isClickableEvent = (event: string): boolean => {
   return event === '预存款支付' || event === '预存款退款'
 }
 
-// 从备注中提取订单号
+// 从备注中提取订单号（备用方案）
 const extractOrderNumber = (remark: string): string | null => {
   if (!remark) return null
-  // 匹配格式：订单号(20231127161917) 或 订单号(20231127161917)
-  const match = remark.match(/订单号\((\d+)\)/)
+  // 匹配格式：订单号{20231127161917} 或 订单号(20231127161917)
+  const match = remark.match(/订单号[{(](\d+)[})]/)
   return match ? match[1] : null
 }
 
@@ -368,7 +368,12 @@ const extractOrderNumber = (remark: string): string | null => {
 const handleEventClick = (record: DepositRecordVO) => {
   if (!isClickableEvent(record.event)) return
   
-  const orderNumber = extractOrderNumber(record.remark)
+  // 优先使用 orderNo 字段，如果没有则从备注中提取
+  let orderNumber = record.orderNo
+  if (!orderNumber && record.remark) {
+    orderNumber = extractOrderNumber(record.remark)
+  }
+  
   if (!orderNumber) {
     ElMessage.warning('无法获取订单号')
     return

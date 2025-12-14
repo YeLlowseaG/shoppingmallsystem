@@ -222,6 +222,7 @@ import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
 import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
 import MemberSidebar from '@/components/member/MemberSidebar.vue'
+import { createOrderMessage } from '@/api/buyer/order-message'
 
 const router = useRouter()
 const route = useRoute()
@@ -332,17 +333,22 @@ const handleSubmit = async () => {
       }
     }
 
-    // TODO: 调用API提交订单消息
-    console.log('提交订单消息:', submitData)
-    ElMessage.success('提交成功')
-    
-    // 提交成功后返回订单详情页
-    setTimeout(() => {
-      router.push({
-        path: '/order/detail',
-        query: { orderNumber: orderNumber.value }
-      })
-    }, 1500)
+    // 调用API提交订单消息
+    try {
+      await createOrderMessage(submitData)
+      ElMessage.success('提交成功')
+      
+      // 提交成功后返回订单详情页
+      setTimeout(() => {
+        router.push({
+          path: '/order/detail',
+          query: { orderNumber: orderNumber.value }
+        })
+      }, 1500)
+    } catch (error: any) {
+      console.error('提交订单消息失败:', error)
+      ElMessage.error(error?.response?.data?.message || '提交失败，请重试')
+    }
   } catch (error) {
     console.error('表单验证失败:', error)
     ElMessage.warning('请完整填写必填项')
@@ -369,12 +375,22 @@ const handleCancel = () => {
 // 初始化
 onMounted(() => {
   // 从路由参数获取订单编号和消息类型
-  if (route.query.orderNumber) {
-    orderNumber.value = route.query.orderNumber as string
+  const orderNo = route.query.orderNumber as string
+  const msgType = route.query.type as string
+  
+  if (!orderNo) {
+    ElMessage.error('订单号不能为空')
+    router.push('/member/transaction/orders')
+    return
   }
   
-  if (route.query.type) {
-    messageType.value = route.query.type as 'paid' | 'question'
+  orderNumber.value = orderNo
+  
+  if (msgType && (msgType === 'paid' || msgType === 'question')) {
+    messageType.value = msgType as 'paid' | 'question'
+  } else {
+    // 如果没有指定类型，默认使用 question
+    messageType.value = 'question'
   }
 
   // 如果是"我已付款"，设置默认付款时间为当前时间
