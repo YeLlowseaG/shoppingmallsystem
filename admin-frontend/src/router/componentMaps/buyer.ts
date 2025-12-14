@@ -4,4 +4,3 @@ export const buyerComponentMap = {
   'buyer/Audit': () => import('@/views/buyer/Audit.vue'),
   'buyer/Level': () => import('@/views/buyer/Level.vue'),
 }
-

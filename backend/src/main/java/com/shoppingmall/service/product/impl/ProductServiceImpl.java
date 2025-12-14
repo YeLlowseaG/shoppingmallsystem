@@ -15,6 +15,8 @@ import com.shoppingmall.repository.product.ProductRepository;
 import com.shoppingmall.repository.product.ProductStockRepository;
 import com.shoppingmall.repository.website.BrandRepository;
 import com.shoppingmall.service.product.ProductService;
+import com.shoppingmall.service.user.StockNotificationService;
+import com.shoppingmall.service.admin.StockService;
 import com.shoppingmall.vo.ProductVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +43,8 @@ public class ProductServiceImpl implements ProductService {
     private final BrandRepository brandRepository;
     private final ProductStockRepository productStockRepository;
     private final ObjectMapper objectMapper;
+    private final StockNotificationService stockNotificationService;
+    private final StockService stockService;
 
     @Override
     public Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String brand, String status, String sortBy) {
@@ -87,21 +91,31 @@ public class ProductServiceImpl implements ProductService {
                 case "price_desc":
                     wrapper.orderByDesc(Product::getBasePrice);
                     break;
-                case "sales":
+                case "stock_asc":
+                    wrapper.orderByAsc(Product::getStock);
+                    break;
+                case "stock_desc":
+                    wrapper.orderByDesc(Product::getStock);
+                    break;
+                case "sales_asc":
+                    wrapper.orderByAsc(Product::getSalesCount);
+                    break;
+                case "sales_desc":
                     wrapper.orderByDesc(Product::getSalesCount);
                     break;
-                case "newest":
+                case "create_time_asc":
+                    wrapper.orderByAsc(Product::getCreateTime);
+                    break;
+                case "create_time_desc":
                     wrapper.orderByDesc(Product::getCreateTime);
                     break;
                 case "default":
                 default:
-                    // 默认综合排序：销量降序
-                    wrapper.orderByDesc(Product::getSalesCount);
+                    wrapper.orderByDesc(Product::getCreateTime);
                     break;
             }
         } else {
-            // 默认按销量降序
-            wrapper.orderByDesc(Product::getSalesCount);
+            wrapper.orderByDesc(Product::getCreateTime);
         }
 
         Page<Product> productPage = productRepository.selectPage(page, wrapper);
@@ -158,9 +172,14 @@ public class ProductServiceImpl implements ProductService {
 
         productRepository.insert(product);
         
-        // 如果指定了库存，创建或更新 product_stock 记录
-        if (product.getStock() != null && product.getStock() > 0) {
-            createOrUpdateProductStock(product.getId(), product.getStock());
+        // 如果指定了库存，使用StockService统一管理
+        if (product.getStock() != null && product.getStock() >= 0) {
+            try {
+                stockService.updateProductTotalStock(product.getId(), product.getStock());
+            } catch (Exception e) {
+                log.error("创建商品{}库存记录失败", product.getId(), e);
+                // 创建商品时库存记录失败不影响主流程，只记录日志
+            }
         }
         
         log.info("创建商品成功: {}", product.getProductName());
@@ -189,6 +208,10 @@ public class ProductServiceImpl implements ProductService {
             throw new BusinessException(400, "商品分类不存在");
         }
 
+        // 检查库存变化，用于缺货通知
+        Integer oldStock = product.getStock();
+        boolean wasOutOfStock = (oldStock == null || oldStock <= 0);
+
         BeanUtils.copyProperties(productDTO, product, "id", "salesCount", "status");
 
         // 状态映射：上架=1，下架=0
@@ -196,9 +219,26 @@ public class ProductServiceImpl implements ProductService {
 
         productRepository.updateById(product);
         
-        // 如果更新了库存，同步更新 product_stock 记录
+        // 如果更新了库存，使用StockService统一管理
         if (productDTO.getStock() != null) {
-            createOrUpdateProductStock(product.getId(), productDTO.getStock());
+            try {
+                stockService.updateProductTotalStock(product.getId(), productDTO.getStock());
+                
+                // 检查是否从缺货状态变为有库存状态，如果是则发送通知
+                boolean isNowInStock = productDTO.getStock() > 0;
+                if (wasOutOfStock && isNowInStock) {
+                    try {
+                        stockNotificationService.notifyUsers(product.getId());
+                        log.info("商品{}补货通知已发送", product.getId());
+                    } catch (Exception e) {
+                        log.error("发送商品{}补货通知失败", product.getId(), e);
+                        // 不影响商品更新的主流程
+                    }
+                }
+            } catch (Exception e) {
+                log.error("更新商品{}库存失败", product.getId(), e);
+                throw new BusinessException(500, "更新商品库存失败");
+            }
         }
         
         log.info("更新商品成功: {}", product.getProductName());
@@ -298,67 +338,5 @@ public class ProductServiceImpl implements ProductService {
         return vo;
     }
 
-    /**
-     * 创建或更新 product_stock 记录
-     * 以 product.stock 为数据源，同步到 product_stock.total_stock
-     * 预警阈值：创建时如果 product.warning_stock 存在则使用，否则使用默认值10
-     * 创建后以 product_stock.warning_threshold 为准，同步回 product.warning_stock
-     * 
-     * @param productId 商品ID
-     * @param totalStock 总库存
-     */
-    private void createOrUpdateProductStock(Long productId, Integer totalStock) {
-        try {
-            LambdaQueryWrapper<ProductStock> wrapper = new LambdaQueryWrapper<>();
-            wrapper.eq(ProductStock::getProductId, productId);
-            ProductStock stock = productStockRepository.selectOne(wrapper);
-            
-            if (stock == null) {
-                // 创建新记录
-                // 查询商品信息，获取 warning_stock 作为初始值
-                Product product = productRepository.selectById(productId);
-                Integer initialWarningThreshold = (product != null && product.getWarningStock() != null) 
-                    ? product.getWarningStock() : 10;
-                
-                stock = new ProductStock();
-                stock.setProductId(productId);
-                stock.setTotalStock(totalStock);
-                stock.setAvailableStock(totalStock);
-                stock.setLockedStock(0);
-                stock.setWarningThreshold(initialWarningThreshold);
-                productStockRepository.insert(stock);
-                
-                // 同步预警阈值回 product 表（以 product_stock 为准）
-                if (product != null) {
-                    product.setWarningStock(initialWarningThreshold);
-                    productRepository.updateById(product);
-                }
-                
-                log.debug("创建库存记录成功，商品ID: {}, 库存: {}, 预警阈值: {}", 
-                    productId, totalStock, initialWarningThreshold);
-            } else {
-                // 更新现有记录
-                int oldTotalStock = stock.getTotalStock() != null ? stock.getTotalStock() : 0;
-                int adjustQuantity = totalStock - oldTotalStock;
-                
-                stock.setTotalStock(totalStock);
-                // 可用库存 = 总库存 - 锁定库存
-                int lockedStock = stock.getLockedStock() != null ? stock.getLockedStock() : 0;
-                stock.setAvailableStock(totalStock - lockedStock);
-                productStockRepository.updateById(stock);
-                
-                // 同步预警阈值回 product 表（以 product_stock 为准）
-                Product product = productRepository.selectById(productId);
-                if (product != null && stock.getWarningThreshold() != null) {
-                    product.setWarningStock(stock.getWarningThreshold());
-                    productRepository.updateById(product);
-                }
-                
-                log.debug("更新库存记录成功，商品ID: {}, 库存: {} (调整: {})", productId, totalStock, adjustQuantity);
-            }
-        } catch (Exception e) {
-            log.error("同步库存记录失败，商品ID: {}, 库存: {}", productId, totalStock, e);
-            // 不抛出异常，避免影响主业务流程
-        }
-    }
+    // 已删除原createOrUpdateProductStock方法，统一使用StockService.updateProductTotalStock
 }

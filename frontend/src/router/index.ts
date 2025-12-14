@@ -149,6 +149,15 @@ const router = createRouter({
       }
     },
     {
+      path: '/member/favorites/out-of-stock',
+      name: 'member-stock-notifications',
+      component: () => import('@/views/member/StockNotifications.vue'),
+      meta: {
+        title: '缺货登记',
+        requiresAuth: true
+      }
+    },
+    {
       path: '/member/deposit/recharge',
       name: 'member-deposit-recharge',
       component: () => import('@/views/member/DepositRecharge.vue'),
@@ -163,6 +172,24 @@ const router = createRouter({
       component: () => import('@/views/member/DepositBalance.vue'),
       meta: {
         title: '我的预存款',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/member/reviews',
+      name: 'member-reviews',
+      component: () => import('@/views/member/Reviews.vue'),
+      meta: {
+        title: '我的评论',
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/member/consultations',
+      name: 'member-consultations',
+      component: () => import('@/views/member/Consultations.vue'),
+      meta: {
+        title: '我的咨询',
         requiresAuth: true
       }
     },

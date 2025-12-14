@@ -5,8 +5,17 @@ export const systemComponentMap: Record<string, () => Promise<any>> = {
   // 导航菜单管理
   'system/NavigationMenu': () => import('@/views/system/NavigationMenu.vue'),
   
-  // 预留其他系统模块组件  
-  // 'system/Payment': () => import('@/views/system/Payment.vue'), 
-  // 'system/Logistics': () => import('@/views/system/Logistics.vue'),
-  // 'system/Notification': () => import('@/views/system/Notification.vue'),
+  // 系统配置组件  
+  'system/Payment': () => import('@/views/system/Payment.vue'), 
+  'system/Notification': () => import('@/views/system/Notification.vue'),
+  
+  // 营销管理组件
+  'marketing/Promotion': () => import('@/views/marketing/Promotion.vue'),
+  'marketing/Price': () => import('@/views/marketing/Price.vue'),
+  
+  // 统计分析组件
+  'statistics/Sales': () => import('@/views/statistics/Sales.vue'),
+  'statistics/Order': () => import('@/views/statistics/Order.vue'),
+  'statistics/Product': () => import('@/views/statistics/Product.vue'),
+  'statistics/Buyer': () => import('@/views/statistics/Buyer.vue'),
 }

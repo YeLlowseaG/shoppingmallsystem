@@ -154,13 +154,17 @@ const handleLogout = () => {
   router.push('/admin/login')
 }
 
+// 标记是否已添加路由，避免重复添加
+let routesAdded = false
+
 // 监听菜单数据变化，确保路由正确添加
 watch(
   () => adminStore.menus,
   (newMenus) => {
-    if (newMenus && newMenus.length > 0) {
+    if (newMenus && newMenus.length > 0 && !routesAdded) {
       console.log('菜单数据变化，添加动态路由，数量:', newMenus.length)
       addRoutes(newMenus)
+      routesAdded = true
     }
   },
   { immediate: true, deep: true }
@@ -171,13 +175,11 @@ onMounted(() => {
   
   // 使用 nextTick 确保 store 初始化完成后再检查菜单数据
   nextTick(() => {
-    // 如果菜单数据已存在（从 localStorage 恢复），需要调用 addRoutes 添加动态路由
+    // 如果菜单数据已存在（从 localStorage 恢复），watch 会自动处理路由添加
     if (adminStore.menus && adminStore.menus.length > 0) {
       console.log('onMounted: 从 localStorage 恢复菜单数据，数量:', adminStore.menus.length)
-      addRoutes(adminStore.menus)
     } else if (adminStore.isLoggedIn()) {
       console.log('onMounted: 菜单数据为空，尝试从服务器获取')
-      // 如果菜单数据不存在，尝试从服务器获取（虽然 getAdminInfo 不返回菜单，但保留此逻辑以防万一）
       loadAdminInfo()
     } else {
       console.log('onMounted: 用户未登录或菜单数据为空')

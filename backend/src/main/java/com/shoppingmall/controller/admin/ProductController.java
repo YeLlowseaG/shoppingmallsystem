@@ -32,8 +32,10 @@ public class ProductController {
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String brand,
-            @RequestParam(required = false) String status) {
-        Page<ProductVO> page = productService.getProductPage(current, size, categoryId, keyword, brand, status, "default");
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "create_time_desc") String sortBy) {
+        
+        Page<ProductVO> page = productService.getProductPage(current, size, categoryId, keyword, brand, status, sortBy);
         return Result.success("获取成功", page);
     }
 

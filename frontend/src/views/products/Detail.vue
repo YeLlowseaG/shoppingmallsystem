@@ -132,19 +132,46 @@
 
           <!-- 操作按钮 -->
           <div class="action-buttons">
-            <el-button type="danger" size="large" class="buy-now-btn" @click="buyNow">
-              立即购买
-            </el-button>
-            <el-button 
-              size="large" 
-              class="add-cart-btn" 
-              :loading="addingToCart"
-              :disabled="addingToCart"
-              @click="addToCart"
-            >
-              <el-icon v-if="!addingToCart"><ShoppingCart /></el-icon>
-              {{ addingToCart ? '加入中...' : '加入购物车' }}
-            </el-button>
+            <!-- 有库存时显示正常按钮 -->
+            <template v-if="!isOutOfStock()">
+              <el-button type="danger" size="large" class="buy-now-btn" @click="buyNow">
+                立即购买
+              </el-button>
+              <el-button 
+                size="large" 
+                class="add-cart-btn" 
+                :loading="addingToCart"
+                :disabled="addingToCart"
+                @click="addToCart"
+              >
+                <el-icon v-if="!addingToCart"><ShoppingCart /></el-icon>
+                {{ addingToCart ? '加入中...' : '加入购物车' }}
+              </el-button>
+            </template>
+            
+            <!-- 缺货时显示缺货登记按钮 -->
+            <template v-else>
+              <el-button 
+                v-if="!hasRegisteredStock"
+                type="warning" 
+                size="large" 
+                class="stock-register-btn-full"
+                :loading="registeringStock"
+                @click="showStockRegisterDialog"
+              >
+                <el-icon><Bell /></el-icon>
+                缺货登记
+              </el-button>
+              <el-button 
+                v-else
+                size="large" 
+                class="registered-btn-full"
+                disabled
+              >
+                <el-icon><Check /></el-icon>
+                已登记缺货通知
+              </el-button>
+            </template>
           </div>
 
           <!-- 收藏 -->
@@ -261,6 +288,80 @@
       </div>
     </div>
 
+    <!-- 缺货登记对话框 -->
+    <el-dialog
+      v-model="stockRegisterDialogVisible"
+      title="缺货登记"
+      width="500px"
+      center
+    >
+      <div class="stock-register-dialog">
+        <div class="dialog-tips">
+          <el-icon><InfoFilled /></el-icon>
+          <span>商品补货后我们将第一时间通知您</span>
+        </div>
+        
+        <el-form 
+          ref="stockRegisterFormRef"
+          :model="stockRegisterForm" 
+          :rules="stockRegisterRules"
+          label-width="100px"
+        >
+          <el-form-item label="商品信息：">
+            <div class="product-info-mini">
+              <img :src="product.images[0]" alt="" class="mini-image" />
+              <div class="mini-details">
+                <div class="mini-name">{{ product.name }}</div>
+                <div class="mini-price">¥{{ parseFloat(product.price).toFixed(2) }}</div>
+              </div>
+            </div>
+          </el-form-item>
+          
+          <el-form-item label="联系电话：" prop="contactPhone">
+            <el-input 
+              v-model="stockRegisterForm.contactPhone" 
+              placeholder="请输入您的手机号码"
+            />
+          </el-form-item>
+          
+          <el-form-item label="联系邮箱：" prop="contactEmail">
+            <el-input 
+              v-model="stockRegisterForm.contactEmail" 
+              placeholder="请输入您的邮箱地址（可选）"
+            />
+          </el-form-item>
+          
+          <el-form-item label="通知方式：">
+            <el-radio-group v-model="stockRegisterForm.notifyType">
+              <el-radio value="email">邮箱通知</el-radio>
+              <el-radio value="sms">短信通知</el-radio>
+              <el-radio value="both">邮箱+短信</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          
+          <el-form-item label="备注说明：">
+            <el-input
+              v-model="stockRegisterForm.remark"
+              type="textarea"
+              :rows="3"
+              placeholder="您可以留下一些备注信息（可选）"
+            />
+          </el-form-item>
+        </el-form>
+      </div>
+      
+      <template #footer>
+        <el-button @click="stockRegisterDialogVisible = false">取消</el-button>
+        <el-button 
+          type="primary" 
+          :loading="registeringStock"
+          @click="submitStockRegister"
+        >
+          确认登记
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 底部 -->
     <Footer />
   </div>
@@ -274,7 +375,11 @@ import {
   Warning,
   ShoppingCart,
   Star,
-  Loading
+  Loading,
+  Bell,
+  Check,
+  Close,
+  InfoFilled
 } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import TopBar from '@/components/home/TopBar.vue'
@@ -286,6 +391,7 @@ import { addToCart as addToCartAPI, type AddCartDTO } from '@/api/buyer/cart'
 import { submitConsultation as submitConsultationAPI, type ConsultationDTO } from '@/api/buyer/consultation'
 import { addFavorite, removeFavorite, checkFavorite } from '@/api/buyer/favorite'
 import { getSkusByProductId, getSpecKeysByProductId, type ProductSkuVO, type ProductSpecKeyVO } from '@/api/buyer/sku'
+import { createStockNotification, checkStockNotificationRegistered, type StockNotificationDTO } from '@/api/buyer/stock-notification'
 import { useCartStore } from '@/stores/cart'
 import SpecSelector from '@/components/product/SpecSelector.vue'
 
@@ -355,6 +461,31 @@ const reviewForm = ref({
   captcha: ''
 })
 
+// 缺货登记相关状态
+const stockRegisterDialogVisible = ref(false)
+const registeringStock = ref(false)
+const hasRegisteredStock = ref(false)
+
+// 缺货登记表单
+const stockRegisterFormRef = ref<FormInstance>()
+const stockRegisterForm = ref({
+  contactPhone: '',
+  contactEmail: '',
+  notifyType: 'email',
+  remark: ''
+})
+
+// 缺货登记表单验证规则
+const stockRegisterRules: FormRules = {
+  contactPhone: [
+    { required: true, message: '请输入联系电话', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码', trigger: 'blur' }
+  ],
+  contactEmail: [
+    { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
+  ]
+}
+
 // 模拟商品数据
 const product = ref({
   id: 0,
@@ -367,6 +498,7 @@ const product = ref({
   unit: '盒',
   marketPrice: 0,
   price: 0,
+  stock: 0,  // 添加库存字段
   specs: ['标准'],
   promoText: '',
   images: [] as string[],
@@ -398,6 +530,7 @@ const loadProductDetail = async (productId: number) => {
       unit: '盒',
       marketPrice: productData.basePrice * 1.5, // 原价设为基础价的1.5倍
       price: productData.basePrice,
+      stock: productData.stock || 0, // 添加库存字段映射
       specs: ['标准'],
       promoText: '',
       images: productData.imageList.length > 0 ? productData.imageList : [productData.mainImage],
@@ -512,8 +645,9 @@ onMounted(async () => {
   const productId = route.params.id
   if (productId) {
     await loadProductDetail(Number(productId))
-    // 加载商品后检查收藏状态
+    // 加载商品后检查收藏状态和缺货登记状态
     await checkFavoriteStatus()
+    await checkStockRegisterStatus()
   } else {
     ElMessage.error('商品ID不存在')
     router.push('/')
@@ -691,6 +825,85 @@ const toggleFavorite = async () => {
   } finally {
     favoritLoading.value = false
   }
+}
+
+// 判断商品是否缺货
+const isOutOfStock = () => {
+  if (currentSku.value) {
+    return currentSku.value.stock <= 0
+  }
+  // 没有SKU时检查商品基础库存
+  const baseStock = product.value.stock
+  return baseStock <= 0
+}
+
+// 检查缺货登记状态
+const checkStockRegisterStatus = async () => {
+  if (!product.value.id) return
+  try {
+    hasRegisteredStock.value = await checkStockNotificationRegistered(product.value.id)
+  } catch (error: any) {
+    console.error('检查缺货登记状态失败:', error)
+    // 如果是网络错误或服务未启动，默认为未登记状态，不影响页面使用
+    hasRegisteredStock.value = false
+    
+    // 只有在开发环境下才显示错误提示
+    if (import.meta.env.DEV) {
+      console.warn('缺货登记功能可能需要后端服务支持，当前将忽略此功能')
+    }
+  }
+}
+
+// 显示缺货登记对话框
+const showStockRegisterDialog = () => {
+  stockRegisterDialogVisible.value = true
+}
+
+// 提交缺货登记
+const submitStockRegister = async () => {
+  if (!stockRegisterFormRef.value) return
+
+  await stockRegisterFormRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    if (!product.value.id) {
+      ElMessage.error('商品信息不存在')
+      return
+    }
+
+    try {
+      registeringStock.value = true
+
+      const registerData: StockNotificationDTO = {
+        productId: product.value.id,
+        contactPhone: stockRegisterForm.value.contactPhone,
+        contactEmail: stockRegisterForm.value.contactEmail || undefined,
+        notifyType: stockRegisterForm.value.notifyType,
+        remark: stockRegisterForm.value.remark || undefined
+      }
+
+      await createStockNotification(registerData)
+      
+      ElMessage.success('缺货登记成功！商品补货时我们会及时通知您')
+      stockRegisterDialogVisible.value = false
+      hasRegisteredStock.value = true
+      
+      // 重置表单
+      stockRegisterForm.value = {
+        contactPhone: '',
+        contactEmail: '',
+        notifyType: 'email',
+        remark: ''
+      }
+      stockRegisterFormRef.value?.resetFields()
+      
+    } catch (error: any) {
+      console.error('缺货登记失败:', error)
+      ElMessage.error(error.response?.data?.message || '登记失败，请重试')
+    } finally {
+      registeringStock.value = false
+    }
+  })
 }
 </script>
 
@@ -1001,6 +1214,47 @@ const toggleFavorite = async () => {
           border-color: #3367d6;
         }
       }
+
+      .stock-register-btn {
+        flex: 1;
+        height: 50px;
+        font-size: 16px;
+        font-weight: bold;
+      }
+
+      .stock-register-btn-full {
+        width: 100%;
+        height: 50px;
+        font-size: 16px;
+        font-weight: bold;
+      }
+
+      .registered-btn {
+        flex: 1;
+        height: 50px;
+        font-size: 16px;
+        color: #52c41a;
+        border-color: #52c41a;
+        cursor: not-allowed;
+      }
+
+      .registered-btn-full {
+        width: 100%;
+        height: 50px;
+        font-size: 16px;
+        color: #52c41a;
+        border-color: #52c41a;
+        cursor: not-allowed;
+      }
+
+      .out-of-stock-btn {
+        flex: 1;
+        height: 50px;
+        font-size: 16px;
+        color: #999;
+        border-color: #d9d9d9;
+        cursor: not-allowed;
+      }
     }
 
     .favorite-link {
@@ -1056,6 +1310,53 @@ const toggleFavorite = async () => {
         margin-left: 10px;
         color: #999;
         font-size: 12px;
+      }
+    }
+  }
+
+  // 缺货登记对话框样式
+  .stock-register-dialog {
+    .dialog-tips {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #f0f9ff;
+      border: 1px solid #d0ebff;
+      padding: 12px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+      color: #1890ff;
+      font-size: 14px;
+    }
+
+    .product-info-mini {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+
+      .mini-image {
+        width: 60px;
+        height: 60px;
+        object-fit: cover;
+        border: 1px solid #eee;
+        border-radius: 4px;
+      }
+
+      .mini-details {
+        flex: 1;
+
+        .mini-name {
+          font-size: 14px;
+          color: #333;
+          margin-bottom: 4px;
+          font-weight: 500;
+        }
+
+        .mini-price {
+          font-size: 16px;
+          color: #e4393c;
+          font-weight: bold;
+        }
       }
     }
   }

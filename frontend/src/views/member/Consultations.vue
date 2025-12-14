@@ -18,7 +18,7 @@
         <!-- 会员中心主体 -->
         <div class="member-main">
           <!-- 左侧导航菜单 -->
-          <MemberSidebar active-menu="information/consultations" :unread-message-count="unreadMessageCount" />
+          <MemberSidebar active-menu="messages/consultations" :unread-message-count="unreadMessageCount" />
 
           <!-- 右侧主内容区 -->
           <div class="member-main-content">

@@ -41,4 +41,3 @@ export const componentMap: Record<string, () => Promise<any>> = {
   // - statistics/Sales, statistics/Order, statistics/Product, statistics/Buyer
   // - system/Basic, system/Payment, system/Logistics, system/Notification
 }
-
