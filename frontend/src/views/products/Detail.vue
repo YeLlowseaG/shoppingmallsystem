@@ -501,7 +501,6 @@ const product = ref({
   marketPrice: 0,
   price: 0,
   stock: 0,  // 添加库存字段
-  specs: ['标准'],
   promoText: '',
   images: [] as string[],
   detailHtml: ''
@@ -533,7 +532,6 @@ const loadProductDetail = async (productId: number) => {
       marketPrice: productData.marketPrice || productData.basePrice * 1.5,
       price: productData.salePrice || productData.basePrice,
       stock: productData.stock || 0, // 添加库存字段映射
-      specs: ['标准'],
       promoText: '',
       images: productData.imageList.length > 0 ? productData.imageList : [productData.mainImage],
       detailHtml: `
