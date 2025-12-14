@@ -49,9 +49,9 @@
                         <div class="product-details">
                           <h4 class="product-name">{{ consultation.productName }}</h4>
                           <div class="consultation-meta">
-                            <span class="consultation-time">{{ formatTime(consultation.createdTime) }}</span>
-                            <el-tag 
-                              :type="getStatusTagType(consultation.status)" 
+                            <span class="consultation-time">{{ formatTime(consultation.createTime) }}</span>
+                            <el-tag
+                              :type="getStatusTagType(consultation.status)"
                               size="small"
                             >
                               {{ consultation.statusText }}

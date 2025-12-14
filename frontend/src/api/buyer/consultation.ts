@@ -30,8 +30,8 @@ export interface ConsultationVO {
   replyTime?: string
   replyAdminId?: number
   replyAdminName?: string
-  createdTime: string
-  updatedTime: string
+  createTime: string
+  updateTime: string
 }
 
 /**
