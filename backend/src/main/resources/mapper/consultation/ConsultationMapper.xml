@@ -4,7 +4,7 @@
 
     <!-- 分页查询咨询记录（管理端） -->
     <select id="selectPageWithProduct" resultType="com.shoppingmall.entity.Consultation">
-        SELECT 
+        SELECT
             c.id,
             c.product_id,
             c.user_id,
@@ -14,9 +14,10 @@
             c.consultation_content,
             c.reply_content,
             c.status,
-            c.created_time as create_time,
-            c.updated_time as update_time,
-            p.product_name
+            c.reply_time,
+            c.reply_admin_id,
+            c.created_time,
+            c.updated_time
         FROM consultation c
         LEFT JOIN product p ON c.product_id = p.id
         WHERE 1=1
@@ -34,7 +35,7 @@
 
     <!-- 分页查询用户的咨询记录 -->
     <select id="selectUserConsultations" resultType="com.shoppingmall.entity.Consultation">
-        SELECT 
+        SELECT
             c.id,
             c.product_id,
             c.user_id,
@@ -44,9 +45,10 @@
             c.consultation_content,
             c.reply_content,
             c.status,
-            c.created_time as create_time,
-            c.updated_time as update_time,
-            p.product_name
+            c.reply_time,
+            c.reply_admin_id,
+            c.created_time,
+            c.updated_time
         FROM consultation c
         LEFT JOIN product p ON c.product_id = p.id
         WHERE c.user_id = #{userId}
