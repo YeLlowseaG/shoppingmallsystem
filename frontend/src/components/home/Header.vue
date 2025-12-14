@@ -2,9 +2,9 @@
   <div class="header">
     <div class="container">
       <!-- Logo -->
-      <div class="logo">
+      <div class="logo" v-if="siteConfig.logo">
         <router-link to="/">
-          <img :src="siteConfig.logo" :alt="siteConfig.name" />
+          <img :src="siteConfig.logo" alt="" />
         </router-link>
       </div>
 
@@ -22,7 +22,7 @@
             </el-button>
           </template>
         </el-input>
-        <div class="hot-keywords">
+        <div class="hot-keywords" v-if="hotKeywords.length > 0">
           <span
             v-for="keyword in hotKeywords"
             :key="keyword"
@@ -36,15 +36,15 @@
 
       <!-- 联系方式 -->
       <div class="contact">
-        <div class="phone">
+        <div class="phone" v-if="siteConfig.servicePhone">
           <div class="label">服务热线：</div>
           <div class="number">{{ siteConfig.servicePhone }}</div>
         </div>
-        <div class="phone">
+        <div class="phone" v-if="siteConfig.consultPhone">
           <div class="label">咨询热线：</div>
           <div class="number">{{ siteConfig.consultPhone }}</div>
         </div>
-        <div class="qrcode">
+        <div class="qrcode" v-if="siteConfig.qrcode">
           <img :src="siteConfig.qrcode" alt="二维码" />
         </div>
       </div>
@@ -60,17 +60,17 @@ import { getPublicConfigs } from '@/api/buyer/systemConfig'
 const router = useRouter()
 const searchKeyword = ref('')
 
-// 网站配置
+// 网站配置 - 从后台读取，不设置默认值
 const siteConfig = reactive({
-  logo: 'https://via.placeholder.com/150x60/E4393C/ffffff?text=JINGVO',
-  name: 'JINGVO 净果',
-  servicePhone: '400-166-1683',
-  consultPhone: '13049338552',
-  qrcode: 'https://via.placeholder.com/60x60/666666/ffffff?text=QR'
+  logo: '',
+  name: '',
+  servicePhone: '',
+  consultPhone: '',
+  qrcode: ''
 })
 
-// 热门关键词
-const hotKeywords = ref<string[]>(['飞机杯', '跳蛋名器', '情趣跳蛋', '情趣内衣', '安全套', '延时喷雾'])
+// 热门关键词 - 从后台读取，不设置默认值
+const hotKeywords = ref<string[]>([])
 
 // 加载系统配置
 const loadSiteConfig = async () => {
@@ -90,7 +90,6 @@ const loadSiteConfig = async () => {
     }
   } catch (error) {
     console.error('加载系统配置失败:', error)
-    // 保持默认配置
   }
 }
 
@@ -135,6 +134,11 @@ onMounted(() => {
     img {
       height: 60px;
       width: auto;
+      // 隐藏图片加载失败时显示的alt文本
+      font-size: 0;
+      line-height: 0;
+      text-indent: -9999px;
+      overflow: hidden;
     }
   }
 
