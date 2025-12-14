@@ -54,15 +54,25 @@
         </div>
       </div>
       <div class="actions">
-        <el-button type="danger" @click.stop="addToCart">加入购物车</el-button>
+        <el-button 
+          type="danger" 
+          :loading="addingToCart"
+          :disabled="addingToCart"
+          @click.stop="addToCart"
+        >
+          {{ addingToCart ? '加入中...' : '加入购物车' }}
+        </el-button>
       </div>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { addToCart as addToCartAPI, type AddCartDTO } from '@/api/buyer/cart'
+import { useCartStore } from '@/stores/cart'
 
 interface Product {
   id: number
@@ -75,6 +85,8 @@ interface Product {
   sales?: number
   tags?: string
   rating?: number | string
+  stock?: number
+  status?: number
 }
 
 interface Props {
@@ -87,6 +99,9 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const router = useRouter()
+const cartStore = useCartStore()
+
+const addingToCart = ref(false)
 
 // 格式化销量
 const formatSales = (sales?: number) => {
@@ -105,9 +120,57 @@ const goToDetail = () => {
 }
 
 // 加入购物车
-const addToCart = () => {
-  // TODO: 调用购物车 API
-  ElMessage.success('已加入购物车')
+const addToCart = async (e?: Event) => {
+  // 阻止事件冒泡，避免触发跳转到详情页
+  if (e) {
+    e.stopPropagation()
+  }
+
+  if (addingToCart.value) return
+
+  try {
+    // 检查商品ID
+    if (!props.product.id) {
+      ElMessage.error('商品信息不存在')
+      return
+    }
+
+    // 检查商品状态（如果商品已下架）
+    if (props.product.status !== undefined && props.product.status !== 1) {
+      ElMessage.warning('商品已下架，无法添加到购物车')
+      return
+    }
+
+    // 检查库存（如果有库存信息且库存为0）
+    if (props.product.stock !== undefined && props.product.stock <= 0) {
+      ElMessage.warning('商品库存不足，无法添加到购物车')
+      return
+    }
+
+    addingToCart.value = true
+
+    const cartData: AddCartDTO = {
+      productId: props.product.id,
+      quantity: 1
+    }
+
+    await addToCartAPI(cartData)
+
+    // 更新购物车数量
+    await cartStore.updateCartCount()
+
+    ElMessage.success('已成功加入购物车！')
+  } catch (error: any) {
+    console.error('加入购物车失败:', error)
+    if (error.response?.status === 401) {
+      ElMessage.error('请先登录')
+      router.push('/login')
+    } else {
+      ElMessage.error(error.response?.data?.message || '加入购物车失败，请重试')
+    }
+  } finally {
+    addingToCart.value = false
+  }
 }
 </script>
 

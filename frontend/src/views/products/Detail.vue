@@ -393,11 +393,13 @@ import { addFavorite, removeFavorite, checkFavorite } from '@/api/buyer/favorite
 import { getSkusByProductId, getSpecKeysByProductId, type ProductSkuVO, type ProductSpecKeyVO } from '@/api/buyer/sku'
 import { createStockNotification, checkStockNotificationRegistered, type StockNotificationDTO } from '@/api/buyer/stock-notification'
 import { useCartStore } from '@/stores/cart'
+import { useUserStore } from '@/stores/user'
 import SpecSelector from '@/components/product/SpecSelector.vue'
 
 const route = useRoute()
 const router = useRouter()
 const cartStore = useCartStore()
+const userStore = useUserStore()
 
 // 当前选中的图片
 const currentImage = ref('')
@@ -794,10 +796,17 @@ const submitReview = () => {
 // 检查收藏状态
 const checkFavoriteStatus = async () => {
   if (!product.value.id) return
+  // 只在用户已登录时检查收藏状态
+  if (!userStore.userInfo) {
+    isFavorited.value = false
+    return
+  }
   try {
     isFavorited.value = await checkFavorite(product.value.id)
   } catch (error) {
     console.error('检查收藏状态失败:', error)
+    // 发生错误时默认为未收藏
+    isFavorited.value = false
   }
 }
 
@@ -840,6 +849,11 @@ const isOutOfStock = () => {
 // 检查缺货登记状态
 const checkStockRegisterStatus = async () => {
   if (!product.value.id) return
+  // 只在用户已登录时检查缺货登记状态
+  if (!userStore.userInfo) {
+    hasRegisteredStock.value = false
+    return
+  }
   try {
     hasRegisteredStock.value = await checkStockNotificationRegistered(product.value.id)
   } catch (error: any) {
