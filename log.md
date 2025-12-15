@@ -1,3 +1,45 @@
+## 2025-12-14 - 修复咨询和评价接口的登录认证问题
+
+### 功能说明
+修复 `/api/buyer/consultation/my` 和 `/api/buyer/review/my` 接口返回401错误的问题，确保已登录用户可以正常访问这些接口。
+
+### 问题分析
+用户已经登录，但访问这两个接口时仍然返回401错误，提示"请先登录"。
+
+**根本原因**：
+- 在 `WebMvcConfig.java` 中，`/api/buyer/consultation/**` 和 `/api/buyer/review/**` 被排除在JWT拦截器之外
+- 这导致这些接口不会被拦截器处理，`userId` 不会被设置到 request attribute 中
+- 控制器中检查 `userId` 为 null 时返回401错误
+
+### 修改方案
+移除这两个路径的排除配置，让JWT拦截器正常处理这些接口，确保 `userId` 被正确设置。
+
+### 修改文件
+1. `backend/src/main/java/com/shoppingmall/common/config/WebMvcConfig.java` - 移除咨询和评价接口的排除配置
+
+### 具体修改
+- **移除排除配置**：从 `excludePathPatterns` 中移除 `/api/buyer/consultation/**` 和 `/api/buyer/review/**`
+- **启用拦截器**：这些接口现在会被JWT拦截器处理，`userId` 会被正确设置到 request attribute 中
+
+### 功能特性
+- ✅ 咨询接口需要登录才能访问
+- ✅ 评价接口需要登录才能访问
+- ✅ JWT拦截器正确处理这些接口
+- ✅ `userId` 被正确设置，控制器可以正常获取用户信息
+
+### 技术细节
+- **拦截器配置**：`/api/buyer/consultation/**` 和 `/api/buyer/review/**` 现在会被JWT拦截器拦截
+- **认证流程**：请求 → JWT拦截器验证Token → 设置userId到request → 控制器获取userId → 处理业务逻辑
+- **错误处理**：如果Token无效或过期，拦截器会直接返回401错误，不会到达控制器
+
+### 影响范围
+- ✅ `/api/buyer/consultation/my` - 我的咨询列表
+- ✅ `/api/buyer/consultation/**` - 所有咨询相关接口
+- ✅ `/api/buyer/review/my` - 我的评价列表
+- ✅ `/api/buyer/review/**` - 所有评价相关接口
+
+---
+
 ## 2025-12-14 - 修复会员价格计算：user_level直接关联member_level.id
 
 ### 功能说明
