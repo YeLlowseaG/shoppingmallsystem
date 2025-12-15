@@ -273,11 +273,6 @@
                     :rows="6"
                   />
                 </el-form-item>
-                <el-form-item label="*验证码：">
-                  <el-input v-model="reviewForm.captcha" style="width: 120px" />
-                  <img src="https://via.placeholder.com/100x40?text=1547" class="captcha-img" />
-                  <span class="captcha-tip">看不清楚?换个图片</span>
-                </el-form-item>
                 <el-form-item>
                   <el-button type="primary" @click="submitReview">提交评论</el-button>
                 </el-form-item>
@@ -459,8 +454,7 @@ const favoritLoading = ref(false)
 const reviewForm = ref({
   title: '',
   contact: '',
-  content: '',
-  captcha: ''
+  content: ''
 })
 
 // 缺货登记相关状态
@@ -1320,18 +1314,6 @@ const submitStockRegister = async () => {
         margin-bottom: 20px;
         color: #666;
         font-size: 14px;
-      }
-
-      .captcha-img {
-        margin-left: 10px;
-        vertical-align: middle;
-        cursor: pointer;
-      }
-
-      .captcha-tip {
-        margin-left: 10px;
-        color: #999;
-        font-size: 12px;
       }
     }
   }
