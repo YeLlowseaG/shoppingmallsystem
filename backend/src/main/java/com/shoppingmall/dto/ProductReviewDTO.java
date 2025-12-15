@@ -2,8 +2,6 @@ package com.shoppingmall.dto;
 
 import lombok.Data;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -13,7 +11,7 @@ import java.util.List;
  */
 @Data
 public class ProductReviewDTO {
-    
+
     /**
      * 商品ID
      */
@@ -27,11 +25,8 @@ public class ProductReviewDTO {
     private Long orderId;
 
     /**
-     * 评分：1-5星
+     * 评分（已废弃，保留字段兼容性，不进行校验）
      */
-    @NotNull(message = "评分不能为空")
-    @Min(value = 1, message = "评分最低为1星")
-    @Max(value = 5, message = "评分最高为5星")
     private Integer rating;
 
     /**
