@@ -2,16 +2,17 @@
 -- 执行日期: 2025-12-15
 
 -- 插入"缺货登记"菜单
-INSERT INTO sys_menu (id, menu_name, parent_id, path, component, menu_type, sort_order, icon, status, create_time, update_time)
+INSERT INTO sys_menu (id, menu_name, parent_id, path, component, menu_type, sort_order, icon, permission, status, create_time, update_time)
 VALUES (
     56,
     '缺货登记',
     2,
-    '/admin/product/stock-notification',
+    'stock-notification',
     'product/StockNotification',
     1,
     4,
     'bell',
+    'admin:product:stock',
     1,
     NOW(),
     NOW()
