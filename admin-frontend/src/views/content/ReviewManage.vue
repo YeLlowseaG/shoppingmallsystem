@@ -61,9 +61,9 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdTime" label="评价时间" width="160">
+        <el-table-column prop="createTime" label="评价时间" width="160">
           <template #default="{ row }">
-            {{ formatTime(row.createdTime) }}
+            {{ formatTime(row.createTime) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" width="300" fixed="right">
@@ -128,7 +128,7 @@
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="评价时间" :span="2">
-            {{ formatTime(selectedReview.createdTime) }}
+            {{ formatTime(selectedReview.createTime) }}
           </el-descriptions-item>
           <el-descriptions-item label="评价内容" :span="2">
             <div style="white-space: pre-wrap;">{{ selectedReview.reviewContent }}</div>

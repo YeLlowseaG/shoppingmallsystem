@@ -49,7 +49,7 @@
                         <div class="product-details">
                           <h4 class="product-name">{{ review.productName }}</h4>
                           <div class="review-meta">
-                            <span class="review-time">{{ formatTime(review.createdTime) }}</span>
+                            <span class="review-time">{{ formatTime(review.createTime) }}</span>
                             <el-tag
                               :type="getStatusTagType(review.status)"
                               size="small"

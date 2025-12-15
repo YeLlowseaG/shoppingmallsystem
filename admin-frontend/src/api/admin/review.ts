@@ -20,8 +20,8 @@ export interface ProductReviewVO {
   adminReply?: string
   status: number
   statusText: string
-  createdTime: string
-  updatedTime: string
+  createTime: string
+  updateTime: string
 }
 
 export interface ReviewAuditDTO {
