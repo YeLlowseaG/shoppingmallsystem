@@ -36,4 +36,9 @@ public interface StockNotificationService {
      * 商品补货时通知登记用户
      */
     void notifyUsers(Long productId);
+
+    /**
+     * 管理端：分页查询所有缺货登记（支持搜索）
+     */
+    Page<StockNotificationVO> getAdminNotifications(Long current, Long size, String productName, Integer status);
 }

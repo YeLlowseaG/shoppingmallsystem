@@ -3,5 +3,6 @@ export const productComponentMap = {
   'product/List': () => import('@/views/product/ProductManage.vue'),
   'product/Add': () => import('@/views/product/Add.vue'),
   'product/Category': () => import('@/views/product/CategoryManage.vue'),
+  'product/StockNotification': () => import('@/views/product/StockNotification.vue'),
 }
 

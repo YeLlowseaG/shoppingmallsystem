@@ -157,6 +157,38 @@ public class StockNotificationServiceImpl implements StockNotificationService {
         }
     }
 
+    @Override
+    public Page<StockNotificationVO> getAdminNotifications(Long current, Long size, String productName, Integer status) {
+        Page<StockNotification> page = new Page<>(current, size);
+
+        LambdaQueryWrapper<StockNotification> wrapper = new LambdaQueryWrapper<>();
+
+        // 如果指定了商品名称，需要关联查询
+        if (StringUtil.isNotBlank(productName)) {
+            wrapper.like(StockNotification::getProductName, productName);
+        }
+
+        // 状态筛选
+        if (status != null) {
+            wrapper.eq(StockNotification::getStatus, status);
+        }
+
+        wrapper.orderByDesc(StockNotification::getCreateTime);
+
+        Page<StockNotification> notificationPage = stockNotificationRepository.selectPage(page, wrapper);
+
+        // 转换为VO
+        Page<StockNotificationVO> voPage = new Page<>();
+        voPage.setCurrent(notificationPage.getCurrent());
+        voPage.setSize(notificationPage.getSize());
+        voPage.setTotal(notificationPage.getTotal());
+        voPage.setRecords(notificationPage.getRecords().stream()
+                .map(this::convertToVO)
+                .toList());
+
+        return voPage;
+    }
+
     /**
      * 转换为VO
      */
