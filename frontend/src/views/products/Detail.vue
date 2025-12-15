@@ -732,7 +732,8 @@ const addToCart = async () => {
 
     const cartData: AddCartDTO = {
       productId: product.value.id,
-      quantity: quantity.value
+      quantity: quantity.value,
+      ...(currentSku.value?.id && { skuId: currentSku.value.id })
     }
 
     await addToCartAPI(cartData)

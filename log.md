@@ -1,3 +1,28 @@
+## 2025-12-15 - 购物车与结算页展示SKU规格与价格
+
+### 功能说明
+购物车页(`/cart`)和结算页(`/cart/checkout`)基于SKU展示真实价格与规格信息，避免不同规格价格混淆。
+
+### 修改方案
+- 后端为购物车支持SKU字段：记录 `skuId` 与 `specCombination`，转换VO时优先读取SKU价格、重量、图片与规格文本。
+- 规格组合JSON解析为可读文本（示例：`颜色:红 / 尺寸:L`），返回给前端展示。
+- 前端购物车与结算列表在商品名下方显示规格文本，价格直接使用后端返回的SKU价格/会员价。
+
+### 修改文件
+- `backend/src/main/java/com/shoppingmall/entity/Cart.java`
+- `backend/src/main/java/com/shoppingmall/dto/CartDTO.java`
+- `backend/src/main/java/com/shoppingmall/vo/CartVO.java`
+- `backend/src/main/java/com/shoppingmall/service/buyer/impl/CartServiceImpl.java`
+- `frontend/src/api/buyer/cart.ts`
+- `frontend/src/views/cart/Index.vue`
+- `frontend/src/views/cart/Checkout.vue`
+
+### 影响
+- 不同规格的商品在购物车/结算页显示对应规格与价格。
+- 规格文本直观呈现，减少用户下单规格混淆。
+
+---
+
 ## 2025-12-14 - 重构Header组件配置读取逻辑
 
 ### 功能说明

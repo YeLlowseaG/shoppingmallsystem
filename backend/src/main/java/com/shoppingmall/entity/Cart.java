@@ -32,6 +32,16 @@ public class Cart {
     private Long productId;
 
     /**
+     * SKU ID（可为空，表示无规格或未选择）
+     */
+    private Long skuId;
+
+    /**
+     * 规格组合（JSON字符串，如 {"颜色":"红色","尺寸":"L"}）
+     */
+    private String specCombination;
+
+    /**
      * 数量
      */
     private Integer quantity;
@@ -48,6 +58,7 @@ public class Cart {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 }
+
 
 
 

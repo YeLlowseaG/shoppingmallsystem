@@ -100,7 +100,12 @@
                           <img :src="item.image" :alt="item.name" class="product-image" />
                         </td>
                         <td class="col-code">{{ item.productCode }}</td>
-                        <td class="col-name">{{ item.name }}</td>
+                        <td class="col-name">
+                          <div class="product-name">{{ item.name }}</div>
+                          <div v-if="formatSpecText(item.specCombination)" class="sku-spec-text">
+                            规格：{{ formatSpecText(item.specCombination) }}
+                          </div>
+                        </td>
                         <td class="col-price">¥{{ item.price.toFixed(2) }}</td>
                         <td class="col-quantity">{{ item.quantity }}</td>
                         <td class="col-subtotal">¥{{ (item.price * item.quantity).toFixed(2) }}</td>
@@ -247,6 +252,19 @@ const orderHistory = computed(() => {
 const orderItems = computed(() => {
   return orderDetail.value?.items || []
 })
+
+// 将规格组合JSON转换为可读文本
+const formatSpecText = (specCombination: string | undefined): string => {
+  if (!specCombination) return ''
+  try {
+    const specs = JSON.parse(specCombination)
+    return Object.entries(specs)
+      .map(([key, value]) => `${key}:${value}`)
+      .join(' / ')
+  } catch (e) {
+    return ''
+  }
+}
 
 // 收货人信息
 const recipientInfo = computed(() => {
@@ -1082,6 +1100,16 @@ onMounted(() => {
                 text-align: left;
                 color: #333;
                 padding-left: 15px;
+
+                .product-name {
+                  line-height: 20px;
+                }
+
+                .sku-spec-text {
+                  margin-top: 6px;
+                  font-size: 12px;
+                  color: #666;
+                }
               }
 
               .col-price {

@@ -81,6 +81,7 @@ export interface OrderDetailVO {
     id: number
     productCode: string
     name: string
+    specCombination?: string
     image: string
     price: number
     quantity: number

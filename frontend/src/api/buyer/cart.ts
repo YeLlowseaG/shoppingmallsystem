@@ -7,9 +7,13 @@ import type { ApiResponse } from '@/types'
 export interface CartVO {
   id: number
   productId: number
+  skuId?: number
   productCode: string
+  skuCode?: string
   name: string
   image: string
+  specCombination?: string
+  specText?: string
   salesPrice: number
   memberPrice: number
   quantity: number

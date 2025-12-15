@@ -337,7 +337,10 @@
                 <tbody>
                   <tr v-for="item in orderItems" :key="item.id" class="product-row">
                     <td class="col-code">{{ item.productCode }}</td>
-                    <td class="col-name">{{ item.name }}</td>
+                  <td class="col-name">
+                    <div class="product-name">{{ item.name }}</div>
+                    <div v-if="item.specText" class="sku-spec-text">规格：{{ item.specText }}</div>
+                  </td>
                     <td class="col-price">
                       <span class="member-price">¥{{ (item.memberPrice || 0).toFixed(2) }}</span>
                     </td>
@@ -1555,6 +1558,16 @@ onMounted(() => {
         text-align: left;
         color: #333;
         padding-left: 15px;
+
+        .product-name {
+          line-height: 20px;
+        }
+
+        .sku-spec-text {
+          margin-top: 6px;
+          font-size: 12px;
+          color: #666;
+        }
       }
 
       .col-price {

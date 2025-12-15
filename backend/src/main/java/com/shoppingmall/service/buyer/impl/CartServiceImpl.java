@@ -9,9 +9,11 @@ import com.shoppingmall.entity.Cart;
 import com.shoppingmall.entity.User;
 import com.shoppingmall.entity.Product;
 import com.shoppingmall.entity.ProductPrice;
+import com.shoppingmall.entity.ProductSku;
 import com.shoppingmall.repository.cart.CartRepository;
 import com.shoppingmall.repository.product.ProductPriceRepository;
 import com.shoppingmall.repository.product.ProductRepository;
+import com.shoppingmall.repository.sku.ProductSkuRepository;
 import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.service.buyer.CartService;
 import com.shoppingmall.service.member.MemberLevelService;
@@ -24,7 +26,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 /**
  * 购物车服务实现类
@@ -41,7 +46,9 @@ public class CartServiceImpl implements CartService {
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
     private final ProductPriceRepository productPriceRepository;
+    private final ProductSkuRepository productSkuRepository;
     private final MemberLevelService memberLevelService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public List<CartVO> getCartList(Long userId) {
@@ -73,6 +80,11 @@ public class CartServiceImpl implements CartService {
         LambdaQueryWrapper<Cart> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Cart::getUserId, userId);
         wrapper.eq(Cart::getProductId, cartDTO.getProductId());
+        if (cartDTO.getSkuId() != null) {
+            wrapper.eq(Cart::getSkuId, cartDTO.getSkuId());
+        } else {
+            wrapper.isNull(Cart::getSkuId);
+        }
 
         Cart existingCart = cartRepository.selectOne(wrapper);
         if (existingCart != null) {
@@ -83,12 +95,29 @@ public class CartServiceImpl implements CartService {
             return existingCart.getId();
         } else {
             // 如果不存在，新增
+            ProductSku productSku = null;
+            if (cartDTO.getSkuId() != null) {
+                productSku = productSkuRepository.selectById(cartDTO.getSkuId());
+                if (productSku == null || !productSku.getProductId().equals(cartDTO.getProductId())) {
+                    throw new BusinessException(400, "SKU不存在或不属于该商品");
+                }
+                if (productSku.getStatus() != null && productSku.getStatus() == 0) {
+                    throw new BusinessException(400, "该规格已下架，无法添加");
+                }
+            }
+
             Cart cart = new Cart();
             cart.setUserId(userId);
             cart.setProductId(cartDTO.getProductId());
+            if (productSku != null) {
+                cart.setSkuId(productSku.getId());
+                cart.setSpecCombination(productSku.getSpecCombination());
+            } else if (cartDTO.getSpecCombination() != null) {
+                cart.setSpecCombination(cartDTO.getSpecCombination());
+            }
             cart.setQuantity(cartDTO.getQuantity());
             cartRepository.insert(cart);
-            log.info("添加商品到购物车: userId={}, productId={}, quantity={}", userId, cartDTO.getProductId(), cartDTO.getQuantity());
+            log.info("添加商品到购物车: userId={}, productId={}, skuId={}, quantity={}", userId, cartDTO.getProductId(), cart.getSkuId(), cartDTO.getQuantity());
             return cart.getId();
         }
     }
@@ -202,6 +231,8 @@ public class CartServiceImpl implements CartService {
         CartVO vo = new CartVO();
         vo.setId(cart.getId());
         vo.setProductId(cart.getProductId());
+        vo.setSkuId(cart.getSkuId());
+        vo.setSpecCombination(cart.getSpecCombination());
         vo.setQuantity(cart.getQuantity());
         vo.setSelected(false); // 默认未选中
 
@@ -222,23 +253,38 @@ public class CartServiceImpl implements CartService {
         // 设置商品基本信息
         vo.setProductCode(product.getProductCode());
         vo.setName(product.getProductName());
-        // 使用主图，如果没有主图则使用第一张图片
-        if (product.getMainImage() != null && !product.getMainImage().trim().isEmpty()) {
-            vo.setImage(product.getMainImage());
-        } else {
-            vo.setImage(""); // 如果没有图片，设置为空字符串
+        vo.setImage(product.getMainImage() != null ? product.getMainImage() : "");
+
+        // SKU 信息（有则优先使用）
+        ProductSku productSku = null;
+        if (cart.getSkuId() != null) {
+            productSku = productSkuRepository.selectById(cart.getSkuId());
         }
-        
-        // 设置商品重量（从商品表获取，单位：克）
-        if (product.getWeight() != null) {
-            vo.setWeight(BigDecimal.valueOf(product.getWeight()));
-        } else {
-            vo.setWeight(BigDecimal.ZERO);
+        if (productSku != null) {
+            vo.setSkuCode(productSku.getSkuCode());
+            vo.setSpecCombination(productSku.getSpecCombination());
+            vo.setSpecText(formatSpecText(productSku.getSpecCombination()));
+            if (productSku.getSkuImage() != null && !productSku.getSkuImage().trim().isEmpty()) {
+                vo.setImage(productSku.getSkuImage());
+            }
+        } else if (cart.getSpecCombination() != null) {
+            vo.setSpecText(formatSpecText(cart.getSpecCombination()));
         }
 
+        // 设置商品重量（SKU优先，单位：克）
+        BigDecimal weight = BigDecimal.ZERO;
+        if (productSku != null && productSku.getWeight() != null) {
+            weight = productSku.getWeight();
+        } else if (product.getWeight() != null) {
+            weight = BigDecimal.valueOf(product.getWeight());
+        }
+        vo.setWeight(weight);
+
         // 2. 查询价格信息
-        // 销售价格：统一使用basePrice作为销售价格
-        BigDecimal salesPrice = product.getBasePrice();
+        // 销售价格：SKU价格优先，否则使用商品基础价
+        BigDecimal salesPrice = productSku != null && productSku.getPrice() != null
+                ? productSku.getPrice()
+                : product.getBasePrice();
         if (salesPrice == null) {
             salesPrice = BigDecimal.ZERO;
         }
@@ -251,6 +297,27 @@ public class CartServiceImpl implements CartService {
         vo.setMemberPrice(memberPrice);
 
         return vo;
+    }
+
+    /**
+     * 将规格JSON转换为可读文本，如 {"颜色":"红","尺寸":"L"} -> "颜色:红 / 尺寸:L"
+     */
+    private String formatSpecText(String specCombination) {
+        if (specCombination == null || specCombination.trim().isEmpty()) {
+            return "";
+        }
+        try {
+            Map<String, String> specMap = objectMapper.readValue(specCombination, new TypeReference<Map<String, String>>() {});
+            if (specMap == null || specMap.isEmpty()) {
+                return "";
+            }
+            return specMap.entrySet().stream()
+                    .map(entry -> entry.getKey() + ":" + entry.getValue())
+                    .collect(Collectors.joining(" / "));
+        } catch (Exception e) {
+            log.warn("解析规格组合失败: {}", e.getMessage());
+            return "";
+        }
     }
 
     /**

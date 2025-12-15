@@ -48,6 +48,16 @@ public class OrderItem {
     private String productCode;
 
     /**
+     * SKU ID（快照）
+     */
+    private Long skuId;
+
+    /**
+     * SKU规格组合（快照）
+     */
+    private String specCombination;
+
+    /**
      * 单价（快照）
      */
     private BigDecimal price;
@@ -73,6 +83,7 @@ public class OrderItem {
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 }
+
 
 
 

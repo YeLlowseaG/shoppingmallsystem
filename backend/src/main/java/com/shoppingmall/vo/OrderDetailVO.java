@@ -107,6 +107,11 @@ public class OrderDetailVO {
         private String name;
 
         /**
+         * SKU规格组合
+         */
+        private String specCombination;
+
+        /**
          * 商品图片
          */
         private String image;
@@ -204,6 +209,7 @@ public class OrderDetailVO {
         private String action;
     }
 }
+
 
 
 

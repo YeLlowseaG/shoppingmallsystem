@@ -70,12 +70,18 @@ public class CreateOrderDTO {
         private Long productId;
 
         /**
+         * SKU ID（可为空，表示无规格或未选择）
+         */
+        private Long skuId;
+
+        /**
          * 数量
          */
         @NotNull(message = "数量不能为空")
         private Integer quantity;
     }
 }
+
 
 
 

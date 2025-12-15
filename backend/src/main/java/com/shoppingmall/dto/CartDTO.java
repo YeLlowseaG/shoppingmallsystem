@@ -24,12 +24,23 @@ public class CartDTO {
     private String productCode;
 
     /**
+     * SKU ID（可选）
+     */
+    private Long skuId;
+
+    /**
+     * 规格组合（JSON字符串，可选）
+     */
+    private String specCombination;
+
+    /**
      * 数量
      */
     @NotNull(message = "数量不能为空")
     @Min(value = 1, message = "数量必须大于0")
     private Integer quantity;
 }
+
 
 
 

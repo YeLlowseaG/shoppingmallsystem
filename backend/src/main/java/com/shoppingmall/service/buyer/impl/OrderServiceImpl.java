@@ -20,6 +20,7 @@ import com.shoppingmall.repository.order.OrderRepository;
 import com.shoppingmall.repository.product.ProductPriceRepository;
 import com.shoppingmall.repository.product.ProductRepository;
 import com.shoppingmall.repository.product.ProductStockRepository;
+import com.shoppingmall.repository.sku.ProductSkuRepository;
 import com.shoppingmall.repository.user.UserAddressRepository;
 import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.repository.payment.PaymentRecordRepository;
@@ -68,6 +69,7 @@ public class OrderServiceImpl implements OrderService {
     private final ProductRepository productRepository;
     private final ProductPriceRepository productPriceRepository;
     private final ProductStockRepository productStockRepository;
+    private final ProductSkuRepository productSkuRepository;
     private final UserRepository userRepository;
     private final PaymentRecordRepository paymentRecordRepository;
     private final DepositService depositService;
@@ -101,6 +103,7 @@ public class OrderServiceImpl implements OrderService {
                 CreateOrderDTO.OrderItemDTO item = new CreateOrderDTO.OrderItemDTO();
                 item.setProductId(cart.getProductId());
                 item.setQuantity(cart.getQuantity());
+                item.setSkuId(cart.getSkuId());
                 orderItems.add(item);
             }
         } else if (createOrderDTO.getItems() != null && !createOrderDTO.getItems().isEmpty()) {
@@ -158,6 +161,32 @@ public class OrderServiceImpl implements OrderService {
             orderItem.setPrice(memberPrice);
             orderItem.setSubtotal(itemSubtotal);
             orderItem.setWeight(product.getWeight() != null ? BigDecimal.valueOf(product.getWeight()) : BigDecimal.ZERO);
+            
+            // 设置SKU信息
+            if (itemDTO.getSkuId() != null) {
+                // 从购物车创建订单时，需要查询购物车的SKU信息
+                if (createOrderDTO.getCartIds() != null && !createOrderDTO.getCartIds().isEmpty()) {
+                    LambdaQueryWrapper<Cart> cartWrapper = new LambdaQueryWrapper<>();
+                    cartWrapper.eq(Cart::getUserId, userId);
+                    cartWrapper.eq(Cart::getProductId, itemDTO.getProductId());
+                    cartWrapper.eq(Cart::getSkuId, itemDTO.getSkuId());
+                    Cart cart = cartRepository.selectOne(cartWrapper);
+                    if (cart != null) {
+                        orderItem.setSkuId(cart.getSkuId());
+                        orderItem.setSpecCombination(cart.getSpecCombination());
+                    }
+                } else {
+                    // 直接购买时，需要查询SKU信息
+                    LambdaQueryWrapper<ProductSku> skuWrapper = new LambdaQueryWrapper<>();
+                    skuWrapper.eq(ProductSku::getId, itemDTO.getSkuId());
+                    skuWrapper.eq(ProductSku::getProductId, itemDTO.getProductId());
+                    ProductSku sku = productSkuRepository.selectOne(skuWrapper);
+                    if (sku != null) {
+                        orderItem.setSkuId(sku.getId());
+                        orderItem.setSpecCombination(sku.getSpecCombination());
+                    }
+                }
+            }
             
             orderItemList.add(orderItem);
         }
@@ -540,6 +569,7 @@ public class OrderServiceImpl implements OrderService {
             itemVO.setPrice(item.getPrice());
             itemVO.setQuantity(item.getQuantity());
             itemVO.setSubtotal(item.getSubtotal());
+            itemVO.setSpecCombination(item.getSpecCombination());
             return itemVO;
         }).collect(Collectors.toList());
         
