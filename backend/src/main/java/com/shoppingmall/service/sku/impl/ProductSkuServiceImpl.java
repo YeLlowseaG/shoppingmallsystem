@@ -52,7 +52,14 @@ public class ProductSkuServiceImpl implements ProductSkuService {
         ProductSku entity = new ProductSku();
         BeanUtils.copyProperties(dto, entity);
 
+        // 记录复制后的值
+        log.info("创建SKU - DTO库存: {}, 复制后实体库存: {}", dto.getStock(), entity.getStock());
+
         // 设置默认值
+        if (entity.getStock() == null) {
+            log.warn("创建SKU - 库存为null，设置为0，SKU编码: {}", dto.getSkuCode());
+            entity.setStock(0);
+        }
         if (entity.getWarningStock() == null) {
             entity.setWarningStock(0);
         }
@@ -63,9 +70,25 @@ public class ProductSkuServiceImpl implements ProductSkuService {
             entity.setStatus(1);
         }
 
+        // 记录插入前的值
+        log.info("创建SKU - 插入前实体库存: {}, SKU编码: {}, 商品ID: {}", 
+                entity.getStock(), dto.getSkuCode(), dto.getProductId());
+        
         skuRepository.insert(entity);
-        log.info("创建SKU成功，ID: {}, SKU编码: {}, 商品ID: {}",
-                entity.getId(), dto.getSkuCode(), dto.getProductId());
+        
+        // 立即从数据库查询确认保存的值
+        ProductSku savedEntity = skuRepository.selectById(entity.getId());
+        if (savedEntity != null) {
+            log.info("创建SKU成功，ID: {}, SKU编码: {}, 商品ID: {}, 插入时库存: {}, 数据库查询库存: {}",
+                    entity.getId(), dto.getSkuCode(), dto.getProductId(), 
+                    entity.getStock(), savedEntity.getStock());
+            if (!entity.getStock().equals(savedEntity.getStock())) {
+                log.error("⚠️ 库存值不一致！插入时: {}, 数据库查询: {}", 
+                        entity.getStock(), savedEntity.getStock());
+            }
+        } else {
+            log.error("创建SKU后查询失败，ID: {}", entity.getId());
+        }
 
         // 同步规格值到product_spec_value表
         syncSpecValues(dto.getProductId(), dto.getSpecCombination());
@@ -82,10 +105,15 @@ public class ProductSkuServiceImpl implements ProductSkuService {
         int successCount = 0;
         for (ProductSkuDTO dto : dtoList) {
             try {
+                log.info("批量创建SKU - 商品ID: {}, SKU编码: {}, 库存: {}", 
+                        dto.getProductId(), dto.getSkuCode(), dto.getStock());
                 createSku(dto);
                 successCount++;
+                log.info("批量创建SKU成功 - SKU编码: {}, 库存: {}", dto.getSkuCode(), dto.getStock());
             } catch (Exception e) {
-                log.error("批量创建SKU失败，SKU编码: {}, 错误: {}", dto.getSkuCode(), e.getMessage());
+                log.error("批量创建SKU失败，SKU编码: {}, 库存: {}, 错误: {}", 
+                        dto.getSkuCode(), dto.getStock(), e.getMessage(), e);
+                throw e; // 抛出异常，让事务回滚
             }
         }
         log.info("批量创建SKU完成，总数: {}, 成功: {}", dtoList.size(), successCount);
