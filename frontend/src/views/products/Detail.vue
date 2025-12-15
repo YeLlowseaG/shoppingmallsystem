@@ -748,6 +748,13 @@ const addToCart = async () => {
 
 // 提交咨询
 const submitConsultation = async () => {
+  // 检查登录状态
+  if (!userStore.userInfo) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+
   if (!consultationFormRef.value) return
 
   await consultationFormRef.value.validate(async (valid) => {
@@ -770,9 +777,9 @@ const submitConsultation = async () => {
       }
 
       await submitConsultationAPI(consultationData)
-      
+
       ElMessage.success('咨询提交成功！我们会尽快回复您')
-      
+
       // 重置表单
       consultationForm.value = {
         contactName: '',
@@ -781,7 +788,7 @@ const submitConsultation = async () => {
         consultationContent: ''
       }
       consultationFormRef.value?.resetFields()
-      
+
     } catch (error: any) {
       console.error('提交咨询失败:', error)
       ElMessage.error(error.response?.data?.message || '提交咨询失败，请重试')
@@ -793,6 +800,13 @@ const submitConsultation = async () => {
 
 // 提交评论
 const submitReview = async () => {
+  // 检查登录状态
+  if (!userStore.userInfo) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+
   if (!reviewForm.value.content || !reviewForm.value.content.trim()) {
     ElMessage.warning('请填写评论内容')
     return
