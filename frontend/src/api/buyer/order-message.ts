@@ -26,3 +26,5 @@ export interface OrderMessageDTO {
 export const createOrderMessage = (data: OrderMessageDTO): Promise<number> => {
   return request.post('/api/buyer/order-messages', data)
 }
+
+

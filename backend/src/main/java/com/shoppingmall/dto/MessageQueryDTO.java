@@ -31,3 +31,5 @@ public class MessageQueryDTO {
      */
     private Boolean isRead;
 }
+
+

@@ -39,10 +39,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/buyer/product-category/**",
                         "/api/buyer/website/**",  // 网站内容模块允许游客访问
                         "/api/buyer/system/config/public",  // 系统公开配置接口允许游客访问
-                        "/api/buyer/navigation/**",  // 导航菜单模块允许游客访问
-                        "/api/buyer/consultation/**",  // 咨询模块临时允许游客访问
-                        "/api/buyer/favorites/**",  // 收藏模块临时允许游客访问
-                        "/api/buyer/review/**"  // 评价模块临时允许游客访问
+                        "/api/buyer/navigation/**"  // 导航菜单模块允许游客访问
+                        // 移除 /api/buyer/consultation/** 和 /api/buyer/review/** 的排除配置
+                        // 这些接口需要登录才能访问，应该由拦截器处理
                 );
 
         // 管理员端JWT拦截器

@@ -98,11 +98,14 @@ public class MemberLevelServiceImpl implements MemberLevelService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createMemberLevel(MemberLevelDTO memberLevelDTO) {
-        // 验证积分区间
-        validatePointsRange(memberLevelDTO.getMinPoints(), memberLevelDTO.getMaxPoints(), null);
+        // 积分区间验证已屏蔽：业务上不需要积分功能
+        // validatePointsRange(memberLevelDTO.getMinPoints(), memberLevelDTO.getMaxPoints(), null);
 
         MemberLevel memberLevel = new MemberLevel();
         BeanUtils.copyProperties(memberLevelDTO, memberLevel);
+        // 设置默认积分值（已屏蔽但保留字段）
+        memberLevel.setMinPoints(0);
+        memberLevel.setMaxPoints(null);
         memberLevelRepository.insert(memberLevel);
         log.info("创建会员等级成功: {}", memberLevel.getLevelName());
         return memberLevel.getId();
@@ -120,10 +123,13 @@ public class MemberLevelServiceImpl implements MemberLevelService {
             throw new BusinessException(404, "会员等级不存在");
         }
 
-        // 验证积分区间
-        validatePointsRange(memberLevelDTO.getMinPoints(), memberLevelDTO.getMaxPoints(), memberLevelDTO.getId());
+        // 积分区间验证已屏蔽：业务上不需要积分功能
+        // validatePointsRange(memberLevelDTO.getMinPoints(), memberLevelDTO.getMaxPoints(), memberLevelDTO.getId());
 
         BeanUtils.copyProperties(memberLevelDTO, existing);
+        // 设置默认积分值（已屏蔽但保留字段）
+        existing.setMinPoints(0);
+        existing.setMaxPoints(null);
         memberLevelRepository.updateById(existing);
         log.info("更新会员等级成功: id={}, levelName={}", existing.getId(), existing.getLevelName());
     }
@@ -207,12 +213,13 @@ public class MemberLevelServiceImpl implements MemberLevelService {
         MemberLevelVO vo = new MemberLevelVO();
         BeanUtils.copyProperties(memberLevel, vo);
 
-        // 设置积分区间显示文本
-        if (memberLevel.getMaxPoints() != null) {
-            vo.setPointsRangeText(memberLevel.getMinPoints() + " - " + memberLevel.getMaxPoints());
-        } else {
-            vo.setPointsRangeText(memberLevel.getMinPoints() + " 及以上");
-        }
+        // 积分区间显示文本已屏蔽：业务上不需要积分功能
+        // if (memberLevel.getMaxPoints() != null) {
+        //     vo.setPointsRangeText(memberLevel.getMinPoints() + " - " + memberLevel.getMaxPoints());
+        // } else {
+        //     vo.setPointsRangeText(memberLevel.getMinPoints() + " 及以上");
+        // }
+        vo.setPointsRangeText(""); // 设置为空字符串
 
         // 设置折扣率显示文本
         BigDecimal discountRate = memberLevel.getDiscountRate();
@@ -228,4 +235,6 @@ public class MemberLevelServiceImpl implements MemberLevelService {
         return vo;
     }
 }
+
+
 

@@ -30,7 +30,8 @@
       <el-table :data="levelList" v-loading="loading" border stripe>
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="levelName" label="等级名称" width="150" />
-        <el-table-column prop="pointsRangeText" label="积分区间" width="180" />
+        <!-- 积分区间列已屏蔽 -->
+        <!-- <el-table-column prop="pointsRangeText" label="积分区间" width="180" /> -->
         <el-table-column prop="discountRateText" label="折扣率" width="120" align="center">
           <template #default="{ row }">
             <el-tag :type="getDiscountTagType(row.discountRate)">
@@ -97,7 +98,8 @@
         <el-form-item label="等级名称" prop="levelName">
           <el-input v-model="form.levelName" placeholder="请输入等级名称" maxlength="50" show-word-limit />
         </el-form-item>
-        <el-form-item label="最低积分" prop="minPoints">
+        <!-- 积分相关字段已屏蔽 -->
+        <!-- <el-form-item label="最低积分" prop="minPoints">
           <el-input-number
             v-model="form.minPoints"
             :min="0"
@@ -116,7 +118,7 @@
             style="width: 100%"
           />
           <div class="form-item-tip">不包含此积分值，留空表示无上限</div>
-        </el-form-item>
+        </el-form-item> -->
         <el-form-item label="折扣率" prop="discountRate">
           <el-input-number
             v-model="form.discountRate"
@@ -201,6 +203,7 @@ const formRef = ref<FormInstance>()
 const form = reactive<MemberLevelDTO>({
   id: undefined,
   levelName: '',
+  // 积分相关字段已屏蔽，但保留在DTO中以避免类型错误
   minPoints: 0,
   maxPoints: undefined,
   discountRate: 100.00,
@@ -214,10 +217,11 @@ const rules: FormRules = {
     { required: true, message: '请输入等级名称', trigger: 'blur' },
     { max: 50, message: '等级名称长度不能超过50个字符', trigger: 'blur' }
   ],
-  minPoints: [
-    { required: true, message: '请输入最低积分', trigger: 'blur' },
-    { type: 'number', min: 0, message: '最低积分不能小于0', trigger: 'blur' }
-  ],
+  // 积分相关验证已屏蔽
+  // minPoints: [
+  //   { required: true, message: '请输入最低积分', trigger: 'blur' },
+  //   { type: 'number', min: 0, message: '最低积分不能小于0', trigger: 'blur' }
+  // ],
   discountRate: [
     { required: true, message: '请输入折扣率', trigger: 'blur' },
     { type: 'number', min: 0.01, max: 100.00, message: '折扣率必须在0.01-100.00之间', trigger: 'blur' }
@@ -277,8 +281,9 @@ const handleEdit = async (row: MemberLevelVO) => {
     const level = await getMemberLevelById(row.id)
     form.id = level.id
     form.levelName = level.levelName
-    form.minPoints = level.minPoints
-    form.maxPoints = level.maxPoints
+    // 积分相关字段已屏蔽
+    // form.minPoints = level.minPoints
+    // form.maxPoints = level.maxPoints
     form.discountRate = level.discountRate
     form.sortOrder = level.sortOrder
     form.status = level.status
@@ -356,8 +361,9 @@ const handleSubmit = async () => {
 const resetForm = () => {
   form.id = undefined
   form.levelName = ''
-  form.minPoints = 0
-  form.maxPoints = undefined
+  // 积分相关字段已屏蔽
+  // form.minPoints = 0
+  // form.maxPoints = undefined
   form.discountRate = 100.00
   form.sortOrder = 0
   form.status = 1

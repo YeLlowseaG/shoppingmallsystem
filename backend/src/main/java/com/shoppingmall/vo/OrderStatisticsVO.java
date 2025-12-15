@@ -26,3 +26,5 @@ public class OrderStatisticsVO {
      */
     private Long cancelledOrderCount;
 }
+
+

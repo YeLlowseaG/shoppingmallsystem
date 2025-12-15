@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ## 2025-12-15 - 修复SKU库存被商品更新覆盖的问题
 
 ### 功能说明
@@ -41,484 +42,303 @@
 
 ---
 
-## 2025-12-14 - 重构Header组件配置读取逻辑
+## 2025-12-14 - 修复咨询和评价接口的登录认证问题
 
 ### 功能说明
-重构Header组件，移除所有前端写死的默认值，改为完全从后台配置读取。同时修复logo图片加载失败时显示"JINGVO 净果"文案的问题。
+修复 `/api/buyer/consultation/my` 和 `/api/buyer/review/my` 接口返回401错误的问题，确保已登录用户可以正常访问这些接口。
+
+### 问题分析
+用户已经登录，但访问这两个接口时仍然返回401错误，提示"请先登录"。
+
+**根本原因**：
+- 在 `WebMvcConfig.java` 中，`/api/buyer/consultation/**` 和 `/api/buyer/review/**` 被排除在JWT拦截器之外
+- 这导致这些接口不会被拦截器处理，`userId` 不会被设置到 request attribute 中
+- 控制器中检查 `userId` 为 null 时返回401错误
+
+### 修改方案
+移除这两个路径的排除配置，让JWT拦截器正常处理这些接口，确保 `userId` 被正确设置。
 
 ### 修改文件
-
-#### 前端
-1. `frontend/src/components/home/Header.vue` - 移除所有写死的默认值，改为从后台配置读取，修复alt属性问题
+1. `backend/src/main/java/com/shoppingmall/common/config/WebMvcConfig.java` - 移除咨询和评价接口的排除配置
 
 ### 具体修改
-
-#### 问题分析
-- **写死的默认值**：前端代码中写死了logo、name、servicePhone、consultPhone、qrcode和热门关键词的默认值
-- **配置来源**：这些配置应该完全从后台读取，不需要前端写死
-- **alt属性问题**：logo图片的alt属性绑定到`siteConfig.name`，当图片加载失败时会显示"JINGVO 净果"文案
-
-#### 修复方案
-- **移除所有默认值**：
-  - `siteConfig` 初始值改为空字符串
-  - `hotKeywords` 初始值改为空数组
-- **添加条件渲染**：
-  - Logo只在`siteConfig.logo`存在时显示
-  - 服务热线只在`siteConfig.servicePhone`存在时显示
-  - 咨询热线只在`siteConfig.consultPhone`存在时显示
-  - 二维码只在`siteConfig.qrcode`存在时显示
-  - 热门关键词只在数组不为空时显示
-- **修复alt属性**：
-  - 将logo图片的`alt`属性改为空字符串`alt=""`
-  - 添加CSS样式隐藏图片加载失败时显示的alt文本
-- **移除错误处理中的默认配置注释**：不再保持默认配置
+- **移除排除配置**：从 `excludePathPatterns` 中移除 `/api/buyer/consultation/**` 和 `/api/buyer/review/**`
+- **启用拦截器**：这些接口现在会被JWT拦截器处理，`userId` 会被正确设置到 request attribute 中
 
 ### 功能特性
-- ✅ 所有配置完全从后台读取，前端不写死任何默认值
-- ✅ Logo图片加载失败时不显示任何文案
-- ✅ 配置不存在时不显示对应元素，避免显示空内容
-- ✅ 热门关键词只在有配置时显示
+- ✅ 咨询接口需要登录才能访问
+- ✅ 评价接口需要登录才能访问
+- ✅ JWT拦截器正确处理这些接口
+- ✅ `userId` 被正确设置，控制器可以正常获取用户信息
 
 ### 技术细节
-- 使用`v-if`条件渲染，只在配置存在时显示元素
-- Logo图片的`alt`属性设置为空字符串
-- 使用CSS隐藏图片加载失败时的alt文本：
-  ```scss
-  font-size: 0;
-  line-height: 0;
-  text-indent: -9999px;
-  overflow: hidden;
-  ```
+- **拦截器配置**：`/api/buyer/consultation/**` 和 `/api/buyer/review/**` 现在会被JWT拦截器拦截
+- **认证流程**：请求 → JWT拦截器验证Token → 设置userId到request → 控制器获取userId → 处理业务逻辑
+- **错误处理**：如果Token无效或过期，拦截器会直接返回401错误，不会到达控制器
 
-### 影响
-- ✅ 配置完全由后台管理，前端代码更加灵活
-- ✅ 修复了logo图片加载失败时显示文案的问题
-- ✅ 提升了代码的可维护性，配置变更无需修改前端代码
-- ✅ 避免了显示空内容，提升用户体验
+### 影响范围
+- ✅ `/api/buyer/consultation/my` - 我的咨询列表
+- ✅ `/api/buyer/consultation/**` - 所有咨询相关接口
+- ✅ `/api/buyer/review/my` - 我的评价列表
+- ✅ `/api/buyer/review/**` - 所有评价相关接口
 
 ---
 
-## 2025-12-14 - 移除页面顶部Logo占位符文字
+## 2025-12-14 - 修复会员价格计算：user_level直接关联member_level.id
 
 ### 功能说明
-移除页面顶部Header组件中logo占位符图片上的"JINGVO"文字显示，只保留纯色logo图片，不显示任何文案。
+修复会员价格计算逻辑，使 `sys_user.user_level` 字段直接存储 `member_level.id`（会员等级ID），实现正确的关联关系。
+
+### 问题分析
+之前的实现使用 `sort_order` 来映射，但这种方式存在问题：
+- `member_level` 表中的等级是动态配置的，可能有任意数量（如4个等级：普卡、银卡、金卡、钻石）
+- 通过 `sort_order` 映射不够直观，且依赖于排序规则
+- 最合理的关联方式应该是直接通过 `member_level.id` 关联
+
+### 修改方案
+改为直接通过 `member_level.id` 关联：
+- `sys_user.user_level` 字段直接存储 `member_level.id`（会员等级ID）
+- 如果 `user_level` 为 null 或 0，则使用默认等级（第一个等级，通常是 id=1 的普卡会员）
+- 根据 `user_level` 值在 `member_level` 表中查找对应的等级记录
 
 ### 修改文件
-
-#### 前端
-1. `frontend/src/components/home/Header.vue` - 移除logo占位符URL中的text参数
+1. `backend/src/main/java/com/shoppingmall/service/buyer/impl/CartServiceImpl.java` - 修复关联逻辑
+2. `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java` - 修复关联逻辑
 
 ### 具体修改
-
-#### 问题分析
-- **占位符文字**：logo占位符URL中包含`?text=JINGVO`参数，导致占位符图片上显示"JINGVO"文字
-- **用户需求**：只需要显示logo图片，不需要显示任何文案
-
-#### 修复方案
-- **移除文字参数**：将logo占位符URL从 `https://via.placeholder.com/150x60/E4393C/ffffff?text=JINGVO` 改为 `https://via.placeholder.com/150x60/E4393C/ffffff`
-- **保留图片**：只显示纯色logo图片，不包含任何文字
+- **移除sort_order映射**：不再使用 `sort_order` 来映射
+- **直接通过ID关联**：`sys_user.user_level` 直接存储 `member_level.id`，通过ID查找对应的会员等级
+- **容错处理**：如果 `user_level` 为 null 或 0，或找不到匹配的等级，使用第一个等级（默认）；如果还是没有找到，返回原价
 
 ### 功能特性
-- ✅ Logo占位符图片不再显示"JINGVO"文字
-- ✅ 只显示纯色logo图片
-- ✅ 如果使用实际logo图片，也不会显示额外文案
+- ✅ 直接通过 `member_level.id` 关联，关系清晰明确
+- ✅ 支持任意数量的会员等级（如4个：普卡、银卡、金卡、钻石）
+- ✅ 不依赖于 `sort_order`，更灵活
+- ✅ 容错处理完善，确保系统稳定运行
+- ✅ 符合数据库设计最佳实践
 
 ### 技术细节
-- 占位符URL中的`?text=JINGVO`参数会在图片上显示文字
-- 移除该参数后，占位符图片为纯色，不包含文字
-- `siteConfig.name`仅用于img标签的alt属性，不会在页面上显示
+- **关联方式**：`sys_user.user_level` = `member_level.id`
+- **查找逻辑**：遍历会员等级列表，查找 `id` 匹配的等级
+- **默认处理**：如果 `user_level` 为 null 或 0，或找不到匹配等级，使用第一个等级（默认）
+- **数据库配置**：根据 `member_level` 表配置，当前有4个等级（id: 1=普卡, 2=银卡, 3=金卡, 4=钻石）
 
-### 影响
-- ✅ Logo区域更加简洁，只显示图片
-- ✅ 符合用户需求，不显示额外文案
-- ✅ 如果后续使用实际logo图片，也不会显示文字
+### 数据库说明
+根据 `member_level` 表配置：
+- id=1: 普卡会员（折扣率 100）
+- id=2: 银卡会员（折扣率 95）
+- id=3: 金卡会员（折扣率 90）
+- id=4: 钻石会员（折扣率 80）
+
+`sys_user.user_level` 应存储这些 id 值（1, 2, 3, 4），系统会根据这些值查找对应的会员等级并应用相应的折扣率。
 
 ---
 
-## 2025-12-14 - 优化商品详情页接口调用逻辑
+## 2025-12-14 - 修改会员价格计算逻辑，使用会员等级折扣率
 
 ### 功能说明
-优化商品详情页面（`/products/:id`）的接口调用逻辑，只在用户已登录时才调用需要登录的检查接口，避免未登录时产生401错误。包括：
-1. 缺货登记检查接口
-2. 收藏状态检查接口
-
-### 修改文件
-
-#### 前端
-1. `frontend/src/views/products/Detail.vue` - 添加登录状态判断，只在用户已登录时检查缺货登记状态和收藏状态
-
-### 具体修改
-
-#### 问题分析
-- **401错误**：未登录用户访问商品详情页时，会调用以下接口：
-  - `/api/buyer/stock-notification/check/{productId}` - 缺货登记检查
-  - `/api/buyer/favorites/check/{productId}` - 收藏状态检查
-- **接口要求**：这些接口需要用户登录才能获取用户ID，检查该用户的相关状态
-- **用户体验**：未登录时调用接口会产生401错误，虽然前端已处理，但仍会产生不必要的请求
-
-#### 修复方案
-- **导入用户Store**：添加 `useUserStore` 导入和实例化
-- **缺货登记检查优化**：在 `checkStockRegisterStatus` 函数中，先判断用户是否已登录
-  - 如果用户未登录，直接设置 `hasRegisteredStock.value = false`，不调用接口
-- **收藏状态检查优化**：在 `checkFavoriteStatus` 函数中，先判断用户是否已登录
-  - 如果用户未登录，直接设置 `isFavorited.value = false`，不调用接口
-  - 添加错误处理，发生错误时默认为未收藏
-
-### 功能特性
-- ✅ 未登录用户访问商品详情页时，不会调用需要登录的检查接口
-- ✅ 避免产生401错误，减少不必要的网络请求
-- ✅ 提升用户体验，减少控制台错误信息
-- ✅ 已登录用户正常检查缺货登记状态和收藏状态
-
-### 技术细节
-- 使用 `userStore.userInfo` 判断用户是否已登录
-- 未登录时直接返回，不调用后端接口
-- 保持原有的错误处理逻辑，确保代码健壮性
-- 错误发生时设置合理的默认值
-
-### 影响
-- ✅ 减少未登录时的401错误请求（缺货登记和收藏检查）
-- ✅ 提升页面加载性能（减少不必要的API调用）
-- ✅ 改善用户体验，避免控制台错误信息
-- ✅ 代码逻辑更加清晰，只在需要时调用接口
-
----
-
-## 2025-12-14 - 完善商品列表页面加入购物车功能
-
-### 功能说明
-完善商品列表页面（`/products?type=new`）的加入购物车功能，和后端API对接，参考商品详情页面的加入购物车逻辑。
-
-### 修改文件
-
-#### 前端
-1. `frontend/src/components/products/ProductCard.vue` - 完善加入购物车功能
-
-### 具体修改
-
-#### 1. 导入购物车相关依赖
-- **导入API**：从 `@/api/buyer/cart` 导入 `addToCart` API 和 `AddCartDTO` 类型
-- **导入Store**：导入 `useCartStore` 用于更新购物车数量
-- **添加状态**：添加 `addingToCart` 响应式变量，用于控制加载状态
-
-#### 2. 完善加入购物车函数
-- **商品验证**：
-  - 检查商品ID是否存在
-  - 检查商品状态（如果已下架则提示）
-  - 检查库存（如果库存为0则提示）
-- **API调用**：
-  - 构建 `AddCartDTO` 对象，包含商品ID和数量（默认为1）
-  - 调用 `addToCartAPI` 添加商品到购物车
-  - 成功后更新购物车数量（调用 `cartStore.updateCartCount()`）
-- **错误处理**：
-  - 401错误：提示用户登录并跳转到登录页
-  - 其他错误：显示后端返回的错误信息
-- **用户体验**：
-  - 添加加载状态，防止重复点击
-  - 显示成功提示
-  - 阻止事件冒泡，避免触发跳转到详情页
-
-#### 3. 更新按钮UI
-- **加载状态**：按钮显示加载动画和"加入中..."文字
-- **禁用状态**：加载时禁用按钮，防止重复提交
-
-### 功能特性
-- ✅ 商品列表页面可以正常加入购物车
-- ✅ 和后端API完全对接
-- ✅ 商品状态和库存验证
-- ✅ 登录状态检查，未登录时提示并跳转
-- ✅ 加载状态显示，提升用户体验
-- ✅ 自动更新购物车数量
-- ✅ 错误处理完善，提示友好
-
-### 技术细节
-- 使用 `addToCart` API 添加商品到购物车
-- 使用 `useCartStore` 更新购物车数量
-- 默认数量为1，用户可以在详情页修改数量
-- 支持商品状态和库存检查（如果商品数据包含这些字段）
-- 使用 `e.stopPropagation()` 阻止事件冒泡
-
-### 参考实现
-- 参考了商品详情页面（`Detail.vue`）的加入购物车逻辑
-- 保持了一致的用户体验和错误处理方式
-
-### 影响
-- ✅ 用户可以在商品列表页面直接加入购物车，无需跳转到详情页
-- ✅ 提升了购物体验，减少了操作步骤
-- ✅ 与商品详情页面的功能保持一致
-
----
-
-## 2025-12-14 - 优化会员中心首页消息功能
-
-### 功能说明
-优化会员中心首页（`/member`）的消息相关功能，包括：
-1. "您的未读消息"点击查看按钮跳转到收件箱页面
-2. 屏蔽"NEW 新功能展示"文案
-3. 点击"通知"按钮跳转到收件箱页面
-4. 添加获取未读消息数量的功能
-
-### 修改文件
-
-#### 前端
-1. `frontend/src/views/member/Index.vue` - 添加查看收件箱跳转功能和获取未读消息数量
-2. `frontend/src/components/member/MemberHeaderBar.vue` - 屏蔽"NEW 新功能展示"文案，添加通知按钮跳转功能
-
-### 具体修改
-
-#### 1. 会员中心首页（Index.vue）
-- **添加查看收件箱函数**：实现 `handleViewInbox` 函数，跳转到 `/member/site-messages/inbox`
-- **添加点击事件**：为"查看"按钮添加 `@click="handleViewInbox"` 事件
-- **添加获取未读消息数量**：
-  - 导入 `getUnreadCount` API
-  - 实现 `fetchUnreadMessageCount` 函数获取未读消息数量
-  - 在 `onMounted` 中调用获取未读消息数量
-
-#### 2. 会员中心头部栏（MemberHeaderBar.vue）
-- **屏蔽"NEW 新功能展示"文案**：使用注释方式屏蔽该文案显示
-- **添加通知按钮跳转功能**：
-  - 导入 `useRouter`
-  - 实现 `handleNotificationClick` 函数，跳转到 `/member/site-messages/inbox`
-  - 为"通知"按钮添加 `@click="handleNotificationClick"` 事件
-
-### 功能特性
-- ✅ "您的未读消息"点击查看按钮可跳转到收件箱页面
-- ✅ "NEW 新功能展示"文案已屏蔽，不再显示
-- ✅ 点击"通知"按钮可跳转到收件箱页面
-- ✅ 会员中心首页自动获取并显示未读消息数量
-
-### 技术细节
-- 使用 Vue Router 的 `router.push` 进行页面跳转
-- 使用 `getUnreadCount` API 获取未读消息数量
-- 错误处理：401 错误（未登录）时静默失败，不显示错误提示
-
-### 影响
-- ✅ 提升用户体验，用户可以快速访问收件箱
-- ✅ 界面更加简洁，移除了不需要的"NEW 新功能展示"文案
-- ✅ 未读消息数量实时显示，用户可以及时了解消息状态
-
----
-
-## 2025-12-14 - 修复MessageServiceImpl中lambda表达式变量引用错误
-
-### 功能说明
-修复 `MessageServiceImpl.java` 文件中 lambda 表达式引用的本地变量必须是最终变量或实际上的最终变量的编译错误。
+修改会员价格字段的计算逻辑，改为根据会员等级表的折扣率来计算会员价格。不同会员等级可能有不同的折扣率，价格保留两位小数。
 
 ### 修改文件
 
 #### 后端
-1. `backend/src/main/java/com/shoppingmall/service/buyer/impl/MessageServiceImpl.java` - 修复 senderNameMap 变量声明，使其成为 effectively final
+1. `backend/src/main/java/com/shoppingmall/service/buyer/impl/CartServiceImpl.java` - 修改购物车会员价格计算逻辑
+2. `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java` - 修改订单会员价格计算逻辑
 
 ### 具体修改
 
-#### 问题分析
-- **编译错误**：从lambda 表达式引用的本地变量必须是最终变量或实际上的最终变量
-- **错误原因**：`senderNameMap` 变量先被初始化为 `Map.of()`，然后在 if 块中被重新赋值，导致它不是 effectively final 的，无法在 lambda 表达式中使用
+#### 1. CartServiceImpl 修改
+- **添加依赖**：注入 `MemberLevelService` 用于获取会员等级信息
+- **移除旧逻辑**：移除 `getPriceByUserLevel` 和 `convertUserLevelToString` 方法（不再使用价格表）
+- **新增方法**：添加 `calculateMemberPrice` 方法，根据会员等级折扣率计算会员价格
+- **计算逻辑**：
+  - 获取所有启用的会员等级（按排序号排序）
+  - 根据用户的 `userLevel`（0,1,2）映射到会员等级列表的索引
+  - 如果索引超出范围，使用第一个等级（默认）
+  - 使用公式：`会员价格 = 销售价格 × (折扣率 / 100.00)`
+  - 保留两位小数（使用 `setScale(2, BigDecimal.ROUND_HALF_UP)`）
 
-#### 修复方案
-- **声明为 final**：将 `senderNameMap` 声明为 `final` 变量
-- **使用 if-else 结构**：在 if-else 块中分别赋值，确保变量只被赋值一次，成为 effectively final
+#### 2. OrderServiceImpl 修改
+- **添加依赖**：注入 `MemberLevelService` 用于获取会员等级信息
+- **移除旧逻辑**：移除 `getPriceByUserLevel` 和 `convertUserLevelToString` 方法
+- **新增方法**：添加 `calculateMemberPrice` 方法，与 CartServiceImpl 中的逻辑一致
+- **价格计算**：在创建订单时，使用新的会员价格计算逻辑
+- **金额计算**：订单金额和小计都保留两位小数
 
 ### 功能特性
-- ✅ 修复了编译错误，项目可以正常编译
-- ✅ lambda 表达式可以正常使用 senderNameMap 变量
+- ✅ 会员价格根据会员等级表的折扣率动态计算
+- ✅ 不同会员等级享受不同的折扣率
+- ✅ 价格统一保留两位小数
+- ✅ 购物车和订单使用相同的计算逻辑
+- ✅ 异常处理完善，计算失败时返回原价
 
 ### 技术细节
-- Java lambda 表达式中引用的局部变量必须是 final 或 effectively final 的
-- 使用 `final` 关键字声明变量，并在 if-else 块中分别赋值，确保变量只被赋值一次
+- **计算公式**：`会员价格 = 销售价格 × (折扣率 / 100.00)`
+- **折扣率说明**：95.00 表示 95折，100.00 表示无折扣
+- **用户等级映射**：userLevel (0,1,2) 映射到会员等级列表的索引 (0,1,2)
+- **精度控制**：使用 `BigDecimal.setScale(2, BigDecimal.ROUND_HALF_UP)` 保留两位小数
+- **默认处理**：如果没有会员等级或计算失败，返回原价（销售价格）
+
+### 影响范围
+- ✅ 购物车页面（`/cart`）：会员价格根据折扣率计算
+- ✅ 结算页面（`/cart/checkout`）：会员价格根据折扣率计算
+- ✅ 订单创建：订单中的商品价格根据折扣率计算
+- ✅ 所有涉及会员价格的地方都统一使用新的计算逻辑
 
 ### 影响
-- ✅ 修复了编译错误，项目可以正常启动
-- ✅ lambda 表达式可以正常访问 senderNameMap 变量
+- ✅ 会员价格计算更加灵活，可以根据会员等级动态调整
+- ✅ 不再依赖商品价格表（product_price），简化了价格管理
+- ✅ 价格计算统一，确保购物车和订单价格一致
+- ✅ 支持不同会员等级享受不同折扣，提升用户体验
 
 ---
 
-## 2025-12-14 - 修复MessageServiceImpl中UserRepository导入错误
+## 2025-12-14 - 创建聚水潭ERP发货业务对接方案文档
 
 ### 功能说明
-修复 `MessageServiceImpl.java` 文件中 `UserRepository` 的导入路径错误，将导入路径从 `com.shoppingmall.repository.UserRepository` 修正为 `com.shoppingmall.repository.user.UserRepository`。
+创建聚水潭ERP发货业务对接方案文档，详细说明如何将当前系统的订单发货业务与聚水潭ERP平台对接。
+
+### 创建文件
+
+#### 文档
+1. `docs/聚水潭ERP发货业务对接方案.md` - 完整的对接方案文档
+
+### 文档内容
+
+#### 1. 对接概述
+- 对接目标：订单推送、发货回调、状态同步
+- 对接方式：系统主动推送订单，ERP回调通知发货
+- 参考文档链接
+
+#### 2. 需要创建的文件
+- 数据库表：ERP订单同步记录表
+- 实体类：ErpOrderSync
+- DTO类：JushuitanOrderDTO、JushuitanShipCallbackDTO
+- Repository：ErpOrderSyncRepository
+- 服务类：JushuitanService接口和实现
+- 控制器：JushuitanController
+- 配置类：JushuitanConfig
+
+#### 3. 需要修改的文件
+- 订单服务：在支付成功后推送订单，在发货时检查ERP状态
+- 配置文件：添加聚水潭ERP配置项
+- 系统配置表：添加ERP相关配置
+
+#### 4. 数据流程设计
+- 订单推送流程：支付成功 → 检查配置 → 创建同步记录 → 推送订单 → 更新状态
+- 发货回调流程：ERP发货 → 回调接口 → 验证签名 → 更新订单状态和物流信息
+- 重试机制：失败订单自动重试，支持定时任务处理
+
+#### 5. 技术实现细节
+- HTTP客户端配置
+- 签名生成和验证
+- 数据格式转换
+- 异常处理和重试机制
+- 定时任务设计
+
+#### 6. 配置说明
+- 系统配置项说明
+- 聚水潭平台配置要求
+
+#### 7. 接口设计
+- 订单推送接口（系统 → 聚水潭）
+- 发货回调接口（聚水潭 → 系统）
+
+#### 8. 数据库设计
+- ERP订单同步记录表结构
+- 字段说明和索引设计
+
+#### 9. 实现步骤
+- 分5个阶段详细说明实现步骤
+
+#### 10. 注意事项
+- 数据一致性
+- 安全性
+- 性能优化
+- 错误处理
+- 测试建议
+
+#### 11. 后续扩展
+- 订单状态同步
+- 库存同步
+- 商品同步
+
+### 功能特性
+- ✅ 完整的对接方案文档
+- ✅ 详细的实现步骤说明
+- ✅ 数据流程设计
+- ✅ 技术实现细节
+- ✅ 配置和接口设计
+- ✅ 注意事项和测试建议
+
+### 技术细节
+- 文档包含完整的对接方案
+- 涵盖数据库设计、代码结构、接口设计等
+- 提供分阶段实现步骤
+- 包含注意事项和最佳实践
+
+### 影响
+- ✅ 为聚水潭ERP对接提供完整的实施方案
+- ✅ 开发人员可以根据文档进行开发
+- ✅ 包含详细的实现步骤和注意事项
+- ✅ 为后续扩展功能提供参考
+
+---
+
+## 2025-12-14 - 屏蔽等级管理中的积分相关功能
+
+### 功能说明
+屏蔽等级管理中的积分相关字段和功能，包括积分区间、最低积分、最高积分等，因为业务上不再需要积分功能。
 
 ### 修改文件
+
+#### 前端
+1. `admin-frontend/src/views/buyer/Level.vue` - 屏蔽积分相关字段的显示和输入
 
 #### 后端
-1. `backend/src/main/java/com/shoppingmall/service/buyer/impl/MessageServiceImpl.java` - 修复 UserRepository 导入路径
+1. `backend/src/main/java/com/shoppingmall/dto/MemberLevelDTO.java` - 移除积分字段的验证注解
+2. `backend/src/main/java/com/shoppingmall/service/member/impl/MemberLevelServiceImpl.java` - 移除积分区间验证逻辑和积分区间显示文本生成
+3. `backend/src/main/java/com/shoppingmall/controller/admin/MemberLevelController.java` - 屏蔽根据积分获取会员等级的接口
 
 ### 具体修改
 
-#### 问题分析
-- **编译错误**：`UserRepository` 类找不到符号
-- **错误原因**：导入路径错误，`UserRepository` 实际位于 `com.shoppingmall.repository.user` 包中，而不是 `com.shoppingmall.repository` 包中
+#### 1. 前端页面修改
+- **列表页**：屏蔽"积分区间"列的显示
+- **表单页**：屏蔽"最低积分"和"最高积分"输入框
+- **表单验证**：移除积分字段的验证规则
+- **表单数据**：保留字段但不再使用（避免类型错误）
 
-#### 修复方案
-- **修正导入语句**：将 `import com.shoppingmall.repository.UserRepository;` 改为 `import com.shoppingmall.repository.user.UserRepository;`
+#### 2. 后端DTO修改
+- **移除验证注解**：注释掉 `minPoints` 和 `maxPoints` 字段的 `@NotNull` 和 `@Min` 验证注解
+- **保留字段**：保留字段定义，避免数据库表结构变更
 
-### 功能特性
-- ✅ 修复了编译错误，项目可以正常编译
-- ✅ 导入路径正确，可以正常使用 UserRepository
+#### 3. 后端Service修改
+- **移除积分区间验证**：注释掉 `validatePointsRange` 方法的调用
+- **设置默认值**：在创建和更新时，自动设置 `minPoints = 0` 和 `maxPoints = null`
+- **移除积分区间显示文本**：注释掉积分区间显示文本的生成逻辑，设置为空字符串
 
-### 技术细节
-- `UserRepository` 位于 `com.shoppingmall.repository.user` 包中
-- 使用 MyBatis-Plus 的 BaseMapper 接口
-
-### 影响
-- ✅ 修复了编译错误，项目可以正常启动
-- ✅ MessageServiceImpl 可以正常使用 UserRepository 查询用户信息
-
----
-
-## 2025-12-14 - 实现站内消息收件箱功能
-
-### 功能说明
-实现会员中心站内消息模块的收件箱功能，用户可以查看接收到的站内消息通知信息，包括系统消息、订单消息等。
-
-### 修改文件
-
-#### 前端
-1. `frontend/src/components/member/MemberSidebar.vue` - 修改侧边栏，只保留收件箱菜单，屏蔽其他菜单
-2. `frontend/src/router/index.ts` - 添加收件箱路由配置
-
-#### 创建文件
-
-##### 前端
-1. `frontend/src/views/member/Inbox.vue` - 收件箱页面组件
-2. `frontend/src/api/buyer/message.ts` - 站内消息API接口
-
-##### 后端
-1. `backend/src/main/java/com/shoppingmall/entity/Message.java` - 站内消息实体类
-2. `backend/src/main/java/com/shoppingmall/repository/MessageRepository.java` - 站内消息Repository
-3. `backend/src/main/java/com/shoppingmall/vo/MessageVO.java` - 站内消息VO
-4. `backend/src/main/java/com/shoppingmall/vo/MessagePageVO.java` - 消息分页响应VO
-5. `backend/src/main/java/com/shoppingmall/dto/MessageQueryDTO.java` - 消息查询DTO
-6. `backend/src/main/java/com/shoppingmall/service/buyer/MessageService.java` - 站内消息服务接口
-7. `backend/src/main/java/com/shoppingmall/service/buyer/impl/MessageServiceImpl.java` - 站内消息服务实现
-8. `backend/src/main/java/com/shoppingmall/controller/buyer/MessageController.java` - 站内消息控制器
-
-### 具体修改
-
-#### 1. 侧边栏菜单优化
-- **屏蔽其他菜单**：只保留"收件箱"菜单项，屏蔽"发送消息"、"草稿箱"、"发件箱"、"给管理员发消息"等菜单
-- **路由映射**：更新路由映射，收件箱跳转到 `/member/site-messages/inbox`
-- **自动激活**：添加路由自动判断逻辑，当访问收件箱页面时自动激活对应菜单
-
-#### 2. 收件箱页面设计
-- **页面布局**：参考预存款余额页面布局，使用会员中心标准布局
-- **消息列表**：
-  - 显示消息标题、内容、时间
-  - 区分已读/未读消息（未读消息高亮显示）
-  - 显示消息类型标签（系统消息、订单消息等）
-  - 支持点击消息查看详情或跳转到关联订单
-- **操作功能**：
-  - 全部标记为已读
-  - 刷新消息列表
-  - 分页显示
-- **消息类型**：
-  - 普通消息（0）
-  - 系统消息（1）- 显示蓝色标签
-  - 订单消息（2）- 显示绿色标签，可跳转到订单详情
-  - 其他（3）
-
-#### 3. 后端API接口
-- **获取收件箱消息列表**：`GET /api/buyer/messages/inbox`
-  - 支持分页查询
-  - 支持按消息类型筛选
-  - 支持按已读状态筛选
-  - 返回未读消息数量
-- **标记消息为已读**：`PUT /api/buyer/messages/{id}/read`
-- **全部标记为已读**：`PUT /api/buyer/messages/read-all`
-- **删除消息**：`DELETE /api/buyer/messages/{id}`
-- **获取未读消息数量**：`GET /api/buyer/messages/unread-count`
-
-#### 4. 数据模型
-- **Message实体**：对应数据库 `message` 表
-  - 支持逻辑删除
-  - 包含发送人ID、接收人ID、标题、内容、消息类型、已读状态、订单号等字段
-- **消息类型**：使用 `MessageType` 常量类
-  - NORMAL = 0（普通消息）
-  - SYSTEM = 1（系统消息）
-  - ORDER = 2（订单消息）
-  - OTHER = 3（其他）
+#### 4. 后端Controller修改
+- **屏蔽接口**：注释掉 `getMemberLevelByPoints` 接口（根据积分获取会员等级）
 
 ### 功能特性
-- ✅ 收件箱页面，显示站内消息列表
-- ✅ 区分已读/未读消息，未读消息高亮显示
-- ✅ 消息类型标签显示（系统消息、订单消息等）
-- ✅ 支持点击消息查看详情
-- ✅ 订单消息支持跳转到订单详情页面
-- ✅ 全部标记为已读功能
-- ✅ 分页显示消息列表
-- ✅ 显示未读消息数量
-- ✅ 响应式设计，支持多设备访问
+- ✅ 前端不再显示积分相关字段
+- ✅ 前端不再要求输入积分相关数据
+- ✅ 后端不再验证积分区间
+- ✅ 后端不再生成积分区间显示文本
+- ✅ 根据积分获取会员等级的接口已屏蔽
+- ✅ 保留字段定义，避免数据库表结构变更
 
 ### 技术细节
-- 使用 Element Plus 组件库构建UI
-- 使用 MyBatis-Plus 进行数据库操作
-- 支持逻辑删除，不会真正删除数据
-- 消息按创建时间倒序排列
-- 自动获取发送人姓名（如果存在）
-- 权限验证：只能查看自己的消息
+- 使用注释方式屏蔽功能，便于后续恢复
+- 保留字段定义，避免类型错误和数据库表结构变更
+- 设置默认值（minPoints=0, maxPoints=null），确保数据一致性
+- 积分区间显示文本设置为空字符串，避免前端显示异常
 
 ### 影响
-- ✅ 用户可以方便地查看站内消息通知
-- ✅ 提升用户体验，及时了解系统通知和订单消息
-- ✅ 简化了站内消息模块，只保留核心的收件箱功能
-- ✅ 为后续扩展消息功能打下基础
-
----
-
-## 2025-12-14 - 修复订单详情页面跳转问题
-
-### 功能说明
-修复订单详情页面（`/order/detail`）中"我已付款"和"我有问题"按钮无法正确跳转到订单问题填写页面的问题。
-
-### 修改文件
-
-#### 前端
-1. `frontend/src/views/order/Detail.vue` - 修复按钮跳转逻辑，确保订单号正确传递
-2. `frontend/src/views/order/OrderMessage.vue` - 增强参数验证和错误处理
-
-### 具体修改
-
-#### 1. 订单详情页面跳转逻辑优化
-
-##### handleMarkAsPaid 函数
-- **添加订单号验证**：在跳转前检查订单号是否存在
-- **备用方案**：如果 `orderNumber.value` 为空，从 `route.query.orderNumber` 获取
-- **错误提示**：如果订单号不存在，显示警告并阻止跳转
-
-##### handleHaveQuestion 函数
-- **添加订单号验证**：同上，确保订单号存在
-- **备用方案**：从路由参数中获取订单号
-- **错误提示**：如果订单号不存在，显示警告并阻止跳转
-
-#### 2. 订单问题页面参数处理优化
-
-##### onMounted 函数
-- **参数验证**：检查订单号是否存在，如果不存在则跳转回订单列表
-- **类型验证**：验证消息类型是否为 'paid' 或 'question'
-- **默认值处理**：如果没有指定类型，默认使用 'question'
-- **错误处理**：订单号缺失时显示错误提示并跳转
-
-### 问题原因
-- 订单详情页面在加载时，`orderNumber.value` 可能还没有被正确设置
-- 跳转时只使用了 `orderNumber.value`，没有备用方案
-- 订单问题页面缺少参数验证，可能导致页面显示异常
-
-### 功能特性
-- ✅ 按钮跳转时确保订单号正确传递
-- ✅ 支持从多个来源获取订单号（响应式变量或路由参数）
-- ✅ 参数验证完善，避免页面异常
-- ✅ 错误提示友好，引导用户正确操作
-
-### 技术细节
-- 使用 `orderNumber.value || route.query.orderNumber` 确保订单号获取
-- 在跳转前验证订单号是否存在
-- 在目标页面验证必要参数，缺失时自动跳转
-
-### 影响
-- ✅ 修复了"我已付款"按钮无法跳转的问题
-- ✅ 修复了"我有问题"按钮无法跳转的问题
-- ✅ 提升了用户体验，避免页面异常
-- ✅ 增强了代码的健壮性
+- ✅ 等级管理功能简化，不再依赖积分
+- ✅ 界面更加简洁，移除了不需要的积分字段
+- ✅ 代码逻辑更加清晰，专注于折扣率等核心功能
+- ✅ 为后续可能的积分功能恢复预留了空间（通过注释）
 
 ---
 
@@ -619,29 +439,11 @@
 - 状态管理：待处理 -> 处理中 -> 已处理/已关闭
 
 ### 菜单配置
-已创建菜单和权限脚本：`database/update-20251214-add-order-message-menu.sql`
-
-**菜单信息：**
-- 菜单ID: 55
-- 父菜单：订单管理 (parent_id=3)
+需要在数据库的菜单表中添加"订单问题"菜单项：
+- 父菜单：订单管理
 - 菜单名称：订单问题
-- 菜单路径：message（完整路径：/admin/order/message）
 - 组件路径：order/OrderMessage
-- 菜单类型：二级菜单 (menu_type=1)
-- 权限标识：admin:order:message:list
-- 排序号：2（在订单列表之后）
-- 图标：ChatLineRound
-
-**权限分配：**
-- 超级管理员 (role_id=1)：自动分配
-- 运营人员 (role_id=2)：自动分配（如果存在）
-- 客服人员 (role_id=5)：自动分配（如果存在）
-
-**执行脚本：**
-```sql
--- 执行菜单和权限脚本
-source database/update-20251214-add-order-message-menu.sql;
-```
+- 菜单类型：二级菜单
 
 ### 影响
 - ✅ 用户可以通过订单详情页提交订单问题
@@ -1799,3 +1601,461 @@ source database/update-20251214-add-order-message-menu.sql;
 ### 文件位置
 - `docs/需求分析文档.md`
 >>>>>>> 5458440fecd82d506cdc58f0f27d62af4704809d
+��复支付页面支付密码错误时出现两个重复错误提示的问题，优化错误处理逻辑。
+
+### 修改文件
+
+#### 前端
+1. frontend/src/views/order/Payment.vue - 优化错误处理，移除重复的错误提示
+
+### 具体修改
+
+#### 1. 移除重复的错误提示
+- 在 `processPayment` 函数的 catch 块中移除 `ElMessage.error` 调用
+- 因为 `request.ts` 的响应拦截器已经统一处理并显示了错误消息
+- 避免同一个错误被显示两次
+
+#### 2. 优化支付密码错误处理
+- 当支付密码错误时，自动重新打开密码输入对话框
+- 清空密码输入框，让用户重新输入
+- 改善用户体验，避免用户需要手动重新点击付款按钮
+
+#### 3. 优化密码清空逻辑
+- 在 finally 块中，只在非预存款支付时清空密码
+- 预存款支付失败时保留密码输入框状态，方便用户查看和重新输入
+- 避免支付失败后密码被意外清空
+
+### 技术细节
+- 错误消息统一由 `request.ts` 的响应拦截器处理
+- 通过检查错误消息内容判断是否为支付密码错误
+- 使用 `showPaymentPasswordDialog` 控制对话框显示状态
+
+### 影响
+- ✅ 修复了支付密码错误时出现两个重复提示的问题
+- ✅ 支付密码错误时自动重新打开输入对话框，提升用户体验
+- ✅ 错误处理逻辑更加清晰，避免重复提示
+- ✅ 密码输入框状态管理更加合理
+
+---
+
+## 2025-12-12 - 购物结算页面预存款余额对接后端
+
+### 修改内容
+在购物结算页面（/cart/checkout）对接后端API，获取并显示预存款余额数据。
+
+### 修改文件
+
+#### 前端
+1. frontend/src/views/cart/Checkout.vue - 对接预存款余额API
+
+### 具体修改
+
+#### 1. 导入API和依赖
+- 导入 `getDepositBalance` API函数用于获取预存款数据
+- 导入 `useUserStore` 用于检查用户登录状态
+
+#### 2. 添加预存款余额加载函数
+- 创建 `loadDepositBalance` 函数调用后端API获取预存款余额
+- 使用 `availableBalance` 字段作为显示的余额（可用余额）
+- 添加错误处理，对于401未授权错误不显示提示，其他错误静默处理
+
+#### 3. 页面加载时获取数据
+- 在 `onMounted` 生命周期钩子中调用 `loadDepositBalance`
+- 仅在用户已登录时调用API获取数据
+- 与加载地址列表和购物车商品并行执行
+
+### 技术细节
+- 后端API: `/api/buyer/member/deposit/balance`
+- 返回字段: `availableBalance`（可用余额）
+- 仅在用户已登录时调用API获取数据
+- 错误处理：401错误不显示提示，其他错误静默处理，保持页面正常使用
+
+### 影响
+- ✅ 购物结算页面预存款余额从后端实时获取
+- ✅ 用户登录后自动加载预存款余额数据
+- ✅ 未登录用户不显示错误提示，保持良好用户体验
+- ✅ 预存款余额数据与后端数据库保持同步
+- ✅ 支付方式选择时显示准确的预存款余额
+
+---
+
+## 2025-12-12 - 完善支付密码逻辑和提示
+
+### 修改内容
+完善支付环节的支付密码验证逻辑，支持"未设置支付密码时，默认使用登录密码"的功能，并在支付密码输入界面添加提示语。
+
+### 修改文件
+
+#### 后端
+1. backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java - 修改支付密码验证逻辑
+
+#### 前端
+1. frontend/src/views/order/Payment.vue - 在支付密码输入对话框添加提示语
+
+### 具体修改
+
+#### 1. 后端支付密码验证逻辑优化
+- 修改 `OrderServiceImpl.java` 中的支付密码验证逻辑
+- 如果用户未设置过支付密码（`paymentPassword` 为空），则使用登录密码进行验证
+- 如果用户已设置过支付密码，则使用支付密码进行验证
+- 移除了"请先设置支付密码"的异常抛出，改为自动使用登录密码作为默认支付密码
+
+#### 2. 前端支付密码输入界面优化
+- 在支付密码输入对话框中添加黄色提示条
+- 提示内容："(如未设置过支付密码,默认支付密码为您的账号登陆密码!)"
+- 提示样式与修改支付密码页面保持一致（黄色背景、边框、文字颜色）
+
+### 技术细节
+- 支付密码验证逻辑与修改支付密码逻辑保持一致
+- 使用BCrypt进行密码验证
+- 提示样式使用与修改支付密码页面相同的设计风格
+
+### 影响
+- ✅ 用户未设置支付密码时，可以使用登录密码进行支付
+- ✅ 支付密码输入界面有明确的提示信息，提升用户体验
+- ✅ 支付密码验证逻辑统一，避免用户困惑
+- ✅ 与修改支付密码页面的提示保持一致
+
+---
+
+## 2025-12-12 - 实现修改预存款支付密码功能
+
+### 修改内容
+在会员中心个人设置下增加"修改预存款支付密码"菜单页面，参考截图1:1仿真实现前端页面和后端对接。如果用户未设置过支付密码，默认支付密码为账号登录密码。
+
+### 修改文件
+
+#### 前端
+1. frontend/src/components/member/MemberSidebar.vue - 添加"修改预存款支付密码"菜单项
+2. frontend/src/views/member/PaymentPassword.vue - 创建修改预存款支付密码页面
+3. frontend/src/router/index.ts - 添加修改预存款支付密码路由
+4. frontend/src/api/buyer/user.ts - 添加修改支付密码API调用方法
+
+#### 后端
+1. backend/src/main/java/com/shoppingmall/service/user/UserService.java - 添加修改支付密码接口方法
+2. backend/src/main/java/com/shoppingmall/service/user/impl/UserServiceImpl.java - 实现修改支付密码方法
+3. backend/src/main/java/com/shoppingmall/controller/buyer/UserController.java - 添加修改支付密码API接口
+
+### 具体修改
+
+#### 1. 前端菜单和路由
+- 在MemberSidebar组件中添加"修改预存款支付密码"菜单项（位于"修改密码"和"收货地址"之间）
+- 添加路由映射和自动判断逻辑
+- 在路由配置中添加 `/member/settings/payment-password` 路由
+
+#### 2. 前端页面实现
+- 创建PaymentPassword.vue页面，参考截图1:1仿真
+- 页面包含：
+  - 标题："预存款支付密码修改"
+  - 黄色提示条："(如未设置过支付密码,默认支付密码为您的账号登陆密码!)"
+  - 三个输入框：原支付密码、新支付密码、确认新支付密码
+  - 保存按钮（灰色样式）
+- 使用表格布局（table），左侧标签，右侧输入框
+- 表单验证：原支付密码必填，新支付密码必填且长度6-20字符，确认密码必须与新密码一致
+- 密码输入框支持显示/隐藏密码功能
+
+#### 3. 后端API实现
+- 在UserService接口中添加 `changePaymentPassword` 方法
+- 在UserServiceImpl中实现修改支付密码逻辑：
+  - 验证原支付密码：如果用户未设置过支付密码（paymentPassword为空），则使用登录密码验证；如果已设置，则使用支付密码验证
+  - 使用BCrypt加密新支付密码并保存
+- 在UserController中添加 `PUT /api/buyer/user/payment-password` 接口
+
+#### 4. 前端API调用
+- 在user.ts中添加 `changePaymentPassword` 方法，调用后端API
+
+### 技术细节
+- 后端API: `PUT /api/buyer/user/payment-password`
+- 请求参数: `oldPaymentPassword`（原支付密码）、`newPaymentPassword`（新支付密码）
+- 密码加密: 使用BCrypt加密存储
+- 默认密码逻辑: 如果用户未设置过支付密码，默认使用登录密码作为支付密码
+
+### 影响
+- ✅ 用户可以在会员中心修改预存款支付密码
+- ✅ 支持首次设置支付密码（使用登录密码验证）
+- ✅ 前端页面样式与截图保持一致
+- ✅ 完整的表单验证和错误提示
+- ✅ 修改成功后清空表单并提示成功信息
+
+---
+
+## 2025-12-12 - 会员首页预存款数据对接后端
+
+### 修改内容
+在会员首页（/member）对接后端API，获取并显示预存款余额和可用余额数据。
+
+### 修改文件
+1. frontend/src/views/member/Index.vue
+
+### 具体修改
+1. **导入API函数**: 导入 `getDepositBalance` API函数用于获取预存款数据
+2. **添加生命周期钩子**: 使用 `onMounted` 在组件挂载时获取预存款数据
+3. **实现数据获取函数**: 创建 `fetchDepositBalance` 函数调用后端API获取预存款余额和可用余额
+4. **错误处理**: 添加错误处理逻辑，对于401未授权错误不显示提示，其他错误显示友好提示
+5. **数据绑定**: 将API返回的 `depositBalance` 和 `availableBalance` 字段绑定到页面显示
+
+### 技术细节
+- 后端API: `/api/buyer/member/deposit/balance`
+- 返回字段: `depositBalance`（预存款余额）、`availableBalance`（可用余额）
+- 仅在用户已登录时调用API获取数据
+
+### 影响
+- ✅ 会员首页预存款余额和可用余额从后端实时获取
+- ✅ 用户登录后自动加载预存款数据
+- ✅ 未登录用户不显示错误提示，保持良好用户体验
+- ✅ 预存款数据与后端数据库保持同步
+
+---
+
+## 2025-12-10 - 购物车页面屏蔽批发优惠价字段
+
+### 修改内容
+在购物车页面（/cart）中屏蔽批发优惠价字段的显示。
+
+### 修改文件
+1. frontend/src/views/cart/Index.vue
+
+### 具体修改
+1. **删除表头列**: 移除购物车表格表头中的"批发优惠价"列
+2. **删除表体单元格**: 移除购物车商品列表中显示批发优惠价的单元格
+3. **调整空购物车提示**: 将空购物车行的colspan从10调整为9（因为删除了一列）
+
+### 影响
+- ✅ 购物车页面不再显示批发优惠价字段
+- ✅ 保持其他功能正常（销售价格、会员价等字段正常显示）
+- ✅ 表格布局自动调整，不影响页面美观
+---
+
+## 2025-12-10 - 购物结算页面优化收货地址和收货人信息校验
+
+### 修改内容
+优化购物结算页面（/cart/checkout）的收货地址和收货人信息处理逻辑。
+
+### 修改文件
+1. frontend/src/views/cart/Checkout.vue
+
+### 具体修改
+1. **清空默认数据**: 
+   - 将addressForm的初始化默认值全部清空（region、detailAddress、zipCode、receiverName、receiverPhone、receiverMobile）
+   - 当用户没有收货地址数据时，收货地址输入框不再显示默认数据
+
+2. **完善收货人信息校验**:
+   - 收货人姓名（receiverName）为必填字段
+   - 手机（receiverMobile）和电话（receiverPhone）至少填写一项
+   - 在handlePlaceOrder函数中添加完整的表单校验逻辑
+
+3. **优化地址加载逻辑**:
+   - 在loadAddressList函数中，当没有收货地址时，自动显示地址表单并清空所有默认值
+   - 加载失败时也清空表单默认值
+
+### 影响
+- ✅ 没有收货地址数据时，输入框不再显示默认数据
+- ✅ 收货人信息必填校验完善，确保下单时信息完整
+- ✅ 提升用户体验，避免使用错误的默认数据
+---
+
+## 2025-12-10 - 购物车页面默认勾选所有商品
+
+### 修改内容
+在购物车页面（/cart）中，默认勾选所有商品。
+
+### 修改文件
+1. frontend/src/views/cart/Index.vue
+
+### 具体修改
+1. **修改默认选中状态**: 在loadCartList函数中，将商品项的selected属性从false改为true，使所有商品默认被勾选
+
+### 影响
+- ✅ 购物车页面加载时，所有商品默认被勾选
+- ✅ 提升用户体验，方便用户直接进行批量操作或结算
+- ✅ 全选状态会根据所有商品的选中状态自动更新
+---
+
+## 2025-12-12 - 订单库存管理和自动取消功能
+
+### 修改内容
+完善订单创建时的库存扣减机制，并实现待付款订单的自动取消功能。
+
+### 修改文件
+
+#### 配置文件
+1. backend/src/main/resources/application.yml - 添加订单超时时间配置参数
+
+#### 后端
+1. backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java - 添加库存扣减和恢复逻辑
+2. backend/src/main/java/com/shoppingmall/service/buyer/OrderScheduledService.java - 创建订单定时任务接口
+3. backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderScheduledServiceImpl.java - 实现订单自动取消定时任务
+
+### 具体修改
+
+#### 1. 配置参数
+- 在`application.yml`中添加`order.payment-timeout-hours`配置项，默认值为6小时
+- 支持通过配置文件修改订单超时时间，方便运维调整
+
+#### 2. 库存扣减机制
+
+**创建订单时扣减库存**
+- 在`OrderServiceImpl.createOrder`方法中添加库存扣减逻辑
+- 扣减`product`表的`stock`字段（商品库存）
+- 扣减`product_stock`表的`availableStock`字段（可用库存）
+- 增加`product_stock`表的`lockedStock`字段（锁定库存）
+- 如果`product_stock`记录不存在，自动创建新记录
+
+**库存扣减流程**
+1. 验证商品库存是否足够
+2. 创建订单成功后，立即扣减库存
+3. 同时更新`product`表和`product_stock`表
+4. 确保库存数据一致性
+
+#### 3. 订单自动取消机制
+
+**定时任务**
+- 创建`OrderScheduledService`接口和`OrderScheduledServiceImpl`实现类
+- 使用`@Scheduled(fixedRate = 60000)`注解，每分钟执行一次
+- 自动查找超过配置时间未支付的待付款订单
+- 自动取消超时订单并恢复库存
+
+**自动取消流程**
+1. 定时任务每分钟执行一次
+2. 查找创建时间超过配置时间的待付款订单
+3. 对每个超时订单：
+   - 恢复`product`表的库存
+   - 恢复`product_stock`表的可用库存
+   - 减少`product_stock`表的锁定库存
+   - 更新订单状态为已取消
+4. 记录详细的日志信息
+
+#### 4. 手动取消订单时恢复库存
+
+**取消订单方法优化**
+- 在`OrderServiceImpl.cancelOrder`方法中添加库存恢复逻辑
+- 用户手动取消订单时，自动恢复已扣减的库存
+- 确保库存数据准确性
+
+### 功能特性
+
+1. **库存管理**
+   - ✅ 创建订单时立即扣减库存，防止超卖
+   - ✅ 同时更新`product`表和`product_stock`表，保持数据一致性
+   - ✅ 订单取消时自动恢复库存，避免库存损失
+
+2. **自动取消机制**
+   - ✅ 定时任务自动检查超时订单
+   - ✅ 可配置的超时时间（默认6小时）
+   - ✅ 自动恢复超时订单的库存
+   - ✅ 异常处理完善，单个订单处理失败不影响其他订单
+
+3. **配置灵活性**
+   - ✅ 超时时间可通过配置文件修改
+   - ✅ 支持不同环境使用不同的超时时间
+   - ✅ 默认值6小时，符合常见业务需求
+
+### 技术实现
+
+1. **库存扣减**
+   - 使用数据库事务保证原子性
+   - 先验证库存，再扣减，避免并发问题
+   - 同时更新两个库存表，保持数据同步
+
+2. **定时任务**
+   - 使用Spring的`@Scheduled`注解
+   - 每分钟执行一次，及时处理超时订单
+   - 异常处理机制，确保定时任务异常不影响系统运行
+
+3. **库存恢复**
+   - 订单取消时（手动或自动）都恢复库存
+   - 恢复逻辑与扣减逻辑对应，确保数据准确性
+   - 处理边界情况（如库存记录不存在）
+
+### 影响
+- ✅ 订单创建时立即扣减库存，防止超卖问题
+- ✅ 待付款订单自动取消，释放被占用的库存
+- ✅ 库存管理更加精确，避免库存数据不一致
+- ✅ 提升系统自动化程度，减少人工干预
+- ✅ 配置灵活，可根据业务需求调整超时时间
+---
+
+## 2025-12-12 - 完善支付页面功能
+
+### 修改内容
+完善支付页面（/order/payment），实现3种支付方式：预存款支付、支付宝支付、微信支付。预存款支付需要验证支付密码并检查余额；支付宝和微信支付使用mock模拟支付回调。
+
+### 修改文件
+
+#### 数据库
+1. database/update-20251212-add-payment-password.sql - 添加支付密码字段到用户表
+
+#### 后端
+1. backend/src/main/java/com/shoppingmall/entity/User.java - 添加支付密码字段
+2. backend/src/main/java/com/shoppingmall/entity/PaymentRecord.java - 创建支付记录实体类
+3. backend/src/main/java/com/shoppingmall/repository/payment/PaymentRecordRepository.java - 创建支付记录Repository
+4. backend/src/main/java/com/shoppingmall/dto/OrderPaymentDTO.java - 创建订单支付DTO
+5. backend/src/main/java/com/shoppingmall/service/buyer/OrderService.java - 添加订单支付方法接口
+6. backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java - 实现订单支付方法
+7. backend/src/main/java/com/shoppingmall/controller/buyer/OrderController.java - 添加订单支付接口
+8. backend/src/main/java/com/shoppingmall/controller/buyer/PaymentController.java - 创建支付回调控制器
+
+#### 前端
+1. frontend/src/api/buyer/order.ts - 添加订单支付API接口
+2. frontend/src/views/order/Payment.vue - 完善支付页面功能
+
+### 具体修改
+
+#### 1. 数据库修改
+- 在用户表（sys_user）中添加支付密码字段（payment_password），用于存储BCrypt加密的支付密码
+
+#### 2. 后端修改
+
+**实体类**
+- 在User实体类中添加paymentPassword字段
+- 创建PaymentRecord实体类，用于存储支付记录
+
+**服务层**
+- 在OrderService接口中添加payOrder方法
+- 在OrderServiceImpl中实现payOrder方法：
+  - 预存款支付：验证支付密码、检查余额、扣款、更新订单和支付记录
+  - 支付宝/微信支付：创建支付订单、返回支付URL、创建待支付记录
+
+**控制器**
+- 在OrderController中添加订单支付接口（POST /api/buyer/orders/{orderNo}/pay）
+- 创建PaymentController，提供支付回调接口（POST /api/buyer/payment/callback）和模拟支付成功接口（POST /api/buyer/payment/mock/success）
+
+#### 3. 前端修改
+
+**API接口**
+- 在order.ts中添加OrderPaymentDTO接口和payOrder方法
+
+**支付页面**
+- 添加预存款余额加载功能
+- 添加支付密码输入对话框
+- 实现预存款支付流程：检查余额、输入密码、调用支付接口
+- 实现支付宝/微信支付流程：调用支付接口、模拟支付回调、更新订单状态
+- 添加支付状态loading提示
+
+### 功能特性
+
+1. **预存款支付**
+   - ✅ 自动加载并显示预存款余额
+   - ✅ 支付前检查余额是否足够
+   - ✅ 需要输入支付密码进行验证
+   - ✅ 支付成功后立即更新订单状态和支付记录
+   - ✅ 自动创建预存款消费记录
+
+2. **支付宝/微信支付**
+   - ✅ 创建支付订单并返回支付URL
+   - ✅ 支持mock模拟支付回调
+   - ✅ 支付回调后自动更新订单状态和支付记录
+   - ✅ 支付成功后跳转到订单详情页面
+
+3. **支付记录**
+   - ✅ 所有支付方式都会创建支付记录（payment_record表）
+   - ✅ 支付记录包含订单ID、支付方式、金额、状态等信息
+   - ✅ 支付宝/微信支付回调数据保存到支付记录中
+
+### 影响
+- ✅ 支付页面功能完善，支持3种支付方式
+- ✅ 预存款支付安全性提升，需要支付密码验证
+- ✅ 支付宝/微信支付支持mock模拟，方便测试
+- ✅ 所有支付数据都会更新到交易记录表和订单表
+- ✅ 提升用户体验，支付流程更加顺畅
+---

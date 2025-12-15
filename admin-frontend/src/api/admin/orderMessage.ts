@@ -88,3 +88,5 @@ export const getOrderMessageById = (id: number): Promise<OrderMessageVO> => {
 export const handleOrderMessage = (data: OrderMessageHandleDTO): Promise<void> => {
   return request.put('/api/admin/order-messages/handle', data)
 }
+
+
