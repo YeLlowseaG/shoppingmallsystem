@@ -19,6 +19,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import java.time.LocalDateTime;
 
 /**
@@ -109,14 +112,17 @@ public class ConsultationServiceImpl implements ConsultationService {
     }
     
     private Page<ConsultationVO> convertToConsultationVOPage(Page<Consultation> consultationPage) {
-        Page<ConsultationVO> voPage = new Page<>(consultationPage.getCurrent(), 
-                                               consultationPage.getSize(), 
+        Page<ConsultationVO> voPage = new Page<>(consultationPage.getCurrent(),
+                                               consultationPage.getSize(),
                                                consultationPage.getTotal());
-        
+
+        // 创建新的ArrayList来存储转换后的VO对象
+        List<ConsultationVO> voList = new ArrayList<>();
         for (Consultation consultation : consultationPage.getRecords()) {
-            voPage.getRecords().add(convertToConsultationVO(consultation));
+            voList.add(convertToConsultationVO(consultation));
         }
-        
+        voPage.setRecords(voList);
+
         return voPage;
     }
     
