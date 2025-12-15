@@ -29,15 +29,15 @@ public class BuyerProductReviewController {
             @Valid @RequestBody ProductReviewDTO reviewDTO,
             @RequestAttribute(value = "userId", required = false) Long userId) {
 
-        // 如果未登录，使用默认用户ID
+        // 检查登录状态
         if (userId == null) {
-            userId = 1L;
+            return Result.error(401, "请先登录");
         }
 
         reviewService.submitReview(reviewDTO, userId);
         return Result.success();
     }
-    
+
     @Operation(summary = "获取我的评价列表")
     @GetMapping("/my")
     public Result<Page<ProductReviewVO>> getMyReviews(
@@ -45,24 +45,24 @@ public class BuyerProductReviewController {
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") int size,
             @RequestAttribute(value = "userId", required = false) Long userId) {
 
-        // 如果未登录，使用默认用户ID
+        // 检查登录状态
         if (userId == null) {
-            userId = 1L;
+            return Result.error(401, "请先登录");
         }
 
         Page<ProductReviewVO> page = reviewService.getUserReviews(current, size, userId);
         return Result.success(page);
     }
-    
+
     @Operation(summary = "获取评价详情")
     @GetMapping("/{reviewId}")
     public Result<ProductReviewVO> getReviewById(
             @Parameter(description = "评价ID") @PathVariable Long reviewId,
             @RequestAttribute(value = "userId", required = false) Long userId) {
 
-        // 如果未登录，使用默认用户ID
+        // 检查登录状态
         if (userId == null) {
-            userId = 1L;
+            return Result.error(401, "请先登录");
         }
 
         ProductReviewVO review = reviewService.getReviewById(reviewId);
@@ -74,7 +74,7 @@ public class BuyerProductReviewController {
 
         return Result.success(review);
     }
-    
+
     @Operation(summary = "检查是否可以评价")
     @GetMapping("/can-review")
     public Result<Boolean> canReviewProduct(
@@ -82,9 +82,9 @@ public class BuyerProductReviewController {
             @Parameter(description = "商品ID") @RequestParam Long productId,
             @RequestAttribute(value = "userId", required = false) Long userId) {
 
-        // 如果未登录，使用默认用户ID
+        // 检查登录状态
         if (userId == null) {
-            userId = 1L;
+            return Result.error(401, "请先登录");
         }
 
         boolean canReview = reviewService.canReviewProduct(orderId, productId, userId);

@@ -28,7 +28,12 @@ public class BuyerConsultationController {
     public Result<Void> submitConsultation(
             @Valid @RequestBody ConsultationDTO consultationDTO,
             @RequestAttribute(value = "userId", required = false) Long userId) {
-        
+
+        // 检查登录状态
+        if (userId == null) {
+            return Result.error(401, "请先登录");
+        }
+
         consultationService.submitConsultation(consultationDTO, userId);
         return Result.success();
     }
@@ -40,24 +45,24 @@ public class BuyerConsultationController {
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") int size,
             @RequestAttribute(value = "userId", required = false) Long userId) {
 
-        // 如果未登录，使用默认用户ID
+        // 检查登录状态
         if (userId == null) {
-            userId = 1L;
+            return Result.error(401, "请先登录");
         }
 
         Page<ConsultationVO> page = consultationService.getUserConsultations(current, size, userId);
         return Result.success(page);
     }
-    
+
     @Operation(summary = "获取咨询详情")
     @GetMapping("/{consultationId}")
     public Result<ConsultationVO> getConsultationById(
             @Parameter(description = "咨询ID") @PathVariable Long consultationId,
             @RequestAttribute(value = "userId", required = false) Long userId) {
 
-        // 如果未登录，使用默认用户ID
+        // 检查登录状态
         if (userId == null) {
-            userId = 1L;
+            return Result.error(401, "请先登录");
         }
 
         ConsultationVO consultation = consultationService.getConsultationById(consultationId);
