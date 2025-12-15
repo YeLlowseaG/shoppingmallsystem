@@ -260,17 +260,15 @@
                 如果您对本商品有什么使用心得或建议，欢迎分享！
               </div>
               <el-form :model="reviewForm" label-width="100px">
-                <el-form-item label="*评论标题：">
-                  <el-input v-model="reviewForm.title" />
-                </el-form-item>
-                <el-form-item label="*联系方式：">
-                  <el-input v-model="reviewForm.contact" placeholder="(可以是电话、email、qq等)" />
+                <el-form-item label="*评分：">
+                  <el-rate v-model="reviewForm.rating" :max="5" />
                 </el-form-item>
                 <el-form-item label="*评论内容：">
                   <el-input
-                    v-model="reviewForm.content"
+                    v-model="reviewForm.reviewContent"
                     type="textarea"
                     :rows="6"
+                    placeholder="请分享您的使用体验..."
                   />
                 </el-form-item>
                 <el-form-item>
@@ -387,6 +385,7 @@ import { submitConsultation as submitConsultationAPI, type ConsultationDTO } fro
 import { addFavorite, removeFavorite, checkFavorite } from '@/api/buyer/favorite'
 import { getSkusByProductId, getSpecKeysByProductId, type ProductSkuVO, type ProductSpecKeyVO } from '@/api/buyer/sku'
 import { createStockNotification, checkStockNotificationRegistered, type StockNotificationDTO } from '@/api/buyer/stock-notification'
+import { submitReview as submitReviewAPI, type ProductReviewDTO } from '@/api/buyer/review'
 import { useCartStore } from '@/stores/cart'
 import { useUserStore } from '@/stores/user'
 import SpecSelector from '@/components/product/SpecSelector.vue'
@@ -452,9 +451,8 @@ const favoritLoading = ref(false)
 
 // 评论表单
 const reviewForm = ref({
-  title: '',
-  contact: '',
-  content: ''
+  rating: 5,
+  reviewContent: ''
 })
 
 // 缺货登记相关状态
@@ -791,8 +789,30 @@ const submitConsultation = async () => {
 }
 
 // 提交评论
-const submitReview = () => {
-  ElMessage.success('评论提交成功！')
+const submitReview = async () => {
+  if (!reviewForm.value.reviewContent || !reviewForm.value.reviewContent.trim()) {
+    ElMessage.warning('请填写评论内容')
+    return
+  }
+
+  try {
+    const reviewData: ProductReviewDTO = {
+      productId: product.value.id!,
+      orderId: 1, // 临时使用固定orderId，实际应该从已完成订单中选择
+      rating: reviewForm.value.rating,
+      reviewContent: reviewForm.value.reviewContent
+    }
+
+    await submitReviewAPI(reviewData)
+    ElMessage.success('评论提交成功，等待审核！')
+
+    // 清空表单
+    reviewForm.value.rating = 5
+    reviewForm.value.reviewContent = ''
+  } catch (error: any) {
+    console.error('提交评论失败:', error)
+    ElMessage.error(error.response?.data?.message || '提交评论失败，请重试')
+  }
 }
 
 // 检查收藏状态

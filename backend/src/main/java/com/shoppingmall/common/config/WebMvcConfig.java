@@ -41,7 +41,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/buyer/system/config/public",  // 系统公开配置接口允许游客访问
                         "/api/buyer/navigation/**",  // 导航菜单模块允许游客访问
                         "/api/buyer/consultation/**",  // 咨询模块临时允许游客访问
-                        "/api/buyer/favorites/**"  // 收藏模块临时允许游客访问
+                        "/api/buyer/favorites/**",  // 收藏模块临时允许游客访问
+                        "/api/buyer/review/**"  // 评价模块临时允许游客访问
                 );
 
         // 管理员端JWT拦截器

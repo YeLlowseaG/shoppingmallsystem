@@ -27,8 +27,13 @@ public class BuyerProductReviewController {
     @PostMapping
     public Result<Void> submitReview(
             @Valid @RequestBody ProductReviewDTO reviewDTO,
-            @RequestAttribute("userId") Long userId) {
-        
+            @RequestAttribute(value = "userId", required = false) Long userId) {
+
+        // 如果未登录，使用默认用户ID
+        if (userId == null) {
+            userId = 1L;
+        }
+
         reviewService.submitReview(reviewDTO, userId);
         return Result.success();
     }
