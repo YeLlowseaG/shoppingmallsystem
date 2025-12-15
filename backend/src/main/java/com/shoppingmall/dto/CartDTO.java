@@ -1,6 +1,5 @@
 package com.shoppingmall.dto;
 
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -14,22 +13,18 @@ import lombok.Data;
 public class CartDTO {
 
     /**
-     * 商品ID（通过商品ID添加时使用）
+     * 商品ID
      */
+    @NotNull(message = "商品ID不能为空")
     private Long productId;
 
     /**
-     * 商品编码（通过货号添加时使用）
-     */
-    private String productCode;
-
-    /**
-     * SKU ID（可选）
+     * SKU ID（可为空，表示无规格或未选择）
      */
     private Long skuId;
 
     /**
-     * 规格组合（JSON字符串，可选）
+     * 规格组合（JSON字符串，如 {"颜色":"红色","尺寸":"L"}）
      */
     private String specCombination;
 
@@ -37,35 +32,5 @@ public class CartDTO {
      * 数量
      */
     @NotNull(message = "数量不能为空")
-    @Min(value = 1, message = "数量必须大于0")
     private Integer quantity;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

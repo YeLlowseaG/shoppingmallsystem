@@ -124,14 +124,41 @@ public class CartController {
      */
     @GetMapping("/count")
     public Result<Integer> getCartItemCount() {
-        Long userId = (Long) request.getAttribute("userId");
-        if (userId == null) {
-            return Result.error(401, "未授权，请重新登录");
+        try {
+            Object userIdObj = request.getAttribute("userId");
+            if (userIdObj == null) {
+                return Result.error(401, "未授权，请重新登录");
+            }
+            
+            // 确保userId是Long类型
+            Long userId;
+            if (userIdObj instanceof Long) {
+                userId = (Long) userIdObj;
+            } else {
+                // 尝试转换为Long类型
+                try {
+                    userId = Long.parseLong(userIdObj.toString());
+                } catch (NumberFormatException e) {
+                    return Result.error(400, "无效的用户ID格式");
+                }
+            }
+            
+            Integer count = cartService.getCartItemCount(userId);
+            return Result.success(count);
+        } catch (Exception e) {
+            // 记录异常日志
+            e.printStackTrace();
+            String errorMessage = e.getMessage();
+            if (errorMessage == null) {
+                errorMessage = e.getClass().getSimpleName();
+            }
+            return Result.error(500, "获取购物车商品数量失败: " + errorMessage);
         }
-        Integer count = cartService.getCartItemCount(userId);
-        return Result.success(count);
     }
 }
+
+
+
 
 
 

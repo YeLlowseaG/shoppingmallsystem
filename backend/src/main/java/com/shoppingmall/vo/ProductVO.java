@@ -5,6 +5,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import com.shoppingmall.vo.ProductSkuVO;
 
 /**
  * 商品VO
@@ -129,4 +130,9 @@ public class ProductVO {
      * 更新时间
      */
     private LocalDateTime updateTime;
+
+    /**
+     * SKU 列表
+     */
+    private List<ProductSkuVO> skus;
 }

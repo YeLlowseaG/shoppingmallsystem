@@ -56,6 +56,7 @@
           :key="product.id"
           :product="product"
           :view-mode="viewMode"
+          :hide-add-to-cart="filters.type === 'new'"
         />
       </div>
 
@@ -79,7 +80,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { Grid, List, Loading } from '@element-plus/icons-vue'
 import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
@@ -90,7 +91,6 @@ import { getProductPage, type ProductVO } from '@/api/buyer/product'
 import { getCategoryTree, type ProductCategoryVO } from '@/api/buyer/productCategory'
 
 const route = useRoute()
-const router = useRouter()
 
 // 分类数据
 const categoryTree = ref<ProductCategoryVO[]>([])
@@ -130,13 +130,13 @@ const displayProducts = computed(() => {
     id: product.id,
     name: product.productName,
     image: product.mainImage,
-    price: product.basePrice,
+    price: product.salePrice || product.basePrice,
     memberPrice: product.memberPrice ?? product.basePrice,
-    originalPrice: product.basePrice * 1.5, // 原价设置为基础价的1.5倍
+    originalPrice: product.marketPrice || product.basePrice * 1.5, // 使用实际市场价或基础价的1.5倍
     sales: product.salesCount,
     category: product.categoryName,
     tags: '', // 暂不使用标签
-    brand: '' // 暂不使用品牌
+    brand: product.brandName || '' // 使用实际品牌名称
   }))
 })
 

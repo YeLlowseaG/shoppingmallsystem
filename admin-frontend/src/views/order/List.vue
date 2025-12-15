@@ -171,7 +171,14 @@
           </template>
         </el-table-column>
         <el-table-column prop="productCode" label="商品编码" width="120" />
-        <el-table-column prop="name" label="商品名称" width="300" />
+        <el-table-column label="商品名称" width="300">
+          <template #default="{ row }">
+            <div>{{ row.name }}</div>
+            <div v-if="formatSpecText(row.specCombination)" class="sku-spec-text">
+              {{ formatSpecText(row.specCombination) }}
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="price" label="单价" width="100">
           <template #default="{ row }">
             ¥{{ row.price.toFixed(2) }}
@@ -537,6 +544,19 @@ const getStatusTagType = (status: number): string => {
   return typeMap[status] || 'info'
 }
 
+// 将规格组合JSON转换为可读文本
+const formatSpecText = (specCombination: string | undefined): string => {
+  if (!specCombination) return ''
+  try {
+    const specs = JSON.parse(specCombination)
+    return Object.entries(specs)
+      .map(([key, value]) => `${key}:${value}`)
+      .join(' / ')
+  } catch (e) {
+    return ''
+  }
+}
+
 // 监听搜索表单中的订单状态变化，同步到tab
 watch(() => searchForm.orderStatus, (newStatus) => {
   activeTab.value = newStatus
@@ -599,6 +619,13 @@ onMounted(() => {
   background: #f5f7fa;
   color: #909399;
   font-size: 20px;
+}
+
+// SKU规格文本样式
+.sku-spec-text {
+  color: #909399;
+  font-size: 12px;
+  margin-top: 4px;
 }
 </style>
 

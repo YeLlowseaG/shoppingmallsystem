@@ -95,20 +95,20 @@
           <div class="price-info">
             <div class="price-row">
               <span class="price-label">市场零售价：</span>
-              <span class="market-price">¥{{ parseFloat(product.marketPrice).toFixed(2) }}</span>
+              <span class="market-price">¥{{ parseFloat(product.marketPrice || 0).toFixed(2) }}</span>
             </div>
             <div class="price-row">
               <span class="price-label">建议零售价：</span>
               <span class="suggest-price">
-                ¥{{ currentSku ? parseFloat(currentSku.price).toFixed(2) : parseFloat(product.price).toFixed(2) }}
+                ¥{{ currentSku ? parseFloat(currentSku.price || 0).toFixed(2) : parseFloat(product.price || 0).toFixed(2) }}
               </span>
             </div>
-          <div class="price-row" v-if="displayMemberPrice">
-            <span class="price-label">会员价：</span>
-            <span class="member-price">
-              ¥{{ displayMemberPrice.toFixed(2) }}
-            </span>
-          </div>
+            <div class="price-row" v-if="userStore.isLoggedIn()">
+              <span class="price-label">会员价：</span>
+              <span class="member-price">
+                ¥{{ currentSku ? (currentSku.memberPrice ? parseFloat(currentSku.memberPrice).toFixed(2) : parseFloat(currentSku.price || 0).toFixed(2)) : parseFloat(product.memberPrice || 0).toFixed(2) }}
+              </span>
+            </div>
           </div>
 
           <!-- 规格选择器 -->
@@ -424,29 +424,6 @@ const defaultSpecs = ref<Record<string, string>>({})
 // 购买数量
 const quantity = ref(1)
 
-// 会员价显示：按购物车规则计算。如果选了SKU，则按 SKU 价格 × (会员折扣比例) 计算
-const displayMemberPrice = computed(() => {
-  const basePrice = Number((product.value as any).basePrice || (product.value as any).price || 0)
-  const memberPriceBase = Number((product.value as any).memberPrice || basePrice)
-
-  if (basePrice <= 0) {
-    return memberPriceBase > 0 ? memberPriceBase : 0
-  }
-
-  // 会员折扣比例 = 会员价 / 基础价
-  const discountRate = memberPriceBase / basePrice
-
-  const currentPrice = currentSku.value
-    ? Number(currentSku.value.price || 0)
-    : Number((product.value as any).price || basePrice)
-
-  if (currentPrice <= 0 || discountRate <= 0) {
-    return memberPriceBase
-  }
-
-  return Number((currentPrice * discountRate).toFixed(2))
-})
-
 // 当前标签页
 const activeTab = ref('detail')
 
@@ -532,8 +509,7 @@ const product = ref({
   unit: '盒',
   marketPrice: 0,
   price: 0,
-  basePrice: 0,
-  memberPrice: 0,
+  memberPrice: 0,  // 会员价
   stock: 0,  // 添加库存字段
   promoText: '',
   images: [] as string[],
@@ -554,6 +530,10 @@ const loadProductDetail = async (productId: number) => {
     const productData = await getProductById(productId)
 
     // 将后端返回的 ProductVO 数据映射到页面需要的格式
+    // 字段对应关系（根据管理后台）：
+    // - costPrice -> 市场零售价
+    // - marketPrice -> 建议零售价
+    // - basePrice -> 初始会员价（基础价格）
     product.value = {
       id: productData.id,
       name: productData.productName,
@@ -563,10 +543,9 @@ const loadProductDetail = async (productId: number) => {
       barcode: '', // API 暂无条码字段
       brand: productData.brandName || '暂无', // 从API获取品牌字段
       unit: '盒',
-      marketPrice: productData.marketPrice || productData.basePrice * 1.5,
-      price: productData.salePrice || productData.basePrice,
-      basePrice: productData.basePrice,
-      memberPrice: productData.memberPrice ?? productData.basePrice,
+      marketPrice: productData.costPrice || 0, // 市场零售价（对应管理后台的costPrice）
+      price: productData.marketPrice || productData.basePrice || 0, // 建议零售价（对应管理后台的marketPrice）
+      memberPrice: productData.memberPrice || productData.basePrice || 0, // 会员价（后端已根据用户等级计算）
       stock: productData.stock || 0, // 添加库存字段映射
       promoText: '',
       images: productData.imageList.length > 0 ? productData.imageList : [productData.mainImage],
@@ -761,12 +740,28 @@ const addToCart = async () => {
       return
     }
 
+    // 检查规格选择（仅当商品启用了规格且有规格数据时）
+    if (productSpecKeys.value.length > 0 && !currentSku.value) {
+      ElMessage.warning('请选择商品规格')
+      return
+    }
+
     addingToCart.value = true
+
+    // 构建规格组合JSON字符串
+    let specCombination: string | undefined = undefined
+    if (currentSku.value && currentSku.value.specCombination) {
+      specCombination = currentSku.value.specCombination
+    } else if (selectedSpecs.value && Object.keys(selectedSpecs.value).length > 0) {
+      // 如果没有SKU但有选中的规格，手动构建JSON
+      specCombination = JSON.stringify(selectedSpecs.value)
+    }
 
     const cartData: AddCartDTO = {
       productId: product.value.id,
       quantity: quantity.value,
-      ...(currentSku.value?.id && { skuId: currentSku.value.id })
+      ...(currentSku.value?.id && { skuId: currentSku.value.id }),
+      ...(specCombination && { specCombination })
     }
 
     await addToCartAPI(cartData)
@@ -1197,6 +1192,12 @@ const submitStockRegister = async () => {
         .suggest-price {
           color: #e4393c;
           font-size: 24px;
+          font-weight: bold;
+        }
+
+        .member-price {
+          color: #ff6600;
+          font-size: 20px;
           font-weight: bold;
         }
       }

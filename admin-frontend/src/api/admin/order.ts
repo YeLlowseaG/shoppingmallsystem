@@ -39,6 +39,7 @@ export interface OrderDetailVO {
     price: number
     quantity: number
     subtotal: number
+    specCombination?: string
   }>
   recipientInfo: {
     name: string

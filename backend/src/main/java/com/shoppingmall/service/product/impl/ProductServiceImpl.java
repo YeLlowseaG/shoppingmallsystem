@@ -19,6 +19,7 @@ import com.shoppingmall.repository.website.BrandRepository;
 import com.shoppingmall.service.admin.StockService;
 import com.shoppingmall.service.member.MemberLevelService;
 import com.shoppingmall.service.product.ProductService;
+import com.shoppingmall.service.sku.ProductSkuService;
 import com.shoppingmall.service.user.StockNotificationService;
 import com.shoppingmall.vo.MemberLevelVO;
 import com.shoppingmall.vo.ProductVO;
@@ -52,9 +53,11 @@ public class ProductServiceImpl implements ProductService {
     private final StockService stockService;
     private final MemberLevelService memberLevelService;
     private final UserRepository userRepository;
+    private final ProductSkuService productSkuService;
 
     @Override
-    public Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String brand, String status, String sortBy, Long userId) {
+    public Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String brand,
+            String status, String sortBy, Long userId) {
         Page<Product> page = new Page<>(current, size);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
@@ -185,7 +188,7 @@ public class ProductServiceImpl implements ProductService {
         }
 
         productRepository.insert(product);
-        
+
         // 如果指定了库存，使用StockService统一管理
         if (product.getStock() != null && product.getStock() >= 0) {
             try {
@@ -195,7 +198,7 @@ public class ProductServiceImpl implements ProductService {
                 // 创建商品时库存记录失败不影响主流程，只记录日志
             }
         }
-        
+
         log.info("创建商品成功: {}", product.getProductName());
         return product.getId();
     }
@@ -239,12 +242,12 @@ public class ProductServiceImpl implements ProductService {
         }
 
         productRepository.updateById(product);
-        
+
         // 如果更新了库存，使用StockService统一管理
         if (productDTO.getStock() != null) {
             try {
                 stockService.updateProductTotalStock(product.getId(), productDTO.getStock());
-                
+
                 // 检查是否从缺货状态变为有库存状态，如果是则发送通知
                 boolean isNowInStock = productDTO.getStock() > 0;
                 if (wasOutOfStock && isNowInStock) {
@@ -261,7 +264,7 @@ public class ProductServiceImpl implements ProductService {
                 throw new BusinessException(500, "更新商品库存失败");
             }
         }
-        
+
         log.info("更新商品成功: {}", product.getProductName());
     }
 
@@ -296,7 +299,7 @@ public class ProductServiceImpl implements ProductService {
         Page<Product> page = new Page<>(1, limit);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Product::getStatus, 1)  // 1=上架
+        wrapper.eq(Product::getStatus, 1) // 1=上架
                 .orderByDesc(Product::getSalesCount);
 
         Page<Product> productPage = productRepository.selectPage(page, wrapper);
@@ -313,7 +316,7 @@ public class ProductServiceImpl implements ProductService {
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Product::getCategoryId, categoryId)
-                .eq(Product::getStatus, 1)  // 1=上架
+                .eq(Product::getStatus, 1) // 1=上架
                 .orderByDesc(Product::getSalesCount);
 
         Page<Product> productPage = productRepository.selectPage(page, wrapper);
@@ -347,6 +350,14 @@ public class ProductServiceImpl implements ProductService {
             vo.setCategoryName(category.getCategoryName());
         }
 
+        // 获取品牌名称
+        if (product.getBrandId() != null) {
+            Brand brand = brandRepository.selectById(product.getBrandId());
+            if (brand != null) {
+                vo.setBrandName(brand.getBrandName());
+            }
+        }
+
         // 解析图片JSON数组
         if (StringUtil.isNotBlank(product.getImages())) {
             try {
@@ -363,6 +374,18 @@ public class ProductServiceImpl implements ProductService {
         // 根据用户等级计算会员价
         vo.setMemberPrice(calculateMemberPrice(product.getBasePrice(), userId));
         vo.setUserLevelPrice(product.getBasePrice());
+
+        // 获取 SKU 列表并计算 SKU 层级的会员价
+        try {
+            var skuList = productSkuService.getSkusByProductId(product.getId(), userId);
+            if (skuList != null) {
+                skuList.forEach(sku -> sku.setMemberPrice(calculateMemberPrice(sku.getPrice(), userId)));
+            }
+            vo.setSkus(skuList);
+        } catch (Exception e) {
+            log.error("获取或计算 SKU 会员价失败: productId={}, userId={}", product.getId(), userId, e);
+            vo.setSkus(new ArrayList<>());
+        }
 
         return vo;
     }

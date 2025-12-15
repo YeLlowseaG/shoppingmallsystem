@@ -11,10 +11,14 @@ export interface ProductVO {
   productName: string
   categoryId: number
   categoryName: string
+  brandName?: string
   mainImage: string
   imageList: string[]
   description: string
   basePrice: number
+  salePrice?: number
+  marketPrice?: number
+  costPrice?: number
   userLevelPrice: number
   memberPrice?: number
   stock: number

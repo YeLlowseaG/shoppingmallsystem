@@ -1560,13 +1560,12 @@ onMounted(() => {
         padding-left: 15px;
 
         .product-name {
-          line-height: 20px;
+          margin-bottom: 5px;
         }
 
         .sku-spec-text {
-          margin-top: 6px;
           font-size: 12px;
-          color: #666;
+          color: #999;
         }
       }
 

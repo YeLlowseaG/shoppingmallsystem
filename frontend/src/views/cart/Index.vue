@@ -102,8 +102,8 @@
                   <td class="col-name">
                     <router-link :to="`/products/${item.productId}`" class="product-name-link">
                       {{ item.name }}
-                      <span v-if="item.specText" class="product-spec-text"> ({{ item.specText }})</span>
                     </router-link>
+                    <div v-if="item.specText" class="sku-spec-text">规格：{{ item.specText }}</div>
                   </td>
                   <td class="col-price">
                     <span class="price-text">¥{{ item.salesPrice.toFixed(2) }}</span>
@@ -396,14 +396,6 @@ onMounted(() => {
   background: #f5f5f5;
 }
 
-.product-spec-text {
-  font-size: 12px;
-  color: #606266;
-  font-weight: normal;
-  margin-left: 8px;
-  line-height: 1.5;
-}
-
 .container {
   max-width: 1200px;
   margin: 0 auto;
@@ -623,9 +615,9 @@ onMounted(() => {
           }
 
           .sku-spec-text {
-            margin-top: 6px;
             font-size: 12px;
-            color: #666;
+            color: #999;
+            margin-top: 5px;
           }
         }
 

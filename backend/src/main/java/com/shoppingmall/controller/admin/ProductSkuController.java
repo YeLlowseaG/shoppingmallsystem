@@ -86,7 +86,7 @@ public class ProductSkuController {
     @GetMapping("/product/{productId}")
     public Result<List<ProductSkuVO>> getSkusByProductId(@PathVariable Long productId) {
         try {
-            List<ProductSkuVO> skus = skuService.getSkusByProductId(productId);
+            List<ProductSkuVO> skus = skuService.getSkusByProductId(productId, null); // 管理员端不需要计算会员价，传递null
             return Result.success(skus);
         } catch (Exception e) {
             log.error("查询商品SKU列表失败: {}", e.getMessage(), e);

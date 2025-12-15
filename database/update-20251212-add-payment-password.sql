@@ -28,3 +28,6 @@ ADD COLUMN `payment_password` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NU
 
 
 
+
+
+

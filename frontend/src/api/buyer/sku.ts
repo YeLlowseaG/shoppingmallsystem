@@ -7,6 +7,7 @@ export interface ProductSkuVO {
   skuCode: string
   specCombination: string
   price: number
+  memberPrice?: number
   stock: number
   warningStock: number
   salesCount: number

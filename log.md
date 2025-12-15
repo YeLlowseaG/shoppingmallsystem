@@ -1,33 +1,206 @@
-<<<<<<<<< Temporary merge branch 1
-## 2025-12-14 - 修复咨询和评价接口的登录认证问题
-=========
-## 2025-12-15 - 修复SKU库存被商品更新覆盖的问题
+## 2025-12-15 - 修复商品详情页面价格字段显示问题
 
 ### 功能说明
-购物车页(`/cart`)和结算页(`/cart/checkout`)基于SKU展示真实价格与规格信息，避免不同规格价格混淆。
+修复商品详情页面的市场零售价、建议零售价字段显示，使其与管理后台字段对应，并修正会员价计算逻辑。
+
+### 问题分析
+1. **字段对应错误**：商品详情页面的价格字段没有按照管理后台的字段对应关系显示
+2. **会员价逻辑不一致**：商品详情页面的会员价计算逻辑与购物车页面不一致
+
+### 字段对应关系（管理后台）
+- `basePrice` - 初始会员价（基础价格）
+- `marketPrice` - 建议零售价
+- `costPrice` - 市场零售价
+
+### 修改内容
+
+#### 1. 前端修改
+
+**sku.ts**
+- 在 `ProductSkuVO` 接口中添加 `memberPrice?: number` 字段
+
+**Detail.vue**
+- 修正价格字段映射：
+  - 市场零售价 = `costPrice`（对应管理后台的"市场零售价"）
+  - 建议零售价 = `marketPrice`（对应管理后台的"建议零售价"）
+  - 如果有SKU，建议零售价显示SKU的 `price`
+- 修正会员价显示逻辑：
+  - 如果有SKU，显示SKU的 `memberPrice`（后端已根据用户等级计算）
+  - 如果没有SKU，显示商品的 `memberPrice`（后端已根据用户等级计算）
+  - 与购物车页面的会员价计算逻辑保持一致（都使用后端的 `calculateMemberPrice` 方法）
+
+### 功能特性
+- ✅ 市场零售价正确显示（对应管理后台的costPrice）
+- ✅ 建议零售价正确显示（对应管理后台的marketPrice）
+- ✅ SKU价格正确显示
+- ✅ 会员价根据用户等级正确计算和显示
+- ✅ 会员价计算逻辑与购物车页面保持一致
+
+### 技术细节
+- **价格字段映射**：严格按照管理后台的字段定义进行映射
+- **会员价计算**：后端已根据用户会员等级和折扣率计算，前端直接使用
+- **SKU价格**：如果有选中的SKU，优先显示SKU的价格和会员价
+
+---
+
+## 2025-12-15 - 修复加入购物车时SKU规格信息丢失问题
+
+### 功能说明
+修复商品详情页面加入购物车时，SKU规格信息没有写入购物车的问题。
+
+### 问题分析
+1. **前端问题**：`addToCart` 函数只传递了 `productId` 和 `quantity`，没有传递 `skuId` 和 `specCombination`
+2. **后端问题**：检查购物车中是否已存在该商品时，只检查了 `productId`，没有考虑 `skuId` 或 `specCombination`，导致相同商品的不同规格会被合并
+
+### 修改内容
+
+#### 1. 前端修改
+
+**cart.ts**
+- 在 `AddCartDTO` 接口中添加 `specCombination?: string` 字段
+
+**Detail.vue**
+- 在 `addToCart` 函数中添加规格选择检查
+- 构建并传递 `skuId` 和 `specCombination` 到后端
+- 如果当前有选中的SKU，使用SKU的 `specCombination`
+- 如果没有SKU但有选中的规格，手动构建JSON字符串
+
+#### 2. 后端修改
+
+**CartServiceImpl.java**
+- 修改 `addToCart` 方法中检查已存在购物车项的逻辑
+- 检查时不仅匹配 `productId`，还要匹配 `skuId` 或 `specCombination`
+- 确保相同商品的不同规格作为不同的购物车项
+
+### 功能特性
+- ✅ 加入购物车时正确传递SKU规格信息
+- ✅ 相同商品的不同规格作为不同的购物车项
+- ✅ 相同商品且相同规格时合并数量
+- ✅ 支持有SKU ID和无SKU ID但有规格组合的情况
+
+### 技术细节
+- **规格信息传递**：优先使用SKU的 `specCombination`，如果没有SKU则手动构建JSON
+- **购物车项匹配**：先匹配 `skuId`，如果没有 `skuId` 则匹配 `specCombination`，都没有则匹配无规格的商品
+- **数量合并**：只有完全相同的商品和规格才会合并数量
+
+---
+
+## 2025-12-15 - 完善商品详情、购物车、结算页面功能
+
+### 功能说明
+1. 商品详情页面：添加会员价显示（登录状态下根据等级显示）
+2. 购物车页面：在商品名称列显示SKU规格属性和规格值
+3. 结算页面：确保正确显示规格信息
+4. 后端：在CartVO中添加specText字段，处理规格信息转换
+
+### 修改内容
+
+#### 1. 后端修改
+
+**CartVO.java**
+- 添加 `specText` 字段，用于存储格式化的规格文本（如：颜色:白色 / 尺寸:L）
+
+**CartServiceImpl.java**
+- 添加 `ObjectMapper` 用于JSON解析
+- 添加 `formatSpecText` 方法，将 `specCombination` JSON字符串转换为格式化的文本
+- 在 `convertToVO` 方法中调用 `formatSpecText` 处理规格信息
+
+#### 2. 前端修改
+
+**商品详情页面 (Detail.vue)**
+- 在商品数据中添加 `memberPrice` 字段
+- 在价格信息区域添加会员价显示（仅在登录状态下显示）
+- 会员价显示为橙色，字体大小20px，加粗
+- 从API返回的 `memberPrice` 或 `userLevelPrice` 字段获取会员价
+
+**购物车页面 (Index.vue)**
+- 在商品名称列下方显示规格信息（如果有）
+- 规格信息显示为灰色小字（12px）
+- 格式：规格：颜色:白色 / 尺寸:L
+
+**结算页面 (Checkout.vue)**
+- 确保规格信息正确显示（已有代码，添加样式优化）
+- 规格信息显示在商品名称下方，灰色小字
+
+**API类型定义 (cart.ts)**
+- 在 `CartVO` 接口中添加 `specText?: string` 字段
+
+### 功能特性
+- ✅ 商品详情页面登录状态下显示会员价（根据用户等级）
+- ✅ 购物车页面显示SKU规格属性和规格值
+- ✅ 结算页面正确显示规格信息
+- ✅ 后端自动将规格组合JSON转换为可读文本
+- ✅ 规格信息格式化显示（颜色:白色 / 尺寸:L）
+
+### 技术细节
+- **规格文本转换**：后端使用 `ObjectMapper` 解析JSON，格式化为 "属性名:属性值 / 属性名:属性值" 格式
+- **会员价显示**：仅在用户登录时显示，使用 `userStore.isLoggedIn()` 判断
+- **样式设计**：规格信息使用灰色小字，不干扰主要信息显示
+
+### 影响范围
+- 商品详情页面：价格信息区域
+- 购物车页面：商品名称列
+- 结算页面：商品名称列
+- 后端API：CartVO返回数据增加specText字段
+
+---
+
+## 2025-12-15 - 修复购物车商品数量接口500错误
+
+### 功能说明
+修复 `/api/buyer/cart/count` 接口返回500错误的问题，错误信息为"获取购物车商品数量失败: null"。
+
+### 问题分析
+1. **Cart实体类缺失**：`Cart.java` 文件为空，导致运行时无法正确映射数据库表
+2. **空指针异常**：`getCartItemCount` 方法中，当 `quantity` 字段为 null 时，`mapToInt` 会抛出 `NullPointerException`
+3. **异常消息为null**：当异常消息为 null 时，错误提示不友好
 
 ### 修改方案
-- 后端为购物车支持SKU字段：记录 `skuId` 与 `specCombination`，转换VO时优先读取SKU价格、重量、图片与规格文本。
-- 规格组合JSON解析为可读文本（示例：`颜色:红 / 尺寸:L`），返回给前端展示。
-- 前端购物车与结算列表在商品名下方显示规格文本，价格直接使用后端返回的SKU价格/会员价。
+1. 创建完整的 `Cart` 实体类，包含所有必要字段
+2. 修复 `getCartItemCount` 方法，处理 `quantity` 可能为 null 的情况
+3. 改进异常处理，确保即使异常消息为 null 也能显示有意义的错误信息
 
 ### 修改文件
-- `backend/src/main/java/com/shoppingmall/entity/Cart.java`
-- `backend/src/main/java/com/shoppingmall/dto/CartDTO.java`
-- `backend/src/main/java/com/shoppingmall/vo/CartVO.java`
-- `backend/src/main/java/com/shoppingmall/service/buyer/impl/CartServiceImpl.java`
-- `frontend/src/api/buyer/cart.ts`
-- `frontend/src/views/cart/Index.vue`
-- `frontend/src/views/cart/Checkout.vue`
+1. `backend/src/main/java/com/shoppingmall/entity/Cart.java` - 创建完整的Cart实体类
+2. `backend/src/main/java/com/shoppingmall/service/buyer/impl/CartServiceImpl.java` - 修复getCartItemCount方法
+3. `backend/src/main/java/com/shoppingmall/controller/buyer/CartController.java` - 改进异常处理
 
-### 影响
-- 不同规格的商品在购物车/结算页显示对应规格与价格。
-- 规格文本直观呈现，减少用户下单规格混淆。
+### 具体修改
+
+#### 1. Cart实体类
+- 添加了所有必要字段：`id`, `userId`, `productId`, `skuId`, `specCombination`, `quantity`, `createTime`, `updateTime`
+- 使用 MyBatis-Plus 注解：`@TableName`, `@TableId`, `@TableField`
+- 支持自动填充创建时间和更新时间
+
+#### 2. CartServiceImpl.getCartItemCount方法
+- 添加了空列表检查，如果购物车为空直接返回0
+- 处理 `quantity` 可能为 null 的情况，使用 `cart.getQuantity() != null ? cart.getQuantity() : 0`
+- 确保即使某些记录的 quantity 为 null，也能正常计算总数
+
+#### 3. CartController.getCartItemCount方法
+- 改进了异常处理逻辑
+- 当异常消息为 null 时，使用异常类名作为错误信息
+- 提供更友好的错误提示
+
+### 功能特性
+- ✅ Cart实体类完整定义，支持数据库映射
+- ✅ 处理quantity为null的情况，避免空指针异常
+- ✅ 改进异常处理，提供更友好的错误信息
+- ✅ 购物车数量统计接口正常工作
+
+### 技术细节
+- **实体类映射**：使用 `@TableName("cart")` 映射到数据库表
+- **字段映射**：`userId` 映射到 `user_id`，`productId` 映射到 `product_id` 等
+- **空值处理**：使用三元运算符处理可能为 null 的 quantity 字段
+- **异常处理**：使用 `e.getMessage()` 或 `e.getClass().getSimpleName()` 作为错误信息
+
+### 影响范围
+- ✅ `/api/buyer/cart/count` - 购物车商品数量统计接口
+- ✅ 所有使用 Cart 实体的功能
 
 ---
 
 ## 2025-12-14 - 重构Header组件配置读取逻辑
->>>>>>>>> Temporary merge branch 2
 
 ### 功能说明
 修复 `/api/buyer/consultation/my` 和 `/api/buyer/review/my` 接口返回401错误的问题，确保已登录用户可以正常访问这些接口。

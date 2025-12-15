@@ -27,9 +27,11 @@ public class BuyerProductSkuController {
      * 根据商品ID获取SKU列表
      */
     @GetMapping("/{productId}/skus")
-    public Result<List<ProductSkuVO>> getSkusByProductId(@PathVariable Long productId) {
+    public Result<List<ProductSkuVO>> getSkusByProductId(
+            @PathVariable Long productId,
+            @RequestAttribute(value = "userId", required = false) Long userId) {
         try {
-            List<ProductSkuVO> skus = skuService.getSkusByProductId(productId);
+            List<ProductSkuVO> skus = skuService.getSkusByProductId(productId, userId);
             // 只返回启用状态的SKU（包括库存为0的，方便用户看到所有规格）
             List<ProductSkuVO> availableSkus = skus.stream()
                     .filter(sku -> sku.getStatus() == 1)
@@ -61,9 +63,10 @@ public class BuyerProductSkuController {
     @GetMapping("/{productId}/sku")
     public Result<ProductSkuVO> getSkuBySpecCombination(
             @PathVariable Long productId, 
-            @RequestParam String specCombination) {
+            @RequestParam String specCombination,
+            @RequestAttribute(value = "userId", required = false) Long userId) {
         try {
-            ProductSkuVO sku = skuService.getSkuBySpecCombination(productId, specCombination);
+            ProductSkuVO sku = skuService.getSkuBySpecCombination(productId, specCombination, userId);
             if (sku == null) {
                 return Result.success(null);
             }

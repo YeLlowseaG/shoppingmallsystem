@@ -13,14 +13,19 @@ import com.shoppingmall.repository.product.ProductStockRepository;
 import com.shoppingmall.repository.sku.ProductSkuRepository;
 import com.shoppingmall.repository.sku.ProductSpecKeyRepository;
 import com.shoppingmall.repository.sku.ProductSpecValueRepository;
+import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.service.sku.ProductSkuService;
+import com.shoppingmall.service.member.MemberLevelService;
 import com.shoppingmall.vo.ProductSkuVO;
+import com.shoppingmall.vo.MemberLevelVO;
+import com.shoppingmall.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import java.math.BigDecimal;
 
 import java.util.List;
 import java.util.Map;
@@ -40,6 +45,8 @@ public class ProductSkuServiceImpl implements ProductSkuService {
     private final ProductRepository productRepository;
     private final ProductStockRepository productStockRepository;
     private final ObjectMapper objectMapper;
+    private final MemberLevelService memberLevelService;
+    private final UserRepository userRepository;
     
     @Override
     @Transactional
@@ -169,9 +176,13 @@ public class ProductSkuServiceImpl implements ProductSkuService {
     }
     
     @Override
-    public List<ProductSkuVO> getSkusByProductId(Long productId) {
+    public List<ProductSkuVO> getSkusByProductId(Long productId, Long userId) {
         List<ProductSku> skus = skuRepository.findByProductId(productId);
-        return skus.stream().map(this::convertToVO).collect(Collectors.toList());
+        return skus.stream().map(sku -> {
+            ProductSkuVO vo = convertToVO(sku);
+            vo.setMemberPrice(calculateMemberPrice(sku.getPrice(), userId));
+            return vo;
+        }).collect(Collectors.toList());
     }
     
     @Override
@@ -187,9 +198,14 @@ public class ProductSkuServiceImpl implements ProductSkuService {
     }
     
     @Override
-    public ProductSkuVO getSkuBySpecCombination(Long productId, String specCombination) {
+    public ProductSkuVO getSkuBySpecCombination(Long productId, String specCombination, Long userId) {
         ProductSku entity = skuRepository.findByProductIdAndSpecCombination(productId, specCombination);
-        return entity != null ? convertToVO(entity) : null;
+        if (entity == null) {
+            return null;
+        }
+        ProductSkuVO vo = convertToVO(entity);
+        vo.setMemberPrice(calculateMemberPrice(entity.getPrice(), userId));
+        return vo;
     }
     
     @Override
@@ -364,5 +380,62 @@ public class ProductSkuServiceImpl implements ProductSkuService {
         ProductSkuVO vo = new ProductSkuVO();
         BeanUtils.copyProperties(entity, vo);
         return vo;
+    }
+
+    /**
+     * 根据会员等级折扣率计算会员价格
+     *
+     * @param salesPrice 销售价
+     * @param userId     用户ID（可为空，未登录返回原价）
+     * @return 会员价
+     */
+    private BigDecimal calculateMemberPrice(BigDecimal salesPrice, Long userId) {
+        if (salesPrice == null || salesPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            return salesPrice == null ? BigDecimal.ZERO : salesPrice;
+        }
+
+        try {
+            // 获取所有启用的会员等级（按排序号排序）
+            List<MemberLevelVO> memberLevels = memberLevelService.getAllEnabledMemberLevels();
+            if (memberLevels == null || memberLevels.isEmpty()) {
+                return salesPrice;
+            }
+
+            // 获取用户的会员等级ID（sys_user.user_level = member_level.id）
+            Long memberLevelId = null;
+            if (userId != null) {
+                User user = userRepository.selectById(userId);
+                if (user != null && user.getUserLevel() != null && user.getUserLevel() > 0) {
+                    memberLevelId = user.getUserLevel().longValue();
+                }
+            }
+
+            // 查找匹配的会员等级
+            MemberLevelVO memberLevel = null;
+            if (memberLevelId != null) {
+                for (MemberLevelVO level : memberLevels) {
+                    if (level.getId() != null && level.getId().equals(memberLevelId)) {
+                        memberLevel = level;
+                        break;
+                    }
+                }
+            }
+
+            // 如果找不到匹配等级，使用第一个等级（默认）
+            if (memberLevel == null) {
+                memberLevel = memberLevels.get(0);
+            }
+
+            if (memberLevel == null || memberLevel.getDiscountRate() == null) {
+                return salesPrice;
+            }
+
+            // 会员价 = 销售价 * (折扣率 / 100)
+            return salesPrice.multiply(memberLevel.getDiscountRate())
+                    .divide(new BigDecimal("100.00"), 2, BigDecimal.ROUND_HALF_UP);
+        } catch (Exception e) {
+            log.error("计算会员价格失败: userId={}, salesPrice={}", userId, salesPrice, e);
+            return salesPrice;
+        }
     }
 }

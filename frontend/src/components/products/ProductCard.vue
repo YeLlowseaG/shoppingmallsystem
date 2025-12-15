@@ -55,7 +55,7 @@
           </span>
         </div>
       </div>
-      <div class="actions">
+      <div class="actions" v-if="!hideAddToCart">
         <el-button 
           type="danger" 
           :loading="addingToCart"
@@ -95,10 +95,12 @@ interface Product {
 interface Props {
   product: Product
   viewMode?: 'grid' | 'list'
+  hideAddToCart?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  viewMode: 'grid'
+  viewMode: 'grid',
+  hideAddToCart: false
 })
 
 const router = useRouter()
