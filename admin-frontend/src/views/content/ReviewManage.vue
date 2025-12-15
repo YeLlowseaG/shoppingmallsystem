@@ -62,11 +62,6 @@
         </el-table-column>
         <el-table-column prop="productName" label="商品名称" width="200" show-overflow-tooltip />
         <el-table-column prop="userName" label="用户名称" width="120" />
-        <el-table-column prop="rating" label="评分" width="100">
-          <template #default="{ row }">
-            <el-rate v-model="row.rating" disabled size="small" />
-          </template>
-        </el-table-column>
         <el-table-column prop="reviewContent" label="评价内容" min-width="200" show-overflow-tooltip />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
