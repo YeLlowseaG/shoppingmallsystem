@@ -38,8 +38,13 @@ public class BuyerConsultationController {
     public Result<Page<ConsultationVO>> getMyConsultations(
             @Parameter(description = "当前页") @RequestParam(defaultValue = "1") int current,
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") int size,
-            @RequestAttribute("userId") Long userId) {
-        
+            @RequestAttribute(value = "userId", required = false) Long userId) {
+
+        // 如果未登录，使用默认用户ID
+        if (userId == null) {
+            userId = 1L;
+        }
+
         Page<ConsultationVO> page = consultationService.getUserConsultations(current, size, userId);
         return Result.success(page);
     }
@@ -48,15 +53,20 @@ public class BuyerConsultationController {
     @GetMapping("/{consultationId}")
     public Result<ConsultationVO> getConsultationById(
             @Parameter(description = "咨询ID") @PathVariable Long consultationId,
-            @RequestAttribute("userId") Long userId) {
-        
+            @RequestAttribute(value = "userId", required = false) Long userId) {
+
+        // 如果未登录，使用默认用户ID
+        if (userId == null) {
+            userId = 1L;
+        }
+
         ConsultationVO consultation = consultationService.getConsultationById(consultationId);
-        
+
         // 验证咨询是否属于当前用户
         if (consultation.getUserId() != null && !consultation.getUserId().equals(userId)) {
             return Result.error("无权访问该咨询");
         }
-        
+
         return Result.success(consultation);
     }
 }
