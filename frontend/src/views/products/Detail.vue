@@ -802,7 +802,7 @@ const submitReview = async () => {
     const reviewData: ProductReviewDTO = {
       productId: product.value.id!,
       orderId: 1, // 临时使用固定orderId，实际应该从已完成订单中选择
-      rating: 5, // 默认5星好评
+      rating: 0, // 无评分
       reviewContent: `${reviewForm.value.title ? reviewForm.value.title + '\n' : ''}${reviewForm.value.content}`
     }
 

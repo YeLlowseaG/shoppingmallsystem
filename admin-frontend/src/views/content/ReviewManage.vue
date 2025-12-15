@@ -18,21 +18,12 @@
           />
         </el-form-item>
         <el-form-item label="用户名称">
-          <el-input 
-            v-model="searchForm.userName" 
-            placeholder="请输入用户名称" 
-            clearable 
-            style="width: 200px" 
+          <el-input
+            v-model="searchForm.userName"
+            placeholder="请输入用户名称"
+            clearable
+            style="width: 200px"
           />
-        </el-form-item>
-        <el-form-item label="评分">
-          <el-select v-model="searchForm.rating" placeholder="请选择评分" clearable style="width: 120px">
-            <el-option label="1星" :value="1" />
-            <el-option label="2星" :value="2" />
-            <el-option label="3星" :value="3" />
-            <el-option label="4星" :value="4" />
-            <el-option label="5星" :value="5" />
-          </el-select>
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="searchForm.status" placeholder="请选择状态" clearable style="width: 120px">
@@ -131,9 +122,6 @@
           <el-descriptions-item label="商品名称">{{ selectedReview.productName }}</el-descriptions-item>
           <el-descriptions-item label="用户名称">{{ selectedReview.userName }}</el-descriptions-item>
           <el-descriptions-item label="订单编号">{{ selectedReview.orderNumber }}</el-descriptions-item>
-          <el-descriptions-item label="评分">
-            <el-rate v-model="selectedReview.rating" disabled />
-          </el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusTagType(selectedReview.status)" size="small">
               {{ selectedReview.statusText }}
@@ -181,9 +169,6 @@
             {{ selectedReview?.reviewContent }}
           </div>
         </el-form-item>
-        <el-form-item label="评分">
-          <el-rate v-model="selectedReview.rating" disabled />
-        </el-form-item>
         <el-form-item label="回复内容" prop="adminReply">
           <el-input
             v-model="replyForm.adminReply"
@@ -217,7 +202,6 @@ import {
 const searchForm = ref({
   productName: '',
   userName: '',
-  rating: undefined as number | undefined,
   status: undefined as number | undefined
 })
 
@@ -273,7 +257,7 @@ const loadReviewList = async () => {
       pagination.value.size,
       searchForm.value.productName || undefined,
       searchForm.value.userName || undefined,
-      searchForm.value.rating,
+      undefined,
       searchForm.value.status
     )
     reviewList.value = res.records
@@ -294,7 +278,6 @@ const handleReset = () => {
   searchForm.value = {
     productName: '',
     userName: '',
-    rating: undefined,
     status: undefined
   }
   handleSearch()

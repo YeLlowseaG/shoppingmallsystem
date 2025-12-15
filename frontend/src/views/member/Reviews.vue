@@ -64,16 +64,6 @@
 
                     <!-- 评价内容 -->
                     <div class="review-content">
-                      <div class="rating-section">
-                        <div class="section-label">我的评分：</div>
-                        <el-rate 
-                          v-model="review.rating" 
-                          disabled 
-                          size="large"
-                          show-score
-                        />
-                      </div>
-
                       <div v-if="review.reviewContent" class="content-section">
                         <div class="section-label">评价内容：</div>
                         <div class="content-text">{{ review.reviewContent }}</div>
