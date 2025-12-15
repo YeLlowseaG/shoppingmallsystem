@@ -137,7 +137,8 @@ const convertProduct = (product: ProductVO) => ({
   price: product.basePrice,
   originalPrice: product.basePrice * 1.5,  // 原价设置为基础价的1.5倍
   category: product.categoryName,
-  tag: ''
+  tag: '',
+  salesCount: product.salesCount
 })
 
 // 加载楼层广告

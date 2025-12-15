@@ -29,6 +29,7 @@
                 <span class="original-price">市场零售价: ¥{{ parseFloat(product.originalPrice).toFixed(2) }}</span>
                 <span class="current-price">¥ {{ parseFloat(product.price).toFixed(2) }}</span>
               </div>
+              <div class="product-sales">已售 {{ product.salesCount }}</div>
             </div>
           </div>
         </div>
@@ -52,6 +53,7 @@
               <span class="old-price">市场零售价: ¥{{ parseFloat(product.originalPrice).toFixed(2) }}</span>
               <span class="new-price">¥ {{ parseFloat(product.price).toFixed(2) }}</span>
             </div>
+            <div class="product-sales-bottom">已售 {{ product.salesCount }}</div>
           </div>
         </div>
       </div>
@@ -72,6 +74,7 @@ interface Product {
   originalPrice: number
   category?: string
   tag?: string
+  salesCount: number
 }
 
 interface Props {
@@ -208,6 +211,12 @@ const goToProduct = (id: number) => {
               font-weight: bold;
             }
           }
+
+          .product-sales {
+            font-size: 12px;
+            color: #999;
+            margin-top: 8px;
+          }
         }
       }
     }
@@ -278,6 +287,12 @@ const goToProduct = (id: number) => {
             color: #e4393c;
             font-weight: bold;
           }
+        }
+
+        .product-sales-bottom {
+          font-size: 12px;
+          color: #999;
+          margin-top: 8px;
         }
       }
     }
