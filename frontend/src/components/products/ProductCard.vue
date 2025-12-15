@@ -10,8 +10,9 @@
         <div class="category">{{ product.category }}</div>
         <div class="name" :title="product.name">{{ product.name }}</div>
         <div class="price-row">
-          <span class="price">¥{{ parseFloat(product.price).toFixed(2) }}</span>
-          <span v-if="product.originalPrice" class="original-price">¥{{ parseFloat(product.originalPrice).toFixed(2) }}</span>
+          <span class="price" :class="{ member: showMemberPrice }">¥{{ displayPrice }}</span>
+          <span v-if="showMemberPrice" class="original-price">¥{{ formatNumber(product.price) }}</span>
+          <span v-else-if="product.originalPrice" class="original-price">¥{{ formatNumber(product.originalPrice) }}</span>
         </div>
         <div class="meta">
           <span class="sales">销量: {{ formatSales(product.sales) }}</span>
@@ -43,8 +44,9 @@
           <span v-if="product.brand" class="brand">品牌: {{ product.brand }}</span>
         </div>
         <div class="price-row">
-          <span class="price">¥{{ parseFloat(product.price).toFixed(2) }}</span>
-          <span v-if="product.originalPrice" class="original-price">¥{{ parseFloat(product.originalPrice).toFixed(2) }}</span>
+          <span class="price" :class="{ member: showMemberPrice }">¥{{ displayPrice }}</span>
+          <span v-if="showMemberPrice" class="original-price">¥{{ formatNumber(product.price) }}</span>
+          <span v-else-if="product.originalPrice" class="original-price">¥{{ formatNumber(product.originalPrice) }}</span>
         </div>
         <div class="meta">
           <span class="sales">销量: {{ formatSales(product.sales) }}</span>
@@ -68,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { addToCart as addToCartAPI, type AddCartDTO } from '@/api/buyer/cart'
@@ -81,6 +83,7 @@ interface Product {
   brand?: string
   image: string
   price: number | string
+  memberPrice?: number | string
   originalPrice?: number | string
   sales?: number
   tags?: string
@@ -104,6 +107,26 @@ const cartStore = useCartStore()
 const addingToCart = ref(false)
 
 // 格式化销量
+const formatNumber = (val?: number | string) => {
+  const num = parseFloat(String(val ?? 0))
+  return Number.isNaN(num) ? '0.00' : num.toFixed(2)
+}
+
+const showMemberPrice = computed(() => {
+  if (props.product.memberPrice === undefined || props.product.memberPrice === null) return false
+  const member = parseFloat(String(props.product.memberPrice))
+  const price = parseFloat(String(props.product.price))
+  if (Number.isNaN(member) || Number.isNaN(price)) return false
+  return member > 0 && Math.abs(member - price) > 0.0001
+})
+
+const displayPrice = computed(() => {
+  if (showMemberPrice.value) {
+    return formatNumber(props.product.memberPrice)
+  }
+  return formatNumber(props.product.price)
+})
+
 const formatSales = (sales?: number) => {
   if (!sales) return '0'
   if (sales >= 10000) {
@@ -252,6 +275,10 @@ const addToCart = async (e?: Event) => {
           font-size: 20px;
           font-weight: bold;
           margin-right: 8px;
+
+          &.member {
+            color: #e4393c;
+          }
         }
 
         .original-price {

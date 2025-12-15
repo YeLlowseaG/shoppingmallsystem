@@ -26,7 +26,7 @@ public interface ProductService {
      * @param sortBy 排序方式（可选）
      * @return 商品分页列表
      */
-    Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String brand, String status, String sortBy);
+    Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String brand, String status, String sortBy, Long userId);
 
     /**
      * 根据ID获取商品详情
@@ -34,7 +34,7 @@ public interface ProductService {
      * @param id 商品ID
      * @return 商品详情
      */
-    ProductVO getProductById(Long id);
+    ProductVO getProductById(Long id, Long userId);
 
     /**
      * 创建商品
@@ -72,7 +72,7 @@ public interface ProductService {
      * @param limit 数量限制
      * @return 热门商品列表
      */
-    List<ProductVO> getHotProducts(Long limit);
+    List<ProductVO> getHotProducts(Long limit, Long userId);
 
     /**
      * 根据分类获取推荐商品
@@ -81,5 +81,5 @@ public interface ProductService {
      * @param limit 数量限制
      * @return 推荐商品列表
      */
-    List<ProductVO> getRecommendProducts(Long categoryId, Long limit);
+    List<ProductVO> getRecommendProducts(Long categoryId, Long limit, Long userId);
 }

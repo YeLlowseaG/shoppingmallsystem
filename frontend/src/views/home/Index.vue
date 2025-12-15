@@ -135,6 +135,7 @@ const convertProduct = (product: ProductVO) => ({
   name: product.productName,
   image: product.mainImage,
   price: product.basePrice,
+  memberPrice: product.memberPrice ?? product.basePrice,
   originalPrice: product.basePrice * 1.5,  // 原价设置为基础价的1.5倍
   category: product.categoryName,
   tag: '',

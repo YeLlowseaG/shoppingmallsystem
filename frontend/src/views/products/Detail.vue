@@ -103,6 +103,12 @@
                 ¥{{ currentSku ? parseFloat(currentSku.price).toFixed(2) : parseFloat(product.price).toFixed(2) }}
               </span>
             </div>
+          <div class="price-row" v-if="displayMemberPrice">
+            <span class="price-label">会员价：</span>
+            <span class="member-price">
+              ¥{{ displayMemberPrice.toFixed(2) }}
+            </span>
+          </div>
           </div>
 
           <!-- 规格选择器 -->
@@ -418,6 +424,29 @@ const defaultSpecs = ref<Record<string, string>>({})
 // 购买数量
 const quantity = ref(1)
 
+// 会员价显示：按购物车规则计算。如果选了SKU，则按 SKU 价格 × (会员折扣比例) 计算
+const displayMemberPrice = computed(() => {
+  const basePrice = Number((product.value as any).basePrice || (product.value as any).price || 0)
+  const memberPriceBase = Number((product.value as any).memberPrice || basePrice)
+
+  if (basePrice <= 0) {
+    return memberPriceBase > 0 ? memberPriceBase : 0
+  }
+
+  // 会员折扣比例 = 会员价 / 基础价
+  const discountRate = memberPriceBase / basePrice
+
+  const currentPrice = currentSku.value
+    ? Number(currentSku.value.price || 0)
+    : Number((product.value as any).price || basePrice)
+
+  if (currentPrice <= 0 || discountRate <= 0) {
+    return memberPriceBase
+  }
+
+  return Number((currentPrice * discountRate).toFixed(2))
+})
+
 // 当前标签页
 const activeTab = ref('detail')
 
@@ -503,6 +532,8 @@ const product = ref({
   unit: '盒',
   marketPrice: 0,
   price: 0,
+  basePrice: 0,
+  memberPrice: 0,
   stock: 0,  // 添加库存字段
   promoText: '',
   images: [] as string[],
@@ -534,6 +565,8 @@ const loadProductDetail = async (productId: number) => {
       unit: '盒',
       marketPrice: productData.marketPrice || productData.basePrice * 1.5,
       price: productData.salePrice || productData.basePrice,
+      basePrice: productData.basePrice,
+      memberPrice: productData.memberPrice ?? productData.basePrice,
       stock: productData.stock || 0, // 添加库存字段映射
       promoText: '',
       images: productData.imageList.length > 0 ? productData.imageList : [productData.mainImage],

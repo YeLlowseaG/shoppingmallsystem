@@ -6,17 +6,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shoppingmall.common.exception.BusinessException;
 import com.shoppingmall.common.util.StringUtil;
 import com.shoppingmall.dto.ProductDTO;
+import com.shoppingmall.entity.Brand;
 import com.shoppingmall.entity.Product;
 import com.shoppingmall.entity.ProductCategory;
-import com.shoppingmall.entity.Brand;
 import com.shoppingmall.entity.ProductStock;
+import com.shoppingmall.entity.User;
 import com.shoppingmall.repository.product.ProductCategoryRepository;
 import com.shoppingmall.repository.product.ProductRepository;
 import com.shoppingmall.repository.product.ProductStockRepository;
+import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.repository.website.BrandRepository;
+import com.shoppingmall.service.admin.StockService;
+import com.shoppingmall.service.member.MemberLevelService;
 import com.shoppingmall.service.product.ProductService;
 import com.shoppingmall.service.user.StockNotificationService;
-import com.shoppingmall.service.admin.StockService;
+import com.shoppingmall.vo.MemberLevelVO;
 import com.shoppingmall.vo.ProductVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,9 +50,11 @@ public class ProductServiceImpl implements ProductService {
     private final ObjectMapper objectMapper;
     private final StockNotificationService stockNotificationService;
     private final StockService stockService;
+    private final MemberLevelService memberLevelService;
+    private final UserRepository userRepository;
 
     @Override
-    public Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String brand, String status, String sortBy) {
+    public Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String brand, String status, String sortBy, Long userId) {
         Page<Product> page = new Page<>(current, size);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
@@ -127,19 +133,19 @@ public class ProductServiceImpl implements ProductService {
         voPage.setSize(productPage.getSize());
         voPage.setTotal(productPage.getTotal());
         voPage.setRecords(productPage.getRecords().stream()
-                .map(this::convertToVO)
+                .map(p -> convertToVO(p, userId))
                 .toList());
 
         return voPage;
     }
 
     @Override
-    public ProductVO getProductById(Long id) {
+    public ProductVO getProductById(Long id, Long userId) {
         Product product = productRepository.selectById(id);
         if (product == null) {
             throw new BusinessException(404, "商品不存在");
         }
-        return convertToVO(product);
+        return convertToVO(product, userId);
     }
 
     @Override
@@ -286,7 +292,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public List<ProductVO> getHotProducts(Long limit) {
+    public List<ProductVO> getHotProducts(Long limit, Long userId) {
         Page<Product> page = new Page<>(1, limit);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
@@ -297,12 +303,12 @@ public class ProductServiceImpl implements ProductService {
 
         // 转换为VO并返回List
         return productPage.getRecords().stream()
-                .map(this::convertToVO)
+                .map(p -> convertToVO(p, userId))
                 .toList();
     }
 
     @Override
-    public List<ProductVO> getRecommendProducts(Long categoryId, Long limit) {
+    public List<ProductVO> getRecommendProducts(Long categoryId, Long limit, Long userId) {
         Page<Product> page = new Page<>(1, limit);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
@@ -314,14 +320,14 @@ public class ProductServiceImpl implements ProductService {
 
         // 转换为VO并返回List
         return productPage.getRecords().stream()
-                .map(this::convertToVO)
+                .map(p -> convertToVO(p, userId))
                 .toList();
     }
 
     /**
      * 转换为VO
      */
-    private ProductVO convertToVO(Product product) {
+    private ProductVO convertToVO(Product product, Long userId) {
         ProductVO vo = new ProductVO();
         BeanUtils.copyProperties(product, vo, "status", "weight");
 
@@ -354,10 +360,68 @@ public class ProductServiceImpl implements ProductService {
             vo.setImageList(new ArrayList<>());
         }
 
-        // TODO: 根据用户等级获取对应价格
+        // 根据用户等级计算会员价
+        vo.setMemberPrice(calculateMemberPrice(product.getBasePrice(), userId));
         vo.setUserLevelPrice(product.getBasePrice());
 
         return vo;
+    }
+
+    /**
+     * 根据会员等级折扣率计算会员价格
+     *
+     * @param salesPrice 销售价
+     * @param userId     用户ID（可为空，未登录返回原价）
+     * @return 会员价
+     */
+    private BigDecimal calculateMemberPrice(BigDecimal salesPrice, Long userId) {
+        if (salesPrice == null || salesPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            return salesPrice == null ? BigDecimal.ZERO : salesPrice;
+        }
+
+        try {
+            // 获取所有启用的会员等级（按排序号排序）
+            List<MemberLevelVO> memberLevels = memberLevelService.getAllEnabledMemberLevels();
+            if (memberLevels == null || memberLevels.isEmpty()) {
+                return salesPrice;
+            }
+
+            // 获取用户的会员等级ID（sys_user.user_level = member_level.id）
+            Long memberLevelId = null;
+            if (userId != null) {
+                User user = userRepository.selectById(userId);
+                if (user != null && user.getUserLevel() != null && user.getUserLevel() > 0) {
+                    memberLevelId = user.getUserLevel().longValue();
+                }
+            }
+
+            // 查找匹配的会员等级
+            MemberLevelVO memberLevel = null;
+            if (memberLevelId != null) {
+                for (MemberLevelVO level : memberLevels) {
+                    if (level.getId() != null && level.getId().equals(memberLevelId)) {
+                        memberLevel = level;
+                        break;
+                    }
+                }
+            }
+
+            // 如果找不到匹配等级，使用第一个等级（默认）
+            if (memberLevel == null) {
+                memberLevel = memberLevels.get(0);
+            }
+
+            if (memberLevel == null || memberLevel.getDiscountRate() == null) {
+                return salesPrice;
+            }
+
+            // 会员价 = 销售价 * (折扣率 / 100)
+            return salesPrice.multiply(memberLevel.getDiscountRate())
+                    .divide(new BigDecimal("100.00"), 2, BigDecimal.ROUND_HALF_UP);
+        } catch (Exception e) {
+            log.error("计算会员价格失败: userId={}, salesPrice={}", userId, salesPrice, e);
+            return salesPrice;
+        }
     }
 
     // 已删除原createOrUpdateProductStock方法，统一使用StockService.updateProductTotalStock

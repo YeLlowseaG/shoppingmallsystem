@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shoppingmall.common.util.Result;
 import com.shoppingmall.service.product.ProductService;
 import com.shoppingmall.vo.ProductVO;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,9 +33,11 @@ public class ProductController {
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String brand,
-            @RequestParam(defaultValue = "default") String sortBy) {
+            @RequestParam(defaultValue = "default") String sortBy,
+            HttpServletRequest request) {
         // 买家端只查询已上架商品
-        Page<ProductVO> page = productService.getProductPage(current, size, categoryId, keyword, brand, "上架", sortBy);
+        Long userId = (Long) request.getAttribute("userId");
+        Page<ProductVO> page = productService.getProductPage(current, size, categoryId, keyword, brand, "上架", sortBy, userId);
         return Result.success("获取成功", page);
     }
 
@@ -42,8 +45,9 @@ public class ProductController {
      * 根据ID获取商品详情
      */
     @GetMapping("/{id}")
-    public Result<ProductVO> getProductById(@PathVariable Long id) {
-        ProductVO product = productService.getProductById(id);
+    public Result<ProductVO> getProductById(@PathVariable Long id, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        ProductVO product = productService.getProductById(id, userId);
         return Result.success("获取成功", product);
     }
 
@@ -52,8 +56,10 @@ public class ProductController {
      */
     @GetMapping("/hot")
     public Result<List<ProductVO>> getHotProducts(
-            @RequestParam(defaultValue = "10") Long limit) {
-        List<ProductVO> products = productService.getHotProducts(limit);
+            @RequestParam(defaultValue = "10") Long limit,
+            HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        List<ProductVO> products = productService.getHotProducts(limit, userId);
         return Result.success("获取成功", products);
     }
 
@@ -63,8 +69,10 @@ public class ProductController {
     @GetMapping("/recommend/{categoryId}")
     public Result<List<ProductVO>> getRecommendProducts(
             @PathVariable Long categoryId,
-            @RequestParam(defaultValue = "8") Long limit) {
-        List<ProductVO> products = productService.getRecommendProducts(categoryId, limit);
+            @RequestParam(defaultValue = "8") Long limit,
+            HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        List<ProductVO> products = productService.getRecommendProducts(categoryId, limit, userId);
         return Result.success("获取成功", products);
     }
 }
