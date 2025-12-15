@@ -480,22 +480,20 @@ public class StockServiceImpl implements StockService {
                 stockRepository.insert(stock);
                 log.info("创建商品库存记录成功，商品ID: {}, 库存: {}", productId, totalStock);
             } else {
-                // 更新现有记录
-                int oldTotalStock = stock.getTotalStock() != null ? stock.getTotalStock() : 0;
-                int stockDifference = totalStock - oldTotalStock;
+                // 更新现有记录，保留锁定库存
+                int lockedStock = stock.getLockedStock() != null ? stock.getLockedStock() : 0;
                 
                 stock.setTotalStock(totalStock);
-                
-                // 调整可用库存：新可用库存 = 原可用库存 + 库存差值
-                int oldAvailableStock = stock.getAvailableStock() != null ? stock.getAvailableStock() : 0;
-                int newAvailableStock = oldAvailableStock + stockDifference;
-                if (newAvailableStock < 0) {
-                    newAvailableStock = 0;
+                // 核心公式：可用库存 = 总库存 - 锁定库存
+                int availableStock = totalStock - lockedStock;
+                if (availableStock < 0) {
+                    availableStock = 0;
                 }
-                stock.setAvailableStock(newAvailableStock);
+                stock.setAvailableStock(availableStock);
                 
                 stockRepository.updateById(stock);
-                log.info("更新商品库存记录成功，商品ID: {}, 新库存: {}, 库存变化: {}", productId, totalStock, stockDifference);
+                log.info("更新商品库存记录成功，商品ID: {}, 总库存: {}, 锁定库存: {}, 可用库存: {}", 
+                        productId, totalStock, lockedStock, availableStock);
             }
             
             // 同步更新Product表的库存字段（单向同步，避免冲突）
@@ -506,8 +504,11 @@ public class StockServiceImpl implements StockService {
                 syncProductWarningStock(productId, stock.getWarningThreshold());
             }
             
-            // 同步SKU库存（当商品有SKU时，将商品总库存分配给SKU）
-            syncProductSkuStock(productId, totalStock);
+            // 注意：不再同步SKU库存，因为：
+            // 1. SKU库存应该由用户明确设置
+            // 2. 商品总库存应该由所有SKU库存的总和计算得出（ProductSkuServiceImpl.updateProductTotalStock()）
+            // 3. 不应该用商品总库存来覆盖用户设置的SKU库存
+            // syncProductSkuStock(productId, totalStock);
             
         } catch (Exception e) {
             log.error("更新商品库存失败，商品ID: {}, 库存: {}", productId, totalStock, e);

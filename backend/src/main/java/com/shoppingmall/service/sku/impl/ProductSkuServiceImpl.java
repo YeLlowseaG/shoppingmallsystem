@@ -1,9 +1,18 @@
 package com.shoppingmall.service.sku.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shoppingmall.dto.ProductSkuDTO;
 import com.shoppingmall.entity.ProductSku;
+import com.shoppingmall.entity.ProductSpecKey;
+import com.shoppingmall.entity.ProductSpecValue;
+import com.shoppingmall.entity.ProductStock;
+import com.shoppingmall.repository.product.ProductRepository;
+import com.shoppingmall.repository.product.ProductStockRepository;
 import com.shoppingmall.repository.sku.ProductSkuRepository;
+import com.shoppingmall.repository.sku.ProductSpecKeyRepository;
+import com.shoppingmall.repository.sku.ProductSpecValueRepository;
 import com.shoppingmall.service.sku.ProductSkuService;
 import com.shoppingmall.vo.ProductSkuVO;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -23,8 +33,13 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ProductSkuServiceImpl implements ProductSkuService {
-    
+
     private final ProductSkuRepository skuRepository;
+    private final ProductSpecKeyRepository specKeyRepository;
+    private final ProductSpecValueRepository specValueRepository;
+    private final ProductRepository productRepository;
+    private final ProductStockRepository productStockRepository;
+    private final ObjectMapper objectMapper;
     
     @Override
     @Transactional
@@ -33,11 +48,18 @@ public class ProductSkuServiceImpl implements ProductSkuService {
         if (existsBySkuCode(dto.getSkuCode())) {
             throw new RuntimeException("SKU编码已存在: " + dto.getSkuCode());
         }
-        
+
         ProductSku entity = new ProductSku();
         BeanUtils.copyProperties(dto, entity);
-        
+
+        // 记录复制后的值
+        log.info("创建SKU - DTO库存: {}, 复制后实体库存: {}", dto.getStock(), entity.getStock());
+
         // 设置默认值
+        if (entity.getStock() == null) {
+            log.warn("创建SKU - 库存为null，设置为0，SKU编码: {}", dto.getSkuCode());
+            entity.setStock(0);
+        }
         if (entity.getWarningStock() == null) {
             entity.setWarningStock(0);
         }
@@ -47,10 +69,33 @@ public class ProductSkuServiceImpl implements ProductSkuService {
         if (entity.getStatus() == null) {
             entity.setStatus(1);
         }
+
+        // 记录插入前的值
+        log.info("创建SKU - 插入前实体库存: {}, SKU编码: {}, 商品ID: {}", 
+                entity.getStock(), dto.getSkuCode(), dto.getProductId());
         
         skuRepository.insert(entity);
-        log.info("创建SKU成功，ID: {}, SKU编码: {}, 商品ID: {}", 
-                entity.getId(), dto.getSkuCode(), dto.getProductId());
+        
+        // 立即从数据库查询确认保存的值
+        ProductSku savedEntity = skuRepository.selectById(entity.getId());
+        if (savedEntity != null) {
+            log.info("创建SKU成功，ID: {}, SKU编码: {}, 商品ID: {}, 插入时库存: {}, 数据库查询库存: {}",
+                    entity.getId(), dto.getSkuCode(), dto.getProductId(), 
+                    entity.getStock(), savedEntity.getStock());
+            if (!entity.getStock().equals(savedEntity.getStock())) {
+                log.error("⚠️ 库存值不一致！插入时: {}, 数据库查询: {}", 
+                        entity.getStock(), savedEntity.getStock());
+            }
+        } else {
+            log.error("创建SKU后查询失败，ID: {}", entity.getId());
+        }
+
+        // 同步规格值到product_spec_value表
+        syncSpecValues(dto.getProductId(), dto.getSpecCombination());
+
+        // 更新商品总库存
+        updateProductTotalStock(dto.getProductId());
+
         return entity.getId();
     }
     
@@ -60,10 +105,15 @@ public class ProductSkuServiceImpl implements ProductSkuService {
         int successCount = 0;
         for (ProductSkuDTO dto : dtoList) {
             try {
+                log.info("批量创建SKU - 商品ID: {}, SKU编码: {}, 库存: {}", 
+                        dto.getProductId(), dto.getSkuCode(), dto.getStock());
                 createSku(dto);
                 successCount++;
+                log.info("批量创建SKU成功 - SKU编码: {}, 库存: {}", dto.getSkuCode(), dto.getStock());
             } catch (Exception e) {
-                log.error("批量创建SKU失败，SKU编码: {}, 错误: {}", dto.getSkuCode(), e.getMessage());
+                log.error("批量创建SKU失败，SKU编码: {}, 库存: {}, 错误: {}", 
+                        dto.getSkuCode(), dto.getStock(), e.getMessage(), e);
+                throw e; // 抛出异常，让事务回滚
             }
         }
         log.info("批量创建SKU完成，总数: {}, 成功: {}", dtoList.size(), successCount);
@@ -78,17 +128,24 @@ public class ProductSkuServiceImpl implements ProductSkuService {
             log.warn("SKU不存在，ID: {}", id);
             return false;
         }
-        
+
         // 如果SKU编码有变化，检查是否重复
         if (!entity.getSkuCode().equals(dto.getSkuCode()) && existsBySkuCode(dto.getSkuCode())) {
             throw new RuntimeException("SKU编码已存在: " + dto.getSkuCode());
         }
-        
+
         BeanUtils.copyProperties(dto, entity);
         entity.setId(id);
-        
+
         int result = skuRepository.updateById(entity);
         log.info("更新SKU成功，ID: {}, SKU编码: {}", id, dto.getSkuCode());
+
+        // 同步规格值到product_spec_value表
+        syncSpecValues(dto.getProductId(), dto.getSpecCombination());
+
+        // 更新商品总库存
+        updateProductTotalStock(dto.getProductId());
+
         return result > 0;
     }
     
@@ -100,9 +157,14 @@ public class ProductSkuServiceImpl implements ProductSkuService {
             log.warn("SKU不存在，ID: {}", id);
             return false;
         }
-        
+
+        Long productId = entity.getProductId();
         int result = skuRepository.deleteById(id);
         log.info("删除SKU成功，ID: {}, SKU编码: {}", id, entity.getSkuCode());
+
+        // 更新商品总库存
+        updateProductTotalStock(productId);
+
         return result > 0;
     }
     
@@ -133,9 +195,18 @@ public class ProductSkuServiceImpl implements ProductSkuService {
     @Override
     @Transactional
     public boolean updateSkuStock(Long skuId, Integer stock) {
+        // 先获取SKU信息以获取productId
+        ProductSku sku = skuRepository.selectById(skuId);
+        if (sku == null) {
+            log.warn("SKU不存在，ID: {}", skuId);
+            return false;
+        }
+
         int result = skuRepository.updateStock(skuId, stock);
         if (result > 0) {
             log.info("更新SKU库存成功，SKU ID: {}, 库存: {}", skuId, stock);
+            // 更新商品总库存
+            updateProductTotalStock(sku.getProductId());
         }
         return result > 0;
     }
@@ -165,6 +236,127 @@ public class ProductSkuServiceImpl implements ProductSkuService {
         return entity != null;
     }
     
+    /**
+     * 同步规格值到product_spec_value表
+     * 解析SKU的specCombination JSON，提取规格值并保存到product_spec_value表
+     */
+    private void syncSpecValues(Long productId, String specCombination) {
+        if (!StringUtils.hasText(specCombination)) {
+            return;
+        }
+
+        try {
+            // 解析specCombination JSON，格式：{"颜色":"白色","尺寸":"L"}
+            Map<String, String> specMap = objectMapper.readValue(
+                    specCombination,
+                    new TypeReference<Map<String, String>>() {}
+            );
+
+            // 获取该商品的所有规格属性
+            List<ProductSpecKey> specKeys = specKeyRepository.findByProductId(productId);
+
+            // 遍历规格组合中的每个键值对
+            for (Map.Entry<String, String> entry : specMap.entrySet()) {
+                String specName = entry.getKey();    // 如：颜色
+                String specValue = entry.getValue(); // 如：白色
+
+                // 查找对应的spec_key_id
+                ProductSpecKey specKey = specKeys.stream()
+                        .filter(sk -> sk.getSpecName().equals(specName))
+                        .findFirst()
+                        .orElse(null);
+
+                // 如果规格属性不存在，则自动创建
+                if (specKey == null) {
+                    specKey = new ProductSpecKey();
+                    specKey.setProductId(productId);
+                    specKey.setSpecName(specName);
+                    specKey.setSortOrder(specKeys.size());
+                    specKeyRepository.insert(specKey);
+                    specKeys.add(specKey); // 添加到列表中，避免重复创建
+                    log.info("自动同步规格属性：商品ID={}, 规格名={}", productId, specName);
+                }
+
+                // 检查该规格值是否已存在
+                LambdaQueryWrapper<ProductSpecValue> wrapper = new LambdaQueryWrapper<>();
+                wrapper.eq(ProductSpecValue::getSpecKeyId, specKey.getId())
+                       .eq(ProductSpecValue::getSpecValue, specValue);
+                ProductSpecValue existingValue = specValueRepository.selectOne(wrapper);
+
+                // 如果不存在，则插入
+                if (existingValue == null) {
+                    ProductSpecValue newValue = new ProductSpecValue();
+                    newValue.setSpecKeyId(specKey.getId());
+                    newValue.setSpecValue(specValue);
+                    newValue.setSortOrder(0);
+                    specValueRepository.insert(newValue);
+                    log.info("自动同步规格值：商品ID={}, 规格名={}, 规格值={}",
+                            productId, specName, specValue);
+                }
+            }
+        } catch (Exception e) {
+            log.error("同步规格值失败：商品ID={}, specCombination={}",
+                    productId, specCombination, e);
+        }
+    }
+
+    /**
+     * 更新商品总库存
+     * 计算该商品所有SKU的库存总和，同步更新到product表和product_stock表
+     *
+     * 核心逻辑：可用库存 = 总库存 - 锁定库存
+     */
+    private void updateProductTotalStock(Long productId) {
+        // 查询该商品的所有SKU
+        List<ProductSku> skus = skuRepository.findByProductId(productId);
+
+        // 计算总库存
+        int totalStock = skus.stream()
+                .mapToInt(sku -> sku.getStock() != null ? sku.getStock() : 0)
+                .sum();
+
+        // 更新商品表的库存
+        var product = productRepository.selectById(productId);
+        if (product != null) {
+            product.setStock(totalStock);
+            productRepository.updateById(product);
+            log.info("更新商品总库存成功：商品ID={}, 总库存={}", productId, totalStock);
+        }
+
+        // 同步更新product_stock表
+        LambdaQueryWrapper<ProductStock> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ProductStock::getProductId, productId);
+        ProductStock productStock = productStockRepository.selectOne(wrapper);
+
+        if (productStock == null) {
+            // 创建新的库存记录
+            productStock = new ProductStock();
+            productStock.setProductId(productId);
+            productStock.setTotalStock(totalStock);
+            productStock.setLockedStock(0);
+            productStock.setAvailableStock(totalStock); // 总库存 - 锁定库存(0)
+            productStock.setWarningThreshold(10);
+            productStockRepository.insert(productStock);
+            log.info("创建商品库存记录成功：商品ID={}, 总库存={}, 可用库存={}",
+                    productId, totalStock, totalStock);
+        } else {
+            // 更新现有记录，保留锁定库存
+            int lockedStock = productStock.getLockedStock() != null ? productStock.getLockedStock() : 0;
+
+            productStock.setTotalStock(totalStock);
+            // 核心公式：可用库存 = 总库存 - 锁定库存
+            int availableStock = totalStock - lockedStock;
+            if (availableStock < 0) {
+                availableStock = 0;
+            }
+            productStock.setAvailableStock(availableStock);
+
+            productStockRepository.updateById(productStock);
+            log.info("同步更新product_stock表成功：商品ID={}, 总库存={}, 锁定库存={}, 可用库存={}",
+                    productId, totalStock, lockedStock, availableStock);
+        }
+    }
+
     /**
      * 实体转VO
      */

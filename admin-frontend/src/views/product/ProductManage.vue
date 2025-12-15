@@ -1076,6 +1076,15 @@ const handleEdit = async (row: ProductVO) => {
   // 加载SKU数据
   try {
     const skus = await getSkusByProductId(row.id)
+    console.log('从API获取的SKU数据:', skus)
+    console.log('SKU库存详情（从API）:', skus?.map(s => ({ 
+      id: s.id, 
+      skuCode: s.skuCode, 
+      spec: s.specCombination, 
+      stock: s.stock,
+      stockType: typeof s.stock
+    })))
+    
     // 保存当前SKU列表，用于后续删除
     currentSkuList.value = skus || []
 
@@ -1106,10 +1115,10 @@ const handleEdit = async (row: ProductVO) => {
           specCombination: sku.specCombination,
           specCombinationText: Object.values(JSON.parse(sku.specCombination)).join('/'),
           price: sku.price,
-          stock: sku.stock,
-          warningStock: sku.warningStock,
-          weight: sku.weight,
-          status: sku.status
+          stock: sku.stock ?? 0,
+          warningStock: sku.warningStock ?? 0,
+          weight: sku.weight ?? 0,
+          status: sku.status ?? 1
         })
       })
 
@@ -1142,6 +1151,13 @@ const handleSubmit = async () => {
       console.log('当前商品编码:', formData.value.productCode)
       console.log('当前商品名称:', formData.value.productName)
       console.log('当前editSkuList:', editSkuList.value)
+      console.log('当前editSkuList库存详情:', editSkuList.value.map(s => ({ 
+        spec: s.specCombination, 
+        stock: s.stock, 
+        stockType: typeof s.stock,
+        stockIsNull: s.stock === null,
+        stockIsUndefined: s.stock === undefined
+      })))
 
       // 数据一致性校验
       if (editSkuList.value.length > 0) {
@@ -1186,19 +1202,26 @@ const handleSubmit = async () => {
         }
 
         // 批量创建新SKU
-        const skuDTOs: ProductSkuDTO[] = editSkuList.value.map(sku => ({
-          productId: formData.value.id!,
-          skuCode: sku.skuCode,
-          specCombination: sku.specCombination,
-          price: sku.price,
-          stock: sku.stock,
-          warningStock: sku.warningStock || 0,
-          weight: sku.weight || 0,
-          status: sku.status || 1
-        }))
+        // 确保stock值正确：如果stock是null、undefined或NaN，则使用0
+        const skuDTOs: ProductSkuDTO[] = editSkuList.value.map(sku => {
+          const stock = (sku.stock !== null && sku.stock !== undefined && !isNaN(Number(sku.stock))) 
+            ? Number(sku.stock) 
+            : 0;
+          return {
+            productId: formData.value.id!,
+            skuCode: sku.skuCode,
+            specCombination: sku.specCombination,
+            price: sku.price,
+            stock: stock,
+            warningStock: sku.warningStock || 0,
+            weight: sku.weight || 0,
+            status: sku.status || 1
+          };
+        })
 
         console.log('!!! CRITICAL: 即将创建的SKU数据，商品ID为:', formData.value.id)
         console.log('准备批量创建SKU:', skuDTOs)
+        console.log('SKU库存详情:', skuDTOs.map(s => ({ spec: s.specCombination, stock: s.stock })))
         await batchCreateSkus(skuDTOs)
         console.log('SKU保存成功')
 
@@ -1424,6 +1447,7 @@ const loadCurrentSkuData = async () => {
       return {
         ...sku,
         specCombinationText: specTexts.join(', '),
+        stock: sku.stock ?? 0,
         status: sku.status || 1
       }
     })
@@ -1549,7 +1573,7 @@ const saveSkuChanges = async () => {
       skuCode: sku.skuCode,
       specCombination: sku.specCombination,
       price: sku.price,
-      stock: sku.stock,
+      stock: sku.stock ?? 0,
       warningStock: sku.warningStock || 0,
       weight: sku.weight || 0,
       status: sku.status
