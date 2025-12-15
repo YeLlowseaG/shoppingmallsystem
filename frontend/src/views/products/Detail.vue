@@ -260,15 +260,17 @@
                 如果您对本商品有什么使用心得或建议，欢迎分享！
               </div>
               <el-form :model="reviewForm" label-width="100px">
-                <el-form-item label="*评分：">
-                  <el-rate v-model="reviewForm.rating" :max="5" />
+                <el-form-item label="*评论标题：">
+                  <el-input v-model="reviewForm.title" />
+                </el-form-item>
+                <el-form-item label="*联系方式：">
+                  <el-input v-model="reviewForm.contact" placeholder="(可以是电话、email、qq等)" />
                 </el-form-item>
                 <el-form-item label="*评论内容：">
                   <el-input
-                    v-model="reviewForm.reviewContent"
+                    v-model="reviewForm.content"
                     type="textarea"
                     :rows="6"
-                    placeholder="请分享您的使用体验..."
                   />
                 </el-form-item>
                 <el-form-item>
@@ -451,8 +453,9 @@ const favoritLoading = ref(false)
 
 // 评论表单
 const reviewForm = ref({
-  rating: 5,
-  reviewContent: ''
+  title: '',
+  contact: '',
+  content: ''
 })
 
 // 缺货登记相关状态
@@ -790,7 +793,7 @@ const submitConsultation = async () => {
 
 // 提交评论
 const submitReview = async () => {
-  if (!reviewForm.value.reviewContent || !reviewForm.value.reviewContent.trim()) {
+  if (!reviewForm.value.content || !reviewForm.value.content.trim()) {
     ElMessage.warning('请填写评论内容')
     return
   }
@@ -799,16 +802,17 @@ const submitReview = async () => {
     const reviewData: ProductReviewDTO = {
       productId: product.value.id!,
       orderId: 1, // 临时使用固定orderId，实际应该从已完成订单中选择
-      rating: reviewForm.value.rating,
-      reviewContent: reviewForm.value.reviewContent
+      rating: 5, // 默认5星好评
+      reviewContent: `${reviewForm.value.title ? reviewForm.value.title + '\n' : ''}${reviewForm.value.content}`
     }
 
     await submitReviewAPI(reviewData)
     ElMessage.success('评论提交成功，等待审核！')
 
     // 清空表单
-    reviewForm.value.rating = 5
-    reviewForm.value.reviewContent = ''
+    reviewForm.value.title = ''
+    reviewForm.value.contact = ''
+    reviewForm.value.content = ''
   } catch (error: any) {
     console.error('提交评论失败:', error)
     ElMessage.error(error.response?.data?.message || '提交评论失败，请重试')
