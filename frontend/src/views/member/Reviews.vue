@@ -40,19 +40,18 @@
                     <!-- 评价头部信息 -->
                     <div class="review-header">
                       <div class="product-info">
-                        <img 
-                          v-if="review.productImage" 
-                          :src="review.productImage" 
+                        <img
+                          v-if="review.productImage"
+                          :src="review.productImage"
                           :alt="review.productName"
                           class="product-image"
                         />
                         <div class="product-details">
                           <h4 class="product-name">{{ review.productName }}</h4>
                           <div class="review-meta">
-                            <span class="order-info">订单号：{{ review.orderNumber }}</span>
                             <span class="review-time">{{ formatTime(review.createdTime) }}</span>
-                            <el-tag 
-                              :type="getStatusTagType(review.status)" 
+                            <el-tag
+                              :type="getStatusTagType(review.status)"
                               size="small"
                             >
                               {{ review.statusText }}
@@ -64,31 +63,21 @@
 
                     <!-- 评价内容 -->
                     <div class="review-content">
-                      <div v-if="review.reviewContent" class="content-section">
-                        <div class="section-label">评价内容：</div>
+                      <div class="question-section">
+                        <div class="section-label">我的评价：</div>
                         <div class="content-text">{{ review.reviewContent }}</div>
-                      </div>
-
-                      <!-- 评价图片 -->
-                      <div v-if="review.reviewImages && review.reviewImages.length > 0" class="images-section">
-                        <div class="section-label">评价图片：</div>
-                        <div class="review-images">
-                          <el-image
-                            v-for="(img, index) in review.reviewImages"
-                            :key="index"
-                            :src="img"
-                            class="review-image"
-                            fit="cover"
-                            :preview-src-list="review.reviewImages"
-                            :initial-index="index"
-                          />
-                        </div>
                       </div>
 
                       <!-- 商家回复 -->
                       <div v-if="review.adminReply" class="reply-section">
                         <div class="section-label">商家回复：</div>
                         <div class="content-text">{{ review.adminReply }}</div>
+                      </div>
+
+                      <!-- 等待审核提示 -->
+                      <div v-else-if="review.status === 0" class="pending-reply">
+                        <el-icon><Clock /></el-icon>
+                        <span>等待审核中...</span>
                       </div>
                     </div>
                   </div>
@@ -121,6 +110,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Clock } from '@element-plus/icons-vue'
 import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
@@ -288,9 +278,7 @@ onMounted(() => {
             .review-content {
               padding: 20px;
 
-              .rating-section,
-              .content-section,
-              .images-section,
+              .question-section,
               .reply-section {
                 margin-bottom: 20px;
 
@@ -301,44 +289,19 @@ onMounted(() => {
                 .section-label {
                   font-weight: bold;
                   color: #333;
-                  margin-bottom: 10px;
+                  margin-bottom: 8px;
                   font-size: 14px;
                 }
-              }
 
-              .rating-section {
-                display: flex;
-                align-items: center;
-                gap: 15px;
-
-                .section-label {
-                  margin-bottom: 0;
-                }
-              }
-
-              .content-section .content-text {
-                background: #f8f9fa;
-                padding: 12px 15px;
-                border-radius: 4px;
-                line-height: 1.6;
-                color: #333;
-                white-space: pre-wrap;
-                word-break: break-word;
-              }
-
-              .images-section {
-                .review-images {
-                  display: flex;
-                  gap: 10px;
-                  flex-wrap: wrap;
-
-                  .review-image {
-                    width: 100px;
-                    height: 100px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    border: 1px solid #e5e5e5;
-                  }
+                .content-text {
+                  background: #f8f9fa;
+                  padding: 12px 15px;
+                  border-radius: 4px;
+                  line-height: 1.6;
+                  color: #333;
+                  margin-bottom: 8px;
+                  white-space: pre-wrap;
+                  word-break: break-word;
                 }
               }
 
@@ -350,12 +313,23 @@ onMounted(() => {
                 .content-text {
                   background: #fff5f5;
                   border-left: 3px solid #e4393c;
-                  padding: 12px 15px;
-                  border-radius: 4px;
-                  line-height: 1.6;
-                  color: #333;
-                  white-space: pre-wrap;
-                  word-break: break-word;
+                }
+              }
+
+              .pending-reply {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                color: #999;
+                font-size: 14px;
+                padding: 15px;
+                background: #f8f9fa;
+                border-radius: 4px;
+                text-align: center;
+                justify-content: center;
+
+                .el-icon {
+                  animation: pulse 1.5s ease-in-out infinite;
                 }
               }
             }
@@ -369,6 +343,15 @@ onMounted(() => {
         }
       }
     }
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
   }
 }
 
@@ -407,25 +390,6 @@ onMounted(() => {
 
               .review-content {
                 padding: 15px;
-
-                .rating-section {
-                  flex-direction: column;
-                  align-items: flex-start;
-                  gap: 10px;
-
-                  .section-label {
-                    margin-bottom: 0;
-                  }
-                }
-
-                .images-section {
-                  .review-images {
-                    .review-image {
-                      width: 80px;
-                      height: 80px;
-                    }
-                  }
-                }
               }
             }
           }
