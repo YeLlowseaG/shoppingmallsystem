@@ -43,8 +43,13 @@ public class BuyerProductReviewController {
     public Result<Page<ProductReviewVO>> getMyReviews(
             @Parameter(description = "当前页") @RequestParam(defaultValue = "1") int current,
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") int size,
-            @RequestAttribute("userId") Long userId) {
-        
+            @RequestAttribute(value = "userId", required = false) Long userId) {
+
+        // 如果未登录，使用默认用户ID
+        if (userId == null) {
+            userId = 1L;
+        }
+
         Page<ProductReviewVO> page = reviewService.getUserReviews(current, size, userId);
         return Result.success(page);
     }
@@ -53,15 +58,20 @@ public class BuyerProductReviewController {
     @GetMapping("/{reviewId}")
     public Result<ProductReviewVO> getReviewById(
             @Parameter(description = "评价ID") @PathVariable Long reviewId,
-            @RequestAttribute("userId") Long userId) {
-        
+            @RequestAttribute(value = "userId", required = false) Long userId) {
+
+        // 如果未登录，使用默认用户ID
+        if (userId == null) {
+            userId = 1L;
+        }
+
         ProductReviewVO review = reviewService.getReviewById(reviewId);
-        
+
         // 验证评价是否属于当前用户
         if (!review.getUserId().equals(userId)) {
             return Result.error("无权访问该评价");
         }
-        
+
         return Result.success(review);
     }
     
@@ -70,8 +80,13 @@ public class BuyerProductReviewController {
     public Result<Boolean> canReviewProduct(
             @Parameter(description = "订单ID") @RequestParam Long orderId,
             @Parameter(description = "商品ID") @RequestParam Long productId,
-            @RequestAttribute("userId") Long userId) {
-        
+            @RequestAttribute(value = "userId", required = false) Long userId) {
+
+        // 如果未登录，使用默认用户ID
+        if (userId == null) {
+            userId = 1L;
+        }
+
         boolean canReview = reviewService.canReviewProduct(orderId, productId, userId);
         return Result.success(canReview);
     }

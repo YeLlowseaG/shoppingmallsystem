@@ -1,17 +1,28 @@
 package com.shoppingmall.service.review.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shoppingmall.common.exception.BusinessException;
 import com.shoppingmall.dto.ProductReviewDTO;
 import com.shoppingmall.dto.ReviewAuditDTO;
 import com.shoppingmall.dto.ReviewReplyDTO;
+import com.shoppingmall.entity.Order;
+import com.shoppingmall.entity.Product;
 import com.shoppingmall.entity.ProductReview;
+import com.shoppingmall.entity.User;
+import com.shoppingmall.repository.order.OrderRepository;
+import com.shoppingmall.repository.product.ProductRepository;
 import com.shoppingmall.repository.review.ProductReviewRepository;
+import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.service.review.ProductReviewService;
 import com.shoppingmall.vo.ProductReviewVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 商品评价服务实现
@@ -19,8 +30,11 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class ProductReviewServiceImpl implements ProductReviewService {
-    
+
     private final ProductReviewRepository reviewRepository;
+    private final ProductRepository productRepository;
+    private final UserRepository userRepository;
+    private final OrderRepository orderRepository;
     
     @Override
     public void submitReview(ProductReviewDTO reviewDTO, Long userId) {
@@ -32,17 +46,39 @@ public class ProductReviewServiceImpl implements ProductReviewService {
     }
     
     @Override
-    public Page<ProductReviewVO> getReviewPage(int current, int size, 
-                                             String productName, String userName, 
+    public Page<ProductReviewVO> getReviewPage(int current, int size,
+                                             String productName, String userName,
                                              Integer rating, Integer status) {
-        // 简化实现，返回空页面
-        return new Page<>(current, size, 0);
+        // 构建查询条件
+        LambdaQueryWrapper<ProductReview> wrapper = new LambdaQueryWrapper<>();
+
+        if (rating != null) {
+            wrapper.eq(ProductReview::getRating, rating);
+        }
+        if (status != null) {
+            wrapper.eq(ProductReview::getStatus, status);
+        }
+
+        wrapper.orderByDesc(ProductReview::getCreatedTime);
+
+        // 查询评价列表
+        Page<ProductReview> reviewPage = reviewRepository.selectPage(new Page<>(current, size), wrapper);
+
+        // 转换为VO
+        return convertToVOPage(reviewPage);
     }
     
     @Override
     public Page<ProductReviewVO> getUserReviews(int current, int size, Long userId) {
-        // 简化实现，返回空页面
-        return new Page<>(current, size, 0);
+        // 查询用户的评价列表
+        LambdaQueryWrapper<ProductReview> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ProductReview::getUserId, userId)
+               .orderByDesc(ProductReview::getCreatedTime);
+
+        Page<ProductReview> reviewPage = reviewRepository.selectPage(new Page<>(current, size), wrapper);
+
+        // 转换为VO
+        return convertToVOPage(reviewPage);
     }
     
     @Override
@@ -96,5 +132,60 @@ public class ProductReviewServiceImpl implements ProductReviewService {
             case 2: return "已拒绝";
             default: return "未知";
         }
+    }
+
+    /**
+     * 转换Page<ProductReview>为Page<ProductReviewVO>
+     */
+    private Page<ProductReviewVO> convertToVOPage(Page<ProductReview> reviewPage) {
+        Page<ProductReviewVO> voPage = new Page<>(reviewPage.getCurrent(),
+                                                   reviewPage.getSize(),
+                                                   reviewPage.getTotal());
+
+        List<ProductReviewVO> voList = new ArrayList<>();
+        for (ProductReview review : reviewPage.getRecords()) {
+            voList.add(convertToVO(review));
+        }
+        voPage.setRecords(voList);
+
+        return voPage;
+    }
+
+    /**
+     * 转换ProductReview为ProductReviewVO
+     */
+    private ProductReviewVO convertToVO(ProductReview review) {
+        ProductReviewVO vo = new ProductReviewVO();
+        BeanUtils.copyProperties(review, vo);
+
+        // 获取商品信息
+        if (review.getProductId() != null) {
+            Product product = productRepository.selectById(review.getProductId());
+            if (product != null) {
+                vo.setProductName(product.getProductName());
+                vo.setProductImage(product.getMainImage());
+            }
+        }
+
+        // 获取用户信息
+        if (review.getUserId() != null) {
+            User user = userRepository.selectById(review.getUserId());
+            if (user != null) {
+                vo.setUserName(user.getUsername());
+            }
+        }
+
+        // 获取订单信息
+        if (review.getOrderId() != null) {
+            Order order = orderRepository.selectById(review.getOrderId());
+            if (order != null) {
+                vo.setOrderNumber(order.getOrderNo());
+            }
+        }
+
+        // 设置状态文本
+        vo.setStatusText(getStatusText(review.getStatus()));
+
+        return vo;
     }
 }
