@@ -106,13 +106,21 @@
           </div>
 
           <!-- 规格选择器 -->
-          <div class="spec-selection">
+          <div class="spec-selection" v-if="productSpecKeys.length > 0">
             <SpecSelector
               :spec-keys="productSpecKeys"
               :sku-list="productSkuList"
               :default-specs="defaultSpecs"
               @spec-change="handleSpecChange"
             />
+          </div>
+
+          <!-- 基础库存信息（无规格商品） -->
+          <div class="base-stock-info" v-else>
+            <div class="stock-label">库存：</div>
+            <div class="stock-value" :class="{ 'low-stock': product.stock <= 10, 'out-stock': product.stock <= 0 }">
+              {{ product.stock > 0 ? `${product.stock} ${product.unit}` : '暂无库存' }}
+            </div>
           </div>
 
           <!-- 购买数量 -->
@@ -1203,6 +1211,35 @@ const submitStockRegister = async () => {
               background: #fff5f5;
             }
           }
+        }
+      }
+    }
+
+    .base-stock-info {
+      padding: 20px 0;
+      border-bottom: 1px solid #eee;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+
+      .stock-label {
+        color: #333;
+        font-size: 14px;
+        font-weight: bold;
+      }
+
+      .stock-value {
+        color: #52c41a;
+        font-size: 16px;
+        font-weight: bold;
+
+        &.low-stock {
+          color: #faad14;
+        }
+
+        &.out-stock {
+          color: #cf1322;
         }
       }
     }
