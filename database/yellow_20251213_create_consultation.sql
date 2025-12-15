@@ -12,11 +12,11 @@ CREATE TABLE `consultation` (
   `status` tinyint DEFAULT 0 COMMENT '状态：0-待回复，1-已回复，2-已关闭',
   `reply_time` datetime COMMENT '回复时间',
   `reply_admin_id` bigint COMMENT '回复管理员ID',
-  `created_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
   KEY `idx_product_id` (`product_id`),
   KEY `idx_user_id` (`user_id`),
   KEY `idx_status` (`status`),
-  KEY `idx_created_time` (`created_time`)
+  KEY `idx_create_time` (`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='购买咨询表';
