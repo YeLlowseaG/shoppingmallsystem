@@ -35,7 +35,7 @@ public class ProductController {
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "create_time_desc") String sortBy) {
         
-        Page<ProductVO> page = productService.getProductPage(current, size, categoryId, keyword, brand, status, sortBy);
+        Page<ProductVO> page = productService.getProductPage(current, size, categoryId, keyword, brand, status, sortBy, null);
         return Result.success("获取成功", page);
     }
 
@@ -44,7 +44,7 @@ public class ProductController {
      */
     @GetMapping("/{id}")
     public Result<ProductVO> getProductById(@PathVariable Long id) {
-        ProductVO product = productService.getProductById(id);
+        ProductVO product = productService.getProductById(id, null);
         return Result.success("获取成功", product);
     }
 

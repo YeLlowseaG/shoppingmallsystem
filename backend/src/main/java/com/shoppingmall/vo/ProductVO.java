@@ -91,6 +91,11 @@ public class ProductVO {
     private BigDecimal userLevelPrice;
 
     /**
+     * 会员价（根据当前用户会员等级折扣计算）
+     */
+    private BigDecimal memberPrice;
+
+    /**
      * 库存数量
      */
     private Integer stock;

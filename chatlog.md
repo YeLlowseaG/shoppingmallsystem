@@ -12,6 +12,33 @@
 
 **Topic**: SKU System, Instant Buy, and Inventory Management
 
+---
+
+## 2025-12-15 - 前台展示会员价并后端返回 memberPrice
+
+**内容摘要**
+- 后端商品接口返回 `memberPrice`（按会员等级折扣计算），买家端分页/详情/热门/推荐接口透传用户ID计算会员价
+- 前端详情页/列表页/首页统一展示会员价，商品卡片支持会员价+划线原价显示
+- 详情页选中SKU时，按会员折扣比例应用到当前SKU价格
+
+**涉及文件**
+- `backend/src/main/java/com/shoppingmall/vo/ProductVO.java`
+- `backend/src/main/java/com/shoppingmall/service/product/ProductService.java`
+- `backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java`
+- `backend/src/main/java/com/shoppingmall/controller/buyer/ProductController.java`
+- `backend/src/main/java/com/shoppingmall/controller/admin/ProductController.java`
+- `frontend/src/api/buyer/product.ts`
+- `frontend/src/views/products/Detail.vue`
+- `frontend/src/views/products/List.vue`
+- `frontend/src/views/home/Index.vue`
+- `frontend/src/components/products/ProductCard.vue`
+
+**规则说明**
+- 会员价 = 销售价（basePrice）× (会员折扣率 ÷ 100)，保留2位小数
+- 用户等级：`sys_user.user_level` = `member_level.id`；未登录或无等级使用默认等级（首个等级）
+- 无折扣/未登录：仅显示销售价；有折扣：显示会员价，销售价划线
+- 详情页SKU：使用会员折扣比例应用到当前SKU价格
+
 **Major Features Implemented**:
 
 1. **Complete SKU/Product Specification System**:

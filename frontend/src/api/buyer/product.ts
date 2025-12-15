@@ -16,6 +16,7 @@ export interface ProductVO {
   description: string
   basePrice: number
   userLevelPrice: number
+  memberPrice?: number
   stock: number
   salesCount: number
   status: string

@@ -1,4 +1,32 @@
 <<<<<<< HEAD
+## 2025-12-15 - 前台展示会员价并后端返回memberPrice
+
+### 功能说明
+前台详情页、列表页、首页按购物车规则展示会员价；后端商品接口返回会员价（按会员等级折扣计算）。
+
+### 修改文件
+#### 后端
+1. `backend/src/main/java/com/shoppingmall/vo/ProductVO.java` - 增加 `memberPrice`
+2. `backend/src/main/java/com/shoppingmall/service/product/ProductService.java` - 接口增加 userId，返回会员价
+3. `backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java` - 计算会员价，返回到 ProductVO
+4. `backend/src/main/java/com/shoppingmall/controller/buyer/ProductController.java` - 透传 userId 计算会员价
+5. `backend/src/main/java/com/shoppingmall/controller/admin/ProductController.java` - 适配接口签名
+
+#### 前端
+1. `frontend/src/api/buyer/product.ts` - ProductVO 增加 `memberPrice`
+2. `frontend/src/views/products/Detail.vue` - 显示会员价，SKU 按折扣比例计算
+3. `frontend/src/views/products/List.vue` - 传递会员价到卡片
+4. `frontend/src/views/home/Index.vue` - 传递会员价到卡片
+5. `frontend/src/components/products/ProductCard.vue` - 支持会员价展示，原价划线
+
+### 规则说明
+- 会员价 = 销售价（basePrice）× (会员折扣率 ÷ 100)，保留2位小数
+- 用户等级：`sys_user.user_level` = `member_level.id`，未登录或无等级则用默认等级
+- 前端 SKU 会员价：使用会员折扣比例应用到当前 SKU 价格
+- 未登录或无折扣时仅显示销售价
+
+---
+
 ## 2025-12-15 - 修复SKU库存被商品更新覆盖的问题
 
 ### 功能说明
