@@ -58,12 +58,13 @@ public class MemberLevelController {
 
     /**
      * 根据积分获取对应的会员等级
+     * 已屏蔽：业务上不需要积分功能
      */
-    @GetMapping("/by-points")
-    public Result<MemberLevelVO> getMemberLevelByPoints(@RequestParam Integer points) {
-        MemberLevelVO result = memberLevelService.getMemberLevelByPoints(points);
-        return Result.success("获取成功", result);
-    }
+    // @GetMapping("/by-points")
+    // public Result<MemberLevelVO> getMemberLevelByPoints(@RequestParam Integer points) {
+    //     MemberLevelVO result = memberLevelService.getMemberLevelByPoints(points);
+    //     return Result.success("获取成功", result);
+    // }
 
     /**
      * 创建会员等级
@@ -104,4 +105,6 @@ public class MemberLevelController {
         return Result.success("更新状态成功", null);
     }
 }
+
+
 

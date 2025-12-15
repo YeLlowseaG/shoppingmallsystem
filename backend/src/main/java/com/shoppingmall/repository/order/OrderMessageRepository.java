@@ -13,3 +13,5 @@ import org.apache.ibatis.annotations.Mapper;
 @Mapper
 public interface OrderMessageRepository extends BaseMapper<OrderMessage> {
 }
+
+

@@ -68,3 +68,5 @@ public class Message {
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 }
+
+

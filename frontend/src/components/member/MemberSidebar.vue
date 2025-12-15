@@ -124,7 +124,11 @@ const handleMenuSelect = (index: string) => {
     'deposit/balance': '/member/deposit/balance',
     'deposit/recharge': '/member/deposit/recharge',
     'deposit/review': '/member',
-    'site-messages/inbox': '/member/site-messages/inbox'
+    'site-messages/send': '/member',
+    'site-messages/inbox': '/member',
+    'site-messages/drafts': '/member',
+    'site-messages/outbox': '/member',
+    'site-messages/admin': '/member'
   }
   
   const targetRoute = routeMap[index]

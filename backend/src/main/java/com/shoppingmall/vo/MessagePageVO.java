@@ -28,3 +28,5 @@ public class MessagePageVO {
      */
     private Integer unreadCount;
 }
+
+

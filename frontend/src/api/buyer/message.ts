@@ -70,3 +70,5 @@ export const deleteMessage = (messageId: number): Promise<ApiResponse<void>> => 
 export const getUnreadCount = (): Promise<ApiResponse<number>> => {
   return request.get('/api/buyer/messages/unread-count')
 }
+
+

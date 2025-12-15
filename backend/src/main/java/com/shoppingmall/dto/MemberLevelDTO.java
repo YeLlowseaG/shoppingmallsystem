@@ -28,15 +28,17 @@ public class MemberLevelDTO {
 
     /**
      * 最低积分（包含）
+     * 已屏蔽：业务上不需要积分功能
      */
-    @NotNull(message = "最低积分不能为空")
-    @Min(value = 0, message = "最低积分不能小于0")
+    // @NotNull(message = "最低积分不能为空")
+    // @Min(value = 0, message = "最低积分不能小于0")
     private Integer minPoints;
 
     /**
      * 最高积分（不包含，NULL表示无上限）
+     * 已屏蔽：业务上不需要积分功能
      */
-    @Min(value = 0, message = "最高积分不能小于0")
+    // @Min(value = 0, message = "最高积分不能小于0")
     private Integer maxPoints;
 
     /**
@@ -66,4 +68,6 @@ public class MemberLevelDTO {
     @Size(max = 500, message = "等级描述长度不能超过500个字符")
     private String description;
 }
+
+
 

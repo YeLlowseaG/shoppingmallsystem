@@ -111,3 +111,5 @@ public class OrderMessage {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 }
+
+

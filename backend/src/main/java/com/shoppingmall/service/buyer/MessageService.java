@@ -37,3 +37,5 @@ public interface MessageService {
      */
     Integer getUnreadCount(Long userId);
 }
+
+
