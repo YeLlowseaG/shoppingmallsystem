@@ -59,7 +59,7 @@ public class ProductReviewServiceImpl implements ProductReviewService {
             wrapper.eq(ProductReview::getStatus, status);
         }
 
-        wrapper.orderByDesc(ProductReview::getCreatedTime);
+        wrapper.orderByDesc(ProductReview::getCreateTime);
 
         // 查询评价列表
         Page<ProductReview> reviewPage = reviewRepository.selectPage(new Page<>(current, size), wrapper);
@@ -73,7 +73,7 @@ public class ProductReviewServiceImpl implements ProductReviewService {
         // 查询用户的评价列表
         LambdaQueryWrapper<ProductReview> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(ProductReview::getUserId, userId)
-               .orderByDesc(ProductReview::getCreatedTime);
+               .orderByDesc(ProductReview::getCreateTime);
 
         Page<ProductReview> reviewPage = reviewRepository.selectPage(new Page<>(current, size), wrapper);
 
