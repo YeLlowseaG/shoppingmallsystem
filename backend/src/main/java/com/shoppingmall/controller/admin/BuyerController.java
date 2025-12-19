@@ -113,6 +113,16 @@ public class BuyerController {
         Page<BuyerVO> result = buyerService.getPendingAuditList(page, pageSize, username, realName, phone);
         return Result.success(result);
     }
+
+    /**
+     * 重置会员密码
+     */
+    @PutMapping("/{id}/reset-password")
+    public Result<Void> resetPassword(
+            @PathVariable Long id,
+            @RequestParam String password
+    ) {
+        buyerService.resetPassword(id, password);
+        return Result.success();
+    }
 }
-
-

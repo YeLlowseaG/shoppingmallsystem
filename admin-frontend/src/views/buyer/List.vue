@@ -70,13 +70,14 @@
             {{ formatDateTime(row.createTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="250" fixed="right">
+        <el-table-column label="操作" width="320" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="handleView(row)">查看</el-button>
             <el-button type="success" link @click="handleStatusChange(row)">
               {{ row.status === 1 ? '禁用' : '启用' }}
             </el-button>
             <el-button type="warning" link @click="handleLevelChange(row)">修改等级</el-button>
+            <el-button type="danger" link @click="handleResetPassword(row)">重置密码</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -170,13 +171,66 @@
         <el-button type="primary" @click="handleLevelSubmit">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 重置密码对话框 -->
+    <el-dialog v-model="resetPasswordDialogVisible" title="重置密码" width="500px">
+      <el-form
+        ref="resetPasswordFormRef"
+        :model="resetPasswordForm"
+        :rules="resetPasswordRules"
+        label-width="100px"
+      >
+        <el-form-item label="用户名">
+          <el-input :value="currentBuyer?.username" disabled />
+        </el-form-item>
+        <el-form-item label="姓名">
+          <el-input :value="currentBuyer?.realName" disabled />
+        </el-form-item>
+        <el-form-item label="新密码" prop="password">
+          <el-input
+            v-model="resetPasswordForm.password"
+            type="password"
+            placeholder="请输入新密码"
+            show-password
+            autocomplete="new-password"
+          />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirmPassword">
+          <el-input
+            v-model="resetPasswordForm.confirmPassword"
+            type="password"
+            placeholder="请再次输入新密码"
+            show-password
+            autocomplete="new-password"
+          />
+        </el-form-item>
+        <el-alert
+          title="提示"
+          type="warning"
+          :closable="false"
+          style="margin-bottom: 20px"
+        >
+          <template #default>
+            <div>重置密码后，该会员需要使用新密码登录。</div>
+            <div>建议密码长度至少6位，包含字母和数字。</div>
+          </template>
+        </el-alert>
+      </el-form>
+      <template #footer>
+        <el-button @click="resetPasswordDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="resettingPassword" @click="handleResetPasswordSubmit">
+          确定重置
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getBuyerList, getBuyerById, updateBuyerStatus, updateBuyerLevel } from '@/api/admin/buyer'
+import type { FormInstance, FormRules } from 'element-plus'
+import { getBuyerList, getBuyerById, updateBuyerStatus, updateBuyerLevel, resetBuyerPassword } from '@/api/admin/buyer'
 import type { BuyerVO } from '@/api/admin/buyer'
 import { getAllEnabledMemberLevels } from '@/api/admin/memberLevel'
 import type { MemberLevelVO } from '@/api/admin/memberLevel'
@@ -200,11 +254,52 @@ const pagination = reactive({
 
 const detailDialogVisible = ref(false)
 const levelDialogVisible = ref(false)
+const resetPasswordDialogVisible = ref(false)
 const currentBuyer = ref<BuyerVO | null>(null)
+const resettingPassword = ref(false)
 
 const levelForm = reactive({
   userLevel: 0
 })
+
+const resetPasswordFormRef = ref<FormInstance>()
+const resetPasswordForm = reactive({
+  password: '',
+  confirmPassword: ''
+})
+
+// 重置密码表单验证规则
+const resetPasswordRules: FormRules = {
+  password: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, message: '密码长度至少6位', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (value && value.length < 6) {
+          callback(new Error('密码长度至少6位'))
+        } else if (value && !/^(?=.*[A-Za-z])(?=.*\d)/.test(value)) {
+          callback(new Error('密码必须包含字母和数字'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ],
+  confirmPassword: [
+    { required: true, message: '请再次输入新密码', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (value !== resetPasswordForm.password) {
+          callback(new Error('两次输入的密码不一致'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ]
+}
 
 // 会员等级列表
 const memberLevels = ref<MemberLevelVO[]>([])
@@ -311,6 +406,55 @@ const handleLevelSubmit = async () => {
   }
 }
 
+// 重置密码
+const handleResetPassword = (row: BuyerVO) => {
+  currentBuyer.value = row
+  resetPasswordForm.password = ''
+  resetPasswordForm.confirmPassword = ''
+  resetPasswordDialogVisible.value = true
+  // 清除表单验证状态
+  nextTick(() => {
+    resetPasswordFormRef.value?.clearValidate()
+  })
+}
+
+// 提交重置密码
+const handleResetPasswordSubmit = async () => {
+  if (!resetPasswordFormRef.value || !currentBuyer.value) return
+
+  await resetPasswordFormRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    try {
+      await ElMessageBox.confirm(
+        `确定要重置会员"${currentBuyer.value.username}"的密码吗？重置后该会员需要使用新密码登录。`,
+        '确认重置密码',
+        {
+          type: 'warning',
+          confirmButtonText: '确定重置',
+          cancelButtonText: '取消'
+        }
+      )
+
+      resettingPassword.value = true
+      await resetBuyerPassword(currentBuyer.value.id, resetPasswordForm.password)
+      ElMessage.success('密码重置成功')
+      resetPasswordDialogVisible.value = false
+      
+      // 重置表单
+      resetPasswordForm.password = ''
+      resetPasswordForm.confirmPassword = ''
+      resetPasswordFormRef.value?.resetFields()
+    } catch (error: any) {
+      if (error !== 'cancel') {
+        ElMessage.error(error.message || '重置密码失败')
+      }
+    } finally {
+      resettingPassword.value = false
+    }
+  })
+}
+
 // 分页
 const handleSizeChange = () => {
   loadBuyerList()
@@ -407,5 +551,3 @@ onMounted(() => {
   justify-content: flex-end;
 }
 </style>
-
-

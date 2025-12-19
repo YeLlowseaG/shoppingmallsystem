@@ -78,6 +78,12 @@ public interface BuyerService {
      * @return 待审核采购者列表
      */
     Page<BuyerVO> getPendingAuditList(Integer page, Integer pageSize, String username, String realName, String phone);
+
+    /**
+     * 重置采购者密码
+     *
+     * @param id       采购者ID
+     * @param password 新密码
+     */
+    void resetPassword(Long id, String password);
 }
-
-

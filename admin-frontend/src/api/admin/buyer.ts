@@ -111,4 +111,11 @@ export const getPendingAuditList = (params: {
   return request.get('/api/admin/buyer/audit/list', { params })
 }
 
-
+/**
+ * 重置会员密码
+ */
+export const resetBuyerPassword = (id: number, password: string): Promise<void> => {
+  return request.put(`/api/admin/buyer/${id}/reset-password`, null, {
+    params: { password }
+  })
+}

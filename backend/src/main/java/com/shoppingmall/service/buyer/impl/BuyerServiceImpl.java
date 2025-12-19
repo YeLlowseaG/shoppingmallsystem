@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shoppingmall.common.constant.UserLevel;
 import com.shoppingmall.common.constant.UserStatus;
 import com.shoppingmall.common.exception.BusinessException;
+import com.shoppingmall.common.util.EncryptUtil;
 import com.shoppingmall.dto.BuyerDTO;
 import com.shoppingmall.entity.User;
 import com.shoppingmall.entity.UserAudit;
@@ -189,6 +190,26 @@ public class BuyerServiceImpl implements BuyerService {
         return voPage;
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void resetPassword(Long id, String password) {
+        User user = userRepository.selectById(id);
+        if (user == null) {
+            throw new BusinessException(404, "会员不存在");
+        }
+        
+        // 验证密码不能为空
+        if (password == null || password.trim().isEmpty()) {
+            throw new BusinessException(400, "密码不能为空");
+        }
+        
+        // 使用BCrypt加密密码
+        user.setPassword(EncryptUtil.bcryptEncode(password));
+        userRepository.updateById(user);
+        
+        log.info("管理员重置会员密码成功: userId={}, username={}", id, user.getUsername());
+    }
+
     /**
      * 转换为VO对象
      */
@@ -315,5 +336,3 @@ public class BuyerServiceImpl implements BuyerService {
         }
     }
 }
-
-
