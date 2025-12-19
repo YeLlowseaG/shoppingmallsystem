@@ -16,6 +16,7 @@ export interface CartVO {
   weight: number
   specText?: string
   selected?: boolean
+  isMember?: number // 用户是否是会员（0-普通用户，1-会员）
 }
 
 /**

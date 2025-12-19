@@ -328,8 +328,8 @@
                   <tr>
                     <th class="col-code">货号</th>
                     <th class="col-name">商品名称</th>
-                    <th class="col-price">会员价格</th>
-                    <th class="col-price">销售价格</th>
+                    <th class="col-price">{{ getPriceColumnTitle() }}</th>
+                    <th v-if="isMember" class="col-price">销售价格</th>
                     <th class="col-quantity">数量</th>
                     <th class="col-subtotal">小计</th>
                   </tr>
@@ -344,7 +344,7 @@
                     <td class="col-price">
                       <span class="member-price">¥{{ (item.memberPrice || 0).toFixed(2) }}</span>
                     </td>
-                    <td class="col-price">
+                    <td v-if="isMember" class="col-price">
                       <span class="sales-price">¥{{ (item.salesPrice || 0).toFixed(2) }}</span>
                     </td>
                     <td class="col-quantity">{{ item.quantity }}</td>
@@ -640,6 +640,20 @@ const selectedShippingMethod = computed(() => {
 
 // 订单商品列表（从购物车获取）
 const orderItems = ref<CartVO[]>([])
+
+// 判断用户是否是会员
+const isMember = computed(() => {
+  // 从订单商品列表中获取第一个商品的isMember字段（所有商品的isMember应该相同）
+  return orderItems.value.length > 0 && orderItems.value[0].isMember === 1
+})
+
+// 获取价格列标题（根据用户是否是会员）
+const getPriceColumnTitle = () => {
+  if (isMember.value) {
+    return '会员价格'
+  }
+  return '商品价格'
+}
 
 // 发票
 const needInvoice = ref(false)

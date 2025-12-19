@@ -80,8 +80,8 @@
                   <th class="col-image">图片</th>
                   <th class="col-code">货号</th>
                   <th class="col-name">商品名称</th>
-                  <th class="col-price">销售价格</th>
-                  <th class="col-price">会员价</th>
+                  <th v-if="isMember" class="col-price">销售价格</th>
+                  <th class="col-price">{{ getPriceColumnTitle() }}</th>
                   <th class="col-quantity">数量</th>
                   <th class="col-total">合计</th>
                   <th class="col-action">删除</th>
@@ -105,7 +105,7 @@
                     </router-link>
                     <div v-if="item.specText" class="sku-spec-text">规格：{{ item.specText }}</div>
                   </td>
-                  <td class="col-price">
+                  <td v-if="isMember" class="col-price">
                     <span class="price-text">¥{{ item.salesPrice.toFixed(2) }}</span>
                   </td>
                   <td class="col-price">
@@ -135,7 +135,7 @@
                   </td>
                 </tr>
                 <tr v-if="cartItems.length === 0" class="empty-row">
-                  <td colspan="9" class="empty-cart">
+                  <td :colspan="isMember ? 9 : 8" class="empty-cart">
                     <div class="empty-content">
                       <el-icon class="empty-icon"><ShoppingCart /></el-icon>
                       <div class="empty-text">购物车是空的，快去选购吧！</div>
@@ -366,6 +366,20 @@ const handleCheckout = () => {
       cartIds: cartIds.join(',')
     }
   })
+}
+
+// 判断用户是否是会员
+const isMember = computed(() => {
+  // 从购物车列表中获取第一个商品的isMember字段（所有商品的isMember应该相同）
+  return cartItems.value.length > 0 && cartItems.value[0].isMember === 1
+})
+
+// 获取价格列标题（根据用户是否是会员）
+const getPriceColumnTitle = () => {
+  if (isMember.value) {
+    return '会员价'
+  }
+  return '商品价格'
 }
 
 // 加载购物车列表

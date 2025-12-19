@@ -67,6 +67,11 @@ public class CartVO {
      * 是否选中（前端使用，不存储到数据库）
      */
     private Boolean selected;
+
+    /**
+     * 用户是否是会员（0-普通用户，1-会员）
+     */
+    private Integer isMember;
 }
 
 

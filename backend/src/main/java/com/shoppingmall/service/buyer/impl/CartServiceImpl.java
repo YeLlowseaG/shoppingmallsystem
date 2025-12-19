@@ -9,9 +9,11 @@ import com.shoppingmall.entity.Cart;
 import com.shoppingmall.entity.User;
 import com.shoppingmall.entity.Product;
 import com.shoppingmall.entity.ProductPrice;
+import com.shoppingmall.entity.ProductSku;
 import com.shoppingmall.repository.cart.CartRepository;
 import com.shoppingmall.repository.product.ProductPriceRepository;
 import com.shoppingmall.repository.product.ProductRepository;
+import com.shoppingmall.repository.sku.ProductSkuRepository;
 import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.service.buyer.CartService;
 import com.shoppingmall.service.member.MemberLevelService;
@@ -45,6 +47,7 @@ public class CartServiceImpl implements CartService {
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
     private final ProductPriceRepository productPriceRepository;
+    private final ProductSkuRepository productSkuRepository;
     private final MemberLevelService memberLevelService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -236,6 +239,11 @@ public class CartServiceImpl implements CartService {
         vo.setQuantity(cart.getQuantity());
         vo.setSelected(false); // 默认未选中
 
+        // 0. 获取用户信息，判断是否是会员
+        User user = userRepository.selectById(userId);
+        Integer isMember = (user != null && user.getIsMember() != null && user.getIsMember() == 1) ? 1 : 0;
+        vo.setIsMember(isMember);
+
         // 1. 查询商品信息
         Product product = productRepository.selectById(cart.getProductId());
         if (product == null) {
@@ -261,31 +269,123 @@ public class CartServiceImpl implements CartService {
         }
         
         // 设置商品重量（从商品表获取，单位：克）
+        // Product.weight 是 Integer 类型，需要转换为 BigDecimal
         if (product.getWeight() != null) {
-            vo.setWeight(BigDecimal.valueOf(product.getWeight()));
+            vo.setWeight(BigDecimal.valueOf(product.getWeight().longValue()));
         } else {
             vo.setWeight(BigDecimal.ZERO);
         }
 
         // 2. 查询价格信息
-        // 销售价格：统一使用basePrice作为销售价格
-        BigDecimal salesPrice = product.getBasePrice();
-        if (salesPrice == null) {
-            salesPrice = BigDecimal.ZERO;
+        // 判断是否有SKU
+        ProductSku sku = null;
+        if (cart.getSkuId() != null) {
+            sku = productSkuRepository.selectById(cart.getSkuId());
         }
-        vo.setSalesPrice(salesPrice);
 
-        // 3. 计算会员价格：根据会员等级表的折扣率计算
-        BigDecimal memberPrice = calculateMemberPrice(salesPrice, userId);
+        BigDecimal salesPrice;
+        BigDecimal memberPrice;
+
+        if (sku != null) {
+            // 有SKU，使用SKU的价格
+            salesPrice = sku.getPrice();
+            if (salesPrice == null) {
+                salesPrice = BigDecimal.ZERO;
+            }
+            
+            // 设置SKU重量（如果SKU有重量，优先使用SKU重量）
+            // ProductSku.weight 是 BigDecimal 类型，直接使用
+            if (sku.getWeight() != null) {
+                vo.setWeight(sku.getWeight());
+            }
+            
+            // 计算会员价格：优先使用SKU配置的会员价
+            memberPrice = calculateMemberPriceForSku(sku, salesPrice, userId);
+        } else {
+            // 没有SKU，使用商品的价格
+            salesPrice = product.getBasePrice();
+            if (salesPrice == null) {
+                salesPrice = BigDecimal.ZERO;
+            }
+            
+            // 计算会员价格：优先使用商品配置的会员价
+            memberPrice = calculateMemberPriceForProduct(product, salesPrice, userId);
+        }
+
+        vo.setSalesPrice(salesPrice);
         // 保留两位小数
         memberPrice = memberPrice.setScale(2, BigDecimal.ROUND_HALF_UP);
         vo.setMemberPrice(memberPrice);
 
-        // 4. 处理规格信息：将specCombination JSON转换为格式化的文本
+        // 3. 处理规格信息：将specCombination JSON转换为格式化的文本
         String specText = formatSpecText(cart.getSpecCombination());
         vo.setSpecText(specText);
 
         return vo;
+    }
+
+    /**
+     * 计算商品的会员价格
+     * 优先使用商品配置的会员价，如果没有则根据会员等级折扣率计算
+     * 注意：非会员不能享受会员价，直接返回原价
+     * 
+     * @param product 商品实体
+     * @param salesPrice 销售价格
+     * @param userId 用户ID
+     * @return 会员价格（非会员返回原价）
+     */
+    private BigDecimal calculateMemberPriceForProduct(Product product, BigDecimal salesPrice, Long userId) {
+        if (salesPrice == null || salesPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        // 首先检查用户是否是会员（大前提条件）
+        User user = userRepository.selectById(userId);
+        if (user == null || user.getIsMember() == null || user.getIsMember() != 1) {
+            // 非会员不能享受会员价，直接返回原价
+            return salesPrice;
+        }
+
+        // 如果是会员，检查商品是否启用了会员价且有配置会员价
+        if (product.getEnableMemberPrice() != null && product.getEnableMemberPrice() == 1
+                && product.getMemberPrice() != null && product.getMemberPrice().compareTo(BigDecimal.ZERO) > 0) {
+            return product.getMemberPrice();
+        }
+
+        // 否则根据会员等级折扣率计算
+        return calculateMemberPriceByDiscount(salesPrice, userId);
+    }
+
+    /**
+     * 计算SKU的会员价格
+     * 优先使用SKU配置的会员价，如果没有则根据会员等级折扣率计算
+     * 注意：非会员不能享受会员价，直接返回原价
+     * 
+     * @param sku SKU实体
+     * @param salesPrice 销售价格
+     * @param userId 用户ID
+     * @return 会员价格（非会员返回原价）
+     */
+    private BigDecimal calculateMemberPriceForSku(ProductSku sku, BigDecimal salesPrice, Long userId) {
+        if (salesPrice == null || salesPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        // 首先检查用户是否是会员（大前提条件）
+        User user = userRepository.selectById(userId);
+        if (user == null || user.getIsMember() == null || user.getIsMember() != 1) {
+            // 非会员不能享受会员价，直接返回原价
+            return salesPrice;
+        }
+
+        // 如果是会员，检查SKU是否启用了会员价且有配置会员价
+        if (sku.getEnableMemberPrice() != null && sku.getEnableMemberPrice() == 1
+                && sku.getMemberPrice() != null && sku.getMemberPrice().compareTo(BigDecimal.ZERO) > 0) {
+            return sku.getMemberPrice();
+        }
+
+        // 否则根据会员等级折扣率计算
+        return calculateMemberPriceByDiscount(salesPrice, userId);
     }
 
     /**
@@ -295,12 +395,20 @@ public class CartServiceImpl implements CartService {
      * @param userId 用户ID
      * @return 会员价格
      */
-    private BigDecimal calculateMemberPrice(BigDecimal salesPrice, Long userId) {
+    private BigDecimal calculateMemberPriceByDiscount(BigDecimal salesPrice, Long userId) {
         if (salesPrice == null || salesPrice.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
 
         try {
+            // 获取用户的会员等级
+            User user = userRepository.selectById(userId);
+            
+            // 如果不是会员，返回原价
+            if (user == null || user.getIsMember() == null || user.getIsMember() != 1) {
+                return salesPrice;
+            }
+
             // 获取所有启用的会员等级（按排序号排序）
             List<MemberLevelVO> memberLevels = memberLevelService.getAllEnabledMemberLevels();
             if (memberLevels == null || memberLevels.isEmpty()) {
@@ -308,17 +416,10 @@ public class CartServiceImpl implements CartService {
                 return salesPrice;
             }
 
-            // 获取用户的会员等级
-            User user = userRepository.selectById(userId);
-            Long memberLevelId = null;
-            
-            // 只有会员才有会员等级
-            if (user != null && user.getIsMember() != null && user.getIsMember() == 1 && user.getMemberLevelId() != null) {
-                memberLevelId = user.getMemberLevelId();
-            }
-            
-            // 查找匹配的会员等级
+            // 查找用户的会员等级
+            Long memberLevelId = user.getMemberLevelId();
             MemberLevelVO memberLevel = null;
+            
             if (memberLevelId != null) {
                 // 根据 member_level.id 查找
                 for (MemberLevelVO level : memberLevels) {
@@ -329,17 +430,12 @@ public class CartServiceImpl implements CartService {
                 }
             }
             
-            // 如果找不到匹配的等级，使用第一个等级（默认，通常是 id=1 的普卡会员）
-            if (memberLevel == null && !memberLevels.isEmpty()) {
-                memberLevel = memberLevels.get(0);
-            }
-            
-            // 如果还是没有找到，返回原价
+            // 如果找不到匹配的等级，返回原价
             if (memberLevel == null) {
                 return salesPrice;
             }
-            BigDecimal discountRate = memberLevel.getDiscountRate();
             
+            BigDecimal discountRate = memberLevel.getDiscountRate();
             if (discountRate == null) {
                 // 如果没有折扣率，返回原价
                 return salesPrice;
