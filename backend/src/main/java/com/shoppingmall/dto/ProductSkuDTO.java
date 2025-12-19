@@ -31,13 +31,39 @@ public class ProductSkuDTO {
     private String specCombination;
     
     /**
-     * SKU价格
+     * SKU价格（基础价）
      */
     @NotNull(message = "SKU价格不能为空")
     @DecimalMin(value = "0.01", message = "SKU价格必须大于0")
     @Digits(integer = 8, fraction = 2, message = "价格格式不正确")
     private BigDecimal price;
-    
+
+    /**
+     * 建议零售价
+     */
+    @DecimalMin(value = "0", message = "建议零售价不能小于0")
+    @Digits(integer = 8, fraction = 2, message = "价格格式不正确")
+    private BigDecimal suggestedRetailPrice;
+
+    /**
+     * 市场零售价
+     */
+    @DecimalMin(value = "0", message = "市场零售价不能小于0")
+    @Digits(integer = 8, fraction = 2, message = "价格格式不正确")
+    private BigDecimal marketRetailPrice;
+
+    /**
+     * 会员价（启用时作为售价）
+     */
+    @DecimalMin(value = "0", message = "会员价不能小于0")
+    @Digits(integer = 8, fraction = 2, message = "价格格式不正确")
+    private BigDecimal memberPrice;
+
+    /**
+     * 是否启用会员价（0-否，1-是）
+     */
+    private Integer enableMemberPrice;
+
     /**
      * SKU库存
      */

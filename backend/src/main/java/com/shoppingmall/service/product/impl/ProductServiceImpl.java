@@ -371,15 +371,31 @@ public class ProductServiceImpl implements ProductService {
             vo.setImageList(new ArrayList<>());
         }
 
-        // 根据用户等级计算会员价
-        vo.setMemberPrice(calculateMemberPrice(product.getBasePrice(), userId));
-        vo.setUserLevelPrice(product.getBasePrice());
+        // 会员价逻辑：如果启用了固定会员价且有值，使用固定会员价；否则按等级折扣计算
+        if (product.getEnableMemberPrice() != null && product.getEnableMemberPrice() == 1
+                && product.getMemberPrice() != null && product.getMemberPrice().compareTo(BigDecimal.ZERO) > 0) {
+            // 使用商品设置的固定会员价（已通过BeanUtils复制到vo）
+            vo.setUserLevelPrice(product.getMemberPrice());
+        } else {
+            // 按用户等级折扣计算会员价
+            vo.setMemberPrice(calculateMemberPrice(product.getBasePrice(), userId));
+            vo.setUserLevelPrice(product.getBasePrice());
+        }
 
-        // 获取 SKU 列表并计算 SKU 层级的会员价
+        // 获取 SKU 列表并处理 SKU 层级的会员价
         try {
             var skuList = productSkuService.getSkusByProductId(product.getId(), userId);
             if (skuList != null) {
-                skuList.forEach(sku -> sku.setMemberPrice(calculateMemberPrice(sku.getPrice(), userId)));
+                skuList.forEach(sku -> {
+                    // SKU会员价逻辑：如果SKU启用了固定会员价且有值，使用固定会员价；否则按等级折扣计算
+                    if (sku.getEnableMemberPrice() != null && sku.getEnableMemberPrice() == 1
+                            && sku.getMemberPrice() != null && sku.getMemberPrice().compareTo(BigDecimal.ZERO) > 0) {
+                        // SKU已设置固定会员价，保留原值（已从数据库读取）
+                    } else {
+                        // 按用户等级折扣计算
+                        sku.setMemberPrice(calculateMemberPrice(sku.getPrice(), userId));
+                    }
+                });
             }
             vo.setSkus(skuList);
         } catch (Exception e) {

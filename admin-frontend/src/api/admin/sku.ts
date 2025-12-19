@@ -6,6 +6,10 @@ export interface ProductSkuDTO {
   skuCode: string
   specCombination: string
   price: number
+  suggestedRetailPrice?: number
+  marketRetailPrice?: number
+  memberPrice?: number
+  enableMemberPrice?: number
   stock: number
   warningStock?: number
   weight?: number
@@ -20,6 +24,10 @@ export interface ProductSkuVO {
   skuCode: string
   specCombination: string
   price: number
+  suggestedRetailPrice?: number
+  marketRetailPrice?: number
+  memberPrice?: number
+  enableMemberPrice?: number
   stock: number
   warningStock: number
   salesCount: number

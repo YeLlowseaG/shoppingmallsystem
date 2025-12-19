@@ -35,10 +35,30 @@ public class ProductSku {
     private String specCombination;
     
     /**
-     * SKU价格
+     * SKU价格（基础价）
      */
     private BigDecimal price;
-    
+
+    /**
+     * 建议零售价
+     */
+    private BigDecimal suggestedRetailPrice;
+
+    /**
+     * 市场零售价
+     */
+    private BigDecimal marketRetailPrice;
+
+    /**
+     * 会员价（启用时作为售价）
+     */
+    private BigDecimal memberPrice;
+
+    /**
+     * 是否启用会员价（0-否，1-是）
+     */
+    private Integer enableMemberPrice;
+
     /**
      * SKU库存
      */

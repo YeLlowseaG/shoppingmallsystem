@@ -32,14 +32,29 @@ public class ProductSkuVO {
     private String specCombination;
 
     /**
-     * SKU价格
+     * SKU价格（基础价）
      */
     private BigDecimal price;
 
     /**
-     * SKU 会员价（根据当前用户会员等级折扣计算）
+     * 建议零售价
+     */
+    private BigDecimal suggestedRetailPrice;
+
+    /**
+     * 市场零售价
+     */
+    private BigDecimal marketRetailPrice;
+
+    /**
+     * SKU 会员价（根据当前用户会员等级折扣计算，或SKU设置的固定会员价）
      */
     private BigDecimal memberPrice;
+
+    /**
+     * 是否启用会员价（0-否，1-是）
+     */
+    private Integer enableMemberPrice;
 
     /**
      * SKU库存

@@ -221,7 +221,7 @@
         <el-divider content-position="left">价格与库存</el-divider>
 
         <div class="price-stock-grid">
-          <el-form-item label="初始会员价" prop="basePrice" required>
+          <el-form-item label="基础价" prop="basePrice" required>
             <el-input-number
               v-model="formData.basePrice"
               :min="0"
@@ -286,6 +286,24 @@
           </el-form-item>
         </div>
 
+        <!-- 会员价设置（单独一行） -->
+        <div class="member-price-row">
+          <el-form-item label="启用会员价">
+            <el-switch v-model="formData.enableMemberPrice" :active-value="1" :inactive-value="0" />
+            <span class="form-tip" style="margin-left: 10px;">启用后以会员价作为售价，否则以基础价作为售价</span>
+          </el-form-item>
+          <el-form-item label="会员价" prop="memberPrice" v-if="formData.enableMemberPrice === 1">
+            <el-input-number
+              v-model="formData.memberPrice"
+              :min="0"
+              :precision="2"
+              :step="0.01"
+              controls-position="right"
+              style="width: 200px"
+            />
+          </el-form-item>
+        </div>
+
         <!-- 商品规格配置 -->
         <el-divider content-position="left">商品规格配置</el-divider>
         
@@ -297,7 +315,8 @@
         <!-- 规格配置区域 -->
         <div v-if="formData.enableSpec" class="spec-config-area">
           <!-- 规格属性配置 -->
-          <el-form-item label="规格属性" required>
+          <div class="spec-section">
+            <div class="spec-section-title"><span class="required-star">*</span> 规格属性</div>
             <div class="spec-keys-wrapper">
               <div 
                 v-for="(specKey, keyIndex) in editSpecKeys" 
@@ -354,18 +373,20 @@
                 </div>
               </div>
               
-              <el-button 
-                type="primary" 
-                :icon="Plus" 
+              <el-button
+                type="primary"
+                :icon="Plus"
                 @click="addEditSpecKey"
+                style="margin-top: 20px;"
               >
                 添加规格属性
               </el-button>
             </div>
-          </el-form-item>
+          </div>
 
           <!-- SKU列表 -->
-          <el-form-item label="SKU列表" required>
+          <div class="spec-section">
+            <div class="spec-section-title"><span class="required-star">*</span> SKU列表</div>
             <div class="sku-list-wrapper">
               <div class="sku-list-header">
                 <el-button 
@@ -378,79 +399,134 @@
                 <span class="tip">根据规格属性自动生成SKU组合</span>
               </div>
               
-              <el-table 
+              <el-table
                 v-if="editSkuList.length > 0"
-                :data="editSkuList" 
-                border 
+                :data="editSkuList"
+                border
                 class="sku-table"
                 size="small"
+                style="width: 100%; min-width: 1200px;"
               >
-                <el-table-column prop="specCombinationText" label="规格组合" width="80" />
-                <el-table-column label="SKU编码" width="160">
+                <el-table-column prop="specCombinationText" label="规格组合" min-width="120" align="left" />
+                <el-table-column label="SKU编码" min-width="150">
                   <template #default="{ row, $index }">
-                    <el-input 
-                      v-model="row.skuCode" 
+                    <el-input
+                      v-model="row.skuCode"
                       placeholder="SKU编码"
                       size="small"
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="价格" width="110">
+                <el-table-column label="基础价" min-width="130">
                   <template #default="{ row, $index }">
-                    <el-input-number 
-                      v-model="row.price" 
+                    <el-input-number
+                      v-model="row.price"
                       :min="0"
                       :precision="2"
                       :step="0.01"
                       size="small"
+                      controls-position="right"
                       style="width: 100%"
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="库存" width="110">
+                <el-table-column label="建议零售价" min-width="130">
                   <template #default="{ row, $index }">
-                    <el-input-number 
-                      v-model="row.stock" 
+                    <el-input-number
+                      v-model="row.suggestedRetailPrice"
+                      :min="0"
+                      :precision="2"
+                      :step="0.01"
+                      size="small"
+                      controls-position="right"
+                      style="width: 100%"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column label="市场零售价" min-width="130">
+                  <template #default="{ row, $index }">
+                    <el-input-number
+                      v-model="row.marketRetailPrice"
+                      :min="0"
+                      :precision="2"
+                      :step="0.01"
+                      size="small"
+                      controls-position="right"
+                      style="width: 100%"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column label="启用会员价" min-width="100" align="center">
+                  <template #default="{ row, $index }">
+                    <el-switch
+                      v-model="row.enableMemberPrice"
+                      :active-value="1"
+                      :inactive-value="0"
+                      size="small"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column label="会员价" min-width="130">
+                  <template #default="{ row, $index }">
+                    <el-input-number
+                      v-model="row.memberPrice"
+                      :min="0"
+                      :precision="2"
+                      :step="0.01"
+                      size="small"
+                      controls-position="right"
+                      style="width: 100%"
+                      :disabled="row.enableMemberPrice !== 1"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column label="库存" min-width="120">
+                  <template #default="{ row, $index }">
+                    <el-input-number
+                      v-model="row.stock"
                       :min="0"
                       size="small"
+                      controls-position="right"
                       style="width: 100%"
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="警戒库存" width="110">
+                <el-table-column label="警戒库存" min-width="120">
                   <template #default="{ row, $index }">
-                    <el-input-number 
-                      v-model="row.warningStock" 
+                    <el-input-number
+                      v-model="row.warningStock"
                       :min="0"
                       size="small"
+                      controls-position="right"
                       style="width: 100%"
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="重量(g)" width="110">
+                <el-table-column label="重量(g)" min-width="120">
                   <template #default="{ row, $index }">
-                    <el-input-number 
-                      v-model="row.weight" 
+                    <el-input-number
+                      v-model="row.weight"
                       :min="0"
                       :precision="2"
                       size="small"
+                      controls-position="right"
                       style="width: 100%"
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="60">
+                <el-table-column label="操作" width="70" fixed="right">
                   <template #default="{ row, $index }">
-                    <el-button 
-                      type="danger" 
-                      size="small" 
-                      :icon="Delete" 
+                    <el-button
+                      type="danger"
+                      size="small"
+                      :icon="Delete"
                       @click="removeEditSku($index)"
                     />
                   </template>
                 </el-table-column>
               </el-table>
             </div>
-          </el-form-item>
+          </div>
         </div>
 
         <el-form-item label="主图" prop="mainImage">
@@ -650,7 +726,7 @@
               height="200"
             >
             <el-table-column type="selection" width="55" />
-            <el-table-column prop="specCombinationText" label="规格组合" width="80" />
+            <el-table-column prop="specCombinationText" label="规格组合" width="80" align="left" />
             <el-table-column label="SKU编码" width="160">
               <template #default="{ row, $index }">
                 <el-input 
@@ -819,6 +895,8 @@ const formData = ref<ProductDTO>({
   basePrice: 0,
   suggestedRetailPrice: 0,
   marketRetailPrice: 0,
+  memberPrice: 0,
+  enableMemberPrice: 0,
   stock: 0,
   warningStock: 10,
   weight: 0,
@@ -1053,6 +1131,8 @@ const handleEdit = async (row: ProductVO) => {
     basePrice: row.basePrice,
     suggestedRetailPrice: row.suggestedRetailPrice || 0,
     marketRetailPrice: row.marketRetailPrice || 0,
+    memberPrice: row.memberPrice || 0,
+    enableMemberPrice: row.enableMemberPrice || 0,
     stock: row.stock,
     warningStock: row.warningStock || 10,
     weight: row.weight || 0,
@@ -1115,6 +1195,10 @@ const handleEdit = async (row: ProductVO) => {
           specCombination: sku.specCombination,
           specCombinationText: Object.values(JSON.parse(sku.specCombination)).join('/'),
           price: sku.price,
+          suggestedRetailPrice: sku.suggestedRetailPrice ?? 0,
+          marketRetailPrice: sku.marketRetailPrice ?? 0,
+          memberPrice: sku.memberPrice ?? 0,
+          enableMemberPrice: sku.enableMemberPrice ?? 0,
           stock: sku.stock ?? 0,
           warningStock: sku.warningStock ?? 0,
           weight: sku.weight ?? 0,
@@ -1204,14 +1288,18 @@ const handleSubmit = async () => {
         // 批量创建新SKU
         // 确保stock值正确：如果stock是null、undefined或NaN，则使用0
         const skuDTOs: ProductSkuDTO[] = editSkuList.value.map(sku => {
-          const stock = (sku.stock !== null && sku.stock !== undefined && !isNaN(Number(sku.stock))) 
-            ? Number(sku.stock) 
+          const stock = (sku.stock !== null && sku.stock !== undefined && !isNaN(Number(sku.stock)))
+            ? Number(sku.stock)
             : 0;
           return {
             productId: formData.value.id!,
             skuCode: sku.skuCode,
             specCombination: sku.specCombination,
             price: sku.price,
+            suggestedRetailPrice: sku.suggestedRetailPrice || 0,
+            marketRetailPrice: sku.marketRetailPrice || 0,
+            memberPrice: sku.memberPrice || 0,
+            enableMemberPrice: sku.enableMemberPrice || 0,
             stock: stock,
             warningStock: sku.warningStock || 0,
             weight: sku.weight || 0,
@@ -1365,6 +1453,13 @@ const generateEditSkuList = () => {
   // 生成笛卡尔积
   const combinations = generateCartesianProduct(editSpecKeys.value)
 
+  // 调试：检查formData中的价格值
+  console.log('生成SKU时formData的值:', {
+    basePrice: formData.value.basePrice,
+    suggestedRetailPrice: formData.value.suggestedRetailPrice,
+    marketRetailPrice: formData.value.marketRetailPrice
+  })
+
   editSkuList.value = combinations.map((combination, index) => {
     const specCombination: Record<string, string> = {}
     const specCombinationTextArray: string[] = []
@@ -1380,6 +1475,10 @@ const generateEditSkuList = () => {
       specCombinationText: specCombinationTextArray.join(', '),
       skuCode: `${formData.value.productCode || 'SKU'}-${index + 1}`,
       price: formData.value.basePrice,
+      suggestedRetailPrice: formData.value.suggestedRetailPrice || 0,
+      marketRetailPrice: formData.value.marketRetailPrice || 0,
+      memberPrice: formData.value.memberPrice,
+      enableMemberPrice: formData.value.enableMemberPrice,
       stock: formData.value.stock,
       warningStock: formData.value.warningStock,
       weight: formData.value.weight,
@@ -1753,6 +1852,16 @@ onMounted(() => {
   }
 }
 
+.member-price-row {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+}
+
 // 图片上传相关样式
 .upload-wrapper {
   display: flex;
@@ -1828,6 +1937,26 @@ onMounted(() => {
   padding: 15px;
   margin-bottom: 15px;
   background-color: #fafbfc;
+}
+
+.spec-section {
+  margin-bottom: 20px;
+}
+
+.spec-section-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #606266;
+  margin-bottom: 15px;
+
+  .required-star {
+    color: #f56c6c;
+    margin-right: 4px;
+  }
+}
+
+.sku-list-wrapper {
+  overflow-x: auto;
 }
 
 .sku-overview-table {

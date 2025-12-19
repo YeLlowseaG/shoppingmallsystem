@@ -180,7 +180,15 @@ public class ProductSkuServiceImpl implements ProductSkuService {
         List<ProductSku> skus = skuRepository.findByProductId(productId);
         return skus.stream().map(sku -> {
             ProductSkuVO vo = convertToVO(sku);
-            vo.setMemberPrice(calculateMemberPrice(sku.getPrice(), userId));
+            // 会员价逻辑：如果SKU启用了固定会员价且有值，使用固定会员价；否则按等级折扣计算
+            if (sku.getEnableMemberPrice() != null && sku.getEnableMemberPrice() == 1
+                    && sku.getMemberPrice() != null && sku.getMemberPrice().compareTo(BigDecimal.ZERO) > 0) {
+                // 使用SKU设置的固定会员价（已通过BeanUtils复制到vo）
+                log.debug("SKU使用固定会员价: skuId={}, memberPrice={}", sku.getId(), sku.getMemberPrice());
+            } else {
+                // 按用户等级折扣计算会员价
+                vo.setMemberPrice(calculateMemberPrice(sku.getPrice(), userId));
+            }
             return vo;
         }).collect(Collectors.toList());
     }
@@ -204,7 +212,15 @@ public class ProductSkuServiceImpl implements ProductSkuService {
             return null;
         }
         ProductSkuVO vo = convertToVO(entity);
-        vo.setMemberPrice(calculateMemberPrice(entity.getPrice(), userId));
+        // 会员价逻辑：如果SKU启用了固定会员价且有值，使用固定会员价；否则按等级折扣计算
+        if (entity.getEnableMemberPrice() != null && entity.getEnableMemberPrice() == 1
+                && entity.getMemberPrice() != null && entity.getMemberPrice().compareTo(BigDecimal.ZERO) > 0) {
+            // 使用SKU设置的固定会员价（已通过BeanUtils复制到vo）
+            log.debug("SKU使用固定会员价: skuId={}, memberPrice={}", entity.getId(), entity.getMemberPrice());
+        } else {
+            // 按用户等级折扣计算会员价
+            vo.setMemberPrice(calculateMemberPrice(entity.getPrice(), userId));
+        }
         return vo;
     }
     

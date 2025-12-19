@@ -17,6 +17,8 @@ export interface ProductDTO {
   basePrice: number
   suggestedRetailPrice?: number
   marketRetailPrice?: number
+  memberPrice?: number
+  enableMemberPrice?: number
   stock: number
   warningStock?: number
   weight?: number
@@ -39,6 +41,8 @@ export interface ProductVO {
   basePrice: number
   suggestedRetailPrice?: number
   marketRetailPrice?: number
+  memberPrice?: number
+  enableMemberPrice?: number
   userLevelPrice: number
   stock: number
   warningStock?: number

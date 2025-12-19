@@ -92,9 +92,14 @@ public class ProductVO {
     private BigDecimal userLevelPrice;
 
     /**
-     * 会员价（根据当前用户会员等级折扣计算）
+     * 会员价（根据当前用户会员等级折扣计算，或商品设置的固定会员价）
      */
     private BigDecimal memberPrice;
+
+    /**
+     * 是否启用会员价（0-否，1-是）
+     */
+    private Integer enableMemberPrice;
 
     /**
      * 库存数量

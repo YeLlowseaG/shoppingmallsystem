@@ -78,6 +78,16 @@ public class Product {
     private BigDecimal marketRetailPrice;
 
     /**
+     * 会员价（启用时作为售价）
+     */
+    private BigDecimal memberPrice;
+
+    /**
+     * 是否启用会员价（0-否，1-是）
+     */
+    private Integer enableMemberPrice;
+
+    /**
      * 库存数量
      */
     private Integer stock;
