@@ -95,7 +95,7 @@
           <div class="price-info">
             <div class="price-row">
               <span class="price-label">市场零售价：</span>
-              <span class="market-price">¥{{ parseFloat(product.marketPrice || 0).toFixed(2) }}</span>
+              <span class="market-price">¥{{ parseFloat(product.marketRetailPrice || 0).toFixed(2) }}</span>
             </div>
             <div class="price-row">
               <span class="price-label">建议零售价：</span>
@@ -507,7 +507,7 @@ const product = ref({
   barcode: '',
   brand: '',
   unit: '盒',
-  marketPrice: 0,
+  marketRetailPrice: 0,
   price: 0,
   memberPrice: 0,  // 会员价
   stock: 0,  // 添加库存字段
@@ -531,8 +531,8 @@ const loadProductDetail = async (productId: number) => {
 
     // 将后端返回的 ProductVO 数据映射到页面需要的格式
     // 字段对应关系（根据管理后台）：
-    // - costPrice -> 市场零售价
-    // - marketPrice -> 建议零售价
+    // - marketRetailPrice -> 市场零售价
+    // - suggestedRetailPrice -> 建议零售价
     // - basePrice -> 初始会员价（基础价格）
     product.value = {
       id: productData.id,
@@ -543,8 +543,8 @@ const loadProductDetail = async (productId: number) => {
       barcode: '', // API 暂无条码字段
       brand: productData.brandName || '暂无', // 从API获取品牌字段
       unit: '盒',
-      marketPrice: productData.costPrice || 0, // 市场零售价（对应管理后台的costPrice）
-      price: productData.marketPrice || productData.basePrice || 0, // 建议零售价（对应管理后台的marketPrice）
+      marketRetailPrice: productData.marketRetailPrice || 0, // 市场零售价
+      price: productData.suggestedRetailPrice || productData.basePrice || 0, // 建议零售价
       memberPrice: productData.memberPrice || productData.basePrice || 0, // 会员价（后端已根据用户等级计算）
       stock: productData.stock || 0, // 添加库存字段映射
       promoText: '',

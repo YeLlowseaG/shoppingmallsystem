@@ -15,8 +15,8 @@ export interface ProductDTO {
   images?: string
   description?: string
   basePrice: number
-  marketPrice?: number
-  costPrice?: number
+  suggestedRetailPrice?: number
+  marketRetailPrice?: number
   stock: number
   warningStock?: number
   weight?: number
@@ -37,8 +37,8 @@ export interface ProductVO {
   imageList: string[]
   description: string
   basePrice: number
-  marketPrice?: number
-  costPrice?: number
+  suggestedRetailPrice?: number
+  marketRetailPrice?: number
   userLevelPrice: number
   stock: number
   warningStock?: number

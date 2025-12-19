@@ -17,8 +17,8 @@ export interface ProductVO {
   description: string
   basePrice: number
   salePrice?: number
-  marketPrice?: number
-  costPrice?: number
+  suggestedRetailPrice?: number
+  marketRetailPrice?: number
   userLevelPrice: number
   memberPrice?: number
   stock: number

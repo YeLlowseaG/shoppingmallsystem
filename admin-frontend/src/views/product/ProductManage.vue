@@ -232,9 +232,9 @@
             />
           </el-form-item>
 
-          <el-form-item label="建议零售价" prop="marketPrice">
+          <el-form-item label="建议零售价" prop="suggestedRetailPrice">
             <el-input-number
-              v-model="formData.marketPrice"
+              v-model="formData.suggestedRetailPrice"
               :min="0"
               :precision="2"
               :step="0.01"
@@ -243,9 +243,9 @@
             />
           </el-form-item>
 
-          <el-form-item label="市场零售价" prop="costPrice">
+          <el-form-item label="市场零售价" prop="marketRetailPrice">
             <el-input-number
-              v-model="formData.costPrice"
+              v-model="formData.marketRetailPrice"
               :min="0"
               :precision="2"
               :step="0.01"
@@ -817,8 +817,8 @@ const formData = ref<ProductDTO>({
   categoryId: 0,
   brandId: null,
   basePrice: 0,
-  marketPrice: 0,
-  costPrice: 0,
+  suggestedRetailPrice: 0,
+  marketRetailPrice: 0,
   stock: 0,
   warningStock: 10,
   weight: 0,
@@ -1051,8 +1051,8 @@ const handleEdit = async (row: ProductVO) => {
     categoryId: row.categoryId,
     brandId: row.brandId || null,
     basePrice: row.basePrice,
-    marketPrice: row.marketPrice || 0,
-    costPrice: row.costPrice || 0,
+    suggestedRetailPrice: row.suggestedRetailPrice || 0,
+    marketRetailPrice: row.marketRetailPrice || 0,
     stock: row.stock,
     warningStock: row.warningStock || 10,
     weight: row.weight || 0,

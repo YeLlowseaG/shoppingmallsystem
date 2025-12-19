@@ -132,7 +132,7 @@ const displayProducts = computed(() => {
     image: product.mainImage,
     price: product.salePrice || product.basePrice,
     memberPrice: product.memberPrice ?? product.basePrice,
-    originalPrice: product.marketPrice || product.basePrice * 1.5, // 使用实际市场价或基础价的1.5倍
+    originalPrice: product.marketRetailPrice || product.basePrice * 1.5, // 使用实际市场零售价或基础价的1.5倍
     sales: product.salesCount,
     category: product.categoryName,
     tags: '', // 暂不使用标签

@@ -62,9 +62,9 @@
             />
           </el-form-item>
 
-          <el-form-item label="建议零售价" prop="marketPrice">
+          <el-form-item label="建议零售价" prop="suggestedRetailPrice">
             <el-input-number
-              v-model="productForm.marketPrice"
+              v-model="productForm.suggestedRetailPrice"
               :min="0"
               :precision="2"
               :step="0.01"
@@ -73,9 +73,9 @@
             />
           </el-form-item>
 
-          <el-form-item label="市场零售价" prop="costPrice">
+          <el-form-item label="市场零售价" prop="marketRetailPrice">
             <el-input-number
-              v-model="productForm.costPrice"
+              v-model="productForm.marketRetailPrice"
               :min="0"
               :precision="2"
               :step="0.01"
@@ -393,8 +393,8 @@ const productForm = ref({
   productCode: '',
   brandId: null as any,
   basePrice: 0,
-  marketPrice: 0,
-  costPrice: 0,
+  suggestedRetailPrice: 0,
+  marketRetailPrice: 0,
   stock: 0,
   warningStock: 10,
   weight: 0,
@@ -535,8 +535,8 @@ const handleSubmit = async () => {
           productCode: productForm.value.productCode,
           brandId: productForm.value.brandId,
           basePrice: productForm.value.basePrice,
-          marketPrice: productForm.value.marketPrice,
-          costPrice: productForm.value.costPrice,
+          suggestedRetailPrice: productForm.value.suggestedRetailPrice,
+          marketRetailPrice: productForm.value.marketRetailPrice,
           stock: productForm.value.stock,
           warningStock: productForm.value.warningStock,
           weight: productForm.value.weight,

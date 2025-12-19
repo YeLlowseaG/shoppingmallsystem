@@ -67,14 +67,14 @@ public class ProductDTO {
     private BigDecimal basePrice;
 
     /**
-     * 市场价格
+     * 建议零售价
      */
-    private BigDecimal marketPrice;
+    private BigDecimal suggestedRetailPrice;
 
     /**
-     * 成本价格
+     * 市场零售价
      */
-    private BigDecimal costPrice;
+    private BigDecimal marketRetailPrice;
 
     /**
      * 库存数量
