@@ -467,7 +467,8 @@ const loadInventoryList = async () => {
         try {
           // 获取商品的SKU列表
           const skuResponse = await request.get(`/api/admin/product-sku/product/${product.id}`)
-          const skuList = skuResponse.code === 200 ? (skuResponse.data || []) : []
+          // API 直接返回数组，不是 {code, data} 格式
+          const skuList = Array.isArray(skuResponse) ? skuResponse : (skuResponse.data || skuResponse || [])
           
           if (skuList.length > 0) {
             // 有SKU的商品，每个SKU一行

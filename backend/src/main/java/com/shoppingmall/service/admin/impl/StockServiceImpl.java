@@ -20,6 +20,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +42,7 @@ public class StockServiceImpl implements StockService {
     private final ProductStockRepository stockRepository;
     private final ProductRepository productRepository;
     private final ProductSkuRepository productSkuRepository;
+    private final ObjectMapper objectMapper;
 
     @Override
     public Page<StockVO> getStockPage(Long current, Long size, StockQueryDTO queryDTO) {
@@ -308,10 +312,7 @@ public class StockServiceImpl implements StockService {
     }
 
     /**
-     * 转换为VO（支持商品和库存信息）
-     */
-    /**
-     * 转换为VO（支持SKU库存汇总）
+     * 转换为VO（支持SKU库存汇总和详情）
      */
     private StockVO convertToVO(Product product, ProductStock stock, List<ProductSku> productSkus) {
         StockVO vo = new StockVO();
@@ -325,6 +326,8 @@ public class StockServiceImpl implements StockService {
 
         // 如果有SKU，优先使用SKU汇总库存
         if (productSkus != null && !productSkus.isEmpty()) {
+            vo.setEnableSpec(true);
+
             // 汇总所有SKU的库存
             int totalStock = productSkus.stream()
                     .mapToInt(sku -> sku.getStock() != null ? sku.getStock() : 0)
@@ -345,9 +348,25 @@ public class StockServiceImpl implements StockService {
 
             // 判断是否预警
             vo.setIsWarning(totalStock <= warningStock);
+
+            // 填充SKU库存列表
+            List<StockVO.SkuStockVO> skuStockList = new ArrayList<>();
+            for (ProductSku sku : productSkus) {
+                StockVO.SkuStockVO skuStockVO = new StockVO.SkuStockVO();
+                skuStockVO.setSkuId(sku.getId());
+                skuStockVO.setSkuCode(sku.getSkuCode());
+                skuStockVO.setSpecCombination(sku.getSpecCombination());
+                skuStockVO.setSpecText(parseSpecText(sku.getSpecCombination()));
+                skuStockVO.setStock(sku.getStock() != null ? sku.getStock() : 0);
+                skuStockVO.setWarningStock(sku.getWarningStock() != null ? sku.getWarningStock() : 10);
+                skuStockVO.setIsWarning(skuStockVO.getStock() <= skuStockVO.getWarningStock());
+                skuStockList.add(skuStockVO);
+            }
+            vo.setSkuStockList(skuStockList);
         }
         // 否则使用 product_stock 表的库存
         else if (stock != null) {
+            vo.setEnableSpec(false);
             vo.setId(stock.getId());
             vo.setAvailableStock(stock.getAvailableStock() != null ? stock.getAvailableStock() : 0);
             vo.setLockedStock(stock.getLockedStock() != null ? stock.getLockedStock() : 0);
@@ -364,6 +383,7 @@ public class StockServiceImpl implements StockService {
         }
         // 都没有，使用商品表的库存
         else {
+            vo.setEnableSpec(false);
             vo.setId(null);
             vo.setAvailableStock(product.getStock() != null ? product.getStock() : 0);
             vo.setLockedStock(0);
@@ -378,6 +398,26 @@ public class StockServiceImpl implements StockService {
         }
 
         return vo;
+    }
+
+    /**
+     * 解析规格组合JSON为显示文本
+     * 如：{"颜色":"红色","尺寸":"L"} -> "红色/L"
+     */
+    private String parseSpecText(String specCombination) {
+        if (specCombination == null || specCombination.isEmpty()) {
+            return "";
+        }
+        try {
+            Map<String, String> specMap = objectMapper.readValue(
+                    specCombination,
+                    new TypeReference<Map<String, String>>() {}
+            );
+            return String.join("/", specMap.values());
+        } catch (Exception e) {
+            log.warn("解析规格组合失败: {}", specCombination, e);
+            return specCombination;
+        }
     }
 
     /**

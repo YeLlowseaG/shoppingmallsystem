@@ -4,6 +4,17 @@
 
 import request from '@/utils/request'
 
+// SKU库存VO
+export interface SkuStockVO {
+  skuId: number
+  skuCode: string
+  specCombination: string
+  specText: string
+  stock: number
+  warningStock: number
+  isWarning: boolean
+}
+
 // 库存VO
 export interface StockVO {
   id: number
@@ -18,6 +29,8 @@ export interface StockVO {
   warningThreshold: number
   isWarning: boolean
   updateTime: string
+  enableSpec?: boolean // 是否启用规格
+  skuStockList?: SkuStockVO[] // SKU库存列表
 }
 
 // 库存调整DTO

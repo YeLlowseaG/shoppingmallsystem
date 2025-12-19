@@ -3,6 +3,7 @@ package com.shoppingmall.vo;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 库存VO
@@ -72,5 +73,56 @@ public class StockVO {
      * 更新时间
      */
     private LocalDateTime updateTime;
+
+    /**
+     * 是否启用规格
+     */
+    private Boolean enableSpec;
+
+    /**
+     * SKU库存列表（当启用规格时有值）
+     */
+    private List<SkuStockVO> skuStockList;
+
+    /**
+     * SKU库存VO（内部类）
+     */
+    @Data
+    public static class SkuStockVO {
+        /**
+         * SKU ID
+         */
+        private Long skuId;
+
+        /**
+         * SKU编码
+         */
+        private String skuCode;
+
+        /**
+         * 规格组合（JSON格式，如：{"颜色":"红色","尺寸":"L"}）
+         */
+        private String specCombination;
+
+        /**
+         * 规格组合显示文本（如：红色/L）
+         */
+        private String specText;
+
+        /**
+         * SKU库存
+         */
+        private Integer stock;
+
+        /**
+         * SKU预警库存
+         */
+        private Integer warningStock;
+
+        /**
+         * 是否预警
+         */
+        private Boolean isWarning;
+    }
 }
 
