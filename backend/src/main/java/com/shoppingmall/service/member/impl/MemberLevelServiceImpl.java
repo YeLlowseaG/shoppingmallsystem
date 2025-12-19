@@ -6,7 +6,9 @@ import com.shoppingmall.common.exception.BusinessException;
 import com.shoppingmall.common.util.StringUtil;
 import com.shoppingmall.dto.MemberLevelDTO;
 import com.shoppingmall.entity.MemberLevel;
+import com.shoppingmall.entity.User;
 import com.shoppingmall.repository.member.MemberLevelRepository;
+import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.service.member.MemberLevelService;
 import com.shoppingmall.vo.MemberLevelVO;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +33,7 @@ import java.util.stream.Collectors;
 public class MemberLevelServiceImpl implements MemberLevelService {
 
     private final MemberLevelRepository memberLevelRepository;
+    private final UserRepository userRepository;
 
     @Override
     public Page<MemberLevelVO> getMemberLevelPage(Integer page, Integer pageSize, String levelName, Integer status) {
@@ -140,6 +143,18 @@ public class MemberLevelServiceImpl implements MemberLevelService {
         MemberLevel existing = memberLevelRepository.selectById(id);
         if (existing == null) {
             throw new BusinessException(404, "会员等级不存在");
+        }
+
+        // 检查是否有用户使用了该会员等级
+        LambdaQueryWrapper<User> userWrapper = new LambdaQueryWrapper<>();
+        userWrapper.eq(User::getIsMember, 1)  // 是会员
+                   .eq(User::getMemberLevelId, id)  // 使用了该等级
+                   .eq(User::getDeleted, 0);  // 未删除
+        Long userCount = userRepository.selectCount(userWrapper);
+        
+        if (userCount != null && userCount > 0) {
+            throw new BusinessException(400, 
+                String.format("该会员等级已被 %d 位会员使用，无法删除。如需修改，请使用编辑功能。", userCount));
         }
 
         memberLevelRepository.deleteById(id);

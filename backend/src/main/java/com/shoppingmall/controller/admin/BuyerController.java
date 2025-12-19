@@ -34,9 +34,10 @@ public class BuyerController {
             @RequestParam(required = false) String username,
             @RequestParam(required = false) String phone,
             @RequestParam(required = false) Integer status,
-            @RequestParam(required = false) Integer userLevel
+            @RequestParam(required = false) Integer isMember,
+            @RequestParam(required = false) Long memberLevelId
     ) {
-        Page<BuyerVO> result = buyerService.getBuyerList(page, pageSize, username, phone, status, userLevel);
+        Page<BuyerVO> result = buyerService.getBuyerList(page, pageSize, username, phone, status, isMember, memberLevelId);
         return Result.success(result);
     }
 
@@ -75,14 +76,15 @@ public class BuyerController {
     }
 
     /**
-     * 更新采购者等级
+     * 更新采购者会员信息
      */
-    @PutMapping("/{id}/level")
-    public Result<Void> updateBuyerLevel(
+    @PutMapping("/{id}/member")
+    public Result<Void> updateBuyerMemberInfo(
             @PathVariable Long id,
-            @RequestParam Integer userLevel
+            @RequestParam(required = false) Integer isMember,
+            @RequestParam(required = false) Long memberLevelId
     ) {
-        buyerService.updateBuyerLevel(id, userLevel);
+        buyerService.updateBuyerMemberInfo(id, isMember, memberLevelId);
         return Result.success();
     }
 

@@ -23,8 +23,9 @@ export interface BuyerVO {
   securityQuestion?: string
   securityAnswer?: string
   wangwang?: string
-  userLevel: number
-  userLevelName?: string
+  isMember?: number
+  memberLevelId?: number
+  memberLevelName?: string
   status: number
   statusName?: string
   auditStatus?: number
@@ -39,7 +40,8 @@ export interface BuyerVO {
 // 采购者DTO
 export interface BuyerDTO {
   id?: number
-  userLevel?: number
+  isMember?: number
+  memberLevelId?: number
   status?: number
   auditStatus: number
   auditComment?: string
@@ -54,7 +56,8 @@ export const getBuyerList = (params: {
   username?: string
   phone?: string
   status?: number
-  userLevel?: number
+  isMember?: number
+  memberLevelId?: number
 }): Promise<any> => {
   return request.get('/api/admin/buyer/list', { params })
 }
@@ -83,11 +86,11 @@ export const updateBuyerStatus = (id: number, status: number): Promise<void> => 
 }
 
 /**
- * 更新采购者等级
+ * 更新采购者会员信息
  */
-export const updateBuyerLevel = (id: number, userLevel: number): Promise<void> => {
-  return request.put(`/api/admin/buyer/${id}/level`, null, {
-    params: { userLevel }
+export const updateBuyerMemberInfo = (id: number, isMember?: number, memberLevelId?: number): Promise<void> => {
+  return request.put(`/api/admin/buyer/${id}/member`, null, {
+    params: { isMember, memberLevelId }
   })
 }
 

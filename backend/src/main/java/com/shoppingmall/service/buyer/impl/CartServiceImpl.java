@@ -312,11 +312,9 @@ public class CartServiceImpl implements CartService {
             User user = userRepository.selectById(userId);
             Long memberLevelId = null;
             
-            // sys_user.user_level 字段存储的是 member_level.id（会员等级ID）
-            // 如果 user_level 为 null 或 0，则查找默认等级（第一个等级，通常是 id=1 的普卡会员）
-            if (user != null && user.getUserLevel() != null && user.getUserLevel() > 0) {
-                // user_level 存储的是 member_level.id
-                memberLevelId = user.getUserLevel().longValue();
+            // 只有会员才有会员等级
+            if (user != null && user.getIsMember() != null && user.getIsMember() == 1 && user.getMemberLevelId() != null) {
+                memberLevelId = user.getMemberLevelId();
             }
             
             // 查找匹配的会员等级

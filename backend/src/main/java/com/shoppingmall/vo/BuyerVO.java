@@ -100,14 +100,19 @@ public class BuyerVO {
     private String wangwang;
 
     /**
-     * 用户等级（0-普通，1-VIP，2-金牌）
+     * 是否会员（0-普通用户，1-会员）
      */
-    private Integer userLevel;
+    private Integer isMember;
 
     /**
-     * 用户等级名称
+     * 会员等级ID（关联 member_level 表，普通用户为 NULL）
      */
-    private String userLevelName;
+    private Long memberLevelId;
+
+    /**
+     * 会员等级名称
+     */
+    private String memberLevelName;
 
     /**
      * 状态（0-待审核，1-已激活，2-已禁用）

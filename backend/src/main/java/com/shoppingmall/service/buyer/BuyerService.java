@@ -20,10 +20,11 @@ public interface BuyerService {
      * @param username 用户名（可选）
      * @param phone    手机号（可选）
      * @param status   状态（可选）
-     * @param userLevel 用户等级（可选）
+     * @param isMember 是否会员（可选，0-普通用户，1-会员）
+     * @param memberLevelId 会员等级ID（可选）
      * @return 采购者列表
      */
-    Page<BuyerVO> getBuyerList(Integer page, Integer pageSize, String username, String phone, Integer status, Integer userLevel);
+    Page<BuyerVO> getBuyerList(Integer page, Integer pageSize, String username, String phone, Integer status, Integer isMember, Long memberLevelId);
 
     /**
      * 根据ID获取采购者信息
@@ -51,12 +52,13 @@ public interface BuyerService {
     void updateBuyerStatus(Long id, Integer status);
 
     /**
-     * 更新采购者等级
+     * 更新采购者会员信息
      *
-     * @param id        采购者ID
-     * @param userLevel 用户等级（0-普通，1-VIP，2-金牌）
+     * @param id            采购者ID
+     * @param isMember      是否会员（0-普通用户，1-会员）
+     * @param memberLevelId 会员等级ID（关联 member_level 表，普通用户为 NULL）
      */
-    void updateBuyerLevel(Long id, Integer userLevel);
+    void updateBuyerMemberInfo(Long id, Integer isMember, Long memberLevelId);
 
     /**
      * 审核采购者

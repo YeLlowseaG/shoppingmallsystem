@@ -887,7 +887,8 @@ CREATE TABLE `sys_user` (
   `security_question` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '安全问题',
   `security_answer` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '安全问题答案',
   `wangwang` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '旺旺账号',
-  `user_level` tinyint DEFAULT '0' COMMENT '用户等级（0-普通，1-VIP，2-金牌）',
+  `is_member` tinyint NOT NULL DEFAULT '0' COMMENT '是否会员（0-普通用户，1-会员）',
+  `member_level_id` bigint DEFAULT NULL COMMENT '会员等级ID（关联 member_level 表，普通用户为 NULL）',
   `status` tinyint DEFAULT '0' COMMENT '状态（0-待审核，1-已激活，2-已禁用）',
   `deleted` tinyint DEFAULT '0' COMMENT '逻辑删除（0-未删除，1-已删除）',
   `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -897,7 +898,8 @@ CREATE TABLE `sys_user` (
   UNIQUE KEY `uk_email` (`email`),
   KEY `idx_phone` (`phone`),
   KEY `idx_status` (`status`),
-  KEY `idx_user_level` (`user_level`)
+  KEY `idx_is_member` (`is_member`),
+  KEY `idx_member_level_id` (`member_level_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户表';
 
 -- ----------------------------

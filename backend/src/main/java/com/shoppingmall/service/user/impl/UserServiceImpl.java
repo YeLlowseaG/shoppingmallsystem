@@ -86,7 +86,9 @@ public class UserServiceImpl implements UserService {
         user.setGender(registerDTO.getGender());
         user.setPhone(registerDTO.getPhone());
         user.setAddress(registerDTO.getAddress());
-        user.setUserLevel(com.shoppingmall.common.constant.UserLevel.NORMAL);
+        // 新注册用户默认为普通用户
+        user.setIsMember(0);
+        user.setMemberLevelId(null);
         // 注册后直接激活，无需审核
         user.setStatus(com.shoppingmall.common.constant.UserStatus.ACTIVATED);
 

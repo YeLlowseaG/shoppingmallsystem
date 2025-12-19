@@ -417,12 +417,13 @@ public class ProductSkuServiceImpl implements ProductSkuService {
                 return salesPrice;
             }
 
-            // 获取用户的会员等级ID（sys_user.user_level = member_level.id）
+            // 获取用户的会员等级ID
             Long memberLevelId = null;
             if (userId != null) {
                 User user = userRepository.selectById(userId);
-                if (user != null && user.getUserLevel() != null && user.getUserLevel() > 0) {
-                    memberLevelId = user.getUserLevel().longValue();
+                // 只有会员才有会员等级
+                if (user != null && user.getIsMember() != null && user.getIsMember() == 1 && user.getMemberLevelId() != null) {
+                    memberLevelId = user.getMemberLevelId();
                 }
             }
 

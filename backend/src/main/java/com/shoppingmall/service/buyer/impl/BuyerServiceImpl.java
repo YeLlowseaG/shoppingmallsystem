@@ -48,7 +48,7 @@ public class BuyerServiceImpl implements BuyerService {
     private Map<Long, String> memberLevelCache = null;
 
     @Override
-    public Page<BuyerVO> getBuyerList(Integer page, Integer pageSize, String username, String phone, Integer status, Integer userLevel) {
+    public Page<BuyerVO> getBuyerList(Integer page, Integer pageSize, String username, String phone, Integer status, Integer isMember, Long memberLevelId) {
         Page<User> userPage = new Page<>(page, pageSize);
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         
@@ -61,8 +61,11 @@ public class BuyerServiceImpl implements BuyerService {
         if (status != null) {
             wrapper.eq(User::getStatus, status);
         }
-        if (userLevel != null) {
-            wrapper.eq(User::getUserLevel, userLevel);
+        if (isMember != null) {
+            wrapper.eq(User::getIsMember, isMember);
+        }
+        if (memberLevelId != null) {
+            wrapper.eq(User::getMemberLevelId, memberLevelId);
         }
         
         wrapper.orderByDesc(User::getCreateTime);
@@ -91,8 +94,18 @@ public class BuyerServiceImpl implements BuyerService {
             throw new BusinessException(404, "采购者不存在");
         }
 
-        if (buyerDTO.getUserLevel() != null) {
-            user.setUserLevel(buyerDTO.getUserLevel());
+        if (buyerDTO.getIsMember() != null) {
+            user.setIsMember(buyerDTO.getIsMember());
+            // 如果设置为普通用户，清空会员等级
+            if (buyerDTO.getIsMember() == 0) {
+                user.setMemberLevelId(null);
+            }
+        }
+        if (buyerDTO.getMemberLevelId() != null) {
+            // 只有会员才能设置等级
+            if (user.getIsMember() != null && user.getIsMember() == 1) {
+                user.setMemberLevelId(buyerDTO.getMemberLevelId());
+            }
         }
         if (buyerDTO.getStatus() != null) {
             user.setStatus(buyerDTO.getStatus());
@@ -114,12 +127,31 @@ public class BuyerServiceImpl implements BuyerService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void updateBuyerLevel(Long id, Integer userLevel) {
+    public void updateBuyerMemberInfo(Long id, Integer isMember, Long memberLevelId) {
         User user = userRepository.selectById(id);
         if (user == null) {
             throw new BusinessException(404, "采购者不存在");
         }
-        user.setUserLevel(userLevel);
+        
+        // 更新会员标识
+        if (isMember != null) {
+            user.setIsMember(isMember);
+            // 如果设置为普通用户，清空会员等级
+            if (isMember == 0) {
+                user.setMemberLevelId(null);
+            } else if (isMember == 1 && memberLevelId != null) {
+                // 如果设置为会员，可以设置等级
+                user.setMemberLevelId(memberLevelId);
+            }
+        } else if (memberLevelId != null) {
+            // 只更新等级，但必须是会员
+            if (user.getIsMember() != null && user.getIsMember() == 1) {
+                user.setMemberLevelId(memberLevelId);
+            } else {
+                throw new BusinessException(400, "只有会员才能设置会员等级");
+            }
+        }
+        
         userRepository.updateById(user);
     }
 
@@ -229,10 +261,16 @@ public class BuyerServiceImpl implements BuyerService {
             }
         }
 
-        // 设置用户等级名称（从会员等级表查询）
-        if (user.getUserLevel() != null) {
-            String levelName = getMemberLevelName(user.getUserLevel());
-            vo.setUserLevelName(levelName != null ? levelName : "未知");
+        // 设置会员信息
+        vo.setIsMember(user.getIsMember());
+        vo.setMemberLevelId(user.getMemberLevelId());
+        
+        // 设置会员等级名称（从会员等级表查询）
+        if (user.getIsMember() != null && user.getIsMember() == 1 && user.getMemberLevelId() != null) {
+            String levelName = getMemberLevelName(user.getMemberLevelId());
+            vo.setMemberLevelName(levelName != null ? levelName : "未知");
+        } else {
+            vo.setMemberLevelName("普通用户");
         }
 
         // 设置状态名称
@@ -290,16 +328,13 @@ public class BuyerServiceImpl implements BuyerService {
     /**
      * 获取会员等级名称（带缓存）
      *
-     * @param levelId 等级ID（Integer类型，转换为Long）
+     * @param levelId 等级ID（Long类型）
      * @return 等级名称
      */
-    private String getMemberLevelName(Integer levelId) {
+    private String getMemberLevelName(Long levelId) {
         if (levelId == null) {
             return null;
         }
-        
-        // 将Integer转换为Long
-        Long levelIdLong = levelId.longValue();
         
         // 如果缓存为空，初始化缓存
         if (memberLevelCache == null) {
@@ -307,12 +342,12 @@ public class BuyerServiceImpl implements BuyerService {
         }
         
         // 从缓存中获取等级名称
-        String levelName = memberLevelCache.get(levelIdLong);
+        String levelName = memberLevelCache.get(levelId);
         
         // 如果缓存中没有，尝试重新加载缓存（可能等级被删除了）
         if (levelName == null) {
             refreshMemberLevelCache();
-            levelName = memberLevelCache.get(levelIdLong);
+            levelName = memberLevelCache.get(levelId);
         }
         
         return levelName;

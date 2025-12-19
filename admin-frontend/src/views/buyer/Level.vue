@@ -305,7 +305,14 @@ const handleDelete = async (row: MemberLevelVO) => {
     loadLevelList()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error(error.message || '删除失败')
+      // 如果错误信息包含"无法删除"，说明有用户使用了该等级
+      const errorMessage = error.message || error.response?.data?.message || '删除失败'
+      if (errorMessage.includes('无法删除') || errorMessage.includes('已被') || errorMessage.includes('使用')) {
+        // 后端错误信息已包含完整提示，直接显示警告
+        ElMessage.warning(errorMessage)
+      } else {
+        ElMessage.error(errorMessage)
+      }
     }
   }
 }

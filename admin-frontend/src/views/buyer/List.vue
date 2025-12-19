@@ -23,8 +23,15 @@
             <el-option label="已禁用" :value="2" />
           </el-select>
         </el-form-item>
-        <el-form-item label="等级">
-          <el-select v-model="searchForm.userLevel" placeholder="请选择等级" clearable style="width: 150px">
+        <el-form-item label="会员类型">
+          <el-select v-model="searchForm.isMember" placeholder="请选择类型" clearable style="width: 150px">
+            <el-option label="全部" :value="undefined" />
+            <el-option label="普通用户" :value="0" />
+            <el-option label="会员" :value="1" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="会员等级">
+          <el-select v-model="searchForm.memberLevelId" placeholder="请选择等级" clearable style="width: 150px">
             <el-option label="全部" :value="undefined" />
             <el-option
               v-for="level in memberLevels"
@@ -51,11 +58,19 @@
             {{ getRegionText(row) }}
           </template>
         </el-table-column>
-        <el-table-column prop="userLevelName" label="等级" width="100">
+        <el-table-column label="会员类型" width="100">
           <template #default="{ row }">
-            <el-tag :type="getLevelTagType(row.userLevel)">
-              {{ row.userLevelName }}
+            <el-tag :type="row.isMember === 1 ? 'success' : 'info'">
+              {{ row.isMember === 1 ? '会员' : '普通用户' }}
             </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="memberLevelName" label="会员等级" width="120">
+          <template #default="{ row }">
+            <el-tag v-if="row.isMember === 1 && row.memberLevelName" :type="getLevelTagType(row.memberLevelId)">
+              {{ row.memberLevelName }}
+            </el-tag>
+            <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column prop="statusName" label="状态" width="100">
@@ -76,7 +91,7 @@
             <el-button type="success" link @click="handleStatusChange(row)">
               {{ row.status === 1 ? '禁用' : '启用' }}
             </el-button>
-            <el-button type="warning" link @click="handleLevelChange(row)">修改等级</el-button>
+            <el-button type="warning" link @click="handleMemberChange(row)">会员设置</el-button>
             <el-button type="danger" link @click="handleResetPassword(row)">重置密码</el-button>
           </template>
         </el-table-column>
@@ -115,10 +130,16 @@
         <el-descriptions-item label="运营人员">
           {{ currentBuyer.operator || '-' }}
         </el-descriptions-item>
-        <el-descriptions-item label="等级">
-          <el-tag :type="getLevelTagType(currentBuyer.userLevel)">
-            {{ currentBuyer.userLevelName }}
+        <el-descriptions-item label="会员类型">
+          <el-tag :type="currentBuyer.isMember === 1 ? 'success' : 'info'">
+            {{ currentBuyer.isMember === 1 ? '会员' : '普通用户' }}
           </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="会员等级">
+          <el-tag v-if="currentBuyer.isMember === 1 && currentBuyer.memberLevelName" :type="getLevelTagType(currentBuyer.memberLevelId)">
+            {{ currentBuyer.memberLevelName }}
+          </el-tag>
+          <span v-else>-</span>
         </el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusTagType(currentBuyer.status)">
@@ -147,16 +168,25 @@
       </el-descriptions>
     </el-dialog>
 
-    <!-- 修改等级对话框 -->
-    <el-dialog v-model="levelDialogVisible" title="修改等级" width="400px">
-      <el-form :model="levelForm" label-width="100px">
-        <el-form-item label="当前等级">
-          <el-tag :type="getLevelTagType(currentBuyer?.userLevel)">
-            {{ currentBuyer?.userLevelName }}
+    <!-- 会员设置对话框 -->
+    <el-dialog v-model="levelDialogVisible" title="会员设置" width="400px">
+      <el-form :model="memberForm" label-width="100px">
+        <el-form-item label="当前状态">
+          <el-tag :type="currentBuyer?.isMember === 1 ? 'success' : 'info'">
+            {{ currentBuyer?.isMember === 1 ? '会员' : '普通用户' }}
           </el-tag>
+          <span v-if="currentBuyer?.isMember === 1 && currentBuyer?.memberLevelName" style="margin-left: 10px">
+            ({{ currentBuyer.memberLevelName }})
+          </span>
         </el-form-item>
-        <el-form-item label="新等级">
-          <el-select v-model="levelForm.userLevel" placeholder="请选择等级" style="width: 100%">
+        <el-form-item label="会员类型">
+          <el-radio-group v-model="memberForm.isMember">
+            <el-radio :label="0">普通用户</el-radio>
+            <el-radio :label="1">会员</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item v-if="memberForm.isMember === 1" label="会员等级">
+          <el-select v-model="memberForm.memberLevelId" placeholder="请选择等级" style="width: 100%">
             <el-option
               v-for="level in memberLevels"
               :key="level.id"
@@ -168,7 +198,7 @@
       </el-form>
       <template #footer>
         <el-button @click="levelDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleLevelSubmit">确定</el-button>
+        <el-button type="primary" @click="handleMemberSubmit">确定</el-button>
       </template>
     </el-dialog>
 
@@ -230,7 +260,7 @@
 import { ref, reactive, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { getBuyerList, getBuyerById, updateBuyerStatus, updateBuyerLevel, resetBuyerPassword } from '@/api/admin/buyer'
+import { getBuyerList, getBuyerById, updateBuyerStatus, updateBuyerMemberInfo, resetBuyerPassword } from '@/api/admin/buyer'
 import type { BuyerVO } from '@/api/admin/buyer'
 import { getAllEnabledMemberLevels } from '@/api/admin/memberLevel'
 import type { MemberLevelVO } from '@/api/admin/memberLevel'
@@ -243,7 +273,8 @@ const searchForm = reactive({
   username: '',
   phone: '',
   status: undefined as number | undefined,
-  userLevel: undefined as number | undefined
+  isMember: undefined as number | undefined,
+  memberLevelId: undefined as number | undefined
 })
 
 const pagination = reactive({
@@ -258,8 +289,9 @@ const resetPasswordDialogVisible = ref(false)
 const currentBuyer = ref<BuyerVO | null>(null)
 const resettingPassword = ref(false)
 
-const levelForm = reactive({
-  userLevel: 0
+const memberForm = reactive({
+  isMember: 0,
+  memberLevelId: undefined as number | undefined
 })
 
 const resetPasswordFormRef = ref<FormInstance>()
@@ -324,7 +356,8 @@ const loadBuyerList = async () => {
       username: searchForm.username || undefined,
       phone: searchForm.phone || undefined,
       status: searchForm.status,
-      userLevel: searchForm.userLevel
+      isMember: searchForm.isMember,
+      memberLevelId: searchForm.memberLevelId
     })
     buyerList.value = response.records || []
     pagination.total = response.total || 0
@@ -346,7 +379,8 @@ const handleReset = () => {
   searchForm.username = ''
   searchForm.phone = ''
   searchForm.status = undefined
-  searchForm.userLevel = undefined
+  searchForm.isMember = undefined
+  searchForm.memberLevelId = undefined
   handleSearch()
 }
 
@@ -379,25 +413,32 @@ const handleStatusChange = async (row: BuyerVO) => {
   }
 }
 
-// 修改等级
-const handleLevelChange = (row: BuyerVO) => {
+// 会员设置
+const handleMemberChange = (row: BuyerVO) => {
   currentBuyer.value = row
-  // 如果当前等级不在可用等级列表中，使用第一个可用等级
-  if (row.userLevel && memberLevels.value.some(level => level.id === row.userLevel)) {
-    levelForm.userLevel = row.userLevel
-  } else if (memberLevels.value.length > 0) {
-    levelForm.userLevel = memberLevels.value[0].id
+  memberForm.isMember = row.isMember ?? 0
+  // 如果是会员且有等级，设置等级；否则设置为第一个可用等级
+  if (row.isMember === 1) {
+    if (row.memberLevelId && memberLevels.value.some(level => level.id === row.memberLevelId)) {
+      memberForm.memberLevelId = row.memberLevelId
+    } else if (memberLevels.value.length > 0) {
+      memberForm.memberLevelId = memberLevels.value[0].id
+    } else {
+      memberForm.memberLevelId = undefined
+    }
   } else {
-    levelForm.userLevel = 0
+    memberForm.memberLevelId = undefined
   }
   levelDialogVisible.value = true
 }
 
-// 提交等级修改
-const handleLevelSubmit = async () => {
+// 提交会员设置
+const handleMemberSubmit = async () => {
   if (!currentBuyer.value) return
   try {
-    await updateBuyerLevel(currentBuyer.value.id, levelForm.userLevel)
+    // 如果是普通用户，清空等级
+    const memberLevelId = memberForm.isMember === 1 ? memberForm.memberLevelId : undefined
+    await updateBuyerMemberInfo(currentBuyer.value.id, memberForm.isMember, memberLevelId)
     ElMessage.success('修改成功')
     levelDialogVisible.value = false
     loadBuyerList()
