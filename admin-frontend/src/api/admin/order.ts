@@ -8,6 +8,8 @@ import request from '@/utils/request'
 export interface OrderListVO {
   id: number
   orderNo: string
+  buyerName?: string
+  buyerUsername?: string
   recipientName: string
   recipientAddress: string
   description: string
@@ -28,6 +30,8 @@ export interface OrderDetailVO {
   id: number
   orderNo: string
   originalOrderNo?: string
+  buyerName?: string
+  buyerUsername?: string
   orderDate: string
   status: number
   statusText: string
@@ -40,6 +44,8 @@ export interface OrderDetailVO {
     quantity: number
     subtotal: number
     specCombination?: string
+    refundedQuantity?: number
+    availableRefundQuantity?: number
   }>
   recipientInfo: {
     name: string
@@ -69,6 +75,8 @@ export interface OrderDetailVO {
 export interface OrderQueryDTO {
   orderNo?: string
   recipientName?: string
+  buyerName?: string
+  buyerUsername?: string
   orderStatus?: number
   startDate?: string
   endDate?: string
@@ -123,6 +131,99 @@ export const addOrderRemark = (orderNo: string, remark: string): Promise<void> =
  */
 export const cancelOrder = (orderNo: string): Promise<void> => {
   return request.put(`/api/admin/orders/${orderNo}/cancel`)
+}
+
+/**
+ * 订单退款申请DTO
+ */
+export interface OrderRefundRequestDTO {
+  orderNo: string
+  refundReason: string
+  refundItems: Array<{
+    orderItemId: number
+    refundQuantity: number
+  }>
+}
+
+/**
+ * 订单退款VO
+ */
+export interface OrderRefundVO {
+  id: number
+  refundNo: string
+  orderId: number
+  orderNo: string
+  userId: number
+  refundAmount: number
+  refundReason: string
+  refundStatus: number
+  refundStatusText: string
+  refundType: number
+  refundTypeText: string
+  operatorId?: number
+  operatorName?: string
+  operatorTime?: string
+  operatorRemark?: string
+  refundTime?: string
+  refundPaymentMethod?: string
+  refundPaymentNo?: string
+  createTime: string
+  refundItems: Array<{
+    id: number
+    orderItemId: number
+    productId: number
+    productName: string
+    productCode: string
+    skuId?: number
+    specCombination?: string
+    refundQuantity: number
+    refundPrice: number
+    refundSubtotal: number
+  }>
+}
+
+/**
+ * 订单退款（管理员）
+ */
+export const refundOrder = (orderNo: string, refundDTO: OrderRefundRequestDTO): Promise<string> => {
+  return request.post(`/api/admin/orders/${orderNo}/refund`, refundDTO)
+}
+
+/**
+ * 获取订单的退款列表
+ */
+export const getOrderRefundList = (orderNo: string): Promise<OrderRefundVO[]> => {
+  return request.get(`/api/admin/orders/${orderNo}/refunds`)
+}
+
+/**
+ * 退款记录查询DTO
+ */
+export interface OrderRefundQueryDTO {
+  refundNo?: string
+  orderNo?: string
+  userId?: number
+  refundStatus?: number
+  refundType?: number
+  operatorId?: number
+  startDate?: string
+  endDate?: string
+  pageNum?: number
+  pageSize?: number
+}
+
+/**
+ * 查询退款记录列表（分页）
+ */
+export const getRefundList = (params: OrderRefundQueryDTO): Promise<any> => {
+  return request.get('/api/admin/orders/refunds', { params })
+}
+
+/**
+ * 获取退款记录详情
+ */
+export const getRefundDetail = (refundId: number): Promise<OrderRefundVO> => {
+  return request.get(`/api/admin/orders/refunds/${refundId}`)
 }
 
 

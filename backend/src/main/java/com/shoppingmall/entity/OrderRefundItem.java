@@ -7,14 +7,14 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 订单商品实体类
+ * 订单退款明细实体类
  *
  * @author ShoppingMall Team
- * @date 2025-12-09
+ * @date 2025-12-19
  */
 @Data
-@TableName("order_item")
-public class OrderItem {
+@TableName("order_refund_item")
+public class OrderRefundItem {
 
     /**
      * 主键ID
@@ -23,9 +23,14 @@ public class OrderItem {
     private Long id;
 
     /**
-     * 订单ID
+     * 退款申请ID
      */
-    private Long orderId;
+    private Long refundId;
+
+    /**
+     * 订单商品ID
+     */
+    private Long orderItemId;
 
     /**
      * 商品ID
@@ -36,11 +41,6 @@ public class OrderItem {
      * 商品名称（快照）
      */
     private String productName;
-
-    /**
-     * 商品图片（快照）
-     */
-    private String productImage;
 
     /**
      * 商品编码（快照）
@@ -58,29 +58,19 @@ public class OrderItem {
     private String specCombination;
 
     /**
-     * 单价（快照）
+     * 退款数量
      */
-    private BigDecimal price;
+    private Integer refundQuantity;
 
     /**
-     * 数量
+     * 退款单价（快照）
      */
-    private Integer quantity;
+    private BigDecimal refundPrice;
 
     /**
-     * 已退款数量
+     * 退款小计
      */
-    private Integer refundedQuantity;
-
-    /**
-     * 小计金额
-     */
-    private BigDecimal subtotal;
-
-    /**
-     * 商品重量（kg）
-     */
-    private BigDecimal weight;
+    private BigDecimal refundSubtotal;
 
     /**
      * 创建时间
@@ -88,38 +78,3 @@ public class OrderItem {
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

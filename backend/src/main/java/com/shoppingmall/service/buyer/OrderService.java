@@ -75,6 +75,15 @@ public interface OrderService {
      * @return 订单统计信息
      */
     OrderStatisticsVO getOrderStatistics(Long userId);
+
+    /**
+     * 获取订单的退款列表
+     *
+     * @param orderNo 订单号
+     * @param userId  用户ID
+     * @return 退款列表
+     */
+    java.util.List<com.shoppingmall.vo.OrderRefundVO> getOrderRefundList(String orderNo, Long userId);
 }
 
 

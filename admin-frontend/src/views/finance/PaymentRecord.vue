@@ -118,17 +118,9 @@
             {{ formatDateTime(row.createTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleView(row)">查看详情</el-button>
-            <el-button
-              v-if="row.paymentStatus === 2 && row.refundableAmount > 0"
-              type="danger"
-              size="small"
-              @click="handleRefund(row)"
-            >
-              退款
-            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -146,46 +138,6 @@
         />
       </div>
     </el-card>
-
-    <!-- 退款对话框 -->
-    <el-dialog v-model="refundDialogVisible" title="退款" width="500px" @close="handleRefundDialogClose">
-      <el-form :model="refundForm" :rules="refundRules" ref="refundFormRef" label-width="100px">
-        <el-form-item label="支付金额">
-          <span>¥{{ currentRecord?.amount.toFixed(2) }}</span>
-        </el-form-item>
-        <el-form-item label="已退款金额">
-          <span>¥{{ (currentRecord?.refundedAmount || 0).toFixed(2) }}</span>
-        </el-form-item>
-        <el-form-item label="可退款金额">
-          <span style="color: #67c23a; font-weight: bold">¥{{ currentRecord?.refundableAmount.toFixed(2) }}</span>
-        </el-form-item>
-        <el-form-item label="退款金额" prop="refundAmount">
-          <el-input-number
-            v-model="refundForm.refundAmount"
-            :min="0.01"
-            :max="currentRecord?.refundableAmount || 0"
-            :precision="2"
-            :step="0.01"
-            placeholder="请输入退款金额"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="退款原因" prop="refundReason">
-          <el-input
-            v-model="refundForm.refundReason"
-            type="textarea"
-            :rows="4"
-            placeholder="请输入退款原因"
-            maxlength="500"
-            show-word-limit
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="refundDialogVisible = false">取消</el-button>
-        <el-button type="danger" @click="handleConfirmRefund" :loading="refundLoading">确认退款</el-button>
-      </template>
-    </el-dialog>
 
     <!-- 详情对话框 -->
     <el-dialog v-model="detailDialogVisible" title="支付记录详情" width="700px">
@@ -228,10 +180,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
   getPaymentRecordList,
-  refundPaymentRecord,
   getPaymentRecordById,
   type PaymentRecordVO,
   type PaymentRecordQueryDTO
@@ -262,34 +213,6 @@ const pagination = reactive({
 
 // 当前记录
 const currentRecord = ref<PaymentRecordVO | null>(null)
-
-// 退款对话框
-const refundDialogVisible = ref(false)
-const refundLoading = ref(false)
-const refundFormRef = ref()
-const refundForm = reactive({
-  refundAmount: 0,
-  refundReason: ''
-})
-
-const refundRules = {
-  refundAmount: [
-    { required: true, message: '请输入退款金额', trigger: 'blur' },
-    {
-      validator: (rule: any, value: number, callback: any) => {
-        if (value <= 0) {
-          callback(new Error('退款金额必须大于0'))
-        } else if (currentRecord.value && value > currentRecord.value.refundableAmount) {
-          callback(new Error(`退款金额不能超过可退款金额：¥${currentRecord.value.refundableAmount.toFixed(2)}`))
-        } else {
-          callback()
-        }
-      },
-      trigger: 'blur'
-    }
-  ],
-  refundReason: [{ required: true, message: '请输入退款原因', trigger: 'blur' }]
-}
 
 // 详情对话框
 const detailDialogVisible = ref(false)
@@ -355,59 +278,6 @@ const handleView = async (row: PaymentRecordVO) => {
   } catch (error: any) {
     ElMessage.error(error.message || '获取详情失败')
   }
-}
-
-// 退款
-const handleRefund = (row: PaymentRecordVO) => {
-  currentRecord.value = row
-  refundForm.refundAmount = 0
-  refundForm.refundReason = ''
-  refundDialogVisible.value = true
-}
-
-// 确认退款
-const handleConfirmRefund = async () => {
-  if (!refundFormRef.value) return
-
-  await refundFormRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
-
-    // 二次确认
-    try {
-      await ElMessageBox.confirm(
-        `确认退款 ¥${refundForm.refundAmount.toFixed(2)} 吗？此操作不可撤销！`,
-        '退款确认',
-        {
-          confirmButtonText: '确认退款',
-          cancelButtonText: '取消',
-          type: 'warning'
-        }
-      )
-
-      refundLoading.value = true
-      try {
-        await refundPaymentRecord({
-          paymentRecordId: currentRecord.value!.id,
-          refundAmount: refundForm.refundAmount,
-          refundReason: refundForm.refundReason
-        })
-        ElMessage.success('退款成功')
-        refundDialogVisible.value = false
-        loadData()
-      } catch (error: any) {
-        ElMessage.error(error.message || '退款失败')
-      } finally {
-        refundLoading.value = false
-      }
-    } catch {
-      // 用户取消
-    }
-  })
-}
-
-// 关闭退款对话框
-const handleRefundDialogClose = () => {
-  refundFormRef.value?.resetFields()
 }
 
 // 获取状态标签类型

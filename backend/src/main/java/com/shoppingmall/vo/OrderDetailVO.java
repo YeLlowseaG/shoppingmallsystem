@@ -32,6 +32,16 @@ public class OrderDetailVO {
     private String originalOrderNo;
 
     /**
+     * 买家姓名（用户真实姓名）
+     */
+    private String buyerName;
+
+    /**
+     * 买家用户名
+     */
+    private String buyerUsername;
+
+    /**
      * 下单日期
      */
     private LocalDateTime orderDate;
@@ -125,6 +135,16 @@ public class OrderDetailVO {
          * 数量
          */
         private Integer quantity;
+
+        /**
+         * 已退款数量
+         */
+        private Integer refundedQuantity;
+
+        /**
+         * 可退款数量（订单数量 - 已退款数量）
+         */
+        private Integer availableRefundQuantity;
 
         /**
          * 小计

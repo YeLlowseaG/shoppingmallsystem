@@ -12,6 +12,12 @@
         <el-form-item label="订单号">
           <el-input v-model="searchForm.orderNo" placeholder="请输入订单号" clearable />
         </el-form-item>
+        <el-form-item label="买家姓名">
+          <el-input v-model="searchForm.buyerName" placeholder="请输入买家姓名" clearable />
+        </el-form-item>
+        <el-form-item label="买家用户名">
+          <el-input v-model="searchForm.buyerUsername" placeholder="请输入买家用户名" clearable />
+        </el-form-item>
         <el-form-item label="收货人">
           <el-input v-model="searchForm.recipientName" placeholder="请输入收货人姓名" clearable />
         </el-form-item>
@@ -74,6 +80,8 @@
             </el-link>
           </template>
         </el-table-column>
+        <el-table-column prop="buyerName" label="买家姓名" width="120" />
+        <el-table-column prop="buyerUsername" label="买家用户名" width="120" />
         <el-table-column prop="recipientName" label="收货人" width="100" />
         <el-table-column prop="description" label="订单描述" min-width="220" show-overflow-tooltip />
         <el-table-column prop="orderDate" label="下单日期" width="170">
@@ -93,7 +101,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="320" fixed="right">
+        <el-table-column label="操作" width="380" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleViewLogistics(row)">物流信息</el-button>
             <el-button
@@ -111,6 +119,14 @@
               @click="handleShip(row)"
             >
               发货
+            </el-button>
+            <el-button
+              v-if="row.status === 1 || row.status === 2 || row.status === 3"
+              type="danger"
+              size="small"
+              @click="handleRefund(row)"
+            >
+              退款
             </el-button>
             <el-button type="info" size="small" @click="handleRemark(row)">备注</el-button>
           </template>
@@ -136,6 +152,8 @@
       <el-descriptions :column="2" border v-if="currentOrder">
         <el-descriptions-item label="订单号">{{ currentOrder.orderNo }}</el-descriptions-item>
         <el-descriptions-item label="下单日期">{{ formatDateTime(currentOrder.orderDate) }}</el-descriptions-item>
+        <el-descriptions-item label="买家姓名">{{ currentOrder.buyerName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="买家用户名">{{ currentOrder.buyerUsername || '-' }}</el-descriptions-item>
         <el-descriptions-item label="订单状态">
           <el-tag :type="getStatusTagType(currentOrder.status)">
             {{ currentOrder.statusText }}
@@ -185,12 +203,32 @@
           </template>
         </el-table-column>
         <el-table-column prop="quantity" label="数量" width="80" />
+        <el-table-column label="已退款/可退款" width="120">
+          <template #default="{ row }">
+            <div v-if="row.refundedQuantity !== undefined && row.availableRefundQuantity !== undefined">
+              <div>已退：{{ row.refundedQuantity || 0 }}</div>
+              <div style="color: #409eff;">可退：{{ row.availableRefundQuantity || 0 }}</div>
+            </div>
+            <div v-else>-</div>
+          </template>
+        </el-table-column>
         <el-table-column prop="subtotal" label="小计" width="120">
           <template #default="{ row }">
             ¥{{ row.subtotal.toFixed(2) }}
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 操作按钮 -->
+      <div style="margin-top: 20px; text-align: right;" v-if="currentOrder">
+        <el-button
+          v-if="currentOrder.status === 1 || currentOrder.status === 2 || currentOrder.status === 3"
+          type="danger"
+          @click="handleRefundFromDetail"
+        >
+          申请退款
+        </el-button>
+      </div>
 
       <!-- 收货人信息 -->
       <el-divider>收货人信息</el-divider>
@@ -244,6 +282,99 @@
       </template>
     </el-dialog>
 
+    <!-- 退款对话框 -->
+    <el-dialog v-model="refundDialogVisible" title="订单退款" width="900px">
+      <div v-if="currentOrder">
+        <el-alert
+          type="info"
+          :closable="false"
+          style="margin-bottom: 20px;"
+        >
+          <div>订单号：{{ currentOrder.orderNo }}</div>
+          <div>订单金额：¥{{ currentOrder.totalProductAmount.toFixed(2) }}（不含运费）</div>
+          <div style="color: #e4393c; margin-top: 5px;">注意：退款金额不包含运费，只退还商品金额</div>
+        </el-alert>
+
+        <el-form :model="refundForm" :rules="refundRules" ref="refundFormRef" label-width="120px">
+          <el-form-item label="退款原因" prop="refundReason">
+            <el-input
+              v-model="refundForm.refundReason"
+              type="textarea"
+              :rows="3"
+              placeholder="请输入退款原因"
+            />
+          </el-form-item>
+        </el-form>
+
+        <el-divider>选择退款商品</el-divider>
+        <el-table 
+          :data="refundItemList" 
+          border 
+          style="margin-top: 20px"
+          @selection-change="handleSelectionChange"
+        >
+          <el-table-column type="selection" width="55" :selectable="checkSelectable" />
+          <el-table-column label="商品编码" prop="productCode" width="120" />
+          <el-table-column label="商品名称" min-width="250">
+            <template #default="{ row }">
+              <div>{{ row.name }}</div>
+              <div v-if="formatSpecText(row.specCombination)" class="sku-spec-text">
+                {{ formatSpecText(row.specCombination) }}
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="单价" width="100">
+            <template #default="{ row }">
+              ¥{{ row.price.toFixed(2) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="订单数量" width="100" align="center">
+            <template #default="{ row }">
+              {{ row.quantity }}
+            </template>
+          </el-table-column>
+          <el-table-column label="已退款" width="80" align="center">
+            <template #default="{ row }">
+              {{ row.refundedQuantity || 0 }}
+            </template>
+          </el-table-column>
+          <el-table-column label="可退款" width="80" align="center">
+            <template #default="{ row }">
+              <span style="color: #409eff;">{{ row.availableRefundQuantity || 0 }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="退款数量" width="150">
+            <template #default="{ row }">
+              <el-input-number
+                v-model="row.refundQuantity"
+                :min="1"
+                :max="row.availableRefundQuantity || 0"
+                :disabled="!row.selected"
+                size="small"
+                style="width: 100%"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column label="退款小计" width="120">
+            <template #default="{ row }">
+              <span v-if="row.selected && row.refundQuantity">
+                ¥{{ (row.price * row.refundQuantity).toFixed(2) }}
+              </span>
+              <span v-else style="color: #ccc;">-</span>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div style="margin-top: 20px; text-align: right; font-size: 16px; font-weight: bold; color: #e4393c;">
+          退款总金额：¥{{ totalRefundAmount.toFixed(2) }}
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="refundDialogVisible = false">取消</el-button>
+        <el-button type="danger" @click="handleRefundSubmit" :disabled="totalRefundAmount <= 0">确认退款</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 物流信息对话框 -->
     <el-dialog v-model="logisticsDialogVisible" title="物流信息" width="600px">
       <div v-if="currentLogisticsOrder">
@@ -292,15 +423,18 @@ import {
   getOrderDetail,
   cancelOrder,
   shipOrder,
-  addOrderRemark
+  addOrderRemark,
+  refundOrder
 } from '@/api/admin/order'
-import type { OrderListVO, OrderDetailVO } from '@/api/admin/order'
+import type { OrderListVO, OrderDetailVO, OrderRefundRequestDTO } from '@/api/admin/order'
 
 const loading = ref(false)
 const orderList = ref<OrderListVO[]>([])
 
 const searchForm = reactive({
   orderNo: '',
+  buyerName: '',
+  buyerUsername: '',
   recipientName: '',
   orderStatus: undefined as number | undefined,
   startDate: '',
@@ -317,8 +451,10 @@ const detailDialogVisible = ref(false)
 const shipDialogVisible = ref(false)
 const remarkDialogVisible = ref(false)
 const logisticsDialogVisible = ref(false)
+const refundDialogVisible = ref(false)
 const currentOrder = ref<OrderDetailVO | null>(null)
 const currentLogisticsOrder = ref<OrderListVO | null>(null)
+const currentRefundOrder = ref<OrderListVO | null>(null)
 
 const shipForm = reactive({
   logisticsCompany: '',
@@ -329,8 +465,30 @@ const remarkForm = reactive({
   remark: ''
 })
 
+const refundForm = reactive({
+  refundReason: ''
+})
+
+const refundItemList = ref<Array<{
+  id: number
+  productCode: string
+  name: string
+  specCombination?: string
+  price: number
+  quantity: number
+  refundedQuantity?: number
+  availableRefundQuantity?: number
+  selected: boolean
+  refundQuantity: number
+}>>([])
+
 const shipFormRef = ref<FormInstance>()
 const remarkFormRef = ref<FormInstance>()
+const refundFormRef = ref<FormInstance>()
+
+const refundRules: FormRules = {
+  refundReason: [{ required: true, message: '请输入退款原因', trigger: 'blur' }]
+}
 
 const shipRules: FormRules = {
   logisticsCompany: [{ required: true, message: '请输入物流公司', trigger: 'blur' }],
@@ -360,6 +518,8 @@ const loadOrderList = async () => {
       pageNum: pagination.page,
       pageSize: pagination.pageSize,
       orderNo: searchForm.orderNo || undefined,
+      buyerName: searchForm.buyerName || undefined,
+      buyerUsername: searchForm.buyerUsername || undefined,
       recipientName: searchForm.recipientName || undefined,
       orderStatus: searchForm.orderStatus,
       startDate: searchForm.startDate || undefined,
@@ -400,6 +560,8 @@ const handleSearch = () => {
 // 重置
 const handleReset = () => {
   searchForm.orderNo = ''
+  searchForm.buyerName = ''
+  searchForm.buyerUsername = ''
   searchForm.recipientName = ''
   searchForm.orderStatus = undefined
   searchForm.startDate = ''
@@ -504,6 +666,131 @@ const handleRemarkSubmit = async () => {
   } catch (error: any) {
     ElMessage.error(error.message || '操作失败')
   }
+}
+
+// 退款（从列表）
+const handleRefund = async (row: OrderListVO) => {
+  try {
+    const order = await getOrderDetail(row.orderNo)
+    currentRefundOrder.value = row
+    currentOrder.value = order
+    initRefundDialog(order)
+    refundDialogVisible.value = true
+  } catch (error: any) {
+    ElMessage.error(error.message || '加载失败')
+  }
+}
+
+// 退款（从详情对话框）
+const handleRefundFromDetail = async () => {
+  if (!currentOrder.value) return
+  initRefundDialog(currentOrder.value)
+  refundDialogVisible.value = true
+}
+
+// 初始化退款对话框
+const initRefundDialog = (order: OrderDetailVO) => {
+  refundForm.refundReason = ''
+  refundItemList.value = (order.items || []).map(item => ({
+    id: item.id,
+    productCode: item.productCode,
+    name: item.name,
+    specCombination: item.specCombination,
+    price: item.price,
+    quantity: item.quantity,
+    refundedQuantity: item.refundedQuantity || 0,
+    availableRefundQuantity: item.availableRefundQuantity || 0,
+    selected: false,
+    refundQuantity: 0
+  }))
+}
+
+// 检查商品是否可选（可退款数量>0）
+const checkSelectable = (row: any) => {
+  return (row.availableRefundQuantity || 0) > 0
+}
+
+// 计算总退款金额
+const totalRefundAmount = computed(() => {
+  return refundItemList.value
+    .filter(item => item.selected && item.refundQuantity > 0)
+    .reduce((sum, item) => sum + (item.price * item.refundQuantity), 0)
+})
+
+// 监听表格选择变化
+const handleSelectionChange = (selection: any[]) => {
+  refundItemList.value.forEach(item => {
+    item.selected = selection.some(sel => sel.id === item.id)
+    if (!item.selected) {
+      item.refundQuantity = 0
+    } else if (item.refundQuantity === 0) {
+      // 默认设置为可退款数量
+      item.refundQuantity = item.availableRefundQuantity || 0
+    }
+  })
+}
+
+// 提交退款
+const handleRefundSubmit = async () => {
+  if (!refundFormRef.value || !currentOrder.value) return
+
+  await refundFormRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    // 检查是否选择了退款商品
+    const selectedItems = refundItemList.value.filter(item => item.selected && item.refundQuantity > 0)
+    if (selectedItems.length === 0) {
+      ElMessage.warning('请选择要退款的商品并设置退款数量')
+      return
+    }
+
+    // 验证退款数量
+    for (const item of selectedItems) {
+      if (item.refundQuantity <= 0) {
+        ElMessage.warning(`商品【${item.name}】的退款数量必须大于0`)
+        return
+      }
+      if (item.refundQuantity > (item.availableRefundQuantity || 0)) {
+        ElMessage.warning(`商品【${item.name}】的退款数量不能超过可退款数量`)
+        return
+      }
+    }
+
+    try {
+      const refundDTO: OrderRefundRequestDTO = {
+        orderNo: currentOrder.value.orderNo,
+        refundReason: refundForm.refundReason,
+        refundItems: selectedItems.map(item => ({
+          orderItemId: item.id,
+          refundQuantity: item.refundQuantity
+        }))
+      }
+
+      await ElMessageBox.confirm(
+        `确定要退款吗？退款金额：¥${totalRefundAmount.value.toFixed(2)}（不含运费）`,
+        '确认退款',
+        {
+          type: 'warning',
+          confirmButtonText: '确定退款',
+          cancelButtonText: '取消'
+        }
+      )
+
+      const refundNo = await refundOrder(currentOrder.value.orderNo, refundDTO)
+      ElMessage.success(`退款成功，退款单号：${refundNo}`)
+      refundDialogVisible.value = false
+      loadOrderList()
+      // 如果详情对话框打开，重新加载订单详情
+      if (detailDialogVisible.value && currentOrder.value) {
+        const order = await getOrderDetail(currentOrder.value.orderNo)
+        currentOrder.value = order
+      }
+    } catch (error: any) {
+      if (error !== 'cancel') {
+        ElMessage.error(error.message || '退款失败')
+      }
+    }
+  })
 }
 
 // 分页

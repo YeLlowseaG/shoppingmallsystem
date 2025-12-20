@@ -25,6 +25,16 @@ public class OrderListVO {
     private String orderNo;
 
     /**
+     * 买家姓名（用户真实姓名）
+     */
+    private String buyerName;
+
+    /**
+     * 买家用户名
+     */
+    private String buyerUsername;
+
+    /**
      * 收货人姓名
      */
     private String recipientName;

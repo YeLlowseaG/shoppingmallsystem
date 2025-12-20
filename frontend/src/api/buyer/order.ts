@@ -189,3 +189,52 @@ export const getOrderStatistics = (): Promise<OrderStatisticsVO> => {
   return request.get('/api/buyer/orders/statistics')
 }
 
+/**
+ * 订单退款明细VO
+ */
+export interface OrderRefundItemVO {
+  id: number
+  orderItemId: number
+  productId: number
+  productName: string
+  productCode: string
+  skuId?: number
+  specCombination?: string
+  refundQuantity: number
+  refundPrice: number
+  refundSubtotal: number
+}
+
+/**
+ * 订单退款VO
+ */
+export interface OrderRefundVO {
+  id: number
+  refundNo: string
+  orderId: number
+  orderNo: string
+  userId: number
+  refundAmount: number
+  refundReason?: string
+  refundStatus: number
+  refundStatusText: string
+  refundType: number
+  refundTypeText: string
+  operatorId?: number
+  operatorName?: string
+  operatorTime?: string
+  operatorRemark?: string
+  refundTime?: string
+  refundPaymentMethod?: string
+  refundPaymentNo?: string
+  createTime: string
+  refundItems: OrderRefundItemVO[]
+}
+
+/**
+ * 获取订单的退款列表
+ */
+export const getOrderRefundList = (orderNo: string): Promise<OrderRefundVO[]> => {
+  return request.get(`/api/buyer/orders/${orderNo}/refunds`)
+}
+

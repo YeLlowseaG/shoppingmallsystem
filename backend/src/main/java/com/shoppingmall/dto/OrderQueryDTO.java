@@ -24,6 +24,16 @@ public class OrderQueryDTO {
     private String recipientName;
 
     /**
+     * 买家姓名（用户真实姓名）
+     */
+    private String buyerName;
+
+    /**
+     * 买家用户名
+     */
+    private String buyerUsername;
+
+    /**
      * 订单状态（前端传入字符串：pending_payment, paid_not_shipped, shipped, completed, cancelled, refunded, returned）
      * 后端会自动转换为数字状态
      */

@@ -1,5 +1,528 @@
 # 修改日志
 
+## 2025-12-20 - 修复订单退款记录菜单SQL脚本错误
+
+### 修改原因
+SQL脚本执行报错：`You can't specify target table 'sys_menu' for update in FROM clause`。同时需要指定固定的菜单ID（58）和父菜单ID（3）。
+
+### 修改内容
+- `database/update-20251220-add-order-refund-menu.sql`
+  - 使用固定的菜单ID：58
+  - 使用固定的父菜单ID：3（订单管理）
+  - 先查询最大sort_order值到变量 `@max_sort_order`
+  - 在INSERT语句中使用变量而不是子查询
+  - 添加 `deleted` 字段（逻辑删除）
+  - 添加角色权限分配（超级管理员、运营人员、客服人员）
+
+### 修改原因
+SQL脚本执行报错：`You can't specify target table 'sys_menu' for update in FROM clause`。这是因为在INSERT语句的VALUES子句中使用了子查询，而ON DUPLICATE KEY UPDATE中又引用了同一个表。
+
+### 修改内容
+- `database/update-20251220-add-order-refund-menu.sql`
+  - 先查询最大sort_order值到变量 `@max_sort_order`
+  - 在INSERT语句的VALUES中使用变量而不是子查询
+  - 避免在ON DUPLICATE KEY UPDATE中引用同一表的子查询
+
+## 2025-12-20 - 订单列表增加买家姓名和买家用户名字段
+
+### 修改原因
+需要在订单管理列表、查询和详情页面中显示买家姓名和买家用户名，方便管理员识别订单的买家信息。
+
+### 修改内容
+
+#### 1. 后端代码修改
+
+**VO：**
+- `backend/src/main/java/com/shoppingmall/vo/OrderListVO.java`
+  - 添加 `buyerName` 字段（买家姓名，用户真实姓名）
+  - 添加 `buyerUsername` 字段（买家用户名）
+
+- `backend/src/main/java/com/shoppingmall/vo/OrderDetailVO.java`
+  - 添加 `buyerName` 字段（买家姓名，用户真实姓名）
+  - 添加 `buyerUsername` 字段（买家用户名）
+
+**DTO：**
+- `backend/src/main/java/com/shoppingmall/dto/OrderQueryDTO.java`
+  - 添加 `buyerName` 字段（支持按买家姓名查询）
+  - 添加 `buyerUsername` 字段（支持按买家用户名查询）
+
+**Service：**
+- `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java`
+  - 添加 `UserRepository` 依赖
+  - 在 `convertToListVO` 方法中：
+    - 根据订单的 `userId` 查询用户信息
+    - 设置 `buyerName`（用户真实姓名）和 `buyerUsername`（用户名）
+    - 如果用户不存在，设置为"未知"
+  - 在 `convertToDetailVO` 方法中：
+    - 同样查询并设置买家信息
+  - 在 `getOrderList` 方法中：
+    - 支持按买家姓名和买家用户名进行内存过滤查询
+    - 与收货人姓名查询逻辑合并，统一处理
+
+#### 2. 前端代码修改
+
+**API：**
+- `admin-frontend/src/api/admin/order.ts`
+  - `OrderListVO` 接口：添加 `buyerName` 和 `buyerUsername` 字段
+  - `OrderDetailVO` 接口：添加 `buyerName` 和 `buyerUsername` 字段
+  - `OrderQueryDTO` 接口：添加 `buyerName` 和 `buyerUsername` 字段
+
+**页面：**
+- `admin-frontend/src/views/order/List.vue`
+  - 搜索表单：
+    - 添加"买家姓名"输入框
+    - 添加"买家用户名"输入框
+  - 订单列表表格：
+    - 在订单号列后添加"买家姓名"列
+    - 在买家姓名列后添加"买家用户名"列
+  - 订单详情对话框：
+    - 在订单号后添加"买家姓名"和"买家用户名"显示项
+  - 搜索和重置方法：
+    - 更新搜索参数，包含买家姓名和买家用户名
+    - 重置时清空这两个字段
+
+### 功能特性
+- ✅ 订单列表显示买家姓名和买家用户名
+- ✅ 订单详情显示买家姓名和买家用户名
+- ✅ 支持按买家姓名查询订单
+- ✅ 支持按买家用户名查询订单
+- ✅ 支持组合查询（订单号、买家姓名、买家用户名、收货人等）
+
+## 2025-12-20 - 订单退款记录查询功能
+
+### 修改原因
+需要在订单管理菜单下增加一个订单退款记录页面，可以查询订单退款记录和退款明细的内容。
+
+### 修改内容
+
+#### 1. 后端代码修改
+
+**DTO：**
+- `backend/src/main/java/com/shoppingmall/dto/OrderRefundQueryDTO.java` - 退款记录查询DTO（新建）
+  - 支持按退款单号、订单号、用户ID、退款状态、退款类型、操作人ID、日期范围等条件查询
+  - 支持分页查询
+
+**Service：**
+- `backend/src/main/java/com/shoppingmall/service/admin/OrderService.java`
+  - 添加 `getRefundList` 方法：查询退款记录列表（分页）
+  - 添加 `getRefundDetail` 方法：获取退款记录详情
+
+- `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java`
+  - 实现 `getRefundList` 方法：
+    - 支持多条件查询（退款单号、订单号、用户ID、退款状态、退款类型、操作人ID、日期范围）
+    - 支持分页查询
+    - 按创建时间倒序排列
+    - 转换为VO返回
+  - 实现 `getRefundDetail` 方法：
+    - 根据退款ID查询退款记录详情
+    - 包含退款明细信息
+
+**Controller：**
+- `backend/src/main/java/com/shoppingmall/controller/admin/OrderController.java`
+  - 添加 `getRefundList` 接口：`GET /api/admin/orders/refunds`（查询退款记录列表）
+  - 添加 `getRefundDetail` 接口：`GET /api/admin/orders/refunds/{refundId}`（获取退款记录详情）
+
+#### 2. 前端代码修改
+
+**API：**
+- `admin-frontend/src/api/admin/order.ts`
+  - 添加 `OrderRefundQueryDTO` 接口定义
+  - 添加 `getRefundList` 方法：查询退款记录列表
+  - 添加 `getRefundDetail` 方法：获取退款记录详情
+
+**页面：**
+- `admin-frontend/src/views/order/RefundList.vue` - 订单退款记录列表页面（新建）
+  - 搜索表单：退款单号、订单号、退款状态、退款类型、日期范围
+  - 退款记录列表表格：显示退款单号、订单号、退款金额、退款类型、退款状态、操作人、操作时间等
+  - 分页组件
+  - 详情对话框：显示退款记录详细信息和退款明细表格
+
+**路由：**
+- `admin-frontend/src/router/componentMaps/order.ts`
+  - 添加 `'order/RefundList'` 组件映射
+
+**数据库：**
+- `database/update-20251220-add-order-refund-menu.sql` - 菜单SQL脚本（新建）
+  - 在订单管理菜单下添加"订单退款记录"子菜单
+  - 菜单路径：`order/RefundList`
+  - 组件：`order/RefundList`
+  - 权限标识：`admin:order:refund:list`
+
+### 功能特性
+- ✅ 支持多条件查询退款记录
+- ✅ 支持分页查询
+- ✅ 显示退款记录详细信息和退款明细
+- ✅ 支持查看退款记录详情
+- ✅ 状态标签显示（退款中、退款成功、退款失败）
+
+### 使用说明
+1. 执行 `database/update-20251220-add-order-refund-menu.sql` 脚本添加菜单
+2. 刷新管理后台页面，在订单管理菜单下可以看到"订单退款记录"菜单项
+3. 点击菜单项进入退款记录列表页面
+4. 可以通过搜索条件查询退款记录
+5. 点击退款单号或"查看详情"按钮查看退款记录详情和明细
+
+## 2025-12-20 - 用户端订单详情页面添加退款记录展示
+
+### 功能说明
+在用户端订单详情页面添加退款记录展示区域，用户可以查看订单的部分退款或全额退款记录信息，包括退款明细、退款金额、退款状态等。
+
+### 修改原因
+- 用户端订单详情页面缺少退款记录信息展示
+- 用户需要了解订单的退款情况，包括退款金额、退款状态、退款明细等
+- 参考管理后台的退款记录详情页面设计，提供用户友好的退款信息展示
+
+### 修改内容
+
+#### 1. 后端代码修改
+
+**Service接口：**
+- `backend/src/main/java/com/shoppingmall/service/buyer/OrderService.java`
+  - 添加 `getOrderRefundList` 方法：获取订单的退款列表
+
+**Service实现：**
+- `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java`
+  - 添加 `OrderRefundRepository` 和 `OrderRefundItemRepository` 依赖
+  - 实现 `getOrderRefundList` 方法：验证订单属于当前用户，查询退款记录
+  - 实现 `convertRefundToVO` 方法：将退款实体转换为VO
+  - 实现 `getRefundStatusText` 方法：获取退款状态文本
+  - 实现 `getRefundTypeText` 方法：获取退款类型文本
+
+**Controller：**
+- `backend/src/main/java/com/shoppingmall/controller/buyer/OrderController.java`
+  - 添加 `getOrderRefundList` 接口：`GET /api/buyer/orders/{orderNo}/refunds`
+
+#### 2. 前端代码修改
+
+**API：**
+- `frontend/src/api/buyer/order.ts`
+  - 添加 `OrderRefundVO` 接口定义
+  - 添加 `OrderRefundItemVO` 接口定义
+  - 添加 `getOrderRefundList` 方法：获取订单退款列表
+
+**订单详情页面：**
+- `frontend/src/views/order/Detail.vue`
+  - 添加退款记录展示区域（仅在存在退款记录时显示）
+  - 显示退款单号、退款金额、退款类型、退款状态、退款时间、退款原因
+  - 显示退款明细表格（商品编码、商品名称、退款数量、退款单价、退款小计）
+  - 添加 `refundList` 状态变量
+  - 添加 `loadRefundList` 方法：加载退款记录
+  - 添加 `getRefundStatusClass` 方法：获取退款状态样式类
+  - 在 `loadOrderDetail` 方法中调用 `loadRefundList` 加载退款记录
+
+### 功能特性
+- ✅ 用户端订单详情页面显示退款记录
+- ✅ 显示退款基本信息（退款单号、金额、类型、状态、时间、原因）
+- ✅ 显示退款明细（商品信息、退款数量、退款单价、退款小计）
+- ✅ 退款状态颜色区分（退款中-橙色，退款成功-绿色，退款失败-红色）
+- ✅ 支持部分退款和全额退款的展示
+- ✅ 仅在存在退款记录时显示退款区域
+
+### 技术细节
+- **接口路径**：`GET /api/buyer/orders/{orderNo}/refunds`
+- **权限验证**：验证订单属于当前用户，防止越权访问
+- **数据展示**：
+  - 退款记录按创建时间倒序排列
+  - 退款明细以表格形式展示
+  - 退款金额和退款小计以红色高亮显示
+- **样式设计**：
+  - 退款记录区域使用浅灰色背景
+  - 退款状态使用标签样式，不同状态不同颜色
+  - 退款明细表格样式与订单商品表格保持一致
+
+### 影响范围
+- ✅ 用户端订单详情页面
+- ✅ 后端订单服务接口
+- ✅ 前端订单API
+
+---
+
+## 2025-12-20 - 移除支付记录模块的退款功能
+
+### 功能说明
+移除支付记录模块的退款按钮和相关功能，因为订单模块已经有退款入口，避免功能重复。
+
+### 修改原因
+- 订单模块已经提供了完整的退款功能入口
+- 支付记录模块的退款功能与订单模块重复
+- 统一退款入口，避免功能分散
+
+### 修改内容
+
+#### 前端代码修改
+- `admin-frontend/src/views/finance/PaymentRecord.vue`
+  - 移除操作列中的退款按钮
+  - 移除退款对话框及其相关代码
+  - 移除退款相关的状态变量（refundDialogVisible, refundLoading, refundForm, refundFormRef, refundRules）
+  - 移除退款相关的方法（handleRefund, handleConfirmRefund, handleRefundDialogClose）
+  - 移除API导入中的 `refundPaymentRecord`
+  - 移除 `ElMessageBox` 的导入（不再需要）
+  - 调整操作列宽度从240px改为120px（只有一个按钮）
+
+### 功能特性
+- ✅ 支付记录页面只保留"查看详情"功能
+- ✅ 退款功能统一在订单模块操作
+- ✅ 简化支付记录页面，避免功能重复
+
+### 影响范围
+- ✅ `admin-frontend/src/views/finance/PaymentRecord.vue` - 支付记录管理页面
+
+---
+
+## 2025-12-20 - 修复退款功能字段名不匹配问题
+
+### 修改原因
+系统报错：`Unknown column 'audit_time' in 'field list'`。数据库表结构已更新（移除了审核相关字段，改为操作人字段），但后端代码还在使用旧的字段名。
+
+### 修改内容
+
+#### 后端代码修改
+- `backend/src/main/java/com/shoppingmall/vo/OrderRefundVO.java`
+  - 将 `auditTime`, `auditUserId`, `auditUserName`, `auditRemark` 改为 `operatorTime`, `operatorId`, `operatorName`, `operatorRemark`
+  - 更新退款状态注释：从"0-待审核，1-审核通过，2-审核拒绝，3-退款中，4-退款成功，5-退款失败"改为"3-退款中，4-退款成功，5-退款失败"
+
+- `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java`
+  - `convertRefundToVO` 方法：将 `setAuditTime`, `setAuditUserId`, `setAuditUserName`, `setAuditRemark` 改为 `setOperatorTime`, `setOperatorId`, `setOperatorName`, `setOperatorRemark`
+  - `getRefundStatusText` 方法：移除不再使用的状态（0-待审核，1-审核通过，2-审核拒绝）
+  - `calculateRefundedQuantity` 方法：移除对 `RefundStatus.AUDIT_APPROVED` 的引用，只保留 `REFUNDING` 和 `REFUND_SUCCESS`
+
+- `backend/src/main/java/com/shoppingmall/common/constant/RefundStatus.java`
+  - 移除不再使用的常量：`PENDING_AUDIT`, `AUDIT_APPROVED`, `AUDIT_REJECTED`
+  - 更新类注释，说明退款由管理员直接操作，无需审核流程
+
+#### 前端代码修改
+- `admin-frontend/src/api/admin/order.ts`
+  - `OrderRefundVO` 接口：将 `auditTime`, `auditUserId`, `auditUserName`, `auditRemark` 改为 `operatorTime`, `operatorId`, `operatorName`, `operatorRemark`
+
+### 业务逻辑说明
+- 退款流程已简化为：管理员直接操作退款 → 退款中 → 退款成功/退款失败
+- 不再需要审核流程，因此移除了所有审核相关字段和状态
+
+## 2025-12-20 - 调整订单退款表结构（移除审核流程）
+
+### 功能说明
+根据实际业务需求，调整订单退款表结构。退款由管理员直接操作，无需用户申请和审核流程。
+
+### 问题分析
+原表结构设计包含了审核相关字段（audit_time, audit_user_id, audit_user_name, audit_remark），但实际业务中：
+- 用户端不需要申请退款
+- 管理员直接操作退款，无需审核流程
+- 退款记录不应该被删除（移除了deleted字段）
+
+### 修改方案
+1. 将审核相关字段改为操作人字段（operator_id, operator_name, operator_time, operator_remark）
+2. 简化退款状态说明（只保留：3-退款中，4-退款成功，5-退款失败）
+3. 移除逻辑删除字段（deleted）
+4. 更新表注释为"订单退款记录表"而不是"申请表"
+5. 添加操作人ID索引
+
+### 修改文件
+1. `database/update-20251219-add-order-refund-tables.sql` - 调整退款表结构
+
+### 具体修改
+
+#### order_refund 表结构调整
+- **移除字段**：
+  - `audit_time` - 审核时间
+  - `audit_user_id` - 审核人ID
+  - `audit_user_name` - 审核人姓名
+  - `audit_remark` - 审核备注
+  - `deleted` - 逻辑删除字段
+
+- **新增字段**：
+  - `operator_id` - 操作人ID（管理员）
+  - `operator_name` - 操作人姓名
+  - `operator_time` - 操作时间
+  - `operator_remark` - 操作备注
+
+- **修改字段**：
+  - `refund_status` - 默认值改为3（退款中），注释简化为（3-退款中，4-退款成功，5-退款失败）
+  - `refund_time` - 注释改为"退款完成时间"
+
+- **索引调整**：
+  - 添加 `idx_operator_id` 索引（操作人ID）
+
+- **表注释**：
+  - 从"订单退款申请表"改为"订单退款记录表"
+
+### 功能特性
+- ✅ 退款由管理员直接操作，无需审核流程
+- ✅ 记录操作人信息，便于追溯
+- ✅ 退款记录永久保存，不可删除
+- ✅ 简化状态管理，只保留必要的退款状态
+
+### 技术细节
+- **操作流程**：管理员发起退款 → 直接执行退款 → 退款成功/退款失败
+- **状态说明**：
+  - 3 - 退款中：退款操作进行中
+  - 4 - 退款成功：退款已完成
+  - 5 - 退款失败：退款操作失败
+- **数据完整性**：退款记录永久保存，确保财务数据可追溯
+
+### 影响范围
+- ✅ `order_refund` 表结构
+- ⚠️ 注意：需要同步更新后端实体类 `OrderRefund.java` 和相关代码
+
+---
+
+## 2025-12-20 - 修复订单退款功能数据库字段缺失问题
+
+### 修改原因
+系统报错：`Unknown column 'refunded_quantity' in 'field list'`。`order_item` 表中缺少 `refunded_quantity` 字段，导致查询失败。
+
+### 修改内容
+- `database/update-20251220-add-order-item-refunded-quantity.sql` - 新建单独的 SQL 脚本用于添加 `refunded_quantity` 字段
+  - 在 `order_item` 表中添加 `refunded_quantity` 字段（int，默认值 0，注释：已退款数量）
+  - 字段位置：在 `quantity` 字段之后
+
+### 执行说明
+请执行以下 SQL 脚本：
+```sql
+USE chengren_shopping_mall;
+ALTER TABLE `order_item` 
+ADD COLUMN `refunded_quantity` int NOT NULL DEFAULT '0' COMMENT '已退款数量' AFTER `quantity`;
+```
+
+如果字段已存在，会报错 "Duplicate column name"，可以忽略。
+
+## 2025-12-20 - 修复退款功能编译错误
+
+### 修改原因
+编译错误：`javax.validation.constraints` 包不存在。在 Spring Boot 3.x 中，`javax.validation` 已经迁移到 `jakarta.validation`。
+
+### 修改内容
+- `backend/src/main/java/com/shoppingmall/dto/OrderRefundRequestDTO.java`
+  - 将 `javax.validation.constraints` 改为 `jakarta.validation.constraints`
+- `backend/src/main/java/com/shoppingmall/dto/OrderRefundAuditDTO.java`
+  - 将 `javax.validation.constraints` 改为 `jakarta.validation.constraints`
+
+## 2025-12-19 - 订单部分SKU/商品退款功能
+
+### 修改原因
+订单需要支持选择部分SKU/商品进行退款操作。管理员可以在管理后台选择订单中的部分商品/SKU进行退款，退款金额不包含运费，只退还商品金额。
+
+### 修改内容
+
+#### 1. 数据库表结构
+
+**新建表：**
+- `database/update-20251219-add-order-refund-tables.sql` - 退款功能数据库表结构脚本
+  - `order_refund` 表：订单退款申请表
+  - `order_refund_item` 表：订单退款明细表
+  - 在 `order_item` 表中添加 `refunded_quantity` 字段（已退款数量）
+
+#### 2. 后端代码修改
+
+**常量类：**
+- `backend/src/main/java/com/shoppingmall/common/constant/RefundStatus.java` - 退款状态常量（新建）
+- `backend/src/main/java/com/shoppingmall/common/constant/RefundType.java` - 退款类型常量（新建）
+
+**实体类：**
+- `backend/src/main/java/com/shoppingmall/entity/OrderRefund.java` - 订单退款申请实体（新建）
+- `backend/src/main/java/com/shoppingmall/entity/OrderRefundItem.java` - 订单退款明细实体（新建）
+
+**Repository：**
+- `backend/src/main/java/com/shoppingmall/repository/order/OrderRefundRepository.java` - 退款申请Repository（新建）
+- `backend/src/main/java/com/shoppingmall/repository/order/OrderRefundItemRepository.java` - 退款明细Repository（新建）
+
+**DTO：**
+- `backend/src/main/java/com/shoppingmall/dto/OrderRefundRequestDTO.java` - 退款申请DTO（新建）
+- `backend/src/main/java/com/shoppingmall/dto/OrderRefundAuditDTO.java` - 退款审核DTO（新建）
+
+**VO：**
+- `backend/src/main/java/com/shoppingmall/vo/OrderRefundVO.java` - 退款申请VO（新建）
+- `backend/src/main/java/com/shoppingmall/vo/OrderDetailVO.java`
+  - `OrderItemVO` 添加 `refundedQuantity`（已退款数量）和 `availableRefundQuantity`（可退款数量）字段
+
+**Service：**
+- `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java`
+  - 实现 `refundOrder` 方法：支持选择部分SKU/商品进行退款
+    - 验证订单状态和支付状态
+    - 验证退款商品和数量（不能超过可退款数量）
+    - 计算退款金额（商品金额，不含运费）
+    - 判断是部分退款还是全额退款
+    - 根据支付方式执行退款（微信/支付宝/预存款）
+    - 创建退款申请记录和退款明细
+    - 更新订单商品的已退款数量
+    - 更新支付记录的已退款金额
+    - 恢复商品库存
+    - 如果订单已完成，扣减商品销量
+  - 实现 `getOrderRefundList` 方法：获取订单的退款列表
+  - 实现 `calculateRefundedQuantity` 方法：计算订单商品的已退款数量
+  - 修改 `convertToDetailVO` 方法：在订单详情中计算并返回已退款数量和可退款数量
+
+**Controller：**
+- `backend/src/main/java/com/shoppingmall/controller/admin/OrderController.java`
+  - 添加 `refundOrder` 接口：`POST /api/admin/orders/{orderNo}/refund`
+  - 添加 `getOrderRefundList` 接口：`GET /api/admin/orders/{orderNo}/refunds`
+
+#### 3. 前端代码修改
+
+**管理后台API：**
+- `admin-frontend/src/api/admin/order.ts`
+  - 添加 `OrderRefundRequestDTO` 和 `OrderRefundVO` 接口定义
+  - 添加 `refundOrder` 方法：提交退款申请
+  - 添加 `getOrderRefundList` 方法：获取订单退款列表
+  - 更新 `OrderDetailVO` 接口：添加 `refundedQuantity` 和 `availableRefundQuantity` 字段
+
+**管理后台页面：**
+- `admin-frontend/src/views/order/List.vue`
+  - 订单详情对话框：
+    - 商品列表添加"已退款/可退款"列，显示已退款数量和可退款数量
+    - 添加"申请退款"按钮（仅已支付、已发货、已完成的订单显示）
+  - 退款对话框：
+    - 显示订单信息和退款提示（不含运费）
+    - 退款原因输入框
+    - 商品列表表格：
+      - 支持勾选要退款的商品
+      - 显示订单数量、已退款数量、可退款数量
+      - 退款数量输入框（可设置退款数量，不能超过可退款数量）
+      - 自动计算退款小计和总退款金额
+    - 确认退款按钮
+  - 添加退款相关方法：
+    - `handleRefund`：从列表点击退款按钮
+    - `handleRefundFromDetail`：从详情对话框点击退款按钮
+    - `initRefundDialog`：初始化退款对话框数据
+    - `checkSelectable`：检查商品是否可选（可退款数量>0）
+    - `totalRefundAmount`：计算总退款金额（计算属性）
+    - `handleSelectionChange`：处理表格选择变化
+    - `handleRefundSubmit`：提交退款申请
+
+### 业务逻辑说明
+1. **退款条件**：
+   - 只有已支付、已发货、已完成的订单可以退款
+   - 订单必须已支付（`payment_status = 2`）
+
+2. **退款商品选择**：
+   - 支持选择订单中的部分商品/SKU进行退款
+   - 每个商品可以设置退款数量，但不能超过可退款数量
+   - 可退款数量 = 订单数量 - 已退款数量
+
+3. **退款金额计算**：
+   - 退款金额 = 商品单价 × 退款数量（不含运费）
+   - 如果退款金额 >= 订单商品总金额，视为全额退款
+   - 如果退款金额 < 订单商品总金额，视为部分退款
+
+4. **退款流程**：
+   - 管理员在订单详情页点击"申请退款"
+   - 选择要退款的商品/SKU，设置退款数量
+   - 填写退款原因
+   - 提交退款申请
+   - 系统自动执行退款（根据支付方式调用相应退款接口）
+   - 更新订单状态、支付状态、商品库存等
+
+5. **退款后处理**：
+   - 更新订单商品的已退款数量
+   - 更新支付记录的已退款金额
+   - 恢复商品库存（product表和product_stock表）
+   - 如果订单已完成，扣减商品销量
+   - 如果全额退款，更新订单状态为"已退款"
+
+6. **退款记录**：
+   - 创建退款申请记录（`order_refund`表）
+   - 创建退款明细记录（`order_refund_item`表）
+   - 记录退款单号、退款金额、退款原因、退款状态等信息
+
 ## 2025-12-19 - 购物车和结算页面销售价格字段显示逻辑
 
 ### 修改原因

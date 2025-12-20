@@ -16,6 +16,8 @@ import com.shoppingmall.entity.*;
 import com.shoppingmall.repository.cart.CartRepository;
 import com.shoppingmall.repository.order.OrderItemRepository;
 import com.shoppingmall.repository.order.OrderLogisticsRepository;
+import com.shoppingmall.repository.order.OrderRefundRepository;
+import com.shoppingmall.repository.order.OrderRefundItemRepository;
 import com.shoppingmall.repository.order.OrderRepository;
 import com.shoppingmall.repository.product.ProductPriceRepository;
 import com.shoppingmall.repository.product.ProductRepository;
@@ -38,6 +40,9 @@ import com.shoppingmall.common.util.EncryptUtil;
 import com.shoppingmall.vo.OrderDetailVO;
 import com.shoppingmall.vo.OrderListVO;
 import com.shoppingmall.vo.OrderStatisticsVO;
+import com.shoppingmall.vo.OrderRefundVO;
+import com.shoppingmall.entity.OrderRefund;
+import com.shoppingmall.entity.OrderRefundItem;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -64,6 +69,8 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderLogisticsRepository orderLogisticsRepository;
+    private final OrderRefundRepository orderRefundRepository;
+    private final OrderRefundItemRepository orderRefundItemRepository;
     private final UserAddressRepository userAddressRepository;
     private final CartRepository cartRepository;
     private final ProductRepository productRepository;
@@ -1015,6 +1022,112 @@ public class OrderServiceImpl implements OrderService {
                 log.info("更新商品销量: productId={}, quantity={}, increase={}, newSalesCount={}", 
                         orderItem.getProductId(), quantity, increase, product.getSalesCount());
             }
+        }
+    }
+
+    @Override
+    public List<OrderRefundVO> getOrderRefundList(String orderNo, Long userId) {
+        // 验证订单存在且属于当前用户
+        LambdaQueryWrapper<Order> orderWrapper = new LambdaQueryWrapper<>();
+        orderWrapper.eq(Order::getOrderNo, orderNo);
+        orderWrapper.eq(Order::getUserId, userId);
+        Order order = orderRepository.selectOne(orderWrapper);
+        
+        if (order == null) {
+            throw new BusinessException(404, "订单不存在或无权访问");
+        }
+
+        // 查询该订单的所有退款记录
+        LambdaQueryWrapper<OrderRefund> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(OrderRefund::getOrderId, order.getId());
+        wrapper.orderByDesc(OrderRefund::getCreateTime);
+        List<OrderRefund> refunds = orderRefundRepository.selectList(wrapper);
+
+        return refunds.stream().map(this::convertRefundToVO).collect(Collectors.toList());
+    }
+
+    /**
+     * 转换为退款VO
+     */
+    private OrderRefundVO convertRefundToVO(OrderRefund orderRefund) {
+        OrderRefundVO vo = new OrderRefundVO();
+        vo.setId(orderRefund.getId());
+        vo.setRefundNo(orderRefund.getRefundNo());
+        vo.setOrderId(orderRefund.getOrderId());
+        vo.setOrderNo(orderRefund.getOrderNo());
+        vo.setUserId(orderRefund.getUserId());
+        vo.setRefundAmount(orderRefund.getRefundAmount());
+        vo.setRefundReason(orderRefund.getRefundReason());
+        vo.setRefundStatus(orderRefund.getRefundStatus());
+        vo.setRefundStatusText(getRefundStatusText(orderRefund.getRefundStatus()));
+        vo.setRefundType(orderRefund.getRefundType());
+        vo.setRefundTypeText(getRefundTypeText(orderRefund.getRefundType()));
+        vo.setOperatorId(orderRefund.getOperatorId());
+        vo.setOperatorName(orderRefund.getOperatorName());
+        vo.setOperatorTime(orderRefund.getOperatorTime());
+        vo.setOperatorRemark(orderRefund.getOperatorRemark());
+        vo.setRefundTime(orderRefund.getRefundTime());
+        vo.setRefundPaymentMethod(orderRefund.getRefundPaymentMethod());
+        vo.setRefundPaymentNo(orderRefund.getRefundPaymentNo());
+        vo.setCreateTime(orderRefund.getCreateTime());
+
+        // 查询退款明细
+        LambdaQueryWrapper<OrderRefundItem> itemWrapper = new LambdaQueryWrapper<>();
+        itemWrapper.eq(OrderRefundItem::getRefundId, orderRefund.getId());
+        List<OrderRefundItem> refundItems = orderRefundItemRepository.selectList(itemWrapper);
+        
+        List<OrderRefundVO.OrderRefundItemVO> itemVOs = refundItems.stream().map(item -> {
+            OrderRefundVO.OrderRefundItemVO itemVO = new OrderRefundVO.OrderRefundItemVO();
+            itemVO.setId(item.getId());
+            itemVO.setOrderItemId(item.getOrderItemId());
+            itemVO.setProductId(item.getProductId());
+            itemVO.setProductName(item.getProductName());
+            itemVO.setProductCode(item.getProductCode());
+            itemVO.setSkuId(item.getSkuId());
+            itemVO.setSpecCombination(item.getSpecCombination());
+            itemVO.setRefundQuantity(item.getRefundQuantity());
+            itemVO.setRefundPrice(item.getRefundPrice());
+            itemVO.setRefundSubtotal(item.getRefundSubtotal());
+            return itemVO;
+        }).collect(Collectors.toList());
+        
+        vo.setRefundItems(itemVOs);
+        return vo;
+    }
+
+    /**
+     * 获取退款状态文本
+     */
+    private String getRefundStatusText(Integer status) {
+        if (status == null) {
+            return "未知";
+        }
+        switch (status) {
+            case 3:
+                return "退款中";
+            case 4:
+                return "退款成功";
+            case 5:
+                return "退款失败";
+            default:
+                return "未知";
+        }
+    }
+
+    /**
+     * 获取退款类型文本
+     */
+    private String getRefundTypeText(Integer type) {
+        if (type == null) {
+            return "未知";
+        }
+        switch (type) {
+            case 1:
+                return "部分退款";
+            case 2:
+                return "全额退款";
+            default:
+                return "未知";
         }
     }
 }

@@ -123,5 +123,18 @@ public class OrderController {
         OrderStatisticsVO statistics = orderService.getOrderStatistics(userId);
         return Result.success("获取成功", statistics);
     }
+
+    /**
+     * 获取订单的退款列表
+     */
+    @GetMapping("/{orderNo}/refunds")
+    public Result<java.util.List<com.shoppingmall.vo.OrderRefundVO>> getOrderRefundList(@PathVariable String orderNo) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) {
+            return Result.error(401, "未授权，请重新登录");
+        }
+        java.util.List<com.shoppingmall.vo.OrderRefundVO> refundList = orderService.getOrderRefundList(orderNo, userId);
+        return Result.success(refundList);
+    }
 }
 

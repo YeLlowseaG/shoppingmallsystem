@@ -2,5 +2,6 @@
 export const orderComponentMap = {
   'order/List': () => import('@/views/order/List.vue'),
   'order/OrderMessage': () => import('@/views/order/OrderMessage.vue'),
+  'order/RefundList': () => import('@/views/order/RefundList.vue'),
 }
 

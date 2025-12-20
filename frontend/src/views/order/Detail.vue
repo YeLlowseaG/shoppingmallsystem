@@ -192,6 +192,75 @@
                 </div>
               </div>
 
+              <!-- 退款记录 -->
+              <div v-if="refundList.length > 0" class="order-section">
+                <div class="section-title">退款记录</div>
+                <div class="refund-list">
+                  <div v-for="refund in refundList" :key="refund.id" class="refund-item">
+                    <div class="refund-header">
+                      <div class="refund-info-row">
+                        <div class="refund-info-item">
+                          <span class="refund-label">退款单号:</span>
+                          <span class="refund-value">{{ refund.refundNo }}</span>
+                        </div>
+                        <div class="refund-info-item">
+                          <span class="refund-label">退款金额:</span>
+                          <span class="refund-amount">¥{{ refund.refundAmount.toFixed(2) }}</span>
+                        </div>
+                        <div class="refund-info-item">
+                          <span class="refund-label">退款类型:</span>
+                          <span class="refund-value">{{ refund.refundTypeText }}</span>
+                        </div>
+                        <div class="refund-info-item">
+                          <span class="refund-label">退款状态:</span>
+                          <span :class="['refund-status', getRefundStatusClass(refund.refundStatus)]">
+                            {{ refund.refundStatusText }}
+                          </span>
+                        </div>
+                      </div>
+                      <div class="refund-info-row">
+                        <div class="refund-info-item">
+                          <span class="refund-label">退款时间:</span>
+                          <span class="refund-value">{{ refund.refundTime ? formatDateTime(refund.refundTime) : '-' }}</span>
+                        </div>
+                        <div class="refund-info-item">
+                          <span class="refund-label">退款原因:</span>
+                          <span class="refund-value">{{ refund.refundReason || '-' }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div v-if="refund.refundItems && refund.refundItems.length > 0" class="refund-items">
+                      <div class="refund-items-title">退款明细:</div>
+                      <table class="refund-items-table">
+                        <thead>
+                          <tr>
+                            <th>商品编码</th>
+                            <th>商品名称</th>
+                            <th>退款数量</th>
+                            <th>退款单价</th>
+                            <th>退款小计</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="item in refund.refundItems" :key="item.id">
+                            <td>{{ item.productCode }}</td>
+                            <td class="product-name-cell">
+                              <div>{{ item.productName }}</div>
+                              <div v-if="formatSpecText(item.specCombination)" class="sku-spec-text">
+                                规格：{{ formatSpecText(item.specCombination) }}
+                              </div>
+                            </td>
+                            <td>{{ item.refundQuantity }}</td>
+                            <td>¥{{ item.refundPrice.toFixed(2) }}</td>
+                            <td class="refund-subtotal">¥{{ item.refundSubtotal.toFixed(2) }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- 支付操作（仅未付款状态显示） -->
               <div v-if="showPaymentAction" class="payment-action">
                 <el-button type="warning" size="large" class="pay-now-btn" @click="handlePayNow">
@@ -219,8 +288,8 @@ import Navbar from '@/components/home/Navbar.vue'
 import Footer from '@/components/home/Footer.vue'
 import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
 import MemberSidebar from '@/components/member/MemberSidebar.vue'
-import { getOrderDetail, cancelOrder, confirmReceipt } from '@/api/buyer/order'
-import type { OrderDetailVO } from '@/api/buyer/order'
+import { getOrderDetail, cancelOrder, confirmReceipt, getOrderRefundList } from '@/api/buyer/order'
+import type { OrderDetailVO, OrderRefundVO } from '@/api/buyer/order'
 
 const router = useRouter()
 const route = useRoute()
@@ -242,6 +311,9 @@ const showOrderHistory = ref(false)
 
 // 订单详情数据
 const orderDetail = ref<OrderDetailVO | null>(null)
+
+// 退款记录列表
+const refundList = ref<OrderRefundVO[]>([])
 
 // 订单历史记录
 const orderHistory = computed(() => {
@@ -431,11 +503,40 @@ const loadOrderDetail = async (orderNo: string) => {
     originalOrderNo.value = data.originalOrderNo || ''
     orderDate.value = formatDateTime(data.orderDate)
     orderStatusValue.value = convertStatusNumberToString(data.status)
+    
+    // 加载退款记录
+    await loadRefundList(orderNo)
   } catch (error: any) {
     ElMessage.error(error.message || '加载订单详情失败')
     router.push('/member/transaction/orders')
   } finally {
     loading.value = false
+  }
+}
+
+// 加载退款记录列表
+const loadRefundList = async (orderNo: string) => {
+  try {
+    const refunds = await getOrderRefundList(orderNo)
+    refundList.value = refunds || []
+  } catch (error: any) {
+    // 如果获取退款记录失败，不影响订单详情显示，只记录错误
+    console.error('加载退款记录失败:', error)
+    refundList.value = []
+  }
+}
+
+// 获取退款状态样式类
+const getRefundStatusClass = (status: number) => {
+  switch (status) {
+    case 3:
+      return 'status-refunding' // 退款中
+    case 4:
+      return 'status-success' // 退款成功
+    case 5:
+      return 'status-failed' // 退款失败
+    default:
+      return ''
   }
 }
 
@@ -1253,6 +1354,135 @@ onMounted(() => {
             &:active {
               background: #ff6b00;
               border-color: #ff6b00;
+            }
+          }
+        }
+
+        // 退款记录
+        .refund-list {
+          .refund-item {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border: 1px solid #e5e5e5;
+            border-radius: 4px;
+
+            &:last-child {
+              margin-bottom: 0;
+            }
+
+            .refund-header {
+              margin-bottom: 15px;
+
+              .refund-info-row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 20px;
+                margin-bottom: 10px;
+                font-size: 14px;
+
+                &:last-child {
+                  margin-bottom: 0;
+                }
+
+                .refund-info-item {
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+
+                  .refund-label {
+                    color: #666;
+                  }
+
+                  .refund-value {
+                    color: #333;
+                  }
+
+                  .refund-amount {
+                    color: #e4393c;
+                    font-weight: bold;
+                    font-size: 16px;
+                  }
+
+                  .refund-status {
+                    padding: 2px 8px;
+                    border-radius: 3px;
+                    font-size: 12px;
+
+                    &.status-refunding {
+                      background: #fff7e6;
+                      color: #ff8c00;
+                    }
+
+                    &.status-success {
+                      background: #f6ffed;
+                      color: #52c41a;
+                    }
+
+                    &.status-failed {
+                      background: #fff1f0;
+                      color: #ff4d4f;
+                    }
+                  }
+                }
+              }
+            }
+
+            .refund-items {
+              margin-top: 15px;
+              padding-top: 15px;
+              border-top: 1px solid #e5e5e5;
+
+              .refund-items-title {
+                font-size: 14px;
+                font-weight: bold;
+                color: #333;
+                margin-bottom: 10px;
+              }
+
+              .refund-items-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 14px;
+                background: #fff;
+
+                thead {
+                  background: #f5f5f5;
+
+                  th {
+                    padding: 10px 8px;
+                    text-align: center;
+                    font-weight: bold;
+                    color: #333;
+                    border: 1px solid #e5e5e5;
+                  }
+                }
+
+                tbody {
+                  td {
+                    padding: 10px 8px;
+                    text-align: center;
+                    border: 1px solid #e5e5e5;
+                    color: #666;
+
+                    &.product-name-cell {
+                      text-align: left;
+                      padding-left: 15px;
+
+                      .sku-spec-text {
+                        margin-top: 5px;
+                        font-size: 12px;
+                        color: #999;
+                      }
+                    }
+
+                    &.refund-subtotal {
+                      color: #e4393c;
+                      font-weight: bold;
+                    }
+                  }
+                }
+              }
             }
           }
         }
