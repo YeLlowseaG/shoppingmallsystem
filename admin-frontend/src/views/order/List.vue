@@ -206,7 +206,7 @@
         <el-table-column label="已退款/可退款" width="120">
           <template #default="{ row }">
             <div v-if="row.refundedQuantity !== undefined && row.availableRefundQuantity !== undefined">
-              <div>已退：{{ row.refundedQuantity || 0 }}</div>
+              <div style="color: #e4393c; font-weight: bold;">已退：{{ row.refundedQuantity || 0 }}</div>
               <div style="color: #409eff;">可退：{{ row.availableRefundQuantity || 0 }}</div>
             </div>
             <div v-else>-</div>
@@ -228,6 +228,70 @@
         >
           申请退款
         </el-button>
+      </div>
+
+      <!-- 退款记录 -->
+      <el-divider v-if="refundList.length > 0">退款记录</el-divider>
+      <div v-if="refundList.length > 0" style="margin-top: 20px;">
+        <div v-for="refund in refundList" :key="refund.id" style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border: 1px solid #e5e5e5; border-radius: 4px;">
+          <div style="margin-bottom: 15px;">
+            <div style="display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 10px; font-size: 14px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="color: #666;">退款单号:</span>
+                <span style="color: #333;">{{ refund.refundNo }}</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="color: #666;">退款金额:</span>
+                <span style="color: #e4393c; font-weight: bold; font-size: 16px;">¥{{ refund.refundAmount.toFixed(2) }}</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="color: #666;">退款类型:</span>
+                <span style="color: #333;">{{ refund.refundTypeText }}</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="color: #666;">退款状态:</span>
+                <el-tag :type="getRefundStatusTagType(refund.refundStatus)" size="small">
+                  {{ refund.refundStatusText }}
+                </el-tag>
+              </div>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 14px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="color: #666;">退款时间:</span>
+                <span style="color: #333;">{{ refund.refundTime ? formatDateTime(refund.refundTime) : '-' }}</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="color: #666;">退款原因:</span>
+                <span style="color: #333;">{{ refund.refundReason || '-' }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-if="refund.refundItems && refund.refundItems.length > 0" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e5e5;">
+            <div style="font-size: 14px; font-weight: bold; color: #333; margin-bottom: 10px;">退款明细:</div>
+            <el-table :data="refund.refundItems" border size="small">
+              <el-table-column prop="productCode" label="商品编码" width="120" />
+              <el-table-column label="商品名称" min-width="250">
+                <template #default="{ row }">
+                  <div>{{ row.productName }}</div>
+                  <div v-if="formatSpecText(row.specCombination)" style="margin-top: 5px; font-size: 12px; color: #999;">
+                    规格：{{ formatSpecText(row.specCombination) }}
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="refundQuantity" label="退款数量" width="100" align="center" />
+              <el-table-column prop="refundPrice" label="退款单价" width="120" align="right">
+                <template #default="{ row }">
+                  ¥{{ row.refundPrice.toFixed(2) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="refundSubtotal" label="退款小计" width="120" align="right">
+                <template #default="{ row }">
+                  <span style="color: #e4393c; font-weight: bold;">¥{{ row.refundSubtotal.toFixed(2) }}</span>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
       </div>
 
       <!-- 收货人信息 -->
@@ -424,9 +488,10 @@ import {
   cancelOrder,
   shipOrder,
   addOrderRemark,
-  refundOrder
+  refundOrder,
+  getOrderRefundList
 } from '@/api/admin/order'
-import type { OrderListVO, OrderDetailVO, OrderRefundRequestDTO } from '@/api/admin/order'
+import type { OrderListVO, OrderDetailVO, OrderRefundRequestDTO, OrderRefundVO } from '@/api/admin/order'
 
 const loading = ref(false)
 const orderList = ref<OrderListVO[]>([])
@@ -455,6 +520,7 @@ const refundDialogVisible = ref(false)
 const currentOrder = ref<OrderDetailVO | null>(null)
 const currentLogisticsOrder = ref<OrderListVO | null>(null)
 const currentRefundOrder = ref<OrderListVO | null>(null)
+const refundList = ref<OrderRefundVO[]>([])
 
 const shipForm = reactive({
   logisticsCompany: '',
@@ -576,8 +642,36 @@ const handleView = async (row: OrderListVO) => {
     const order = await getOrderDetail(row.orderNo)
     currentOrder.value = order
     detailDialogVisible.value = true
+    // 加载退款记录
+    await loadRefundList(row.orderNo)
   } catch (error: any) {
     ElMessage.error(error.message || '加载失败')
+  }
+}
+
+// 加载退款记录列表
+const loadRefundList = async (orderNo: string) => {
+  try {
+    const refunds = await getOrderRefundList(orderNo)
+    refundList.value = refunds || []
+  } catch (error: any) {
+    // 如果获取退款记录失败，不影响订单详情显示，只记录错误
+    console.error('加载退款记录失败:', error)
+    refundList.value = []
+  }
+}
+
+// 获取退款状态标签类型
+const getRefundStatusTagType = (status: number) => {
+  switch (status) {
+    case 3:
+      return 'warning' // 退款中
+    case 4:
+      return 'success' // 退款成功
+    case 5:
+      return 'danger' // 退款失败
+    default:
+      return 'info'
   }
 }
 
@@ -780,7 +874,12 @@ const handleRefundSubmit = async () => {
       ElMessage.success(`退款成功，退款单号：${refundNo}`)
       refundDialogVisible.value = false
       loadOrderList()
-      // 如果详情对话框打开，重新加载订单详情
+      // 如果详情对话框打开，重新加载订单详情和退款记录
+      if (detailDialogVisible.value && currentOrder.value) {
+        const order = await getOrderDetail(currentOrder.value.orderNo)
+        currentOrder.value = order
+        await loadRefundList(currentOrder.value.orderNo)
+      }
       if (detailDialogVisible.value && currentOrder.value) {
         const order = await getOrderDetail(currentOrder.value.orderNo)
         currentOrder.value = order

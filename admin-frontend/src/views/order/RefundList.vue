@@ -136,7 +136,7 @@
           <el-descriptions-item label="退款完成时间">
             {{ currentRefund.refundTime ? formatDateTime(currentRefund.refundTime) : '-' }}
           </el-descriptions-item>
-          <el-descriptions-item label="退款支付方式">{{ currentRefund.refundPaymentMethod || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="退款支付方式">{{ getPaymentMethodName(currentRefund.refundPaymentMethod) || '-' }}</el-descriptions-item>
           <el-descriptions-item label="退款支付单号" :span="2">{{ currentRefund.refundPaymentNo || '-' }}</el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ formatDateTime(currentRefund.createTime) }}</el-descriptions-item>
         </el-descriptions>
@@ -261,6 +261,25 @@ const getStatusTagType = (status: number) => {
       return 'danger' // 退款失败
     default:
       return 'info'
+  }
+}
+
+// 获取支付方式中文名称
+const getPaymentMethodName = (paymentMethod?: string) => {
+  if (!paymentMethod) {
+    return '-'
+  }
+  switch (paymentMethod.toUpperCase()) {
+    case 'WECHAT':
+      return '微信支付'
+    case 'ALIPAY':
+      return '支付宝'
+    case 'PRE_DEPOSIT':
+      return '预存款支付'
+    case 'OFFLINE':
+      return '线下支付'
+    default:
+      return paymentMethod
   }
 }
 
