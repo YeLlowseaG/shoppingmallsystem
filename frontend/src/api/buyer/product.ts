@@ -4,10 +4,28 @@
 
 import request from '@/utils/request'
 
+// SKU VO (用于商品详情返回的SKU列表)
+export interface ProductSkuVO {
+  id: number
+  productId: number
+  skuCode: string
+  specCombination: string
+  price: number
+  suggestedRetailPrice?: number
+  marketRetailPrice?: number
+  memberPrice?: number
+  enableMemberPrice?: number
+  stock: number
+  warningStock: number
+  status: number
+}
+
 // 商品VO
 export interface ProductVO {
   id: number
   productCode: string
+  barcode?: string
+  unit?: string
   productName: string
   categoryId: number
   categoryName: string
@@ -26,6 +44,8 @@ export interface ProductVO {
   status: string
   createTime: string
   updateTime: string
+  weight?: number
+  skus?: ProductSkuVO[]  // SKU列表
 }
 
 // 分页响应

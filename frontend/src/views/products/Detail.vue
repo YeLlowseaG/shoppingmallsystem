@@ -69,6 +69,14 @@
               <span class="meta-label">商品编号：</span>
               <span class="meta-value">{{ product.productNo }}</span>
             </div>
+            <div class="meta-row" v-if="product.barcode">
+              <span class="meta-label">条码：</span>
+              <span class="meta-value">{{ product.barcode }}</span>
+            </div>
+            <div class="meta-row" v-if="product.unit">
+              <span class="meta-label">计量单位：</span>
+              <span class="meta-value">{{ product.unit }}</span>
+            </div>
             <div class="meta-row">
               <span class="meta-label">商品重量：</span>
               <span class="meta-value">{{ product.weight }} 克(g)</span>
@@ -78,16 +86,8 @@
               <span class="meta-value">{{ product.sku }}</span>
             </div>
             <div class="meta-row">
-              <span class="meta-label">条码：</span>
-              <span class="meta-value">{{ product.barcode }}</span>
-            </div>
-            <div class="meta-row">
               <span class="meta-label">品牌：</span>
               <span class="meta-value">{{ product.brand }}</span>
-            </div>
-            <div class="meta-row">
-              <span class="meta-label">计量单位：</span>
-              <span class="meta-value">{{ product.unit }}</span>
             </div>
           </div>
 
@@ -95,18 +95,18 @@
           <div class="price-info">
             <div class="price-row">
               <span class="price-label">市场零售价：</span>
-              <span class="market-price">¥{{ parseFloat(product.marketRetailPrice || 0).toFixed(2) }}</span>
+              <span class="market-price">¥{{ currentSku ? parseFloat(currentSku.marketRetailPrice || 0).toFixed(2) : parseFloat(product.marketRetailPrice || 0).toFixed(2) }}</span>
             </div>
             <div class="price-row">
               <span class="price-label">建议零售价：</span>
               <span class="suggest-price">
-                ¥{{ currentSku ? parseFloat(currentSku.price || 0).toFixed(2) : parseFloat(product.price || 0).toFixed(2) }}
+                ¥{{ currentSku ? parseFloat(currentSku.suggestedRetailPrice || 0).toFixed(2) : parseFloat(product.suggestedRetailPrice || 0).toFixed(2) }}
               </span>
             </div>
             <div class="price-row" v-if="userStore.isLoggedIn()">
-              <span class="price-label">会员价：</span>
+              <span class="price-label">{{ userStore.isMemberUser() ? '会员价：' : '商品价格：' }}</span>
               <span class="member-price">
-                ¥{{ currentSku ? (currentSku.memberPrice ? parseFloat(currentSku.memberPrice).toFixed(2) : parseFloat(currentSku.price || 0).toFixed(2)) : parseFloat(product.memberPrice || 0).toFixed(2) }}
+                ¥{{ currentSku ? parseFloat(currentSku.memberPrice ?? currentSku.price ?? 0).toFixed(2) : parseFloat(product.memberPrice || product.basePrice || 0).toFixed(2) }}
               </span>
             </div>
           </div>
@@ -508,6 +508,8 @@ const product = ref({
   brand: '',
   unit: '盒',
   marketRetailPrice: 0,
+  suggestedRetailPrice: 0,  // 建议零售价
+  basePrice: 0,  // 基础价
   price: 0,
   memberPrice: 0,  // 会员价
   stock: 0,  // 添加库存字段
@@ -540,11 +542,13 @@ const loadProductDetail = async (productId: number) => {
       productNo: productData.productCode,
       weight: productData.weight || 0, // 从API获取重量字段
       sku: productData.productCode,
-      barcode: '', // API 暂无条码字段
+      barcode: productData.barcode || '', // 条码
       brand: productData.brandName || '暂无', // 从API获取品牌字段
-      unit: '盒',
+      unit: productData.unit || '', // 计量单位
       marketRetailPrice: productData.marketRetailPrice || 0, // 市场零售价
-      price: productData.suggestedRetailPrice || productData.basePrice || 0, // 建议零售价
+      suggestedRetailPrice: productData.suggestedRetailPrice || 0, // 建议零售价
+      basePrice: productData.basePrice || 0, // 基础价
+      price: productData.suggestedRetailPrice || productData.basePrice || 0,
       memberPrice: productData.memberPrice || productData.basePrice || 0, // 会员价（后端已根据用户等级计算）
       stock: productData.stock || 0, // 添加库存字段映射
       promoText: '',
@@ -563,8 +567,38 @@ const loadProductDetail = async (productId: number) => {
       currentImage.value = product.value.images[0]
     }
 
-    // 加载SKU规格数据
-    await loadProductSkuData(Number(productId))
+    // 使用商品详情API返回的SKU数据（包含正确计算的memberPrice）
+    if (productData.skus && productData.skus.length > 0) {
+      productSkuList.value = productData.skus
+      // 加载规格属性
+      const specKeys = await getSpecKeysByProductId(Number(productId))
+      productSpecKeys.value = specKeys
+
+      // 设置默认选中的SKU
+      if (specKeys.length > 0) {
+        let firstSku = productData.skus.find((sku: any) => sku.status === 1 && sku.stock > 0)
+        if (!firstSku) {
+          firstSku = productData.skus.find((sku: any) => sku.status === 1)
+        }
+        if (!firstSku) {
+          firstSku = productData.skus[0]
+        }
+        if (firstSku) {
+          try {
+            const specCombination = JSON.parse(firstSku.specCombination)
+            defaultSpecs.value = specCombination
+            selectedSpecs.value = { ...specCombination }
+            currentSku.value = firstSku
+            console.log('默认选中规格:', specCombination, 'SKU:', firstSku)
+          } catch (error) {
+            console.error('解析默认SKU规格失败:', error)
+          }
+        }
+      }
+    } else {
+      // 没有SKU数据时，单独加载
+      await loadProductSkuData(Number(productId))
+    }
   } catch (error) {
     console.error('加载商品详情失败:', error)
     ElMessage.error('加载商品详情失败')

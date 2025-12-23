@@ -45,4 +45,11 @@ public interface ProductSpecKeyService {
      * @return 规格属性详情
      */
     ProductSpecKeyVO getSpecKeyById(Long id);
+
+    /**
+     * 根据商品ID删除所有规格属性和规格值
+     * @param productId 商品ID
+     * @return 删除的规格属性数量
+     */
+    int deleteSpecsByProductId(Long productId);
 }

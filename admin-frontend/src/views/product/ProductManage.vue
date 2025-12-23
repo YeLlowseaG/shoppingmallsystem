@@ -105,6 +105,10 @@
               <el-icon><Plus /></el-icon>
               添加商品
             </el-button>
+            <el-button type="success" @click="importDialogVisible = true">
+              <el-icon><Upload /></el-icon>
+              批量导入
+            </el-button>
           </div>
         </div>
       </div>
@@ -172,6 +176,7 @@
       />
     </el-card>
 
+    <!-- 批量导入对话框 -->
     <!-- 编辑对话框 -->
     <el-dialog
       v-model="dialogVisible"
@@ -186,6 +191,12 @@
       >
         <el-form-item label="商品编码" prop="productCode">
           <el-input v-model="formData.productCode" placeholder="请输入商品编码/SKU" />
+        </el-form-item>
+        <el-form-item label="条码" prop="barcode">
+          <el-input v-model="formData.barcode" placeholder="请输入条码（可选）" />
+        </el-form-item>
+        <el-form-item label="计量单位" prop="unit">
+          <el-input v-model="formData.unit" placeholder="请输入计量单位，如：个、件、盒" />
         </el-form-item>
         <el-form-item label="商品名称" prop="productName">
           <el-input v-model="formData.productName" placeholder="请输入商品名称" />
@@ -808,6 +819,121 @@
         <el-button type="primary" @click="saveSkuChanges">保存SKU配置</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog
+      v-model="importDialogVisible"
+      title="批量导入商品"
+      width="600px"
+      :before-close="handleImportDialogClose"
+    >
+      <el-form label-width="120px">
+        <el-form-item label="数据文件" required>
+          <el-upload
+            ref="csvUploadRef"
+            :auto-upload="false"
+            :limit="1"
+            accept=".csv,.xlsx,.xls"
+            :on-change="handleCsvChange"
+            :on-remove="handleCsvRemove"
+            :file-list="csvFileList"
+          >
+            <el-button type="primary">选择文件</el-button>
+          </el-upload>
+          <div class="form-tip">支持 CSV 或 Excel (.xlsx/.xls) 格式</div>
+        </el-form-item>
+
+        <el-form-item label="图片压缩包">
+          <el-upload
+            ref="zipUploadRef"
+            :auto-upload="false"
+            :limit="1"
+            accept=".zip"
+            :on-change="handleZipChange"
+            :on-remove="handleZipRemove"
+            :file-list="zipFileList"
+          >
+            <el-button>选择ZIP文件（可选）</el-button>
+          </el-upload>
+          <div class="form-tip">图片命名规则：商品编码.jpg（主图）、商品编码_1.jpg（详情图）</div>
+        </el-form-item>
+
+        <el-form-item label="下载模板">
+          <el-button type="success" @click="downloadTemplate('csv')" style="margin-right: 10px">
+            <el-icon><Download /></el-icon>
+            下载CSV模板
+          </el-button>
+          <el-button type="success" @click="downloadTemplate('excel')">
+            <el-icon><Download /></el-icon>
+            下载Excel模板
+          </el-button>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="importDialogVisible = false">取消</el-button>
+        <el-button
+          type="primary"
+          @click="handleImportSubmit"
+          :loading="importLoading"
+          :disabled="!importForm.csvFile"
+        >
+          开始导入
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="resultDialogVisible"
+      title="导入结果"
+      width="700px"
+    >
+      <el-result
+        :icon="importResult.failCount > 0 ? 'warning' : 'success'"
+        :title="`导入完成`"
+      >
+        <template #sub-title>
+          <div class="import-stats">
+            <div>总计: {{ importResult.totalCount }} 个商品</div>
+            <div style="color: #67c23a">成功: {{ importResult.successCount }} 个</div>
+            <div v-if="importResult.failCount > 0" style="color: #f56c6c">失败: {{ importResult.failCount }} 个</div>
+          </div>
+        </template>
+        <template #extra>
+          <div v-if="importResult.warnings.length > 0" class="import-warnings">
+            <el-alert type="warning" :closable="false">
+              <template #title>
+                <div style="font-weight: bold; margin-bottom: 8px">警告信息</div>
+                <div v-for="(warning, index) in importResult.warnings" :key="index" style="font-size: 13px">
+                  {{ warning }}
+                </div>
+              </template>
+            </el-alert>
+          </div>
+
+          <div v-if="importResult.errors.length > 0" class="import-errors">
+            <el-alert type="error" :closable="false">
+              <template #title>
+                <div style="font-weight: bold; margin-bottom: 8px">错误详情</div>
+              </template>
+            </el-alert>
+            <el-table
+              :data="importResult.errors"
+              border
+              max-height="300"
+              style="margin-top: 10px"
+            >
+              <el-table-column prop="row" label="行号" width="80" />
+              <el-table-column prop="productCode" label="商品编码" width="150" />
+              <el-table-column prop="error" label="错误信息" />
+            </el-table>
+          </div>
+        </template>
+      </el-result>
+
+      <template #footer>
+        <el-button type="primary" @click="handleResultClose">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -815,23 +941,26 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadFile, type UploadUserFile } from 'element-plus'
-import { Plus, Delete, Upload, Search, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
+import { Plus, Delete, Upload, Search, ArrowUp, ArrowDown, Download } from '@element-plus/icons-vue'
 import {
   getProductPage,
   updateProduct,
   deleteProduct,
   updateProductStatus,
+  importProducts,
   type ProductDTO,
-  type ProductVO
+  type ProductVO,
+  type ProductImportResult
 } from '@/api/admin/product'
 import { getCategoryTree, type ProductCategoryVO } from '@/api/admin/productCategory'
 import { getBrandOptions } from '@/api/admin/brand'
-import { 
+import {
   getSkusByProductId,
   batchCreateSkus,
   updateSku,
   deleteSku,
   getSpecKeysByProductId,
+  deleteSpecsByProductId,
   type ProductSkuVO,
   type ProductSkuDTO,
   type ProductSpecKeyVO
@@ -889,6 +1018,8 @@ const detailImageList = ref<UploadUserFile[]>([])
 // 表单数据
 const formData = ref<ProductDTO>({
   productCode: '',
+  barcode: '',
+  unit: '',
   productName: '',
   categoryId: 0,
   brandId: null,
@@ -926,6 +1057,15 @@ const editSpecKeys = ref([
   }
 ])
 const editSkuList = ref<any[]>([])
+
+// 批量导入相关状态
+const importDialogVisible = ref(false)
+const importForm = ref({
+  csvFile: null as File | null,
+  imageZip: null as File | null
+})
+const importLoading = ref(false)
+const importResult = ref<any>(null)
 
 // 计算属性：是否可以生成SKU
 const canGenerateSkus = computed(() => {
@@ -1125,6 +1265,8 @@ const handleEdit = async (row: ProductVO) => {
   formData.value = {
     id: row.id,
     productCode: row.productCode,
+    barcode: row.barcode || '',
+    unit: row.unit || '',
     productName: row.productName,
     categoryId: row.categoryId,
     brandId: row.brandId || null,
@@ -1390,7 +1532,7 @@ const handleDelete = async (row: ProductVO) => {
 }
 
 // SKU管理相关方法
-const handleEnableSpecChange = (value: boolean) => {
+const handleEnableSpecChange = async (value: boolean) => {
   if (!value) {
     // 禁用规格时清空数据
     currentSkuList.value = []
@@ -1399,6 +1541,18 @@ const handleEnableSpecChange = (value: boolean) => {
     // 清空编辑弹框的规格数据
     editSpecKeys.value = [{ specName: '', values: [{ specValue: '' }] }]
     editSkuList.value = []
+
+    // 如果是编辑商品（有ID），则从数据库删除规格数据
+    if (formData.value.id) {
+      try {
+        console.log('关闭规格开关，删除商品ID:', formData.value.id, '的规格数据')
+        const deletedCount = await deleteSpecsByProductId(formData.value.id)
+        console.log('已删除规格数量:', deletedCount)
+      } catch (error) {
+        console.error('删除规格数据失败:', error)
+        // 删除失败不影响继续操作，只记录日志
+      }
+    }
   } else {
     // 启用规格时初始化默认数据
     if (editSpecKeys.value.length === 0 || (editSpecKeys.value.length === 1 && !editSpecKeys.value[0].specName)) {
@@ -1659,6 +1813,73 @@ const batchSetStock = () => {
   }).catch(() => {})
 }
 
+const handleCsvChange = (file: UploadFile) => {
+  importForm.value.csvFile = file.raw || null
+}
+
+const handleCsvRemove = () => {
+  importForm.value.csvFile = null
+}
+
+const handleZipChange = (file: UploadFile) => {
+  importForm.value.imageZip = file.raw || null
+}
+
+const handleZipRemove = () => {
+  importForm.value.imageZip = null
+}
+
+const downloadTemplate = (type: 'csv' | 'excel') => {
+  if (type === 'csv') {
+    const link = document.createElement('a')
+    link.href = '/商品批量导入模板.csv'
+    link.download = '商品批量导入模板.csv'
+    link.click()
+  } else {
+    // 下载Excel模板
+    window.open('/api/admin/product/template/excel', '_blank')
+  }
+}
+
+const handleImportSubmit = async () => {
+  if (!importForm.value.csvFile) {
+    ElMessage.warning('请选择数据文件')
+    return
+  }
+
+  importLoading.value = true
+  importResult.value = null
+
+  try {
+    const result = await importProducts(importForm.value.csvFile, importForm.value.imageZip)
+    console.log('导入结果:', result)
+    console.log('错误列表:', result.errors)
+    console.log('警告列表:', result.warnings)
+    importResult.value = result
+
+    // 显示导入结果弹框
+    resultDialogVisible.value = true
+
+    if (result.failCount === 0) {
+      ElMessage.success('导入成功！')
+      loadProductList()
+    } else {
+      ElMessage.warning(`导入完成，但有 ${result.failCount} 条失败`)
+    }
+  } catch (error: any) {
+    ElMessage.error(error.message || '导入失败')
+  } finally {
+    importLoading.value = false
+  }
+}
+
+const handleImportCancel = () => {
+  importDialogVisible.value = false
+  importForm.value.csvFile = null
+  importForm.value.imageZip = null
+  importResult.value = null
+}
+
 const saveSkuChanges = async () => {
   try {
     // 删除原有SKU
@@ -1709,6 +1930,28 @@ const saveSkuChanges = async () => {
 
 const handleSkuDialogClose = () => {
   skuDialogVisible.value = false
+}
+
+const resultDialogVisible = ref(false)
+const csvFile = ref<File | null>(null)
+const zipFile = ref<File | null>(null)
+const csvFileList = ref<any[]>([])
+const zipFileList = ref<any[]>([])
+
+const handleImportDialogClose = () => {
+  csvFile.value = null
+  zipFile.value = null
+  csvFileList.value = []
+  zipFileList.value = []
+  importDialogVisible.value = false
+}
+
+const handleResultClose = () => {
+  resultDialogVisible.value = false
+  csvFile.value = null
+  zipFile.value = null
+  csvFileList.value = []
+  zipFileList.value = []
 }
 
 // 初始化
@@ -2087,6 +2330,20 @@ onMounted(() => {
   border: 1px solid #ebeef5;
   border-radius: 4px;
   overflow: hidden;
+}
+
+.import-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.import-warnings,
+.import-errors {
+  margin-top: 16px;
+  text-align: left;
 }
 
 // SKU表格样式优化

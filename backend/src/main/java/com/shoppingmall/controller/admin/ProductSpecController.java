@@ -93,4 +93,18 @@ public class ProductSpecController {
             return Result.error("查询规格属性详情失败：" + e.getMessage());
         }
     }
+
+    /**
+     * 根据商品ID删除所有规格属性和规格值
+     */
+    @DeleteMapping("/product/{productId}")
+    public Result<Integer> deleteSpecsByProductId(@PathVariable Long productId) {
+        try {
+            int deletedCount = specKeyService.deleteSpecsByProductId(productId);
+            return Result.success("删除规格属性成功，共删除 " + deletedCount + " 条", deletedCount);
+        } catch (Exception e) {
+            log.error("删除商品规格属性失败: {}", e.getMessage(), e);
+            return Result.error("删除规格属性失败：" + e.getMessage());
+        }
+    }
 }

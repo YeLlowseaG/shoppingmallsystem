@@ -469,28 +469,36 @@ const loadInventoryList = async () => {
           const skuResponse = await request.get(`/api/admin/product-sku/product/${product.id}`)
           // API 直接返回数组，不是 {code, data} 格式
           const skuList = Array.isArray(skuResponse) ? skuResponse : (skuResponse.data || skuResponse || [])
-          
+
           if (skuList.length > 0) {
-            // 有SKU的商品，每个SKU一行
-            return skuList.map((sku: any) => ({
-              id: `${product.id}-${sku.id}`,
+            // 有SKU的商品，汇总所有SKU的库存（列表只显示一行）
+            const totalStock = skuList.reduce((sum: number, sku: any) => sum + (sku.stock || 0), 0)
+            const avgPrice = skuList.reduce((sum: number, sku: any) => sum + (sku.price || 0), 0) / skuList.length
+            const minWarningStock = Math.min(...skuList.map((sku: any) => sku.warningStock || 20))
+            const latestUpdateTime = skuList.reduce((latest: string, sku: any) => {
+              return sku.updateTime > latest ? sku.updateTime : latest
+            }, product.updateTime || '')
+
+            return {
+              id: product.id,
               productId: product.id,
-              skuId: sku.id,
+              skuId: null, // 列表显示商品级别，弹框里显示SKU
               productName: product.productName,
               productCode: product.productCode,
               productImage: product.mainImage || 'https://via.placeholder.com/60',
               categoryName: product.categoryName,
-              skuSpecs: sku.specCombination ? parseSkuSpecs(sku.specCombination) : '默认规格',
-              currentStock: sku.stock || 0,
-              warningStock: sku.warningStock || 20,
-              unitPrice: sku.price || product.basePrice,
-              stockValue: (sku.stock || 0) * (sku.price || product.basePrice),
-              stockStatus: getStockStatus(sku.stock || 0, sku.warningStock || 20),
-              lastUpdateTime: sku.updateTime || product.updateTime
-            }))
+              skuSpecs: `${skuList.length}个SKU`,
+              currentStock: totalStock,
+              warningStock: minWarningStock,
+              unitPrice: avgPrice || product.basePrice,
+              stockValue: totalStock * (avgPrice || product.basePrice),
+              stockStatus: getStockStatus(totalStock, minWarningStock),
+              lastUpdateTime: latestUpdateTime,
+              enableSpec: true // 标记有SKU
+            }
           } else {
             // 没有SKU的商品，使用基础库存
-            return [{
+            return {
               id: product.id,
               productId: product.id,
               skuId: null,
@@ -504,14 +512,14 @@ const loadInventoryList = async () => {
               unitPrice: product.basePrice,
               stockValue: (product.stock || 0) * product.basePrice,
               stockStatus: getStockStatus(product.stock || 0, product.warningStock || 20),
-              lastUpdateTime: product.updateTime
-            }]
+              lastUpdateTime: product.updateTime,
+              enableSpec: false
+            }
           }
         } catch (error) {
           console.error(`获取商品 ${product.id} 的SKU信息失败:`, error)
-          console.log(`商品信息:`, product)
           // 如果SKU获取失败，使用基础库存信息
-          return [{
+          return {
             id: product.id,
             productId: product.id,
             skuId: null,
@@ -525,13 +533,14 @@ const loadInventoryList = async () => {
             unitPrice: product.basePrice,
             stockValue: (product.stock || 0) * product.basePrice,
             stockStatus: getStockStatus(product.stock || 0, product.warningStock || 20),
-            lastUpdateTime: product.updateTime
-          }]
+            lastUpdateTime: product.updateTime,
+            enableSpec: false
+          }
         }
       })
-      
+
       const inventoryResults = await Promise.all(inventoryPromises)
-      inventoryList.value = inventoryResults.flat()
+      inventoryList.value = inventoryResults
       
       // 应用筛选条件
       if (searchForm.value.stockStatus) {

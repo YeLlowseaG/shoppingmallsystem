@@ -8,6 +8,8 @@ import request from '@/utils/request'
 export interface ProductDTO {
   id?: number
   productCode: string
+  barcode?: string
+  unit?: string
   productName: string
   categoryId: number
   brandId?: number | null
@@ -30,6 +32,8 @@ export interface ProductDTO {
 export interface ProductVO {
   id: number
   productCode: string
+  barcode?: string
+  unit?: string
   productName: string
   categoryId: number
   categoryName: string
@@ -112,4 +116,30 @@ export const deleteProduct = (id: number): Promise<void> => {
  */
 export const updateProductStatus = (id: number, status: string): Promise<void> => {
   return request.put(`/api/admin/product/${id}/status`, null, { params: { status } })
+}
+
+export interface ProductImportResult {
+  totalCount: number
+  successCount: number
+  failCount: number
+  errors: Array<{
+    rowNumber: number
+    productCode: string
+    errorMessage: string
+  }>
+  warnings: string[]
+}
+
+export const importProducts = (csvFile: File, imageZip?: File): Promise<ProductImportResult> => {
+  const formData = new FormData()
+  formData.append('csvFile', csvFile)
+  if (imageZip) {
+    formData.append('imageZip', imageZip)
+  }
+  
+  return request.post('/api/admin/product/import', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
 }

@@ -169,3 +169,10 @@ export const getSpecKeysByProductId = (productId: number): Promise<ProductSpecKe
 export const getSpecKeyById = (id: number): Promise<ProductSpecKeyVO> => {
   return request.get(`/api/admin/product-spec/${id}`)
 }
+
+/**
+ * 根据商品ID删除所有规格属性和规格值
+ */
+export const deleteSpecsByProductId = (productId: number): Promise<number> => {
+  return request.delete(`/api/admin/product-spec/product/${productId}`)
+}

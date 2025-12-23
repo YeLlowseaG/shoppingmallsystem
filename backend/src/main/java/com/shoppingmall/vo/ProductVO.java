@@ -27,6 +27,16 @@ public class ProductVO {
     private String productCode;
 
     /**
+     * 条码
+     */
+    private String barcode;
+
+    /**
+     * 计量单位
+     */
+    private String unit;
+
+    /**
      * 商品名称
      */
     private String productName;

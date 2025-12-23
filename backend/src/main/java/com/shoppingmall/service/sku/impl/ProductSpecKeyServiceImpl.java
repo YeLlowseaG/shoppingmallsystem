@@ -122,4 +122,28 @@ public class ProductSpecKeyServiceImpl implements ProductSpecKeyService {
         vo.setSpecValues(specValueVOs);
         return vo;
     }
+
+    @Override
+    @Transactional
+    public int deleteSpecsByProductId(Long productId) {
+        // 先查询该商品的所有规格属性
+        List<ProductSpecKey> specKeys = specKeyRepository.findByProductId(productId);
+
+        if (specKeys.isEmpty()) {
+            log.info("商品ID: {} 没有规格属性需要删除", productId);
+            return 0;
+        }
+
+        // 删除每个规格属性关联的规格值
+        for (ProductSpecKey specKey : specKeys) {
+            specValueRepository.deleteBySpecKeyId(specKey.getId());
+            log.info("删除规格属性ID: {} 的规格值", specKey.getId());
+        }
+
+        // 删除规格属性
+        int deletedCount = specKeyRepository.deleteByProductId(productId);
+        log.info("删除商品ID: {} 的规格属性成功，共删除 {} 条", productId, deletedCount);
+
+        return deletedCount;
+    }
 }

@@ -27,6 +27,18 @@ public class ProductDTO {
     private String productCode;
 
     /**
+     * 条码
+     */
+    @Size(max = 100, message = "条码长度不能超过100个字符")
+    private String barcode;
+
+    /**
+     * 计量单位
+     */
+    @Size(max = 50, message = "计量单位长度不能超过50个字符")
+    private String unit;
+
+    /**
      * 商品名称
      */
     @NotBlank(message = "商品名称不能为空")

@@ -6,7 +6,9 @@ export interface UserInfo {
   username: string
   email?: string
   realName?: string
-  userLevel?: string
+  isMember?: number  // 是否会员（0-普通用户，1-会员）
+  memberLevelId?: number  // 会员等级ID
+  memberLevelName?: string  // 会员等级名称
   gender?: number
   phone?: string
   status?: string
@@ -58,6 +60,11 @@ export const useUserStore = defineStore('user', () => {
     return !!token.value && !!userInfo.value
   }
 
+  // 是否是会员（登录且isMember=1）
+  const isMemberUser = () => {
+    return isLoggedIn() && userInfo.value?.isMember === 1
+  }
+
   return {
     token,
     userInfo,
@@ -66,7 +73,8 @@ export const useUserStore = defineStore('user', () => {
     setUserInfo,
     clearUserInfo,
     logout,
-    isLoggedIn
+    isLoggedIn,
+    isMemberUser
   }
 })
 

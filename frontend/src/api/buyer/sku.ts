@@ -7,7 +7,9 @@ export interface ProductSkuVO {
   skuCode: string
   specCombination: string
   price: number
-  memberPrice?: number
+  suggestedRetailPrice?: number  // 建议零售价
+  marketRetailPrice?: number      // 市场零售价
+  memberPrice?: number            // 会员价（后端根据用户等级折扣计算）
   stock: number
   warningStock: number
   salesCount: number

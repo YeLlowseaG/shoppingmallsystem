@@ -31,6 +31,14 @@
           <el-input v-model="productForm.productCode" placeholder="请输入商品编码" />
         </el-form-item>
 
+        <el-form-item label="条码" prop="barcode">
+          <el-input v-model="productForm.barcode" placeholder="请输入条码（可选）" />
+        </el-form-item>
+
+        <el-form-item label="计量单位" prop="unit">
+          <el-input v-model="productForm.unit" placeholder="请输入计量单位，如：个、件、盒" />
+        </el-form-item>
+
         <el-form-item label="商品品牌" prop="brandId">
           <el-select
             v-model="productForm.brandId"
@@ -467,6 +475,8 @@ const productForm = ref({
   productName: '',
   categoryId: null as any,
   productCode: '',
+  barcode: '',
+  unit: '',
   brandId: null as any,
   basePrice: 0,
   suggestedRetailPrice: 0,

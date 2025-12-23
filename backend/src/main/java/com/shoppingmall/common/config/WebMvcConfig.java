@@ -48,7 +48,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(adminJwtAuthenticationInterceptor)
                 .addPathPatterns("/api/admin/**")
                 .excludePathPatterns(
-                        "/api/admin/user/login"
+                        "/api/admin/user/login",
+                        "/api/admin/product/template/**"  // 模板下载不需要登录
                 );
 
         // 公共接口不需要拦截
