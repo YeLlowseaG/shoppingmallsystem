@@ -106,7 +106,14 @@
             <div class="price-row" v-if="userStore.isLoggedIn()">
               <span class="price-label">{{ userStore.isMemberUser() ? '会员价：' : '商品价格：' }}</span>
               <span class="member-price">
-                ¥{{ currentSku ? parseFloat(currentSku.memberPrice ?? currentSku.price ?? 0).toFixed(2) : parseFloat(product.memberPrice || product.basePrice || 0).toFixed(2) }}
+                <template v-if="userStore.isMemberUser()">
+                  <!-- 会员用户显示会员价 -->
+                  ¥{{ currentSku ? parseFloat(currentSku.memberPrice ?? 0).toFixed(2) : parseFloat(product.memberPrice ?? 0).toFixed(2) }}
+                </template>
+                <template v-else>
+                  <!-- 普通用户显示基础价 -->
+                  ¥{{ currentSku ? parseFloat(currentSku.price ?? 0).toFixed(2) : parseFloat(product.basePrice ?? 0).toFixed(2) }}
+                </template>
               </span>
             </div>
           </div>

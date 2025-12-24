@@ -116,6 +116,11 @@ public class ProductDTO {
     private BigDecimal weight;
 
     /**
+     * 是否启用规格（0-否，1-是）
+     */
+    private Integer enableSpec;
+
+    /**
      * 状态（上架/下架）
      */
     private String status;

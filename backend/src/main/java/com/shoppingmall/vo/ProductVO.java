@@ -137,6 +137,11 @@ public class ProductVO {
     private String status;
 
     /**
+     * 是否启用规格（0-否，1-是）
+     */
+    private Integer enableSpec;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createTime;
