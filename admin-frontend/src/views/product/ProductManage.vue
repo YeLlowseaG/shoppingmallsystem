@@ -182,6 +182,7 @@
       v-model="dialogVisible"
       title="编辑商品"
       width="980px"
+      class="product-edit-dialog"
     >
       <el-form
         ref="formRef"
@@ -2409,6 +2410,24 @@ onMounted(() => {
       background-color: #f1f1f1;
       border-radius: 4px;
     }
+  }
+}
+
+// 商品编辑对话框样式 - 固定底部按钮
+:deep(.product-edit-dialog) {
+  .el-dialog__footer {
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    border-top: 1px solid #e4e7ed;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+    z-index: 10;
+    padding: 15px 20px;
+  }
+
+  .el-dialog__body {
+    max-height: 60vh;
+    overflow-y: auto;
   }
 }
 </style>

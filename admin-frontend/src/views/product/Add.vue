@@ -450,14 +450,15 @@
             <el-radio label="下架">下架</el-radio>
           </el-radio-group>
         </el-form-item>
-
-        <el-form-item>
-          <el-button type="primary" @click="handleSubmit">提交</el-button>
-          <el-button @click="handleReset">重置</el-button>
-          <el-button @click="handleCancel">取消</el-button>
-        </el-form-item>
       </el-form>
     </el-card>
+
+    <!-- 固定底部操作栏 -->
+    <div class="fixed-footer">
+      <el-button type="primary" @click="handleSubmit">提交</el-button>
+      <el-button @click="handleReset">重置</el-button>
+      <el-button @click="handleCancel">取消</el-button>
+    </div>
   </div>
 </template>
 
@@ -790,11 +791,30 @@ onMounted(() => {
 <style scoped lang="scss">
 .product-add-container {
   padding: 20px;
+  padding-bottom: 80px; // 为固定底部栏留出空间
 }
 
 .card-header {
   font-size: 18px;
   font-weight: 500;
+}
+
+// 固定底部操作栏
+.fixed-footer {
+  position: fixed;
+  bottom: 0;
+  left: 200px;
+  right: 0;
+  height: 60px;
+  background: #fff;
+  border-top: 1px solid #e4e7ed;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 999;
+  padding: 0 20px;
 }
 
 .price-stock-grid {
