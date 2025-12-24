@@ -46,6 +46,8 @@ export interface ProductVO {
   updateTime: string
   weight?: number
   skus?: ProductSkuVO[]  // SKU列表
+  isMember?: number // 用户是否是会员（0-普通用户，1-会员）
+  enableSpec?: number // 是否启用规格（0-否，1-是）
 }
 
 // 分页响应

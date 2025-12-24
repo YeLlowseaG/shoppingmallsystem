@@ -9,6 +9,7 @@ import com.shoppingmall.dto.ProductDTO;
 import com.shoppingmall.entity.Brand;
 import com.shoppingmall.entity.Product;
 import com.shoppingmall.entity.ProductCategory;
+import com.shoppingmall.entity.ProductSku;
 import com.shoppingmall.entity.ProductStock;
 import com.shoppingmall.entity.User;
 import com.shoppingmall.repository.product.ProductCategoryRepository;
@@ -89,7 +90,7 @@ public class ProductServiceImpl implements ProductService {
 
         // 状态筛选
         if (StringUtil.isNotBlank(status)) {
-            wrapper.eq(Product::getStatus, "上架".equals(status) ? 1 : 0);
+            wrapper.eq(Product::getStatus, statusToInteger(status));
         }
 
         // 动态排序
@@ -168,10 +169,10 @@ public class ProductServiceImpl implements ProductService {
         }
 
         Product product = new Product();
-        BeanUtils.copyProperties(productDTO, product, "status", "weight");
+        BeanUtils.copyProperties(productDTO, product, "status", "weight", "stock");
 
-        // 状态映射：上架=1，下架=0
-        product.setStatus("上架".equals(productDTO.getStatus()) ? 1 : 0);
+        // 状态映射：上架=1，下架=0，草稿=2
+        product.setStatus(statusToInteger(productDTO.getStatus()));
 
         // 手动处理 weight 字段：BigDecimal 转 Integer（单位：克）
         if (productDTO.getWeight() != null) {
@@ -180,9 +181,15 @@ public class ProductServiceImpl implements ProductService {
             product.setWeight(null);
         }
 
-        if (product.getStock() == null) {
+        // 库存处理：如果启用规格，库存设为0（稍后由SKU创建时自动计算总和）
+        // 如果不启用规格，使用用户输入的库存
+        if (productDTO.getEnableSpec() != null && productDTO.getEnableSpec() == 1) {
             product.setStock(0);
+            log.info("商品启用规格，初始库存设为0，等待SKU创建后自动计算");
+        } else {
+            product.setStock(productDTO.getStock() != null ? productDTO.getStock() : 0);
         }
+
         if (product.getSalesCount() == null) {
             product.setSalesCount(0);
         }
@@ -229,10 +236,10 @@ public class ProductServiceImpl implements ProductService {
         Integer oldStock = product.getStock();
         boolean wasOutOfStock = (oldStock == null || oldStock <= 0);
 
-        BeanUtils.copyProperties(productDTO, product, "id", "salesCount", "status", "weight");
+        BeanUtils.copyProperties(productDTO, product, "id", "salesCount", "status", "weight", "stock");
 
-        // 状态映射：上架=1，下架=0
-        product.setStatus("上架".equals(productDTO.getStatus()) ? 1 : 0);
+        // 状态映射：上架=1，下架=0，草稿=2
+        product.setStatus(statusToInteger(productDTO.getStatus()));
 
         // 手动处理 weight 字段：BigDecimal 转 Integer（单位：克）
         if (productDTO.getWeight() != null) {
@@ -241,15 +248,31 @@ public class ProductServiceImpl implements ProductService {
             product.setWeight(null);
         }
 
+        // 库存处理：如果启用规格，从SKU计算总库存；如果不启用规格，使用用户输入的库存
+        Integer calculatedStock;
+        if (productDTO.getEnableSpec() != null && productDTO.getEnableSpec() == 1) {
+            // 启用规格时，从SKU计算总库存
+            var skuList = productSkuService.getSkusByProductId(product.getId(), null);
+            calculatedStock = skuList != null ? skuList.stream()
+                    .mapToInt(sku -> sku.getStock() != null ? sku.getStock() : 0)
+                    .sum() : 0;
+            product.setStock(calculatedStock);
+            log.info("商品启用规格，从SKU计算总库存：{}", calculatedStock);
+        } else {
+            // 不启用规格时，使用用户输入的库存
+            calculatedStock = productDTO.getStock() != null ? productDTO.getStock() : product.getStock();
+            product.setStock(calculatedStock);
+        }
+
         productRepository.updateById(product);
 
         // 如果更新了库存，使用StockService统一管理
-        if (productDTO.getStock() != null) {
+        if (calculatedStock != null) {
             try {
-                stockService.updateProductTotalStock(product.getId(), productDTO.getStock());
+                stockService.updateProductTotalStock(product.getId(), calculatedStock);
 
                 // 检查是否从缺货状态变为有库存状态，如果是则发送通知
-                boolean isNowInStock = productDTO.getStock() > 0;
+                boolean isNowInStock = calculatedStock > 0;
                 if (wasOutOfStock && isNowInStock) {
                     try {
                         stockNotificationService.notifyUsers(product.getId());
@@ -288,8 +311,8 @@ public class ProductServiceImpl implements ProductService {
             throw new BusinessException(404, "商品不存在");
         }
 
-        // 状态映射：上架=1，下架=0
-        product.setStatus("上架".equals(status) ? 1 : 0);
+        // 状态映射：上架=1，下架=0，草稿=2
+        product.setStatus(statusToInteger(status));
         productRepository.updateById(product);
         log.info("更新商品状态成功: id={}, status={}", id, status);
     }
@@ -334,8 +357,8 @@ public class ProductServiceImpl implements ProductService {
         ProductVO vo = new ProductVO();
         BeanUtils.copyProperties(product, vo, "status", "weight");
 
-        // 状态映射：1=上架，0=下架
-        vo.setStatus(product.getStatus() == 1 ? "上架" : "下架");
+        // 状态映射：1=上架，0=下架，2=草稿
+        vo.setStatus(statusToString(product.getStatus()));
 
         // 手动处理 weight 字段：Integer 转 BigDecimal（单位：克）
         if (product.getWeight() != null) {
@@ -371,30 +394,36 @@ public class ProductServiceImpl implements ProductService {
             vo.setImageList(new ArrayList<>());
         }
 
-        // 会员价逻辑：如果启用了固定会员价且有值，使用固定会员价；否则按等级折扣计算
-        if (product.getEnableMemberPrice() != null && product.getEnableMemberPrice() == 1
-                && product.getMemberPrice() != null && product.getMemberPrice().compareTo(BigDecimal.ZERO) > 0) {
-            // 使用商品设置的固定会员价（已通过BeanUtils复制到vo）
-            vo.setUserLevelPrice(product.getMemberPrice());
-        } else {
-            // 按用户等级折扣计算会员价
-            vo.setMemberPrice(calculateMemberPrice(product.getBasePrice(), userId));
-            vo.setUserLevelPrice(product.getBasePrice());
+        // 0. 获取用户信息，判断是否是会员
+        Integer isMember = 0;
+        if (userId != null) {
+            User user = userRepository.selectById(userId);
+            isMember = (user != null && user.getIsMember() != null && user.getIsMember() == 1) ? 1 : 0;
         }
+        vo.setIsMember(isMember);
 
-        // 获取 SKU 列表并处理 SKU 层级的会员价
+        // 1. 计算商品会员价（参考购物车逻辑）
+        BigDecimal salesPrice = product.getBasePrice();
+        if (salesPrice == null) {
+            salesPrice = BigDecimal.ZERO;
+        }
+        BigDecimal memberPrice = calculateMemberPriceForProduct(product, salesPrice, userId);
+        vo.setMemberPrice(memberPrice);
+        vo.setUserLevelPrice(salesPrice);
+
+        // 2. 获取 SKU 列表并处理 SKU 层级的会员价
         try {
             var skuList = productSkuService.getSkusByProductId(product.getId(), userId);
             if (skuList != null) {
                 skuList.forEach(sku -> {
-                    // SKU会员价逻辑：如果SKU启用了固定会员价且有值，使用固定会员价；否则按等级折扣计算
-                    if (sku.getEnableMemberPrice() != null && sku.getEnableMemberPrice() == 1
-                            && sku.getMemberPrice() != null && sku.getMemberPrice().compareTo(BigDecimal.ZERO) > 0) {
-                        // SKU已设置固定会员价，保留原值（已从数据库读取）
-                    } else {
-                        // 按用户等级折扣计算
-                        sku.setMemberPrice(calculateMemberPrice(sku.getPrice(), userId));
+                    // SKU会员价逻辑：优先使用SKU配置的会员价，如果没有则根据会员等级折扣率计算
+                    BigDecimal skuSalesPrice = sku.getPrice();
+                    if (skuSalesPrice == null) {
+                        skuSalesPrice = BigDecimal.ZERO;
                     }
+                    // 计算SKU会员价（参考购物车逻辑）
+                    BigDecimal skuMemberPrice = calculateMemberPriceForSku(sku, skuSalesPrice, userId);
+                    sku.setMemberPrice(skuMemberPrice);
                 });
             }
             vo.setSkus(skuList);
@@ -407,37 +436,103 @@ public class ProductServiceImpl implements ProductService {
     }
 
     /**
+     * 计算商品的会员价格
+     * 优先使用商品配置的会员价，如果没有则根据会员等级折扣率计算
+     * 注意：非会员不能享受会员价，直接返回原价
+     *
+     * @param product 商品实体
+     * @param salesPrice 销售价格
+     * @param userId 用户ID
+     * @return 会员价格（非会员返回原价）
+     */
+    private BigDecimal calculateMemberPriceForProduct(Product product, BigDecimal salesPrice, Long userId) {
+        if (salesPrice == null || salesPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        // 首先检查用户是否是会员（大前提条件）
+        User user = userId != null ? userRepository.selectById(userId) : null;
+        if (user == null || user.getIsMember() == null || user.getIsMember() != 1) {
+            // 非会员不能享受会员价，直接返回原价
+            return salesPrice;
+        }
+
+        // 如果是会员，检查商品是否启用了会员价且有配置会员价
+        if (product.getEnableMemberPrice() != null && product.getEnableMemberPrice() == 1
+                && product.getMemberPrice() != null && product.getMemberPrice().compareTo(BigDecimal.ZERO) > 0) {
+            return product.getMemberPrice();
+        }
+
+        // 否则根据会员等级折扣率计算
+        return calculateMemberPriceByDiscount(salesPrice, userId);
+    }
+
+    /**
+     * 计算SKU的会员价格
+     * 优先使用SKU配置的会员价，如果没有则根据会员等级折扣率计算
+     * 注意：非会员不能享受会员价，直接返回原价
+     *
+     * @param sku SKU实体（ProductSkuVO）
+     * @param salesPrice 销售价格
+     * @param userId 用户ID
+     * @return 会员价格（非会员返回原价）
+     */
+    private BigDecimal calculateMemberPriceForSku(com.shoppingmall.vo.ProductSkuVO sku, BigDecimal salesPrice, Long userId) {
+        if (salesPrice == null || salesPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        // 首先检查用户是否是会员（大前提条件）
+        User user = userId != null ? userRepository.selectById(userId) : null;
+        if (user == null || user.getIsMember() == null || user.getIsMember() != 1) {
+            // 非会员不能享受会员价，直接返回原价
+            return salesPrice;
+        }
+
+        // 如果是会员，检查SKU是否启用了会员价且有配置会员价
+        if (sku.getEnableMemberPrice() != null && sku.getEnableMemberPrice() == 1
+                && sku.getMemberPrice() != null && sku.getMemberPrice().compareTo(BigDecimal.ZERO) > 0) {
+            return sku.getMemberPrice();
+        }
+
+        // 否则根据会员等级折扣率计算
+        return calculateMemberPriceByDiscount(salesPrice, userId);
+    }
+
+    /**
      * 根据会员等级折扣率计算会员价格
      *
-     * @param salesPrice 销售价
-     * @param userId     用户ID（可为空，未登录返回原价）
-     * @return 会员价
+     * @param salesPrice 销售价格
+     * @param userId 用户ID
+     * @return 会员价格
      */
-    private BigDecimal calculateMemberPrice(BigDecimal salesPrice, Long userId) {
+    private BigDecimal calculateMemberPriceByDiscount(BigDecimal salesPrice, Long userId) {
         if (salesPrice == null || salesPrice.compareTo(BigDecimal.ZERO) <= 0) {
-            return salesPrice == null ? BigDecimal.ZERO : salesPrice;
+            return BigDecimal.ZERO;
         }
 
         try {
-            // 获取所有启用的会员等级（按排序号排序）
-            List<MemberLevelVO> memberLevels = memberLevelService.getAllEnabledMemberLevels();
-            if (memberLevels == null || memberLevels.isEmpty()) {
+            // 获取用户的会员等级
+            User user = userId != null ? userRepository.selectById(userId) : null;
+
+            // 如果不是会员，返回原价
+            if (user == null || user.getIsMember() == null || user.getIsMember() != 1) {
                 return salesPrice;
             }
 
-            // 获取用户的会员等级ID
-            Long memberLevelId = null;
-            if (userId != null) {
-                User user = userRepository.selectById(userId);
-                // 只有会员才有会员等级
-                if (user != null && user.getIsMember() != null && user.getIsMember() == 1 && user.getMemberLevelId() != null) {
-                    memberLevelId = user.getMemberLevelId();
-                }
+            // 获取所有启用的会员等级（按排序号排序）
+            List<MemberLevelVO> memberLevels = memberLevelService.getAllEnabledMemberLevels();
+            if (memberLevels == null || memberLevels.isEmpty()) {
+                // 如果没有会员等级，返回原价
+                return salesPrice;
             }
 
-            // 查找匹配的会员等级
+            // 查找用户的会员等级
+            Long memberLevelId = user.getMemberLevelId();
             MemberLevelVO memberLevel = null;
+
             if (memberLevelId != null) {
+                // 根据 member_level.id 查找
                 for (MemberLevelVO level : memberLevels) {
                     if (level.getId() != null && level.getId().equals(memberLevelId)) {
                         memberLevel = level;
@@ -446,21 +541,64 @@ public class ProductServiceImpl implements ProductService {
                 }
             }
 
-            // 如果找不到匹配等级，使用第一个等级（默认）
+            // 如果找不到匹配的等级，返回原价
             if (memberLevel == null) {
-                memberLevel = memberLevels.get(0);
-            }
-
-            if (memberLevel == null || memberLevel.getDiscountRate() == null) {
                 return salesPrice;
             }
 
-            // 会员价 = 销售价 * (折扣率 / 100)
-            return salesPrice.multiply(memberLevel.getDiscountRate())
-                    .divide(new BigDecimal("100.00"), 2, BigDecimal.ROUND_HALF_UP);
+            BigDecimal discountRate = memberLevel.getDiscountRate();
+            if (discountRate == null) {
+                // 如果没有折扣率，返回原价
+                return salesPrice;
+            }
+
+            // 计算会员价格：销售价格 * (折扣率 / 100.00)
+            // 例如：100.00 * (95.00 / 100.00) = 95.00
+            BigDecimal memberPrice = salesPrice.multiply(discountRate).divide(new BigDecimal("100.00"), 2, BigDecimal.ROUND_HALF_UP);
+            return memberPrice;
         } catch (Exception e) {
             log.error("计算会员价格失败: userId={}, salesPrice={}", userId, salesPrice, e);
             return salesPrice;
+        }
+    }
+
+    /**
+     * 将字符串状态转换为整数
+     * @param status 状态字符串：上架、下架、草稿
+     * @return 状态整数：1=上架，0=下架，2=草稿
+     */
+    private Integer statusToInteger(String status) {
+        if (status == null) {
+            return 0; // 默认下架
+        }
+        switch (status) {
+            case "上架":
+                return 1;
+            case "草稿":
+                return 2;
+            case "下架":
+            default:
+                return 0;
+        }
+    }
+
+    /**
+     * 将整数状态转换为字符串
+     * @param status 状态整数：1=上架，0=下架，2=草稿
+     * @return 状态字符串
+     */
+    private String statusToString(Integer status) {
+        if (status == null) {
+            return "下架";
+        }
+        switch (status) {
+            case 1:
+                return "上架";
+            case 2:
+                return "草稿";
+            case 0:
+            default:
+                return "下架";
         }
     }
 

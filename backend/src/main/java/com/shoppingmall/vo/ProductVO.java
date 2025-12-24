@@ -137,6 +137,11 @@ public class ProductVO {
     private String status;
 
     /**
+     * 是否启用规格（0-否，1-是）
+     */
+    private Integer enableSpec;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createTime;
@@ -150,4 +155,9 @@ public class ProductVO {
      * SKU 列表
      */
     private List<ProductSkuVO> skus;
+
+    /**
+     * 用户是否是会员（0-普通用户，1-会员）
+     */
+    private Integer isMember;
 }

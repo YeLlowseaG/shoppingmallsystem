@@ -104,15 +104,16 @@
               </span>
             </div>
             <div class="price-row" v-if="userStore.isLoggedIn()">
-              <span class="price-label">{{ userStore.isMemberUser() ? '会员价：' : '商品价格：' }}</span>
+              <span class="price-label">{{ getPriceLabel() }}</span>
               <span class="member-price">
-                ¥{{ currentSku ? parseFloat(currentSku.memberPrice ?? currentSku.price ?? 0).toFixed(2) : parseFloat(product.memberPrice || product.basePrice || 0).toFixed(2) }}
+                <!-- 根据isMember显示价格：会员显示会员价，普通用户显示原价 -->
+                ¥{{ getDisplayPrice().toFixed(2) }}
               </span>
             </div>
           </div>
 
-          <!-- 规格选择器 -->
-          <div class="spec-selection" v-if="productSpecKeys.length > 0">
+          <!-- 规格选择器（只有当商品启用了规格时才显示） -->
+          <div class="spec-selection" v-if="product.enableSpec === 1 && productSpecKeys.length > 0">
             <SpecSelector
               :spec-keys="productSpecKeys"
               :sku-list="productSkuList"
@@ -121,7 +122,7 @@
             />
           </div>
 
-          <!-- 基础库存信息（无规格商品） -->
+          <!-- 基础库存信息（未启用规格的商品） -->
           <div class="base-stock-info" v-else>
             <div class="stock-label">库存：</div>
             <div class="stock-value" :class="{ 'low-stock': product.stock <= 10, 'out-stock': product.stock <= 0 }">
@@ -225,7 +226,7 @@
                 :rules="consultationRules"
                 label-width="100px"
               >
-                <el-form-item label="*联系人姓名：" prop="contactName">
+                <el-form-item label="联系人姓名：" prop="contactName" required>
                   <el-input 
                     v-model="consultationForm.contactName" 
                     placeholder="请输入您的姓名"
@@ -243,7 +244,7 @@
                     placeholder="请输入您的邮箱（可选）"
                   />
                 </el-form-item>
-                <el-form-item label="*咨询内容：" prop="consultationContent">
+                <el-form-item label="咨询内容：" prop="consultationContent" required>
                   <el-input
                     v-model="consultationForm.consultationContent"
                     type="textarea"
@@ -274,13 +275,13 @@
                 如果您对本商品有什么使用心得或建议，欢迎分享！
               </div>
               <el-form :model="reviewForm" label-width="100px">
-                <el-form-item label="*评论标题：">
+                <el-form-item label="评论标题：" required>
                   <el-input v-model="reviewForm.title" />
                 </el-form-item>
-                <el-form-item label="*联系方式：">
+                <el-form-item label="联系方式：" required>
                   <el-input v-model="reviewForm.contact" placeholder="(可以是电话、email、qq等)" />
                 </el-form-item>
-                <el-form-item label="*评论内容：">
+                <el-form-item label="评论内容：" required>
                   <el-input
                     v-model="reviewForm.content"
                     type="textarea"
@@ -515,7 +516,9 @@ const product = ref({
   stock: 0,  // 添加库存字段
   promoText: '',
   images: [] as string[],
-  detailHtml: ''
+  detailHtml: '',
+  isMember: 0 as number | undefined,  // 用户是否是会员（0-普通用户，1-会员）
+  enableSpec: 0 as number | undefined  // 是否启用规格（0-否，1-是）
 })
 
 // 加载状态
@@ -559,7 +562,25 @@ const loadProductDetail = async (productId: number) => {
           <p style="color: #666; white-space: pre-wrap;">${productData.description || '暂无详细描述'}</p>
           ${productData.mainImage ? `<img src="${productData.mainImage}" style="max-width: 100%; margin: 20px 0;" />` : ''}
         </div>
-      `
+      `,
+      isMember: productData.isMember, // 从后端获取isMember字段（后端已根据用户ID判断）
+      enableSpec: productData.enableSpec // 是否启用规格（0-否，1-是）
+    }
+    
+    // 调试日志：检查后端返回的数据（开发环境）
+    if (import.meta.env.DEV) {
+      console.log('商品详情数据:', {
+        isMember: productData.isMember,
+        enableSpec: productData.enableSpec,
+        memberPrice: productData.memberPrice,
+        basePrice: productData.basePrice,
+        skus: productData.skus?.map((sku: any) => ({
+          id: sku.id,
+          price: sku.price,
+          memberPrice: sku.memberPrice,
+          enableMemberPrice: sku.enableMemberPrice
+        }))
+      })
     }
 
     // 设置默认图片
@@ -567,8 +588,8 @@ const loadProductDetail = async (productId: number) => {
       currentImage.value = product.value.images[0]
     }
 
-    // 使用商品详情API返回的SKU数据（包含正确计算的memberPrice）
-    if (productData.skus && productData.skus.length > 0) {
+    // 只有当商品启用了规格（enableSpec === 1）且有SKU数据时，才加载规格选择器
+    if (productData.enableSpec === 1 && productData.skus && productData.skus.length > 0) {
       productSkuList.value = productData.skus
       // 加载规格属性
       const specKeys = await getSpecKeysByProductId(Number(productId))
@@ -595,9 +616,16 @@ const loadProductDetail = async (productId: number) => {
           }
         }
       }
-    } else {
-      // 没有SKU数据时，单独加载
+    } else if (productData.enableSpec === 1) {
+      // 启用了规格但没有SKU数据时，单独加载
       await loadProductSkuData(Number(productId))
+    } else {
+      // 未启用规格，清空规格相关数据
+      productSpecKeys.value = []
+      productSkuList.value = []
+      currentSku.value = null
+      selectedSpecs.value = {}
+      defaultSpecs.value = {}
     }
   } catch (error) {
     console.error('加载商品详情失败:', error)
@@ -982,6 +1010,40 @@ const checkStockRegisterStatus = async () => {
 // 显示缺货登记对话框
 const showStockRegisterDialog = () => {
   stockRegisterDialogVisible.value = true
+}
+
+// 获取价格标签（根据用户是否是会员）
+// 完全依赖后端返回的isMember字段（后端已根据用户ID判断）
+const getPriceLabel = () => {
+  // 后端返回的isMember字段：1-会员，0-普通用户，undefined-未登录
+  const isMember = product.value.isMember === 1
+  return isMember ? '会员价：' : '商品价格：'
+}
+
+// 获取显示价格（根据用户是否是会员）
+// 完全依赖后端返回的isMember字段和memberPrice（后端已根据用户ID判断）
+const getDisplayPrice = () => {
+  // 后端返回的isMember字段：1-会员，0-普通用户，undefined-未登录
+  const isMember = product.value.isMember === 1
+  
+  if (isMember) {
+    // 会员用户显示会员价（后端已计算好）
+    if (currentSku.value && currentSku.value.memberPrice != null) {
+      return parseFloat(currentSku.value.memberPrice)
+    }
+    // 如果没有SKU或SKU没有会员价，使用商品的会员价
+    if (product.value.memberPrice != null) {
+      return parseFloat(product.value.memberPrice)
+    }
+    // 如果都没有，返回原价（不应该发生，但作为兜底）
+    return parseFloat(product.value.basePrice ?? 0)
+  } else {
+    // 普通用户显示原价
+    if (currentSku.value && currentSku.value.price != null) {
+      return parseFloat(currentSku.value.price)
+    }
+    return parseFloat(product.value.basePrice ?? 0)
+  }
 }
 
 // 提交缺货登记
@@ -1458,6 +1520,12 @@ const submitStockRegister = async () => {
         margin-bottom: 20px;
         color: #666;
         font-size: 14px;
+      }
+
+      // 确保表单标签不换行
+      :deep(.el-form-item__label) {
+        white-space: nowrap;
+        word-break: keep-all;
       }
     }
   }

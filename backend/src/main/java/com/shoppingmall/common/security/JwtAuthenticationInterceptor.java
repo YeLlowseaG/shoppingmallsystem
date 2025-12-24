@@ -29,6 +29,26 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
 
         // 获取Token
         String token = getTokenFromRequest(request);
+        
+        // 如果商品详情等公开接口，支持可选认证：有token就验证并设置userId，没有token就允许通过
+        if (uri.contains("/product/") || uri.contains("/product-category/") || 
+            uri.contains("/website/") || uri.contains("/navigation/")) {
+            // 可选认证：如果有token就验证并设置userId
+            if (token != null) {
+                try {
+                    if (jwtUtil.validateToken(token)) {
+                        Long userId = jwtUtil.getUserIdFromToken(token);
+                        request.setAttribute("userId", userId);
+                    }
+                    // 如果token无效，不抛出异常，允许继续访问（作为游客）
+                } catch (Exception e) {
+                    // token无效时，不抛出异常，允许继续访问（作为游客）
+                }
+            }
+            return true;
+        }
+
+        // 其他接口必须登录
         if (token == null) {
             throw new BusinessException(401, "未登录，请先登录");
         }

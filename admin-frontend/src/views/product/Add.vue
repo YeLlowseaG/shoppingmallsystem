@@ -97,9 +97,13 @@
               v-model="productForm.stock"
               :min="0"
               :step="1"
+              :disabled="productForm.enableSpec"
               controls-position="right"
               style="width: 100%"
             />
+            <div v-if="productForm.enableSpec" class="form-tip" style="margin-top: 5px;">
+              启用规格后，总库存由SKU库存自动计算：{{ totalSkuStock }}
+            </div>
           </el-form-item>
 
           <el-form-item label="警戒库存" prop="warningStock">
@@ -442,23 +446,26 @@
 
         <el-form-item label="商品状态" prop="status">
           <el-radio-group v-model="productForm.status">
+            <el-radio label="草稿">草稿</el-radio>
             <el-radio label="上架">上架</el-radio>
             <el-radio label="下架">下架</el-radio>
           </el-radio-group>
         </el-form-item>
-
-        <el-form-item>
-          <el-button type="primary" @click="handleSubmit">提交</el-button>
-          <el-button @click="handleReset">重置</el-button>
-          <el-button @click="handleCancel">取消</el-button>
-        </el-form-item>
       </el-form>
     </el-card>
+
+    <!-- 固定底部操作栏 -->
+    <div class="fixed-footer">
+      <el-button type="primary" @click="handleSubmit">提交</el-button>
+      <el-button type="info" @click="handleSaveAsDraft">保存为草稿</el-button>
+      <el-button @click="handleReset">重置</el-button>
+      <el-button @click="handleCancel">取消</el-button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
@@ -488,8 +495,8 @@ const productForm = ref({
   weight: 0,
   description: '',
   mainImage: '',
-  status: '下架',
-  enableSpec: false
+  status: '草稿',
+  enableSpec: false as boolean
 })
 
 // 详情图列表
@@ -508,11 +515,34 @@ const skuList = ref<any[]>([])
 // 计算属性：是否可以生成SKU
 const canGenerateSkus = computed(() => {
   if (!productForm.value.enableSpec) return false
-  return specKeys.value.every(key => 
-    key.specName.trim() && 
-    key.values.length > 0 && 
+  return specKeys.value.every(key =>
+    key.specName.trim() &&
+    key.values.length > 0 &&
     key.values.every(value => value.specValue.trim())
   )
+})
+
+// 计算属性：SKU总库存
+const totalSkuStock = computed(() => {
+  if (!productForm.value.enableSpec || skuList.value.length === 0) {
+    return 0
+  }
+  return skuList.value.reduce((total, sku) => total + (sku.stock || 0), 0)
+})
+
+// 监听SKU库存变化，自动更新商品总库存
+watch(totalSkuStock, (newTotal) => {
+  if (productForm.value.enableSpec) {
+    productForm.value.stock = newTotal
+  }
+})
+
+// 监听enableSpec变化
+watch(() => productForm.value.enableSpec, (newValue) => {
+  if (newValue) {
+    // 启用规格时，设置总库存为SKU总和
+    productForm.value.stock = totalSkuStock.value
+  }
 })
 
 const formRules: FormRules = {
@@ -621,6 +651,8 @@ const handleSubmit = async () => {
           productName: productForm.value.productName,
           categoryId: categoryId,
           productCode: productForm.value.productCode,
+          barcode: productForm.value.barcode,
+          unit: productForm.value.unit,
           brandId: productForm.value.brandId,
           basePrice: productForm.value.basePrice,
           suggestedRetailPrice: productForm.value.suggestedRetailPrice,
@@ -633,7 +665,8 @@ const handleSubmit = async () => {
           description: productForm.value.description,
           mainImage: productForm.value.mainImage,
           detailImages: detailImages.join(','), // 多张图片用逗号分隔
-          status: productForm.value.status
+          status: productForm.value.status,
+          enableSpec: productForm.value.enableSpec ? 1 : 0
         })
         ElMessage.success('商品发布成功！')
         router.push('/admin/product/list')
@@ -653,6 +686,52 @@ const handleReset = () => {
 
 const handleCancel = () => {
   router.push('/admin/product/list')
+}
+
+const handleSaveAsDraft = async () => {
+  try {
+    // 暂存原状态
+    const originalStatus = productForm.value.status
+    // 设置为草稿状态
+    productForm.value.status = '草稿'
+
+    // 处理级联选择器的值（如果是数组，取最后一个值）
+    const categoryId = Array.isArray(productForm.value.categoryId)
+      ? productForm.value.categoryId[productForm.value.categoryId.length - 1]
+      : productForm.value.categoryId
+
+    // 获取详情图URL列表
+    const detailImages = detailImageList.value
+      .map(file => file.url || (file.response as any)?.data?.url)
+      .filter(url => url)
+
+    await createProduct({
+      productName: productForm.value.productName,
+      categoryId: categoryId,
+      productCode: productForm.value.productCode,
+      barcode: productForm.value.barcode,
+      unit: productForm.value.unit,
+      brandId: productForm.value.brandId,
+      basePrice: productForm.value.basePrice,
+      suggestedRetailPrice: productForm.value.suggestedRetailPrice,
+      marketRetailPrice: productForm.value.marketRetailPrice,
+      memberPrice: productForm.value.memberPrice,
+      enableMemberPrice: productForm.value.enableMemberPrice,
+      stock: productForm.value.stock,
+      warningStock: productForm.value.warningStock,
+      weight: productForm.value.weight,
+      description: productForm.value.description,
+      mainImage: productForm.value.mainImage,
+      detailImages: detailImages.join(','),
+      status: '草稿',
+      enableSpec: productForm.value.enableSpec ? 1 : 0
+    })
+
+    ElMessage.success('草稿保存成功！')
+    router.push('/admin/product/list')
+  } catch (error) {
+    ElMessage.error('草稿保存失败')
+  }
 }
 
 // SKU规格管理方法
@@ -760,11 +839,30 @@ onMounted(() => {
 <style scoped lang="scss">
 .product-add-container {
   padding: 20px;
+  padding-bottom: 80px; // 为固定底部栏留出空间
 }
 
 .card-header {
   font-size: 18px;
   font-weight: 500;
+}
+
+// 固定底部操作栏
+.fixed-footer {
+  position: fixed;
+  bottom: 0;
+  left: 200px;
+  right: 0;
+  height: 60px;
+  background: #fff;
+  border-top: 1px solid #e4e7ed;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 999;
+  padding: 0 20px;
 }
 
 .price-stock-grid {
