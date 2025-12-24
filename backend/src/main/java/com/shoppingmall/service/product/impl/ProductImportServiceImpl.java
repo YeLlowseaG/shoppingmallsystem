@@ -10,6 +10,7 @@ import com.shoppingmall.entity.Brand;
 import com.shoppingmall.repository.product.ProductRepository;
 import com.shoppingmall.repository.product.ProductCategoryRepository;
 import com.shoppingmall.repository.website.BrandRepository;
+import com.shoppingmall.common.util.StringUtil;
 import com.shoppingmall.service.product.ProductImportService;
 import com.shoppingmall.service.common.ImageService;
 import com.shoppingmall.service.product.ProductService;
@@ -136,7 +137,9 @@ public class ProductImportServiceImpl implements ProductImportService {
                     dto.setWarningStock(getInteger(record, "预警库存"));
                     dto.setWeight(getBigDecimal(record, "重量(g)"));
                     dto.setDescription(getStringOrNull(record, "商品描述"));
-                    dto.setStatus(record.get("状态"));
+                    // 批量导入商品默认为草稿状态，除非明确指定
+                    String status = record.get("状态");
+                    dto.setStatus(StringUtil.isBlank(status) ? "草稿" : status);
                     dto.setEnableSpec("是".equals(record.get("启用规格")));
                     dto.setSkuCode(getStringOrNull(record, "SKU编码"));
                     dto.setSpecCombination(getStringOrNull(record, "规格组合"));
@@ -192,7 +195,9 @@ public class ProductImportServiceImpl implements ProductImportService {
                     dto.setWarningStock(getIntegerFromCell(row, 9));
                     dto.setWeight(getBigDecimalFromCell(row, 10));
                     dto.setDescription(getCellValue(row, 11));
-                    dto.setStatus(getCellValue(row, 12));
+                    // 批量导入商品默认为草稿状态，除非明确指定
+                    String status = getCellValue(row, 12);
+                    dto.setStatus(StringUtil.isBlank(status) ? "草稿" : status);
                     dto.setEnableSpec("是".equals(getCellValue(row, 13)));
                     dto.setSkuCode(getCellValue(row, 14));
                     dto.setSpecCombination(getCellValue(row, 15));

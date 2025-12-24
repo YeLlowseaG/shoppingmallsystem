@@ -90,7 +90,7 @@ public class ProductServiceImpl implements ProductService {
 
         // 状态筛选
         if (StringUtil.isNotBlank(status)) {
-            wrapper.eq(Product::getStatus, "上架".equals(status) ? 1 : 0);
+            wrapper.eq(Product::getStatus, statusToInteger(status));
         }
 
         // 动态排序
@@ -171,8 +171,8 @@ public class ProductServiceImpl implements ProductService {
         Product product = new Product();
         BeanUtils.copyProperties(productDTO, product, "status", "weight", "stock");
 
-        // 状态映射：上架=1，下架=0
-        product.setStatus("上架".equals(productDTO.getStatus()) ? 1 : 0);
+        // 状态映射：上架=1，下架=0，草稿=2
+        product.setStatus(statusToInteger(productDTO.getStatus()));
 
         // 手动处理 weight 字段：BigDecimal 转 Integer（单位：克）
         if (productDTO.getWeight() != null) {
@@ -238,8 +238,8 @@ public class ProductServiceImpl implements ProductService {
 
         BeanUtils.copyProperties(productDTO, product, "id", "salesCount", "status", "weight", "stock");
 
-        // 状态映射：上架=1，下架=0
-        product.setStatus("上架".equals(productDTO.getStatus()) ? 1 : 0);
+        // 状态映射：上架=1，下架=0，草稿=2
+        product.setStatus(statusToInteger(productDTO.getStatus()));
 
         // 手动处理 weight 字段：BigDecimal 转 Integer（单位：克）
         if (productDTO.getWeight() != null) {
@@ -311,8 +311,8 @@ public class ProductServiceImpl implements ProductService {
             throw new BusinessException(404, "商品不存在");
         }
 
-        // 状态映射：上架=1，下架=0
-        product.setStatus("上架".equals(status) ? 1 : 0);
+        // 状态映射：上架=1，下架=0，草稿=2
+        product.setStatus(statusToInteger(status));
         productRepository.updateById(product);
         log.info("更新商品状态成功: id={}, status={}", id, status);
     }
@@ -357,8 +357,8 @@ public class ProductServiceImpl implements ProductService {
         ProductVO vo = new ProductVO();
         BeanUtils.copyProperties(product, vo, "status", "weight");
 
-        // 状态映射：1=上架，0=下架
-        vo.setStatus(product.getStatus() == 1 ? "上架" : "下架");
+        // 状态映射：1=上架，0=下架，2=草稿
+        vo.setStatus(statusToString(product.getStatus()));
 
         // 手动处理 weight 字段：Integer 转 BigDecimal（单位：克）
         if (product.getWeight() != null) {
@@ -484,6 +484,46 @@ public class ProductServiceImpl implements ProductService {
         } catch (Exception e) {
             log.error("计算会员价格失败: userId={}, salesPrice={}", userId, salesPrice, e);
             return salesPrice;
+        }
+    }
+
+    /**
+     * 将字符串状态转换为整数
+     * @param status 状态字符串：上架、下架、草稿
+     * @return 状态整数：1=上架，0=下架，2=草稿
+     */
+    private Integer statusToInteger(String status) {
+        if (status == null) {
+            return 0; // 默认下架
+        }
+        switch (status) {
+            case "上架":
+                return 1;
+            case "草稿":
+                return 2;
+            case "下架":
+            default:
+                return 0;
+        }
+    }
+
+    /**
+     * 将整数状态转换为字符串
+     * @param status 状态整数：1=上架，0=下架，2=草稿
+     * @return 状态字符串
+     */
+    private String statusToString(Integer status) {
+        if (status == null) {
+            return "下架";
+        }
+        switch (status) {
+            case 1:
+                return "上架";
+            case 2:
+                return "草稿";
+            case 0:
+            default:
+                return "下架";
         }
     }
 

@@ -446,6 +446,7 @@
 
         <el-form-item label="商品状态" prop="status">
           <el-radio-group v-model="productForm.status">
+            <el-radio label="草稿">草稿</el-radio>
             <el-radio label="上架">上架</el-radio>
             <el-radio label="下架">下架</el-radio>
           </el-radio-group>
@@ -456,6 +457,7 @@
     <!-- 固定底部操作栏 -->
     <div class="fixed-footer">
       <el-button type="primary" @click="handleSubmit">提交</el-button>
+      <el-button type="info" @click="handleSaveAsDraft">保存为草稿</el-button>
       <el-button @click="handleReset">重置</el-button>
       <el-button @click="handleCancel">取消</el-button>
     </div>
@@ -493,7 +495,7 @@ const productForm = ref({
   weight: 0,
   description: '',
   mainImage: '',
-  status: '下架',
+  status: '草稿',
   enableSpec: false as boolean
 })
 
@@ -684,6 +686,52 @@ const handleReset = () => {
 
 const handleCancel = () => {
   router.push('/admin/product/list')
+}
+
+const handleSaveAsDraft = async () => {
+  try {
+    // 暂存原状态
+    const originalStatus = productForm.value.status
+    // 设置为草稿状态
+    productForm.value.status = '草稿'
+
+    // 处理级联选择器的值（如果是数组，取最后一个值）
+    const categoryId = Array.isArray(productForm.value.categoryId)
+      ? productForm.value.categoryId[productForm.value.categoryId.length - 1]
+      : productForm.value.categoryId
+
+    // 获取详情图URL列表
+    const detailImages = detailImageList.value
+      .map(file => file.url || (file.response as any)?.data?.url)
+      .filter(url => url)
+
+    await createProduct({
+      productName: productForm.value.productName,
+      categoryId: categoryId,
+      productCode: productForm.value.productCode,
+      barcode: productForm.value.barcode,
+      unit: productForm.value.unit,
+      brandId: productForm.value.brandId,
+      basePrice: productForm.value.basePrice,
+      suggestedRetailPrice: productForm.value.suggestedRetailPrice,
+      marketRetailPrice: productForm.value.marketRetailPrice,
+      memberPrice: productForm.value.memberPrice,
+      enableMemberPrice: productForm.value.enableMemberPrice,
+      stock: productForm.value.stock,
+      warningStock: productForm.value.warningStock,
+      weight: productForm.value.weight,
+      description: productForm.value.description,
+      mainImage: productForm.value.mainImage,
+      detailImages: detailImages.join(','),
+      status: '草稿',
+      enableSpec: productForm.value.enableSpec ? 1 : 0
+    })
+
+    ElMessage.success('草稿保存成功！')
+    router.push('/admin/product/list')
+  } catch (error) {
+    ElMessage.error('草稿保存失败')
+  }
 }
 
 // SKU规格管理方法

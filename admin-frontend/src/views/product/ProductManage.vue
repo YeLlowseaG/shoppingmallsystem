@@ -36,6 +36,7 @@
           <div class="filter-item">
             <label>状态</label>
             <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
+              <el-option label="草稿" value="草稿" />
               <el-option label="上架" value="上架" />
               <el-option label="下架" value="下架" />
             </el-select>
@@ -143,7 +144,7 @@
         <el-table-column prop="salesCount" label="销量" width="80" sortable="custom" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.status === '上架' ? 'success' : 'info'">
+            <el-tag :type="row.status === '上架' ? 'success' : row.status === '草稿' ? '' : 'info'">
               {{ row.status }}
             </el-tag>
           </template>
@@ -619,6 +620,7 @@
 
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="formData.status">
+            <el-radio label="草稿">草稿</el-radio>
             <el-radio label="上架">上架</el-radio>
             <el-radio label="下架">下架</el-radio>
           </el-radio-group>

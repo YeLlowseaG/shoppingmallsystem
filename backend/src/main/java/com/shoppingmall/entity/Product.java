@@ -118,7 +118,7 @@ public class Product {
     private Integer salesCount;
 
     /**
-     * 状态（0-下架，1-上架）
+     * 状态（0-下架，1-上架，2-草稿）
      */
     private Integer status;
 
