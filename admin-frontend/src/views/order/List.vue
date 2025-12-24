@@ -101,7 +101,15 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="380" fixed="right">
+        <!-- ERP同步状态列 -->
+        <el-table-column label="ERP状态" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.erpSyncStatus === 1" type="success" size="small">已同步</el-tag>
+            <el-tag v-else-if="row.erpSyncStatus === 2" type="danger" size="small">同步失败</el-tag>
+            <el-tag v-else type="info" size="small">未同步</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="480" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleViewLogistics(row)">物流信息</el-button>
             <el-button
@@ -129,6 +137,26 @@
               退款
             </el-button>
             <el-button type="info" size="small" @click="handleRemark(row)">备注</el-button>
+            <!-- ERP操作按钮 -->
+            <el-dropdown trigger="click" size="small" style="margin-left: 5px;" v-if="row.status >= 1">
+              <el-button size="small" type="success">
+                ERP操作
+                <el-icon class="el-icon--right"><arrow-down /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="handlePushToErp(row)" v-if="row.erpSyncStatus !== 1">
+                    推送到ERP
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="handlePullLogistics(row)" v-if="row.erpSyncStatus === 1 && row.status === 1">
+                    拉取物流信息
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="handleViewErpLogs(row)">
+                    查看同步日志
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
       </el-table>
@@ -480,7 +508,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Picture } from '@element-plus/icons-vue'
+import { Picture, ArrowDown } from '@element-plus/icons-vue'
 import { formatDateTime } from '@/utils'
 import {
   getOrderList,
@@ -492,6 +520,10 @@ import {
   getOrderRefundList
 } from '@/api/admin/order'
 import type { OrderListVO, OrderDetailVO, OrderRefundRequestDTO, OrderRefundVO } from '@/api/admin/order'
+import { pushOrderToErp, pullOrderLogistics } from '@/api/admin/erp'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 const loading = ref(false)
 const orderList = ref<OrderListVO[]>([])
@@ -941,6 +973,59 @@ const formatSpecText = (specCombination: string | undefined): string => {
   } catch (e) {
     return ''
   }
+}
+
+// ==================== ERP操作方法 ====================
+
+// 推送订单到ERP
+const handlePushToErp = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要将订单 ${row.orderNo} 推送到ERP系统吗？`,
+      '提示',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    const res = await pushOrderToErp(row.id)
+    if (res.code === 200) {
+      ElMessage.success(res.message || '推送成功')
+      loadOrderList() // 重新加载订单列表
+    } else {
+      ElMessage.error(res.message || '推送失败')
+    }
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '推送失败')
+    }
+  }
+}
+
+// 从ERP拉取物流信息
+const handlePullLogistics = async (row: any) => {
+  try {
+    const res = await pullOrderLogistics(row.id)
+    if (res.code === 200) {
+      ElMessage.success(res.message || '物流信息拉取成功')
+      loadOrderList() // 重新加载订单列表
+    } else {
+      ElMessage.error(res.message || '拉取失败')
+    }
+  } catch (error: any) {
+    ElMessage.error(error.message || '拉取失败')
+  }
+}
+
+// 查看ERP同步日志
+const handleViewErpLogs = (row: any) => {
+  // 跳转到ERP同步日志页面，并传入订单ID作为筛选条件
+  router.push({
+    path: '/erp/order-sync',
+    query: { orderId: row.id }
+  })
 }
 
 // 监听搜索表单中的订单状态变化，同步到tab

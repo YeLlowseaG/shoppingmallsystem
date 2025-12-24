@@ -10,6 +10,9 @@ import com.shoppingmall.common.constant.PaymentStatus;
 import com.shoppingmall.repository.order.OrderRepository;
 import com.shoppingmall.repository.payment.PaymentRecordRepository;
 import com.shoppingmall.service.payment.PaymentService;
+import com.shoppingmall.service.erp.JushuitanConfigService;
+import com.shoppingmall.service.erp.JushuitanOrderService;
+import com.shoppingmall.vo.JushuitanConfigVO;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +39,8 @@ public class PaymentController {
     private final OrderRepository orderRepository;
     private final PaymentRecordRepository paymentRecordRepository;
     private final ObjectMapper objectMapper;
+    private final JushuitanOrderService jushuitanOrderService;
+    private final JushuitanConfigService jushuitanConfigService;
 
     /**
      * 支付回调接口（模拟支付宝/微信支付回调）
@@ -137,7 +142,19 @@ public class PaymentController {
                 order.setOrderStatus(OrderStatus.PAID_UNSHIPPED);
                 order.setPayTime(LocalDateTime.now());
                 orderRepository.updateById(order);
-                
+
+                // 自动推送订单到聚水潭ERP
+                try {
+                    JushuitanConfigVO config = jushuitanConfigService.getEnabledConfig();
+                    if (config != null && config.getAutoPushOrder() == 1) {
+                        log.info("自动推送订单到聚水潭ERP: orderId={}, orderNo={}", order.getId(), orderNo);
+                        jushuitanOrderService.pushOrder(order.getId());
+                    }
+                } catch (Exception e) {
+                    // ERP推送失败不影响支付成功流程，记录日志即可
+                    log.error("自动推送订单到ERP失败: orderId={}, orderNo={}", order.getId(), orderNo, e);
+                }
+
                 log.info("支付回调处理成功: orderNo={}, tradeNo={}", orderNo, tradeNo);
             } else {
                 // 判断是支付失败还是用户取消/关闭

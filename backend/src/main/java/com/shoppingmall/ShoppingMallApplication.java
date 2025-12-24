@@ -1,6 +1,7 @@
 package com.shoppingmall;
 
 import lombok.extern.slf4j.Slf4j;
+import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -20,6 +21,7 @@ import java.net.InetAddress;
     org.springframework.boot.autoconfigure.h2.H2ConsoleAutoConfiguration.class
 })
 @EnableScheduling // 启用定时任务
+@MapperScan({"com.shoppingmall.mapper", "com.shoppingmall.repository"}) // 扫描Mapper接口
 public class ShoppingMallApplication implements CommandLineRunner {
 
     private final Environment environment;

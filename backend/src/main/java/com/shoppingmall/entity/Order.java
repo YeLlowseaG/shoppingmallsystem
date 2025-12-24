@@ -59,6 +59,26 @@ public class Order {
     private Integer orderStatus;
 
     /**
+     * ERP同步状态（0-未同步，1-已同步，2-同步失败）
+     */
+    private Integer erpSyncStatus;
+
+    /**
+     * ERP同步时间
+     */
+    private LocalDateTime erpSyncTime;
+
+    /**
+     * ERP订单ID
+     */
+    private String erpOrderId;
+
+    /**
+     * 卖家备注
+     */
+    private String sellerRemark;
+
+    /**
      * 支付方式（ALIPAY-支付宝，WECHAT-微信，PRE_DEPOSIT-预存款，OFFLINE-线下支付）
      */
     private String paymentMethod;

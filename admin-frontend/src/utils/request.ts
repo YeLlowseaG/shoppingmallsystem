@@ -87,7 +87,7 @@ service.interceptors.response.use(
 
     // 如果返回的状态码为200，说明接口请求成功
     if (res.code === 200) {
-      return res.data
+      return res  // 返回完整的响应对象，包含code、message、data
     } else {
       // 401未登录，特殊处理
       if (res.code === 401) {
@@ -96,7 +96,7 @@ service.interceptors.response.use(
         localStorage.removeItem('admin_token')
         return Promise.reject(new Error('未登录'))
       }
-      
+
       // 其他状态码，显示错误信息
       ElMessage.error(res.message || '请求失败')
       return Promise.reject(new Error(res.message || '请求失败'))

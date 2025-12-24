@@ -13,6 +13,7 @@ import { stockComponentMap } from './componentMaps/stock'
 import { systemComponentMap } from './componentMaps/system'
 import { contentComponentMap } from './componentMaps/content'
 import { financeComponentMap } from './componentMaps/finance'
+import { erpComponentMap } from './componentMaps/erp'
 
 // 合并所有模块的组件映射
 export const componentMap: Record<string, () => Promise<any>> = {
@@ -30,7 +31,8 @@ export const componentMap: Record<string, () => Promise<any>> = {
   ...systemComponentMap,
   ...contentComponentMap,
   ...financeComponentMap,
-  
+  ...erpComponentMap,
+
   // 其他模块（待分配或共同维护）
   'deposit/Record': () => import('@/views/deposit/Record.vue'),
   'help/Index': () => import('@/views/help/Index.vue'),
