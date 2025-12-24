@@ -155,4 +155,9 @@ public class ProductVO {
      * SKU 列表
      */
     private List<ProductSkuVO> skus;
+
+    /**
+     * 用户是否是会员（0-普通用户，1-会员）
+     */
+    private Integer isMember;
 }

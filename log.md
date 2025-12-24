@@ -1,5 +1,240 @@
 # 修改日志
 
+## 2025-12-20 - 修复商品关闭规格后仍显示规格选择器的问题
+
+### 问题说明
+商品原本启用了规格，在管理后台关闭规格后，商品详情页面仍然显示灰色的规格值（如"标准"），且无法选中。
+
+### 问题原因
+前端商品详情页面在加载时，只检查了是否有SKU数据，没有检查商品的`enableSpec`字段。即使商品在管理后台关闭了规格（`enableSpec = 0`），如果数据库中还有SKU数据，前端仍然会加载并显示规格选择器。
+
+### 修复内容
+
+#### 前端代码修改
+
+**ProductVO接口：**
+- `frontend/src/api/buyer/product.ts`
+  - 在 `ProductVO` 接口中添加 `enableSpec` 字段：是否启用规格（0-否，1-是）
+
+**商品详情页面：**
+- `frontend/src/views/products/Detail.vue`
+  - 在商品数据中添加 `enableSpec` 字段映射
+  - 修改规格选择器显示逻辑：
+    - 只有当 `enableSpec === 1` 且有SKU数据时，才显示规格选择器
+    - 如果 `enableSpec === 0`，即使有SKU数据，也不显示规格选择器，而是显示基础库存信息
+  - 修改商品详情加载逻辑：
+    - 只有当 `enableSpec === 1` 且有SKU数据时，才加载规格属性
+    - 如果 `enableSpec === 0`，清空所有规格相关数据
+
+### 修复效果
+- ✅ 商品关闭规格后，不再显示规格选择器
+- ✅ 显示基础库存信息（无规格商品）
+- ✅ 避免显示灰色的、无法选中的规格值
+- ✅ 根据商品的`enableSpec`字段正确判断是否显示规格
+
+### 技术细节
+- **判断逻辑**：`product.enableSpec === 1 && productSpecKeys.length > 0`
+- **数据清理**：当`enableSpec === 0`时，清空`productSpecKeys`、`productSkuList`、`currentSku`等规格相关数据
+- **向后兼容**：后端ProductVO已有`enableSpec`字段，前端只需正确使用即可
+
+---
+
+## 2025-12-20 - 修复商品详情页面购买咨询和商品评论模块显示问题
+
+### 问题说明
+1. 购买咨询模块中，"*联系人姓名："字段出现两个必填星号，且标签可能换行
+2. 商品评论模块中，必填的星号不是红色
+
+### 问题原因
+- 购买咨询和商品评论模块在label中手动添加了星号（如`label="*联系人姓名："`），但Element Plus的form-item会自动为required字段添加红色星号，导致显示两个星号
+- 商品评论模块的必填字段没有使用Element Plus的`required`属性，所以星号不是红色的
+- 标签可能因为内容过长而换行
+
+### 修复内容
+
+#### 前端代码修改
+
+**商品详情页面：**
+- `frontend/src/views/products/Detail.vue`
+  - **购买咨询模块**：
+    - 移除label中的手动星号（`*联系人姓名：` → `联系人姓名：`）
+    - 移除label中的手动星号（`*咨询内容：` → `咨询内容：`）
+    - 为必填字段添加`required`属性，让Element Plus自动显示红色星号
+  - **商品评论模块**：
+    - 移除label中的手动星号（`*评论标题：` → `评论标题：`）
+    - 移除label中的手动星号（`*联系方式：` → `联系方式：`）
+    - 移除label中的手动星号（`*评论内容：` → `评论内容：`）
+    - 为所有必填字段添加`required`属性，让Element Plus自动显示红色星号
+  - **样式优化**：
+    - 添加CSS样式，确保表单标签不换行（`white-space: nowrap`）
+
+### 修复效果
+- ✅ 购买咨询模块：只显示一个红色必填星号，标签不换行
+- ✅ 商品评论模块：必填星号显示为红色，标签不换行
+- ✅ 统一使用Element Plus的标准必填标识方式
+
+### 技术细节
+- **Element Plus必填标识**：使用`required`属性，Element Plus会自动在label前添加红色星号
+- **防止换行**：使用`white-space: nowrap`和`word-break: keep-all`确保标签不换行
+- **样式作用域**：使用`:deep()`选择器确保样式能够穿透Element Plus组件
+
+---
+
+## 2025-12-20 - 修复商品详情接口isMember字段返回错误问题
+
+### 问题说明
+会员用户登录后访问商品详情接口，后端返回的 `isMember` 字段为 0，而不是 1。
+
+### 问题原因
+商品详情接口 `/api/buyer/product/**` 被排除在JWT拦截器之外，导致即使已登录用户访问，拦截器也不会处理，`userId` 不会被设置到 request attribute 中。因此后端 `ProductServiceImpl.convertToVO` 方法中获取的 `userId` 为 `null`，导致 `isMember` 被设置为 0。
+
+### 修复内容
+
+#### 后端代码修改
+
+**JWT认证拦截器：**
+- `backend/src/main/java/com/shoppingmall/common/security/JwtAuthenticationInterceptor.java`
+  - 修改拦截器逻辑，支持可选认证：
+    - 对于商品详情、分类、网站内容、导航等公开接口，支持可选认证
+    - 如果有 token，验证并设置 `userId` 到 request attribute
+    - 如果没有 token 或 token 无效，允许继续访问（作为游客），不设置 `userId`
+    - 其他接口仍然必须登录
+
+**WebMvcConfig配置：**
+- `backend/src/main/java/com/shoppingmall/common/config/WebMvcConfig.java`
+  - 移除商品详情、分类、网站内容、导航等接口的排除配置
+  - 这些接口现在会经过拦截器，但支持可选认证（有token就设置userId，没有token就允许通过）
+
+### 修复逻辑
+- **可选认证机制**：
+  - 商品详情等公开接口允许游客访问（不需要token）
+  - 但如果用户提供了有效的token，拦截器会验证并设置 `userId`
+  - 后端根据 `userId` 判断用户是否是会员，并返回正确的 `isMember` 和 `memberPrice`
+- **数据流程**：
+  1. 用户访问商品详情接口（带token）
+  2. 拦截器验证token，设置 `userId` 到 request attribute
+  3. `ProductController` 获取 `userId` 并传递给 `ProductService`
+  4. `ProductServiceImpl` 根据 `userId` 查询用户信息，判断 `isMember`
+  5. 返回正确的 `isMember` 和 `memberPrice` 给前端
+
+### 技术细节
+- **路径匹配**：使用 `uri.contains("/product/")` 等条件判断是否为公开接口
+- **异常处理**：token无效时不抛出异常，允许继续访问（作为游客）
+- **向后兼容**：未登录用户仍然可以访问商品详情，只是 `isMember` 为 0
+
+### 影响范围
+- ✅ 商品详情接口（`/api/buyer/product/{id}`）
+- ✅ 商品分类接口（`/api/buyer/product-category/**`）
+- ✅ 网站内容接口（`/api/buyer/website/**`）
+- ✅ 导航接口（`/api/buyer/navigation/**`）
+
+---
+
+## 2025-12-20 - 商品详情页面价格显示问题修复
+
+### 问题说明
+会员用户登录后，商品详情页面没有正确显示"会员价"标签和会员价。
+
+### 问题原因
+前端判断逻辑不够清晰，没有完全依赖后端返回的isMember字段。
+
+### 修复内容
+
+#### 前端代码修改
+
+**商品详情页面：**
+- `frontend/src/views/products/Detail.vue`
+  - 优化 `getPriceLabel` 方法：完全依赖后端返回的isMember字段（1-会员，0-普通用户）
+  - 优化 `getDisplayPrice` 方法：完全依赖后端返回的isMember字段和memberPrice
+  - 添加调试日志（仅开发环境）：方便排查问题
+
+### 修复逻辑
+- **价格标签显示**：根据后端返回的 `isMember === 1` 判断显示"会员价"或"商品价格"
+- **价格显示**：
+  - 会员用户（isMember === 1）：显示后端计算的会员价（memberPrice）
+  - 普通用户（isMember === 0 或 undefined）：显示原价（basePrice 或 SKU的price）
+- **数据来源**：完全依赖后端根据用户ID判断并返回的isMember和memberPrice字段
+
+### 技术细节
+- 后端已根据用户ID判断isMember字段（ProductServiceImpl.convertToVO）
+- 后端已根据用户会员状态计算memberPrice（calculateMemberPriceForProduct）
+- 前端完全依赖后端返回的数据，不再使用userStore作为主要判断依据
+
+---
+
+## 2025-12-20 - 商品详情页面价格逻辑修改
+
+### 功能说明
+修改商品详情页面的价格逻辑，参考购物车页面的价格逻辑实现：
+1. 根据用户是否是会员动态显示价格标签（普通用户显示"商品价格"，会员显示"会员价"）
+2. 会员价计算优先级：
+   - 第一优先级：商品/SKU配置的固定会员价（enableMemberPrice = 1 且 memberPrice > 0）
+   - 第二优先级：根据会员等级折扣率计算
+   - 普通用户：返回原价
+3. SKU处理：有SKU时优先使用SKU的价格和会员价配置
+
+### 修改原因
+- 商品详情页面的价格逻辑需要与购物车页面保持一致
+- 需要根据用户会员状态动态显示价格标签
+- 会员价计算需要遵循统一的优先级规则
+
+### 修改内容
+
+#### 后端代码修改
+
+**ProductVO：**
+- `backend/src/main/java/com/shoppingmall/vo/ProductVO.java`
+  - 添加 `isMember` 字段：用户是否是会员（0-普通用户，1-会员）
+
+**ProductServiceImpl：**
+- `backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java`
+  - 修改 `convertToVO` 方法：
+    - 添加用户会员状态判断，设置 `isMember` 字段
+    - 修改会员价计算逻辑，参考购物车的逻辑
+    - 优先使用商品配置的固定会员价，如果没有则根据会员等级折扣率计算
+    - 非会员直接返回原价
+  - 添加 `calculateMemberPriceForProduct` 方法：计算商品的会员价格
+  - 添加 `calculateMemberPriceForSku` 方法：计算SKU的会员价格
+  - 修改 `calculateMemberPriceByDiscount` 方法：根据会员等级折扣率计算会员价格
+
+#### 前端代码修改
+
+**ProductVO接口：**
+- `frontend/src/api/buyer/product.ts`
+  - 在 `ProductVO` 接口中添加 `isMember` 字段
+
+**商品详情页面：**
+- `frontend/src/views/products/Detail.vue`
+  - 修改价格显示逻辑：
+    - 添加 `getPriceLabel` 方法：根据用户是否是会员动态显示价格标签
+    - 添加 `getDisplayPrice` 方法：根据用户是否是会员返回对应价格
+    - 修改价格显示模板，使用新的方法动态显示价格
+  - 在商品数据中添加 `isMember` 字段映射
+
+### 功能特性
+- ✅ 根据用户会员状态动态显示价格标签
+- ✅ 会员价计算遵循统一优先级规则
+- ✅ SKU价格优先使用SKU配置
+- ✅ 非会员用户显示原价
+- ✅ 与购物车页面价格逻辑保持一致
+
+### 技术细节
+- **会员价计算优先级**：
+  1. 检查用户是否是会员（非会员返回原价）
+  2. 检查商品/SKU是否配置了固定会员价（有则使用）
+  3. 根据会员等级折扣率计算会员价
+- **价格显示逻辑**：
+  - 会员用户：显示"会员价"标签和会员价
+  - 普通用户：显示"商品价格"标签和原价
+- **SKU处理**：有SKU时优先使用SKU的价格和会员价配置
+
+### 影响范围
+- ✅ 商品详情页面的价格显示
+- ✅ 商品详情API返回的ProductVO
+- ✅ SKU价格计算逻辑
+
+---
+
 ## 2025-12-20 - 退款记录详情页面支付方式显示优化
 
 ### 功能说明

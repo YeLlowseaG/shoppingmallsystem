@@ -28,6 +28,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         // 采购者端JWT拦截器
+        // 注意：商品详情等接口虽然允许游客访问，但也会经过拦截器进行可选认证
+        // 拦截器会检查token，如果有token就设置userId，如果没有token就允许通过（作为游客）
         registry.addInterceptor(jwtAuthenticationInterceptor)
                 .addPathPatterns("/api/buyer/**")
                 .excludePathPatterns(
@@ -35,13 +37,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/buyer/user/register",
                         "/api/buyer/user/forgot-password",
                         "/api/buyer/user/reset-password",
-                        "/api/buyer/product/**",
-                        "/api/buyer/product-category/**",
-                        "/api/buyer/website/**",  // 网站内容模块允许游客访问
-                        "/api/buyer/system/config/public",  // 系统公开配置接口允许游客访问
-                        "/api/buyer/navigation/**"  // 导航菜单模块允许游客访问
-                        // 移除 /api/buyer/consultation/** 和 /api/buyer/review/** 的排除配置
-                        // 这些接口需要登录才能访问，应该由拦截器处理
+                        "/api/buyer/system/config/public"  // 系统公开配置接口允许游客访问
+                        // 商品详情、分类、网站内容、导航等接口不再排除，由拦截器支持可选认证
+                        // 拦截器会检查token，如果有token就设置userId，如果没有token就允许通过
                 );
 
         // 管理员端JWT拦截器
