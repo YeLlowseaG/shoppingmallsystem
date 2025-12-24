@@ -121,9 +121,9 @@ const rules: FormRules = {
 // 加载配置
 const loadConfig = async () => {
   try {
-    const res = await getJushuitanConfig()
-    if (res.data) {
-      Object.assign(form, res.data)
+    const data = await getJushuitanConfig()
+    if (data) {
+      Object.assign(form, data)
     }
   } catch (error: any) {
     console.error('加载配置失败:', error)
@@ -143,12 +143,8 @@ const handleTest = async () => {
 
   testing.value = true
   try {
-    const res = await testJushuitanConnection()
-    if (res.code === 200) {
-      ElMessage.success(res.data || '连接成功')
-    } else {
-      ElMessage.error(res.message || '连接失败')
-    }
+    const data = await testJushuitanConnection()
+    ElMessage.success(data || '连接成功')
   } catch (error: any) {
     ElMessage.error(error.message || '连接测试失败')
   } finally {
@@ -175,13 +171,9 @@ const handleSave = async () => {
       )
 
       saving.value = true
-      const res = await saveJushuitanConfig(form)
-      if (res.code === 200) {
-        ElMessage.success(res.message || '配置保存成功')
-        await loadConfig()
-      } else {
-        ElMessage.error(res.message || '配置保存失败')
-      }
+      await saveJushuitanConfig(form)
+      ElMessage.success('配置保存成功')
+      await loadConfig()
     } catch (error: any) {
       if (error !== 'cancel') {
         ElMessage.error(error.message || '配置保存失败')

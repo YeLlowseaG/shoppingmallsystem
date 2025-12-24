@@ -149,13 +149,9 @@ const total = ref(0)
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await getSyncLogs(queryForm)
-    if (res.code === 200) {
-      tableData.value = res.data.records || []
-      total.value = res.data.total || 0
-    } else {
-      ElMessage.error(res.message || '加载数据失败')
-    }
+    const data = await getSyncLogs(queryForm)
+    tableData.value = data?.records || []
+    total.value = data?.total || 0
   } catch (error: any) {
     ElMessage.error(error.message || '加载数据失败')
   } finally {
@@ -197,13 +193,9 @@ const handleRetry = async (row: any) => {
       }
     )
 
-    const res = await retryPushOrder(row.orderId)
-    if (res.code === 200) {
-      ElMessage.success(res.message || '重试成功')
-      loadData()
-    } else {
-      ElMessage.error(res.message || '重试失败')
-    }
+    await retryPushOrder(row.orderId)
+    ElMessage.success('重试成功')
+    loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
       ElMessage.error(error.message || '重试失败')
@@ -225,13 +217,9 @@ const handlePullPending = async () => {
     )
 
     pulling.value = true
-    const res = await pullPendingLogistics()
-    if (res.code === 200) {
-      ElMessage.success(res.message || `成功拉取 ${res.data} 个订单的物流信息`)
-      loadData()
-    } else {
-      ElMessage.error(res.message || '拉取失败')
-    }
+    const count = await pullPendingLogistics()
+    ElMessage.success(`成功拉取 ${count || 0} 个订单的物流信息`)
+    loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
       ElMessage.error(error.message || '拉取失败')

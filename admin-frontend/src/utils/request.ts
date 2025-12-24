@@ -87,8 +87,8 @@ service.interceptors.response.use(
 
     // 如果返回的状态码为200，说明接口请求成功
     if (res.code === 200) {
-      // 返回完整响应对象，让调用方可以访问code、message、data
-      return res
+      // 返回data字段，这样API调用时可以直接使用返回的数据
+      return res.data
     } else {
       // 401未登录，特殊处理
       if (res.code === 401) {
