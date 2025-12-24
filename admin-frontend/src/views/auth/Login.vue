@@ -72,6 +72,10 @@ const handleLogin = async () => {
           username: loginForm.username,
           password: loginForm.password
         })
+        
+        // 调试日志：检查返回的数据结构
+        console.log('登录响应数据:', response)
+        
         adminStore.setToken(response.token)
         adminStore.setAdminInfo(response.adminInfo)
         
@@ -81,8 +85,11 @@ const handleLogin = async () => {
         adminStore.setMenus(menus)
         adminStore.setPermissions(permissions)
         
+        // 调试日志：检查菜单和权限
+        console.log('菜单数量:', menus.length, '权限数量:', permissions.length)
+        
         // 检查用户是否有角色和权限
-        if (menus.length === 0 || permissions.length === 0) {
+        if (!menus || menus.length === 0 || !permissions || permissions.length === 0) {
           // 没有权限时，只显示一个警告消息，不显示"登录成功"
           ElMessage.warning('您还没有分配角色，请联系管理员分配角色和权限')
           // 跳转到dashboard，但dashboard会检查权限，如果没有权限会显示友好提示

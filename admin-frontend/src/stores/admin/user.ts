@@ -66,17 +66,34 @@ export const useAdminStore = defineStore('admin', () => {
 
   // 初始化（从localStorage恢复）
   const init = () => {
-    const savedInfo = localStorage.getItem('admin_info')
-    if (savedInfo) {
-      adminInfo.value = JSON.parse(savedInfo)
+    try {
+      const savedInfo = localStorage.getItem('admin_info')
+      if (savedInfo && savedInfo !== 'null' && savedInfo !== 'undefined') {
+        adminInfo.value = JSON.parse(savedInfo)
+      }
+    } catch (error) {
+      console.error('解析 admin_info 失败:', error)
+      localStorage.removeItem('admin_info')
     }
-    const savedMenus = localStorage.getItem('admin_menus')
-    if (savedMenus) {
-      menus.value = JSON.parse(savedMenus)
+    
+    try {
+      const savedMenus = localStorage.getItem('admin_menus')
+      if (savedMenus && savedMenus !== 'null' && savedMenus !== 'undefined') {
+        menus.value = JSON.parse(savedMenus)
+      }
+    } catch (error) {
+      console.error('解析 admin_menus 失败:', error)
+      localStorage.removeItem('admin_menus')
     }
-    const savedPermissions = localStorage.getItem('admin_permissions')
-    if (savedPermissions) {
-      permissions.value = JSON.parse(savedPermissions)
+    
+    try {
+      const savedPermissions = localStorage.getItem('admin_permissions')
+      if (savedPermissions && savedPermissions !== 'null' && savedPermissions !== 'undefined') {
+        permissions.value = JSON.parse(savedPermissions)
+      }
+    } catch (error) {
+      console.error('解析 admin_permissions 失败:', error)
+      localStorage.removeItem('admin_permissions')
     }
   }
 
