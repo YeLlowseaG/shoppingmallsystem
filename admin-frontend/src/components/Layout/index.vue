@@ -154,17 +154,22 @@ const handleLogout = () => {
   router.push('/admin/login')
 }
 
-// 标记是否已添加路由，避免重复添加
-let routesAdded = false
-
 // 监听菜单数据变化，确保路由正确添加
 watch(
   () => adminStore.menus,
   (newMenus) => {
-    if (newMenus && newMenus.length > 0 && !routesAdded) {
+    if (newMenus && newMenus.length > 0) {
       console.log('菜单数据变化，添加动态路由，数量:', newMenus.length)
       addRoutes(newMenus)
-      routesAdded = true
+      // 路由添加后，如果当前路径未匹配，尝试重新导航
+      nextTick(() => {
+        const currentPath = route.path
+        const matched = router.resolve(currentPath).matched.length > 0
+        if (!matched && currentPath.startsWith('/admin') && currentPath !== '/admin/login') {
+          console.log('当前路径未匹配，尝试重新导航:', currentPath)
+          router.replace(currentPath)
+        }
+      })
     }
   },
   { immediate: true, deep: true }

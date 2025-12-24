@@ -83,6 +83,7 @@ const router = createRouter({
 
 // 动态添加路由
 export const addRoutes = (menus: MenuVO[]) => {
+  console.log('开始添加路由，菜单数量:', menus.length)
   const buildRoutes = (menuList: MenuVO[], parentPath = '') => {
     menuList.forEach(menu => {
       if (menu.menuType === 1 && menu.path && menu.component) {
@@ -110,34 +111,39 @@ export const addRoutes = (menus: MenuVO[]) => {
           const cleanParentPath = parentPath.startsWith('/') ? parentPath.replace(/^\//, '') : parentPath
           // 如果父路径以 /admin 开头，去掉 /admin 前缀
           const finalParentPath = cleanParentPath.startsWith('admin/') ? cleanParentPath.replace(/^admin\//, '') : cleanParentPath
-          routePath = finalParentPath ? `${finalParentPath}/${routePath}` : routePath
+          // 如果父路径是 /dashboard，去掉开头的 /
+          const normalizedParentPath = finalParentPath === 'dashboard' ? 'dashboard' : finalParentPath
+          routePath = normalizedParentPath ? `${normalizedParentPath}/${routePath}` : routePath
         }
         
         // 特殊处理：如果路径是 'index' 且父路径是 'dashboard'，则路径应该是 'dashboard'
-        if (menu.path === 'index' && parentPath === '/dashboard') {
+        if (menu.path === 'index' && (parentPath === '/dashboard' || parentPath === 'dashboard')) {
           routePath = 'dashboard'
         }
         
         // 检查路由是否已存在，避免重复添加
         const targetFullPath = routePath.startsWith('/') ? routePath : `/admin/${routePath}`
-        const existingRoute = router.getRoutes().find(r => {
+        // 获取父路由 'admin' 的所有子路由
+        const adminRoute = router.getRoutes().find(r => r.name === 'admin')
+        const existingRoute = adminRoute?.children?.find(r => {
           const fullPath = r.path.startsWith('/') ? r.path : `/admin/${r.path}`
           return fullPath === targetFullPath
         })
         if (existingRoute) {
-          console.log(`路由 ${routePath} 已存在，跳过添加`)
+          console.log(`路由 ${routePath} (${targetFullPath}) 已存在，跳过添加`)
           return
         }
         
         const route = {
           path: routePath,
-          name: `admin-${menu.permission?.replace(/:/g, '-')}`,
+          name: `admin-${menu.permission?.replace(/:/g, '-') || menu.id}`,
           component: componentLoader, // 使用映射表中的组件加载器
           meta: {
             title: menu.menuName,
             permission: menu.permission
           }
         }
+        console.log('添加路由:', routePath, '->', targetFullPath, '组件:', menu.component)
         router.addRoute('admin', route)
       }
       if (menu.children && menu.children.length > 0) {
@@ -147,7 +153,12 @@ export const addRoutes = (menus: MenuVO[]) => {
           if (menu.path.startsWith('/')) {
             currentPath = menu.path
           } else {
-            currentPath = parentPath ? `${parentPath}/${menu.path}` : menu.path
+            // 特殊处理：如果父路径是 '/dashboard'，子路径是 'index'，则父路径应该是 'dashboard'
+            if (menu.path === 'index' && parentPath === '/dashboard') {
+              currentPath = 'dashboard'
+            } else {
+              currentPath = parentPath ? `${parentPath}/${menu.path}` : menu.path
+            }
           }
         }
         buildRoutes(menu.children, currentPath)
@@ -155,6 +166,7 @@ export const addRoutes = (menus: MenuVO[]) => {
     })
   }
   buildRoutes(menus)
+  console.log('路由添加完成，当前所有路由:', router.getRoutes().filter(r => r.path.startsWith('/admin') || (r.name && r.name.startsWith('admin-'))).map(r => ({ path: r.path, name: r.name })))
 }
 
 // 路由守卫
@@ -166,9 +178,38 @@ router.beforeEach(async (to, _from, next) => {
     document.title = `${to.meta.title} - B2B成人用品采购平台管理后台`
   }
 
+  // 调试日志：检查路由匹配情况
+  console.log('路由守卫 - 当前路径:', to.path, '匹配的路由:', to.matched.map(r => r.path), '路由名称:', to.name)
+
   // 检查路由是否存在（排除404路由本身）
   const matched = to.matched.length > 0
   if (!matched && to.path.startsWith('/admin') && to.name !== 'admin-404' && to.name !== 'not-found') {
+    // 路由不存在，尝试等待路由添加完成
+    console.warn('路由未匹配，当前路径:', to.path, '已注册的路由:', router.getRoutes().filter(r => r.path.startsWith('/admin')).map(r => r.path))
+    
+    // 如果已登录且有菜单数据，可能是路由还未添加，等待一下
+    if (adminStore.isLoggedIn() && adminStore.menus && adminStore.menus.length > 0) {
+      // 检查是否需要添加路由
+      const hasRoutes = router.getRoutes().some(r => {
+        const routePath = r.path.startsWith('/') ? r.path : `/admin/${r.path}`
+        return routePath === to.path || routePath === to.path + '/'
+      })
+      if (!hasRoutes) {
+        console.log('路由未找到，尝试重新添加路由')
+        // 重新添加路由（直接调用，避免循环依赖）
+        addRoutes(adminStore.menus)
+        // 等待路由添加完成后再检查
+        await new Promise(resolve => setTimeout(resolve, 100))
+        // 重新匹配路由
+        const retryMatched = router.resolve(to.path).matched.length > 0
+        if (retryMatched) {
+          console.log('路由添加成功，继续导航')
+          next(to.path)
+          return
+        }
+      }
+    }
+    
     // 路由不存在，根据登录状态重定向
     if (adminStore.isLoggedIn()) {
       ElMessage.warning('页面不存在，已跳转到首页')
