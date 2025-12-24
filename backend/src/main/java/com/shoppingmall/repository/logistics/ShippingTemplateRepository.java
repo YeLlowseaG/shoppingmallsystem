@@ -49,3 +49,8 @@ public interface ShippingTemplateRepository extends BaseMapper<ShippingTemplate>
 
 
 
+
+
+
+
+

@@ -1,10 +1,10 @@
-# 生产环境配置（测试环境/生产环境）
+# 测试环境配置
 spring:
   # 数据源配置
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    # 数据库连接地址，请根据实际情况修改
-    url: jdbc:mysql://43.139.206.84:13306/shopping_mall_test?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    # 数据库连接地址，请根据实际情况修改  
+    url: jdbc:mysql://127.0.0.1:13306/shopping_mall_test?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     # 支持环境变量配置，格式：${环境变量名:默认值}
     username: ${DB_USERNAME:shopping_mall}
     password: ${DB_PASSWORD:Abc@123456}
@@ -51,7 +51,7 @@ spring:
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
-    # 生产环境关闭SQL日志输出
+    # 测试环境可以输出SQL到控制台，便于调试
     log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
   global-config:
     db-config:
@@ -71,7 +71,9 @@ server:
 logging:
   level:
     root: INFO
-    com.shoppingmall: INFO
+    com.shoppingmall: DEBUG  # 测试环境开启DEBUG日志，便于排查问题
+    org.springframework.web: DEBUG  # 开启Spring Web调试日志
+    org.springframework.security: DEBUG  # 如果使用Spring Security，开启调试日志
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n"
@@ -80,7 +82,7 @@ logging:
     max-size: 10MB
     max-history: 30
 
-# 文件存储配置 - Linux路径格式
+# 文件存储配置 - Linux路径格式（测试服务器）
 file:
   upload:
     path: /www/wwwroot/shoppingmall/test/shopping-mall-backend/uploads
@@ -91,8 +93,8 @@ file:
 
 # JWT配置
 jwt:
-  # 生产环境请修改为更复杂的密钥
-  secret: ${JWT_SECRET:shopping-mall-secret-key-production-2025-12-21-change-this}
+  # 测试环境密钥（生产环境请使用更复杂的密钥）
+  secret: ${JWT_SECRET:shopping-mall-secret-key-test-2025-12-24}
   expiration: 86400000  # 24小时，单位：毫秒
 
 # Swagger配置
@@ -101,7 +103,7 @@ springdoc:
     path: /api-docs
   swagger-ui:
     path: /swagger-ui.html
-    # 测试环境可以开启，生产环境建议关闭
+    # 测试环境默认开启Swagger，便于API测试
     enabled: ${SWAGGER_ENABLED:true}
 
 # 订单配置
@@ -112,8 +114,8 @@ order:
 # 应用配置
 app:
   frontend:
-    # 前端地址，用于生成重置密码链接等，请修改为实际的前端地址
-    url: ${FRONTEND_URL:http://your-test-domain.com}
+    # 前端地址，用于生成重置密码链接等，请修改为实际的测试环境前端地址
+    url: ${FRONTEND_URL:http://test.yourdomain.com}
   password:
     reset:
       token-expire-minutes: 30  # 密码重置令牌有效期（分钟）

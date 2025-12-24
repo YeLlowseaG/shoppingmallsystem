@@ -2,7 +2,7 @@
 -- 用于支持批量导入功能
 -- 更新日期: 2025-12-23
 
-USE shoppingmall_db;
+USE chengren_shopping_mall;
 
 -- 新增条码字段
 ALTER TABLE product
