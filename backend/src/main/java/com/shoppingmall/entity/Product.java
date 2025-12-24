@@ -123,6 +123,11 @@ public class Product {
     private Integer status;
 
     /**
+     * 是否启用规格（0-否，1-是）
+     */
+    private Integer enableSpec;
+
+    /**
      * 逻辑删除（0-未删除，1-已删除）
      */
     @TableLogic

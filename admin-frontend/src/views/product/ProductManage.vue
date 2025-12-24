@@ -270,9 +270,13 @@
               v-model="formData.stock"
               :min="0"
               :step="1"
+              :disabled="formData.enableSpec"
               controls-position="right"
               style="width: 100%"
             />
+            <div v-if="formData.enableSpec" class="form-tip" style="margin-top: 5px;">
+              启用规格后，总库存由SKU库存自动计算：{{ totalEditSkuStock }}
+            </div>
           </el-form-item>
 
           <el-form-item label="警戒库存" prop="warningStock">
@@ -938,7 +942,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadFile, type UploadUserFile } from 'element-plus'
 import { Plus, Delete, Upload, Search, ArrowUp, ArrowDown, Download } from '@element-plus/icons-vue'
@@ -1079,11 +1083,34 @@ const canGenerateSkus = computed(() => {
 // 计算属性：编辑弹框是否可以生成SKU
 const canGenerateEditSkus = computed(() => {
   if (!formData.value.enableSpec) return false
-  return editSpecKeys.value.every(key => 
-    key.specName.trim() && 
-    key.values.length > 0 && 
+  return editSpecKeys.value.every(key =>
+    key.specName.trim() &&
+    key.values.length > 0 &&
     key.values.every(value => value.specValue.trim())
   )
+})
+
+// 计算属性：编辑SKU总库存
+const totalEditSkuStock = computed(() => {
+  if (!formData.value.enableSpec || editSkuList.value.length === 0) {
+    return 0
+  }
+  return editSkuList.value.reduce((total, sku) => total + (sku.stock || 0), 0)
+})
+
+// 监听编辑SKU库存变化，自动更新商品总库存
+watch(totalEditSkuStock, (newTotal) => {
+  if (formData.value.enableSpec) {
+    formData.value.stock = newTotal
+  }
+}, { deep: true })
+
+// 监听enableSpec变化
+watch(() => formData.value.enableSpec, (newValue) => {
+  if (newValue) {
+    // 启用规格时，设置总库存为SKU总和
+    formData.value.stock = totalEditSkuStock.value
+  }
 })
 
 // 表单验证规则
@@ -1487,7 +1514,14 @@ const handleSubmit = async () => {
       formData.value.images = JSON.stringify(detailImages)
 
       console.log('保存商品基本信息, enableSpec:', formData.value.enableSpec)
-      await updateProduct(formData.value)
+
+      // 转换 enableSpec 为 0 或 1
+      const submitData = {
+        ...formData.value,
+        enableSpec: formData.value.enableSpec ? 1 : 0
+      }
+
+      await updateProduct(submitData)
       console.log('=== 商品保存完成 ===')
 
       ElMessage.success('更新成功')

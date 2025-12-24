@@ -97,9 +97,13 @@
               v-model="productForm.stock"
               :min="0"
               :step="1"
+              :disabled="productForm.enableSpec"
               controls-position="right"
               style="width: 100%"
             />
+            <div v-if="productForm.enableSpec" class="form-tip" style="margin-top: 5px;">
+              启用规格后，总库存由SKU库存自动计算：{{ totalSkuStock }}
+            </div>
           </el-form-item>
 
           <el-form-item label="警戒库存" prop="warningStock">
@@ -458,7 +462,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
@@ -489,7 +493,7 @@ const productForm = ref({
   description: '',
   mainImage: '',
   status: '下架',
-  enableSpec: false
+  enableSpec: false as boolean
 })
 
 // 详情图列表
@@ -508,11 +512,34 @@ const skuList = ref<any[]>([])
 // 计算属性：是否可以生成SKU
 const canGenerateSkus = computed(() => {
   if (!productForm.value.enableSpec) return false
-  return specKeys.value.every(key => 
-    key.specName.trim() && 
-    key.values.length > 0 && 
+  return specKeys.value.every(key =>
+    key.specName.trim() &&
+    key.values.length > 0 &&
     key.values.every(value => value.specValue.trim())
   )
+})
+
+// 计算属性：SKU总库存
+const totalSkuStock = computed(() => {
+  if (!productForm.value.enableSpec || skuList.value.length === 0) {
+    return 0
+  }
+  return skuList.value.reduce((total, sku) => total + (sku.stock || 0), 0)
+})
+
+// 监听SKU库存变化，自动更新商品总库存
+watch(totalSkuStock, (newTotal) => {
+  if (productForm.value.enableSpec) {
+    productForm.value.stock = newTotal
+  }
+})
+
+// 监听enableSpec变化
+watch(() => productForm.value.enableSpec, (newValue) => {
+  if (newValue) {
+    // 启用规格时，设置总库存为SKU总和
+    productForm.value.stock = totalSkuStock.value
+  }
 })
 
 const formRules: FormRules = {
@@ -621,6 +648,8 @@ const handleSubmit = async () => {
           productName: productForm.value.productName,
           categoryId: categoryId,
           productCode: productForm.value.productCode,
+          barcode: productForm.value.barcode,
+          unit: productForm.value.unit,
           brandId: productForm.value.brandId,
           basePrice: productForm.value.basePrice,
           suggestedRetailPrice: productForm.value.suggestedRetailPrice,
@@ -633,7 +662,8 @@ const handleSubmit = async () => {
           description: productForm.value.description,
           mainImage: productForm.value.mainImage,
           detailImages: detailImages.join(','), // 多张图片用逗号分隔
-          status: productForm.value.status
+          status: productForm.value.status,
+          enableSpec: productForm.value.enableSpec ? 1 : 0
         })
         ElMessage.success('商品发布成功！')
         router.push('/admin/product/list')
