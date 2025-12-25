@@ -48,6 +48,10 @@
         <!-- 其他 -->
         <commons-lang3.version>3.13.0</commons-lang3.version>
         <swagger.version>2.2.0</swagger.version>
+        
+        <!-- 支付SDK -->
+        <wechatpay.version>0.2.12</wechatpay.version>
+        <alipay.version>4.40.604.ALL</alipay.version>
     </properties>
 
     <repositories>
@@ -204,6 +208,26 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
+
+        <!-- 微信支付 SDK -->
+        <dependency>
+            <groupId>com.github.wechatpay-apiv3</groupId>
+            <artifactId>wechatpay-java</artifactId>
+            <version>${wechatpay.version}</version>
+        </dependency>
+
+        <!-- 支付宝 SDK -->
+        <!-- 注意：支付宝SDK不在公共Maven仓库中，需要手动下载jar包并安装到本地仓库 -->
+        <!-- 安装命令（使用绝对路径）：mvn install:install-file -Dfile="D:\my project\java-project\shangdan\ShoppingMallSystem\alipay-sdk-java-4.40.604.ALL.jar" -DgroupId=com.alipay.sdk -DartifactId=alipay-sdk-java -Dversion=4.40.604.ALL -Dpackaging=jar -->
+        <!-- 或者在backend目录执行：cd backend && mvn install:install-file -Dfile=../alipay-sdk-java-4.40.604.ALL.jar -DgroupId=com.alipay.sdk -DartifactId=alipay-sdk-java -Dversion=4.40.604.ALL -Dpackaging=jar -->
+        <!-- 下载地址：https://opendocs.alipay.com/common/02kkv7 -->
+        <!--
+        <dependency>
+            <groupId>com.alipay.sdk</groupId>
+            <artifactId>alipay-sdk-java</artifactId>
+            <version>${alipay.version}</version>
+        </dependency>
+        -->
 
         <!-- Spring Boot Starter Test -->
         <dependency>
