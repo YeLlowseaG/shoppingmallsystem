@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.Map;
+import java.util.HashMap;
 
 /**
  * 支付宝支付策略实现
@@ -43,6 +44,8 @@ public class AlipayPayStrategy implements PaymentStrategy {
                 ? config.getProduction()
                 : config.getSandbox();
 
+        log.debug("支付宝环境选择: env={}, appid={}", config.getEnv(), envConfig != null ? envConfig.getAppid() : "null");
+
         if (envConfig == null || envConfig.getAppid() == null || envConfig.getAppid().isEmpty()) {
             throw new PaymentException(400, "支付宝配置不完整，请先配置支付参数");
         }
@@ -67,8 +70,7 @@ public class AlipayPayStrategy implements PaymentStrategy {
                     request.getInternalOrderNo(),
                     amountStr,
                     request.getDescription() != null ? request.getDescription() : "商品支付",
-                    notifyUrl
-            );
+                    notifyUrl);
 
             // 创建页面支付表单（用于跳转支付）
             String paymentForm = AlipayUtil.createPagePayment(
@@ -76,8 +78,7 @@ public class AlipayPayStrategy implements PaymentStrategy {
                     request.getInternalOrderNo(),
                     amountStr,
                     request.getDescription() != null ? request.getDescription() : "商品支付",
-                    notifyUrl
-            );
+                    notifyUrl);
 
             response.setQrCodeUrl(qrCodeUrl);
             response.setPaymentParams(paymentForm); // 支付表单HTML
@@ -121,7 +122,16 @@ public class AlipayPayStrategy implements PaymentStrategy {
             // 验证签名
             if (callbackData instanceof Map) {
                 @SuppressWarnings("unchecked")
-                Map<String, String> params = (Map<String, String>) callbackData;
+                Map<String, Object> dataMap = (Map<String, Object>) callbackData;
+
+                // 转换为String类型的Map用于签名验证
+                Map<String, String> params = new HashMap<>();
+                for (Map.Entry<String, Object> entry : dataMap.entrySet()) {
+                    if (entry.getValue() != null) {
+                        params.put(entry.getKey(), entry.getValue().toString());
+                    }
+                }
+
                 return AlipayUtil.verifySign(params, envConfig.getPublicKey());
             }
             log.warn("支付宝回调数据格式不正确");
@@ -203,8 +213,7 @@ public class AlipayPayStrategy implements PaymentStrategy {
                     envConfig,
                     paymentNo,
                     refundNo,
-                    refundAmountStr
-            );
+                    refundAmountStr);
 
             String code = result.get("code");
             if (!"10000".equals(code)) {
@@ -261,4 +270,3 @@ public class AlipayPayStrategy implements PaymentStrategy {
         return verifyCallback(callbackData);
     }
 }
-

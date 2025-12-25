@@ -47,6 +47,11 @@ public class AlipayConfig {
         private String appid;
 
         /**
+         * 环境标识：sandbox 或 production
+         */
+        private String env;
+
+        /**
          * 应用私钥
          */
         private String privateKey;
@@ -57,4 +62,3 @@ public class AlipayConfig {
         private String publicKey;
     }
 }
-

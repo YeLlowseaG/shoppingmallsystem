@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 public class PaymentConfigServiceImpl implements PaymentConfigService {
 
     private final SystemConfigService systemConfigService;
-    
+
     @Autowired
     private Cache<String, Object> localCache;
 
@@ -57,8 +57,8 @@ public class PaymentConfigServiceImpl implements PaymentConfigService {
     public boolean isPaymentEnabled(String paymentMethod) {
         String cacheKey = "WECHAT".equals(paymentMethod) ? WECHAT_ENABLED_CACHE_KEY : ALIPAY_ENABLED_CACHE_KEY;
         return (Boolean) localCache.get(cacheKey, key -> {
-            String enabledKey = "WECHAT".equals(paymentMethod) 
-                    ? "payment.wechat.enabled" 
+            String enabledKey = "WECHAT".equals(paymentMethod)
+                    ? "payment.wechat.enabled"
                     : "payment.alipay.enabled";
             String enabled = systemConfigService.getConfigValue(enabledKey, "0");
             return "1".equals(enabled);
@@ -83,18 +83,17 @@ public class PaymentConfigServiceImpl implements PaymentConfigService {
                 .collect(Collectors.toMap(
                         SystemConfig::getConfigKey,
                         config -> config.getConfigValue() != null ? config.getConfigValue() : "",
-                        (existing, replacement) -> existing
-                ));
+                        (existing, replacement) -> existing));
 
         WeChatPayConfig config = new WeChatPayConfig();
-        
+
         // 基本配置
         String enabled = configMap.getOrDefault("payment.wechat.enabled", "0");
         config.setEnabled("1".equals(enabled));
-        
+
         String env = configMap.getOrDefault("payment.wechat.env", "sandbox");
         config.setEnv(env);
-        
+
         config.setNotifyUrl(configMap.getOrDefault("payment.wechat.notify_url", ""));
 
         // 沙箱环境配置
@@ -125,23 +124,23 @@ public class PaymentConfigServiceImpl implements PaymentConfigService {
                 .collect(Collectors.toMap(
                         SystemConfig::getConfigKey,
                         config -> config.getConfigValue() != null ? config.getConfigValue() : "",
-                        (existing, replacement) -> existing
-                ));
+                        (existing, replacement) -> existing));
 
         AlipayConfig config = new AlipayConfig();
-        
+
         // 基本配置
         String enabled = configMap.getOrDefault("payment.alipay.enabled", "0");
         config.setEnabled("1".equals(enabled));
-        
+
         String env = configMap.getOrDefault("payment.alipay.env", "sandbox");
         config.setEnv(env);
-        
+
         config.setNotifyUrl(configMap.getOrDefault("payment.alipay.notify_url", ""));
 
         // 沙箱环境配置
         AlipayConfig.AlipayEnvConfig sandbox = new AlipayConfig.AlipayEnvConfig();
         sandbox.setAppid(configMap.getOrDefault("payment.alipay.sandbox.appid", ""));
+        sandbox.setEnv("sandbox");
         sandbox.setPrivateKey(configMap.getOrDefault("payment.alipay.sandbox.private_key", ""));
         sandbox.setPublicKey(configMap.getOrDefault("payment.alipay.sandbox.public_key", ""));
         config.setSandbox(sandbox);
@@ -149,6 +148,7 @@ public class PaymentConfigServiceImpl implements PaymentConfigService {
         // 生产环境配置
         AlipayConfig.AlipayEnvConfig production = new AlipayConfig.AlipayEnvConfig();
         production.setAppid(configMap.getOrDefault("payment.alipay.production.appid", ""));
+        production.setEnv("production");
         production.setPrivateKey(configMap.getOrDefault("payment.alipay.production.private_key", ""));
         production.setPublicKey(configMap.getOrDefault("payment.alipay.production.public_key", ""));
         config.setProduction(production);
@@ -164,7 +164,8 @@ public class PaymentConfigServiceImpl implements PaymentConfigService {
                 .collect(Collectors.toMap(SystemConfig::getConfigKey, configItem -> configItem));
 
         // 更新基本配置
-        updateConfigValue(configMap, "payment.wechat.enabled", config.getEnabled() != null && config.getEnabled() ? "1" : "0");
+        updateConfigValue(configMap, "payment.wechat.enabled",
+                config.getEnabled() != null && config.getEnabled() ? "1" : "0");
         if (config.getEnv() != null) {
             updateConfigValue(configMap, "payment.wechat.env", config.getEnv());
         }
@@ -221,7 +222,8 @@ public class PaymentConfigServiceImpl implements PaymentConfigService {
                 .collect(Collectors.toMap(SystemConfig::getConfigKey, configItem -> configItem));
 
         // 更新基本配置
-        updateConfigValue(configMap, "payment.alipay.enabled", config.getEnabled() != null && config.getEnabled() ? "1" : "0");
+        updateConfigValue(configMap, "payment.alipay.enabled",
+                config.getEnabled() != null && config.getEnabled() ? "1" : "0");
         if (config.getEnv() != null) {
             updateConfigValue(configMap, "payment.alipay.env", config.getEnv());
         }
@@ -276,4 +278,3 @@ public class PaymentConfigServiceImpl implements PaymentConfigService {
         }
     }
 }
-

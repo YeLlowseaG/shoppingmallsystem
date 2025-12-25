@@ -1,5 +1,112 @@
 # 修改日志
 
+## 2025-12-25 - 完善支付宝沙箱环境对接功能
+
+### 功能说明
+检查并完善预存款支付和订单支付环节的支付宝沙箱环境对接，确保可以正常使用支付宝沙箱环境进行支付。
+
+### 修改原因
+- 预存款支付和订单支付仍在使用旧的 `PaymentService`（模拟支付服务），无法对接真实支付宝
+- `AlipayUtil` 中的扫码支付、查询订单、退款等方法有TODO标记，未实现HTTP请求
+- 需要确保支付宝沙箱环境可以正常使用
+
+### 修改内容
+
+#### 1. 修复支付服务引用
+
+**Service实现：**
+- `backend/src/main/java/com/shoppingmall/service/buyer/impl/DepositServiceImpl.java`
+  - 将 `PaymentService` 改为 `PaymentGatewayService`
+  - 将 `paymentService.createPayment()` 改为 `paymentGatewayService.pay()`
+  - 移除模拟支付的自动回调逻辑（真实支付由支付宝回调处理）
+
+- `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java`
+  - 将 `PaymentService` 改为 `PaymentGatewayService`
+  - 将 `paymentService.createPayment()` 改为 `paymentGatewayService.pay()`
+
+#### 2. 完善支付宝API调用
+
+**工具类：**
+- `backend/src/main/java/com/shoppingmall/payment/util/AlipayUtil.java`
+  - 添加 `HttpClient` 和 `ObjectMapper` 依赖
+  - 实现 `createQrPayment` 方法的HTTP请求：
+    - 发送POST请求到支付宝API
+    - 解析响应JSON
+    - 返回二维码内容或抛出异常
+  - 实现 `queryOrder` 方法的HTTP请求：
+    - 发送POST请求查询订单状态
+    - 解析响应并返回订单状态
+  - 实现 `refund` 方法的HTTP请求：
+    - 发送POST请求申请退款
+    - 解析响应并返回退款结果
+  - 添加 `sendHttpRequest` 方法：发送HTTP请求到支付宝API
+  - 添加 `formatTimestamp` 方法：格式化时间戳（支付宝要求格式：yyyy-MM-dd HH:mm:ss）
+  - 修复时间戳格式：将 `new Date().toString()` 改为使用 `formatTimestamp` 方法
+
+#### 3. 完善回调处理
+
+**回调控制器：**
+- `backend/src/main/java/com/shoppingmall/payment/controller/PaymentNotifyController.java`
+  - 优化 `parseAlipayNotifyData` 方法：
+    - 确保 `sign` 和 `sign_type` 参数正确提取
+    - 用于签名验证
+
+**支付策略：**
+- `backend/src/main/java/com/shoppingmall/payment/strategy/impl/AlipayPayStrategy.java`
+  - 优化 `verifyCallback` 方法：
+    - 支持 `Map<String, Object>` 类型的回调数据
+    - 转换为 `Map<String, String>` 用于签名验证
+
+### 功能特性
+- ✅ 预存款支付支持支付宝沙箱环境
+- ✅ 订单支付支持支付宝沙箱环境
+- ✅ 支付宝扫码支付API完整实现
+- ✅ 支付宝订单查询API完整实现
+- ✅ 支付宝退款API完整实现
+- ✅ 回调签名验证支持
+- ✅ 时间戳格式符合支付宝要求
+
+### 技术细节
+- **HTTP客户端**：使用Java 11+的 `HttpClient` 发送HTTP请求
+- **JSON解析**：使用 `ObjectMapper` 解析支付宝API响应
+- **时间戳格式**：使用 `yyyy-MM-dd HH:mm:ss` 格式，时区为 `GMT+8`
+- **错误处理**：API调用失败时抛出 `PaymentException`，包含详细错误信息
+- **回调验证**：支持 `Map<String, Object>` 和 `Map<String, String>` 类型的回调数据
+
+### 使用说明
+1. **配置支付宝沙箱环境**：
+   - 在支付配置页面配置支付宝沙箱环境的AppID、应用私钥、支付宝公钥
+   - 配置回调地址（需要使用内网穿透工具，如ngrok）
+
+2. **测试预存款充值**：
+   - 用户选择支付宝支付进行预存款充值
+   - 系统会调用支付宝API创建支付订单
+   - 返回支付表单或二维码供用户支付
+
+3. **测试订单支付**：
+   - 用户下单后选择支付宝支付
+   - 系统会调用支付宝API创建支付订单
+   - 返回支付表单或二维码供用户支付
+
+4. **回调处理**：
+   - 支付宝支付完成后会回调配置的回调地址
+   - 系统自动验证签名并更新订单状态
+
+### 影响范围
+- ✅ `backend/src/main/java/com/shoppingmall/service/buyer/impl/DepositServiceImpl.java`
+- ✅ `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java`
+- ✅ `backend/src/main/java/com/shoppingmall/payment/util/AlipayUtil.java`
+- ✅ `backend/src/main/java/com/shoppingmall/payment/controller/PaymentNotifyController.java`
+- ✅ `backend/src/main/java/com/shoppingmall/payment/strategy/impl/AlipayPayStrategy.java`
+
+### 注意事项
+1. **回调地址**：支付宝沙箱环境需要配置公网可访问的回调地址，本地开发需要使用内网穿透工具
+2. **API密钥**：确保支付宝沙箱环境的应用私钥和支付宝公钥配置正确
+3. **时间戳**：时间戳格式必须为 `yyyy-MM-dd HH:mm:ss`，时区为 `GMT+8`
+4. **签名验证**：回调数据必须包含 `sign` 和 `sign_type` 参数用于签名验证
+
+---
+
 ## 2025-12-25 - 完成支付配置管理页面功能
 
 ### 功能说明

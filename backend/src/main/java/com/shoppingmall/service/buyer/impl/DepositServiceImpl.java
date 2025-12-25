@@ -14,7 +14,7 @@ import com.shoppingmall.entity.PreDepositDetail;
 import com.shoppingmall.repository.deposit.PreDepositDetailRepository;
 import com.shoppingmall.repository.deposit.PreDepositRepository;
 import com.shoppingmall.service.buyer.DepositService;
-import com.shoppingmall.service.payment.PaymentService;
+import com.shoppingmall.payment.service.PaymentGatewayService;
 import com.shoppingmall.vo.DepositBalanceVO;
 import com.shoppingmall.vo.DepositRecordVO;
 import lombok.RequiredArgsConstructor;
@@ -43,7 +43,7 @@ public class DepositServiceImpl implements DepositService {
 
     private final PreDepositRepository preDepositRepository;
     private final PreDepositDetailRepository preDepositDetailRepository;
-    private final PaymentService paymentService;
+    private final PaymentGatewayService paymentGatewayService;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
@@ -116,28 +116,8 @@ public class DepositServiceImpl implements DepositService {
             paymentRequest.setUserId(userId);
             paymentRequest.setNotifyUrl("/api/buyer/member/deposit/payment/callback");
 
-            // 调用支付服务创建支付订单
-            paymentResponse = paymentService.createPayment(paymentRequest);
-
-            // 如果是模拟支付，直接模拟支付成功（方便测试）
-            if (Boolean.TRUE.equals(paymentResponse.getIsMock()) && paymentResponse.getMockExternalTradeNo() != null) {
-                // 提取为final变量，供lambda表达式使用
-                final String mockExternalTradeNo = paymentResponse.getMockExternalTradeNo();
-                
-                log.info("模拟支付模式，自动模拟支付成功，内部订单号：{}，模拟外部交易号：{}", 
-                        internalOrderNo, mockExternalTradeNo);
-                
-                // 延迟1秒后模拟支付回调（模拟支付平台的异步回调）
-                new Thread(() -> {
-                    try {
-                        Thread.sleep(1000); // 延迟1秒，模拟支付处理时间
-                        handlePaymentCallback(internalOrderNo, mockExternalTradeNo, true);
-                        log.info("模拟支付回调处理完成，内部订单号：{}", internalOrderNo);
-                    } catch (Exception e) {
-                        log.error("模拟支付回调处理失败，内部订单号：{}", internalOrderNo, e);
-                    }
-                }).start();
-            }
+            // 调用支付网关服务创建支付订单
+            paymentResponse = paymentGatewayService.pay(paymentRequest);
         }
 
         // 返回支付响应信息

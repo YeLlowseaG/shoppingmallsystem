@@ -228,8 +228,23 @@ const handlePayNow = async () => {
             router.push('/member/deposit/balance')
           }, 1000)
         } else {
-          // 真实支付，跳转到支付页面
-          if (paymentResponse.paymentUrl) {
+          // 真实支付，跳转到支付页面或展示二维码
+          if (paymentResponse.paymentParams) {
+            // 服务端返回 HTML 表单（auto-submit），在新窗口打开以触发支付宝页面跳转
+            try {
+              const win = window.open('', '_blank')
+              if (win) {
+                win.document.open()
+                win.document.write(paymentResponse.paymentParams)
+                win.document.close()
+              } else {
+                ElMessage.error('弹窗被拦截，请允许弹窗或改用非弹窗方式支付')
+              }
+            } catch (e) {
+              console.error('打开支付页面失败', e)
+              ElMessage.error('打开支付页面失败，请重试')
+            }
+          } else if (paymentResponse.paymentUrl) {
             // 跳转到支付URL
             window.location.href = paymentResponse.paymentUrl
           } else if (paymentResponse.qrCodeUrl) {

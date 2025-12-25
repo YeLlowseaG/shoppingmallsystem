@@ -269,8 +269,21 @@ public class PaymentNotifyController {
                 String key = entry.getKey();
                 String[] values = entry.getValue();
                 if (values != null && values.length > 0) {
-                    result.put(key, values[0]); // 取第一个值
+                    // 跳过sign和sign_type，这些在验证时会单独处理
+                    if (!"sign".equals(key) && !"sign_type".equals(key)) {
+                        result.put(key, values[0]); // 取第一个值
+                    }
                 }
+            }
+            
+            // sign和sign_type需要单独添加，用于验证
+            String sign = request.getParameter("sign");
+            String signType = request.getParameter("sign_type");
+            if (sign != null) {
+                result.put("sign", sign);
+            }
+            if (signType != null) {
+                result.put("sign_type", signType);
             }
 
             log.info("支付宝回调参数: {}", result);
