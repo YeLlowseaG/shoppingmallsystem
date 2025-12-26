@@ -37,7 +37,12 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/buyer/user/register",
                         "/api/buyer/user/forgot-password",
                         "/api/buyer/user/reset-password",
-                        "/api/buyer/system/config/public"  // 系统公开配置接口允许游客访问
+                        "/api/buyer/system/config/public",  // 系统公开配置接口允许游客访问
+                        "/api/buyer/payment/alipay/notify", // 支付宝异步回调接口
+                        "/api/buyer/payment/alipay/return", // 支付宝同步回调接口
+                        "/api/buyer/payment/wechat/notify", // 微信异步回调接口
+                        "/api/buyer/payment/wechat/return",  // 微信同步回调接口
+                        "/api/buyer/member/deposit/payment/callback"  // 预存款充值回调接口（兼容旧接口）
                         // 商品详情、分类、网站内容、导航等接口不再排除，由拦截器支持可选认证
                         // 拦截器会检查token，如果有token就设置userId，如果没有token就允许通过
                 );

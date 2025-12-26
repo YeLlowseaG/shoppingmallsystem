@@ -1,5 +1,465 @@
 # 修改日志
 
+## 2025-12-26 - 订单支付页面添加支付状态弹窗功能
+
+### 功能说明
+为订单支付页面添加类似预存款充值的支付状态弹窗功能，提升用户体验。支付过程中显示支付状态弹窗，支付成功后自动跳转到订单详情页面并显示支付成功提示。
+
+### 修改原因
+- 订单支付页面缺少支付状态反馈
+- 用户支付后不知道支付是否成功
+- 需要类似预存款充值的支付状态弹窗功能
+- 支付成功后需要跳转到订单详情页面并提示支付成功
+
+### 修改内容
+
+#### 前端代码修改
+
+**订单支付页面：**
+- `frontend/src/views/order/Payment.vue`
+  - **添加支付状态弹窗组件**：
+    - 支付中状态（`paying`）：显示加载动画，提供"我已付款"和"付款有问题"按钮
+    - 已付款状态（`paid`）：显示成功图标，自动跳转到订单详情页面
+    - 付款有问题状态（`problem`）：显示错误图标，提供"联系客服"、"重新支付"、"关闭"按钮
+  - **添加图标导入**：`Loading`、`CircleCheck`、`CircleClose`
+  - **添加支付状态相关变量**：
+    - `showPaymentStatusDialog`：控制弹窗显示
+    - `paymentStatus`：支付状态（`paying` | `paid` | `problem` | `''`）
+    - `currentPaymentOrderNo`：当前支付订单号
+  - **修改 `processPayment` 方法**：
+    - 预存款支付：显示"已付款"弹窗，2秒后跳转到订单详情页面
+    - 模拟支付：显示"支付中"弹窗，支付成功后显示"已付款"弹窗
+    - 真实支付（支付宝/微信）：显示"支付中"弹窗，在新窗口打开支付页面
+    - 支付失败：显示"付款有问题"弹窗
+  - **添加支付状态弹窗相关方法**：
+    - `handleMarkAsPaid`：我已付款，跳转到订单详情页面
+    - `handlePaymentProblem`：付款有问题，切换到问题状态
+    - `handleContactService`：联系客服
+    - `handleRetryPayment`：重新支付
+    - `closePaymentStatusDialog`：关闭弹窗
+  - **修改 `onMounted` 方法**：
+    - 检查URL参数中的 `paymentStatus=success`
+    - 如果存在，显示"已付款"弹窗和成功提示
+    - 2秒后跳转到订单详情页面
+  - **添加支付状态弹窗CSS样式**：
+    - 支付中图标：蓝色，旋转动画
+    - 成功图标：绿色
+    - 错误图标：红色
+    - 状态标题和描述样式
+    - 按钮布局样式
+
+### 功能特性
+- ✅ 支付中状态弹窗（显示加载动画）
+- ✅ 支付成功状态弹窗（自动跳转到订单详情）
+- ✅ 支付问题状态弹窗（提供联系客服和重新支付选项）
+- ✅ 支付成功后自动跳转到订单详情页面
+- ✅ 订单详情页面显示支付成功提示
+- ✅ 支持预存款支付、支付宝支付、微信支付
+
+### 技术细节
+- **支付状态流转**：
+  - 预存款支付：直接成功 → 显示"已付款"弹窗 → 跳转订单详情
+  - 模拟支付：显示"支付中" → 调用模拟接口 → 显示"已付款"弹窗 → 跳转订单详情
+  - 真实支付：显示"支付中" → 打开支付页面 → 用户完成支付 → 回调跳转 → 显示"已付款"弹窗 → 跳转订单详情
+- **弹窗控制**：
+  - 支付中状态：不允许关闭（`show-close="false"`）
+  - 已付款/问题状态：允许关闭
+- **跳转逻辑**：
+  - 支付成功回调：URL参数 `paymentStatus=success`
+  - 跳转目标：`/order/detail?orderNumber={orderNo}`
+
+### 使用说明
+1. **支付流程**：
+   - 用户选择支付方式，点击"立刻付款"
+   - 如果是预存款支付，输入支付密码后直接成功
+   - 如果是支付宝/微信支付，显示"支付中"弹窗，在新窗口打开支付页面
+   - 用户完成支付后，支付宝回调跳转回订单支付页面
+   - 系统检测到 `paymentStatus=success`，显示"已付款"弹窗
+   - 2秒后自动跳转到订单详情页面
+
+2. **支付状态弹窗操作**：
+   - **我已付款**：跳转到订单详情页面，查看订单状态
+   - **付款有问题**：切换到问题状态，提供联系客服和重新支付选项
+   - **联系客服**：显示客服联系方式
+   - **重新支付**：关闭弹窗，用户可以重新点击付款按钮
+
+### 影响范围
+- ✅ `frontend/src/views/order/Payment.vue` - 订单支付页面
+
+### 注意事项
+1. **支付中状态**：弹窗不允许关闭，防止用户误操作
+2. **支付成功回调**：依赖URL参数 `paymentStatus=success`，需要确保后端回调正确设置
+3. **跳转逻辑**：支付成功后会自动跳转到订单详情页面，并清除URL参数
+4. **用户体验**：支付状态弹窗提供清晰的状态反馈，提升用户体验
+
+---
+
+## 2025-12-26 - 前端地址改为数据库配置方式
+
+### 功能说明
+将前端地址配置从配置文件改为数据库配置方式，支持在管理后台动态修改，无需重启服务即可生效。
+
+### 修改原因
+- 前端地址可能会变化（开发环境、测试环境、生产环境）
+- 使用数据库配置可以动态修改，不需要重启服务
+- 可以在管理后台配置，更方便管理
+- 统一管理，与其他系统配置保持一致
+
+### 修改内容
+
+#### 1. 后端代码修改
+
+**Controller：**
+- `backend/src/main/java/com/shoppingmall/payment/controller/PaymentNotifyController.java`
+  - 添加 `SystemConfigService` 依赖注入
+  - 优化 `getFrontendUrl` 方法：
+    - **优先级1**：从数据库配置读取（`app.frontend.url`）
+    - **优先级2**：从 `Referer` 头提取（排除支付宝域名和API路径）
+    - **优先级3**：内网穿透场景（natapp等）
+    - **优先级4**：配置文件默认值（`app.frontend.url`）
+  - 添加详细日志记录每个优先级的使用情况
+
+#### 2. 数据库脚本
+
+**SQL脚本：**
+- `database/update-20251226-add-frontend-url-config.sql`（新建）
+  - 添加 `app.frontend.url` 配置项到 `system_config` 表
+  - 默认值：`http://localhost:3002`
+  - 配置类型：`text`
+  - 状态：启用（`status = 1`）
+  - 使用 `ON DUPLICATE KEY UPDATE` 确保幂等性
+
+### 功能特性
+- ✅ 支持从数据库动态读取前端地址配置
+- ✅ 支持在管理后台修改前端地址
+- ✅ 修改后立即生效，无需重启服务
+- ✅ 多级降级方案，确保系统稳定性
+- ✅ 详细日志记录，便于排查问题
+
+### 技术细节
+- **配置键**：`app.frontend.url`
+- **优先级顺序**：
+  1. 数据库配置（`system_config` 表）
+  2. Referer头（排除支付宝域名）
+  3. 内网穿透场景（natapp）
+  4. 配置文件默认值（`application.yml`）
+- **日志级别**：INFO级别记录每个优先级的使用情况
+
+### 使用说明
+1. **执行数据库脚本**：
+   ```sql
+   -- 执行 database/update-20251226-add-frontend-url-config.sql
+   ```
+
+2. **管理后台配置**：
+   - 登录管理后台
+   - 进入"系统设置" -> "基础配置"
+   - 找到"前端地址"配置项
+   - 修改为实际的前端地址（如：`http://your-domain.com`）
+   - 保存后立即生效
+
+3. **多环境配置**：
+   - 开发环境：`http://localhost:3002`
+   - 测试环境：`http://test.example.com`
+   - 生产环境：`https://www.example.com`
+
+### 影响范围
+- ✅ `backend/src/main/java/com/shoppingmall/payment/controller/PaymentNotifyController.java`
+- ✅ `database/update-20251226-add-frontend-url-config.sql`（新建）
+
+### 注意事项
+1. **数据库配置优先级最高**：如果数据库中有配置，会优先使用数据库配置
+2. **配置格式**：前端地址应该包含协议（http/https），不需要末尾斜杠
+3. **立即生效**：修改数据库配置后，下次支付回调时会立即使用新地址
+4. **降级方案**：如果数据库配置不存在或读取失败，会自动降级到其他方案
+
+---
+
+## 2025-12-26 - 修复预存款充值支付成功回调跳转404问题
+
+### 问题描述
+预存款支付宝支付成功后，跳转回调页面出现404错误。错误URL：`http://n44a6799.natappfree.cc/member/deposit/recharge?paymentStatus=success`
+
+### 问题原因
+`getFrontendUrl` 方法从支付宝回调的请求URL中提取前端地址，但支付宝回调的请求URL是后端地址（`http://n44a6799.natappfree.cc/api/buyer/payment/alipay/return`），导致提取出来的前端地址也是后端地址，重定向URL错误。
+
+### 解决方案
+1. **添加配置支持**：使用 `@Value` 注解注入 `app.frontend.url` 配置项作为默认前端地址
+2. **优化提取逻辑**：
+   - 优先从 `Referer` 头提取前端地址（排除支付宝域名和API路径）
+   - 内网穿透场景：前端和后端使用同一个域名，保持原域名
+   - 其他场景：使用配置的默认前端地址
+3. **添加详细日志**：记录前端地址提取过程，便于排查问题
+
+### 修改内容
+
+**Controller：**
+- `backend/src/main/java/com/shoppingmall/payment/controller/PaymentNotifyController.java`
+  - 添加 `@Value("${app.frontend.url:http://localhost:3002}")` 注入默认前端地址
+  - 优化 `getFrontendUrl` 方法：
+    - 优先从 `Referer` 头提取（排除支付宝域名和API路径）
+    - 内网穿透场景特殊处理（保持原域名）
+    - 其他场景使用配置的默认前端地址
+    - 添加详细日志记录提取过程
+
+### 功能特性
+- ✅ 支持从配置文件读取前端地址
+- ✅ 优化内网穿透场景的前端地址提取
+- ✅ 添加详细日志便于排查问题
+- ✅ 支持多种场景的前端地址提取
+
+### 技术细节
+- **配置项**：`app.frontend.url`（默认值：`http://localhost:3002`）
+- **提取优先级**：
+  1. Referer头（排除支付宝域名和API路径）
+  2. 内网穿透场景：保持原域名
+  3. 配置的默认前端地址
+- **日志级别**：INFO级别记录提取过程
+
+### 使用说明
+1. **配置前端地址**：
+   - 在 `application.yml` 中配置 `app.frontend.url`
+   - 生产环境建议配置为实际的前端域名
+
+2. **内网穿透场景**：
+   - 如果前端和后端使用同一个域名（如natapp），系统会自动识别
+   - 确保前端和后端使用相同的协议和域名
+
+3. **查看日志**：
+   - 支付回调时会记录前端地址提取过程
+   - 如果提取失败，会使用配置的默认地址
+
+### 影响范围
+- ✅ `backend/src/main/java/com/shoppingmall/payment/controller/PaymentNotifyController.java`
+
+### 注意事项
+1. **配置文件**：确保 `application.yml` 中配置了正确的前端地址
+2. **内网穿透**：如果使用内网穿透工具，确保前端和后端使用相同的域名
+3. **生产环境**：生产环境需要配置正确的前端域名
+
+---
+
+## 2025-12-26 - 添加预存款支付并发控制（悲观锁）
+
+### 功能说明
+为预存款支付、退款、充值回调等关键操作添加数据库悲观锁（`SELECT FOR UPDATE`），防止并发操作导致余额超支或数据不一致问题。
+
+### 修改原因
+- **风险评估**：预存款支付没有做冻结业务，存在并发风险
+- **问题场景**：用户同时支付多个订单时，可能出现余额超支（如余额100元，同时支付80元和50元，都通过余额检查，导致余额变成-30元）
+- **当前保护措施不足**：虽然使用了 `@Transactional` 事务，但 `selectOne` 和 `updateById` 之间没有锁保护
+
+### 修改内容
+
+#### 后端代码修改
+
+**Service实现：**
+- `backend/src/main/java/com/shoppingmall/service/buyer/impl/DepositServiceImpl.java`
+  - **`depositPayment` 方法**（预存款支付）：
+    - 在查询预存款账户时添加 `.last("FOR UPDATE")` 悲观锁
+    - 防止并发支付导致余额超支
+    - 添加注释说明锁的作用
+  - **`depositRefund` 方法**（预存款退款）：
+    - 在查询预存款账户时添加 `.last("FOR UPDATE")` 悲观锁
+    - 防止并发退款导致余额不一致
+    - 优化余额计算逻辑，处理null值
+  - **`handlePaymentCallback` 方法**（支付回调处理）：
+    - 在查询预存款账户时添加 `.last("FOR UPDATE")` 悲观锁
+    - 防止并发充值回调导致余额不一致
+    - 优化余额计算逻辑，处理null值
+
+### 功能特性
+- ✅ 预存款支付使用悲观锁，防止并发超支
+- ✅ 预存款退款使用悲观锁，防止余额不一致
+- ✅ 充值回调使用悲观锁，防止余额不一致
+- ✅ 优化余额计算逻辑，处理null值情况
+
+### 技术细节
+- **悲观锁实现**：使用 `SELECT FOR UPDATE` 在事务中对预存款账户行加锁
+- **锁范围**：只锁定当前用户的预存款账户行，不影响其他用户
+- **事务隔离**：配合 `@Transactional` 注解，确保事务内数据一致性
+- **性能影响**：行锁粒度小，性能影响可控，适合高并发场景
+
+### 风险评估对比
+
+| 风险项 | 修改前 | 修改后 |
+|--------|--------|--------|
+| 并发支付超支 | 🔴 高风险 | ✅ 已解决 |
+| 余额显示不准确 | 🟡 中等风险 | ✅ 已解决 |
+| 并发退款不一致 | 🟡 中等风险 | ✅ 已解决 |
+| 并发充值不一致 | 🟡 中等风险 | ✅ 已解决 |
+
+### 使用说明
+1. **预存款支付**：
+   - 用户支付订单时，系统会自动对预存款账户加锁
+   - 确保同一用户同时支付多个订单时，余额检查是串行的
+   - 防止余额超支问题
+
+2. **预存款退款**：
+   - 退款时对预存款账户加锁
+   - 确保退款操作的原子性
+
+3. **充值回调**：
+   - 支付回调处理时对预存款账户加锁
+   - 防止并发回调导致余额重复增加
+
+### 影响范围
+- ✅ `backend/src/main/java/com/shoppingmall/service/buyer/impl/DepositServiceImpl.java`
+
+### 注意事项
+1. **锁粒度**：只锁定当前用户的预存款账户行，不影响其他用户的操作
+2. **事务要求**：必须在事务中使用，确保锁在事务提交后释放
+3. **性能考虑**：行锁性能影响小，适合高并发场景
+4. **未来优化**：如果未来需要更复杂的资金管理（如订单取消解冻、退款冻结等），可以考虑实现冻结机制
+
+### 相关文档
+- `docs/预存款冻结金额业务说明.md` - 冻结金额业务说明文档
+
+---
+
+## 2025-12-26 - 修复支付宝支付回调问题（订单支付和预存款充值）
+
+### 问题描述
+1. **订单支付回调问题**：支付宝支付成功后，`return_url` 直接指向前端页面，导致404错误
+2. **预存款充值回调问题**：预存款充值支付成功后，没有跳转到充值成功页面
+
+### 解决方案
+1. **统一回调接口**：`return_url` 必须指向后端接口，后端验证签名后重定向到前端页面
+2. **区分订单类型**：根据订单号前缀（`DEPOSIT_`）判断是订单支付还是预存款充值
+3. **统一异步回调**：订单支付和预存款充值都使用统一的异步回调接口
+
+---
+
+## 2025-12-26 - 添加支付宝支付成功回调功能（订单支付）
+
+### 功能说明
+添加支付宝支付成功后的同步回调功能，用户支付成功后可以跳转回平台的订单详情页面，并显示支付成功提示。
+
+### 修改原因
+- 支付宝支付成功后，用户停留在支付宝的成功页面，无法自动跳转回平台
+- 需要添加 `return_url` 参数，让用户支付成功后跳转到订单详情页面
+- 需要在订单详情页面显示支付成功提示
+
+### 修改内容
+
+#### 1. 后端代码修改
+
+**工具类：**
+- `backend/src/main/java/com/shoppingmall/payment/util/AlipayUtil.java`
+  - 修改 `createPagePayment` 方法签名，添加 `returnUrl` 参数
+  - 清理 `returnUrl` 中的特殊字符
+  - 将 `return_url` 参数添加到签名参数中（必须参与签名）
+  - 记录 `returnUrl` 的清理前后日志
+
+**支付策略：**
+- `backend/src/main/java/com/shoppingmall/payment/strategy/impl/AlipayPayStrategy.java`
+  - **关键修复**：`return_url` 必须指向后端接口，不能直接指向前端页面
+  - 在 `createPayment` 方法中构建 `return_url`
+  - 从 `notifyUrl` 中提取基础URL（协议+域名+端口）
+  - 构建 `return_url`：`/api/buyer/payment/alipay/return`（后端接口）
+  - 后端接口会验证签名后重定向到前端页面：`/order/detail?orderNumber={orderNo}&paymentStatus=success`
+  - 将 `returnUrl` 传递给 `AlipayUtil.createPagePayment`
+
+**回调控制器：**
+- `backend/src/main/java/com/shoppingmall/payment/controller/PaymentNotifyController.java`
+  - **关键修复**：分离同步回调和异步回调接口
+  - 新增 `alipayReturn` 方法（GET）：处理同步回调（return_url）
+    - 验证签名
+    - 处理业务逻辑
+    - 重定向到前端订单详情页面
+  - 修改 `alipayNotify` 方法（POST）：处理异步回调（notify_url）
+    - 验证签名
+    - 处理业务逻辑
+    - 返回"success"
+  - 添加 `getFrontendUrl` 方法，从请求中提取前端地址
+  - 添加 `escapeHtml` 方法，防止XSS攻击
+
+**DTO：**
+- `backend/src/main/java/com/shoppingmall/dto/PaymentRequestDTO.java`
+  - 添加 `frontendUrl` 字段，用于传递前端地址
+
+**Service：**
+- `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java`
+  - 在 `payOrder` 方法中，如果 `OrderPaymentDTO` 包含 `frontendUrl`，则传递给支付请求
+
+#### 2. 前端代码修改
+
+**订单详情页面：**
+- `frontend/src/views/order/Detail.vue`
+  - 在 `loadOrderDetail` 方法中检查URL参数 `paymentStatus`
+  - 如果 `paymentStatus=success`，显示支付成功提示
+  - 清除URL参数中的 `paymentStatus`，避免刷新时重复提示
+
+### 功能特性
+- ✅ 支付宝支付成功后自动跳转到订单详情页面
+- ✅ 订单详情页面显示支付成功提示
+- ✅ 支持同步回调（return_url）和异步回调（notify_url）
+- ✅ 自动从notifyUrl提取前端地址
+- ✅ 支持手动指定前端地址
+
+### 技术细节
+- **同步回调（return_url）**：
+  - **重要**：`return_url` 必须指向后端接口，不能直接指向前端页面
+  - 后端接口：`/api/buyer/payment/alipay/return`（GET请求）
+  - 支付宝会带着回调参数跳转到这个接口
+  - 后端验证签名 → 处理业务逻辑 → 重定向到前端页面
+  - 前端页面URL格式：`/order/detail?orderNumber={orderNo}&paymentStatus=success`
+  - 使用JavaScript和meta refresh双重跳转，兼容性更好
+  
+- **异步回调（notify_url）**：
+  - 后端接口：`/api/buyer/payment/alipay/notify`（POST请求）
+  - 支付宝服务器主动调用
+  - 返回"success"字符串
+  - 处理订单状态更新等业务逻辑
+
+- **return_url构建**：
+  - 从 `notifyUrl` 中提取基础URL（协议+域名+端口）
+  - 拼接后端接口路径：`/api/buyer/payment/alipay/return`
+  - 如果提取失败，使用默认值或从notifyUrl替换路径
+
+- **前端地址提取**：
+  - 从请求的Referer或请求URL中提取
+  - 如果提取失败，使用默认值 `http://localhost:3002`
+  - 支持手动指定 `frontendUrl`
+
+### 使用说明
+1. **支付流程**：
+   - 用户选择支付宝支付
+   - 跳转到支付宝支付页面
+   - 支付成功后，支付宝会调用 `return_url`（同步回调）
+   - 系统验证签名后，重定向到订单详情页面
+   - 订单详情页面显示支付成功提示
+
+2. **回调处理**：
+   - 同步回调（GET）：验证签名 → 处理业务逻辑 → 重定向到订单详情
+   - 异步回调（POST）：验证签名 → 处理业务逻辑 → 返回"success"
+
+### 影响范围
+- ✅ `backend/src/main/java/com/shoppingmall/payment/util/AlipayUtil.java`
+- ✅ `backend/src/main/java/com/shoppingmall/payment/strategy/impl/AlipayPayStrategy.java`
+- ✅ `backend/src/main/java/com/shoppingmall/payment/controller/PaymentNotifyController.java`
+- ✅ `backend/src/main/java/com/shoppingmall/dto/PaymentRequestDTO.java`
+- ✅ `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java`
+- ✅ `frontend/src/views/order/Detail.vue`
+
+### 注意事项
+1. **return_url必须指向后端接口**：
+   - ❌ 错误：`return_url` 直接指向前端页面（会导致404，因为前端无法处理支付宝回调参数）
+   - ✅ 正确：`return_url` 指向后端接口 `/api/buyer/payment/alipay/return`
+   - 后端接口验证签名后，再重定向到前端页面
+
+2. **return_url必须参与签名**：支付宝要求 `return_url` 参数必须参与签名
+
+3. **前端地址配置**：生产环境需要配置正确的前端地址
+
+4. **URL编码**：订单号需要进行URL编码，避免特殊字符问题
+
+5. **重定向方式**：使用JavaScript和meta refresh双重跳转，兼容性更好
+
+6. **安全防护**：重定向URL需要进行HTML转义，防止XSS攻击
+
+---
+
 ## 2025-12-26 - 支付宝支付签名问题总结
 
 ### 问题总结

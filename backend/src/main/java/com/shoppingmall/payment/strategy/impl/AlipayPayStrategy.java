@@ -60,6 +60,34 @@ public class AlipayPayStrategy implements PaymentStrategy {
             if (notifyUrl == null || notifyUrl.isEmpty()) {
                 notifyUrl = request.getNotifyUrl();
             }
+            
+            // 构建同步回调地址（return_url必须指向后端接口，不能直接指向前端页面）
+            // 支付宝会带着回调参数跳转到return_url，所以必须是后端接口
+            String returnUrl = null;
+            if (notifyUrl != null && !notifyUrl.isEmpty()) {
+                try {
+                    // 从notifyUrl中提取基础URL（协议+域名+端口）
+                    java.net.URL url = new java.net.URL(notifyUrl);
+                    String baseUrl = url.getProtocol() + "://" + url.getHost() + 
+                                    (url.getPort() != -1 ? ":" + url.getPort() : "");
+                    // return_url指向后端接口，后端会验证签名后重定向到前端页面
+                    returnUrl = baseUrl + "/api/buyer/payment/alipay/return";
+                } catch (Exception e) {
+                    log.warn("无法从notifyUrl提取基础URL", e);
+                    // 如果提取失败，使用notifyUrl的域名部分
+                    if (notifyUrl.contains("/api/")) {
+                        int apiIndex = notifyUrl.indexOf("/api/");
+                        returnUrl = notifyUrl.substring(0, apiIndex) + "/api/buyer/payment/alipay/return";
+                    } else {
+                        returnUrl = notifyUrl.replace("/alipay/notify", "/alipay/return");
+                    }
+                }
+            } else {
+                // 如果没有notifyUrl，使用默认值
+                returnUrl = "http://localhost:8081/api/buyer/payment/alipay/return";
+            }
+            
+            log.info("支付宝return_url: {}", returnUrl);
 
             // 金额转换为字符串（支付宝使用元为单位）
             String amountStr = request.getAmount().toString();
@@ -70,7 +98,8 @@ public class AlipayPayStrategy implements PaymentStrategy {
                     request.getInternalOrderNo(),
                     amountStr,
                     request.getDescription() != null ? request.getDescription() : "商品支付",
-                    notifyUrl);
+                    notifyUrl,
+                    returnUrl);
 
             response.setPaymentParams(paymentForm); // 支付表单HTML
             response.setPaymentUrl(null); // 页面支付不需要单独的支付URL，表单会自动提交跳转

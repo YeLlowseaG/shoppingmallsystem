@@ -941,6 +941,13 @@ public class OrderServiceImpl implements OrderService {
             paymentRequest.setDescription("订单支付：" + orderNo);
             paymentRequest.setUserId(userId);
             
+            // 设置前端地址（用于构建return_url）
+            // 如果PaymentRequestDTO中有frontendUrl字段，可以从paymentDTO中获取
+            // 否则在AlipayPayStrategy中会从notifyUrl提取
+            if (paymentDTO.getFrontendUrl() != null && !paymentDTO.getFrontendUrl().isEmpty()) {
+                paymentRequest.setFrontendUrl(paymentDTO.getFrontendUrl());
+            }
+            
             PaymentResponseDTO paymentResponse = paymentGatewayService.pay(paymentRequest);
             
             // 2.2 创建支付记录（支付中状态）

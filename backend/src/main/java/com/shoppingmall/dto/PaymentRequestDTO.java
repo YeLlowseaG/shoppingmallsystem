@@ -52,9 +52,14 @@ public class PaymentRequestDTO {
     private Long userId;
 
     /**
-     * 回调地址
+     * 回调地址（异步回调）
      */
     private String notifyUrl;
+    
+    /**
+     * 前端地址（用于构建return_url）
+     */
+    private String frontendUrl;
 }
 
 

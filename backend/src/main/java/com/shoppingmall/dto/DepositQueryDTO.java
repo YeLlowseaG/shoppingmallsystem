@@ -35,6 +35,11 @@ public class DepositQueryDTO {
      * 结束时间（格式：YYYY-MM-DD）
      */
     private String endDate;
+
+    /**
+     * 状态（0-待审核，1-已通过，2-已拒绝/支付失败，3-支付中，4-已超时）
+     */
+    private Integer status;
 }
 
 

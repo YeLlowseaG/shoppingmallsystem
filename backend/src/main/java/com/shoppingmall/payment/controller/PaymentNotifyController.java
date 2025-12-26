@@ -19,6 +19,7 @@ import com.shoppingmall.vo.JushuitanConfigVO;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StreamUtils;
 import org.springframework.web.bind.annotation.*;
@@ -47,6 +48,11 @@ public class PaymentNotifyController {
     private final ObjectMapper objectMapper;
     private final JushuitanOrderService jushuitanOrderService;
     private final JushuitanConfigService jushuitanConfigService;
+    private final com.shoppingmall.service.buyer.DepositService depositService;
+    private final com.shoppingmall.service.system.SystemConfigService systemConfigService;
+    
+    @Value("${app.frontend.url:http://localhost:3002}")
+    private String defaultFrontendUrl;
 
     /**
      * 微信支付回调
@@ -77,14 +83,41 @@ public class PaymentNotifyController {
     }
 
     /**
-     * 支付宝支付回调（支持GET和POST）
-     * GET用于URL验证，POST用于实际回调
+     * 支付宝支付异步回调（notify_url）
+     * POST请求，支付宝服务器主动调用
+     * 支持订单支付和预存款充值的回调
      */
-    @RequestMapping(value = "/alipay/notify", method = {RequestMethod.GET, RequestMethod.POST})
+    @PostMapping("/alipay/notify")
     @Transactional(rollbackFor = Exception.class)
     public String alipayNotify(HttpServletRequest request) {
         try {
-            log.info("收到支付宝支付回调");
+            log.info("收到支付宝支付异步回调（notify_url）");
+
+            // 读取回调数据（支付宝回调是表单参数格式）
+            Map<String, Object> notifyData = parseAlipayNotifyData(request);
+
+            // 验证回调
+            paymentGatewayService.handlePaymentNotify(PaymentMethod.ALIPAY, notifyData);
+
+            // 处理业务逻辑（会自动判断是订单支付还是预存款充值）
+            processPaymentNotify(PaymentMethod.ALIPAY, notifyData);
+
+            // 支付宝异步回调需要返回"success"
+            return "success";
+        } catch (Exception e) {
+            log.error("处理支付宝支付异步回调失败", e);
+            return "fail";
+        }
+    }
+    
+    /**
+     * 支付宝支付同步回调（return_url）
+     * GET请求，用户支付成功后跳转
+     */
+    @GetMapping("/alipay/return")
+    public String alipayReturn(HttpServletRequest request) {
+        try {
+            log.info("收到支付宝支付同步回调（return_url）");
 
             // 读取回调数据（支付宝回调是表单参数格式）
             Map<String, Object> notifyData = parseAlipayNotifyData(request);
@@ -95,12 +128,118 @@ public class PaymentNotifyController {
             // 处理业务逻辑
             processPaymentNotify(PaymentMethod.ALIPAY, notifyData);
 
-            // 支付宝需要返回"success"
-            return "success";
+            // 提取订单号
+            String orderNo = extractOrderNo(notifyData);
+            if (orderNo == null) {
+                log.error("支付宝同步回调：无法提取订单号");
+                return "<html><head><title>支付失败</title></head><body><h1>支付失败：无法获取订单信息</h1></body></html>";
+            }
+
+            // 从请求中获取前端地址
+            String frontendUrl = getFrontendUrl(request);
+            String redirectUrl;
+            
+            // 根据订单号前缀判断是订单支付还是预存款充值
+            if (orderNo.startsWith("DEPOSIT_")) {
+                // 预存款充值，跳转到充值成功页面
+                redirectUrl = frontendUrl + "/member/deposit/recharge?paymentStatus=success";
+                log.info("支付宝同步回调（预存款充值），重定向到: {}", redirectUrl);
+            } else {
+                // 订单支付，跳转到订单详情页面
+                redirectUrl = frontendUrl + "/order/detail?orderNumber=" + 
+                               java.net.URLEncoder.encode(orderNo, StandardCharsets.UTF_8) + 
+                               "&paymentStatus=success";
+                log.info("支付宝同步回调（订单支付），重定向到: {}", redirectUrl);
+            }
+            
+            // 返回重定向HTML（使用JavaScript跳转，兼容性更好）
+            return "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>支付成功</title>" +
+                   "<script>window.location.href='" + escapeHtml(redirectUrl) + "';</script>" +
+                   "<meta http-equiv='refresh' content='0;url=" + escapeHtml(redirectUrl) + "'>" +
+                   "</head><body><p>支付成功，正在跳转...</p><p>如果页面没有自动跳转，请<a href='" + 
+                   escapeHtml(redirectUrl) + "'>点击这里</a></p></body></html>";
+                   
         } catch (Exception e) {
-            log.error("处理支付宝支付回调失败", e);
-            return "fail";
+            log.error("处理支付宝支付同步回调失败", e);
+            return "<html><head><title>支付失败</title></head><body><h1>支付处理失败：" + 
+                   escapeHtml(e.getMessage()) + "</h1></body></html>";
         }
+    }
+    
+    /**
+     * HTML转义（防止XSS攻击）
+     */
+    private String escapeHtml(String str) {
+        if (str == null) {
+            return "";
+        }
+        return str.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
+    }
+    
+    /**
+     * 获取前端地址
+     * 优先级：数据库配置 > Referer头 > 内网穿透场景 > 配置文件默认值
+     */
+    private String getFrontendUrl(HttpServletRequest request) {
+        // 1. 优先从数据库配置读取前端地址
+        try {
+            String dbFrontendUrl = systemConfigService.getConfigValue("app.frontend.url");
+            if (dbFrontendUrl != null && !dbFrontendUrl.trim().isEmpty()) {
+                log.info("从数据库配置读取前端地址: {}", dbFrontendUrl);
+                return dbFrontendUrl.trim();
+            }
+        } catch (Exception e) {
+            log.warn("从数据库读取前端地址配置失败", e);
+        }
+        
+        // 2. 从请求头获取（如果是用户从前端页面跳转到支付宝，Referer会是前端地址）
+        String referer = request.getHeader("Referer");
+        if (referer != null && !referer.isEmpty()) {
+            try {
+                java.net.URL url = new java.net.URL(referer);
+                String host = url.getHost();
+                // 排除支付宝域名和后台API路径
+                if (!host.contains("alipay") && !host.contains("alipaydev") && 
+                    !referer.contains("/api/")) {
+                    String protocol = url.getProtocol();
+                    int port = url.getPort();
+                    String frontendUrl = protocol + "://" + host;
+                    if (port != -1 && port != 80 && port != 443) {
+                        frontendUrl += ":" + port;
+                    }
+                    log.info("从Referer提取前端地址: {}", frontendUrl);
+                    return frontendUrl;
+                }
+            } catch (Exception e) {
+                log.warn("无法从Referer提取前端地址", e);
+            }
+        }
+        
+        // 3. 从请求URL中提取（内网穿透场景）
+        String requestUrl = request.getRequestURL().toString();
+        try {
+            java.net.URL url = new java.net.URL(requestUrl);
+            String host = url.getHost();
+            String protocol = url.getProtocol();
+            int port = url.getPort();
+            
+            // 如果是natapp内网穿透，前端和后端使用同一个域名
+            if (host.contains("natappfree.cc") || host.contains("natapp")) {
+                String frontendUrl = protocol + "://" + host;
+                log.info("内网穿透场景，从请求URL提取前端地址: {}", frontendUrl);
+                return frontendUrl;
+            }
+        } catch (Exception e) {
+            log.warn("无法从请求URL提取前端地址", e);
+        }
+        
+        // 4. 使用配置文件中的默认前端地址
+        log.info("使用配置文件的默认前端地址: {}", defaultFrontendUrl);
+        return defaultFrontendUrl;
     }
 
     /**
@@ -116,7 +255,19 @@ public class PaymentNotifyController {
         // 提取交易状态
         String tradeStatus = extractTradeStatus(notifyData);
         boolean success = isPaymentSuccess(tradeStatus);
+        
+        // 提取外部交易号
+        String externalTradeNo = extractExternalTradeNo(notifyData);
 
+        // 根据订单号前缀判断是订单支付还是预存款充值
+        if (orderNo.startsWith("DEPOSIT_")) {
+            // 预存款充值回调处理
+            log.info("处理预存款充值回调，订单号：{}，外部交易号：{}，支付结果：{}", orderNo, externalTradeNo, success);
+            depositService.handlePaymentCallback(orderNo, externalTradeNo, success);
+            return;
+        }
+
+        // 订单支付回调处理
         // 查找订单
         LambdaQueryWrapper<Order> orderWrapper = new LambdaQueryWrapper<>();
         orderWrapper.eq(Order::getOrderNo, orderNo);
@@ -360,6 +511,25 @@ public class PaymentNotifyController {
         return "CLOSED".equalsIgnoreCase(tradeStatus)
                 || "TRADE_CLOSED".equalsIgnoreCase(tradeStatus)
                 || "CANCEL".equalsIgnoreCase(tradeStatus);
+    }
+    
+    /**
+     * 从回调数据中提取外部交易号
+     */
+    private String extractExternalTradeNo(Map<String, Object> notifyData) {
+        // 支付宝使用 trade_no
+        String tradeNo = (String) notifyData.get("trade_no");
+        if (tradeNo == null) {
+            tradeNo = (String) notifyData.get("tradeNo");
+        }
+        // 微信支付使用 transaction_id
+        if (tradeNo == null) {
+            tradeNo = (String) notifyData.get("transaction_id");
+        }
+        if (tradeNo == null) {
+            tradeNo = (String) notifyData.get("transactionId");
+        }
+        return tradeNo;
     }
 }
 

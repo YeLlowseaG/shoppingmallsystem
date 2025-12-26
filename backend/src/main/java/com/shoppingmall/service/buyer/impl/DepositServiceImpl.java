@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shoppingmall.common.constant.DepositType;
+import com.shoppingmall.common.constant.DepositStatus;
+import org.springframework.util.StringUtils;
 import com.shoppingmall.common.exception.BusinessException;
 import com.shoppingmall.dto.DepositQueryDTO;
 import com.shoppingmall.dto.DepositRechargeDTO;
@@ -85,19 +87,24 @@ public class DepositServiceImpl implements DepositService {
         detail.setCurrentBalance(preDeposit.getBalance());
         detail.setAvailableBalance(preDeposit.getAvailableBalance());
         detail.setType(DepositType.RECHARGE);
-        detail.setStatus(0); // 待审核
         detail.setPaymentMethod(rechargeDTO.getPaymentMethod());
         detail.setEvent("在线充值");
         // 初始备注使用内部订单号，支付回调后会更新为真实外部交易号
-        detail.setRemark("预存款充值:外部交易号(" + internalOrderNo + ")");
+        detail.setRemark("预存款充值:内部订单号(" + internalOrderNo + ")");
         // 外部交易号初始为null，等待支付回调更新
         detail.setExternalTradeNo(null);
         // 保存内部订单号，用于精确查找
         detail.setInternalOrderNo(internalOrderNo);
 
-        // 如果是线上充值（微信/支付宝），状态保持为待审核，等待支付回调
-        // 不要在这里直接更新余额，应该等待支付回调确认后再更新
-        // 如果是线下充值或其他方式，可以根据实际情况处理
+        // 根据支付方式设置初始状态
+        if ("wechat".equals(rechargeDTO.getPaymentMethod()) || "alipay".equals(rechargeDTO.getPaymentMethod())) {
+            // 线上充值（支付宝/微信）：状态设为"支付中"，等待支付回调
+            detail.setStatus(DepositStatus.PAYING);
+            // 不要在这里直接更新余额，应该等待支付回调确认后再更新
+        } else {
+            // 线下充值或其他方式：状态设为"待审核"，需要管理员审核
+            detail.setStatus(DepositStatus.PENDING_AUDIT);
+        }
 
         preDepositDetailRepository.insert(detail);
 
@@ -114,7 +121,9 @@ public class DepositServiceImpl implements DepositService {
             paymentRequest.setCurrency(rechargeDTO.getCurrency());
             paymentRequest.setDescription("预存款充值");
             paymentRequest.setUserId(userId);
-            paymentRequest.setNotifyUrl("/api/buyer/member/deposit/payment/callback");
+            // 使用统一的支付回调接口（支持订单支付和预存款充值）
+            // 回调处理会根据订单号前缀（DEPOSIT_）自动判断是预存款充值还是订单支付
+            paymentRequest.setNotifyUrl("/api/buyer/payment/alipay/notify");
 
             // 调用支付网关服务创建支付订单
             paymentResponse = paymentGatewayService.pay(paymentRequest);
@@ -169,6 +178,11 @@ public class DepositServiceImpl implements DepositService {
             }
         }
 
+        // 状态筛选
+        if (queryDTO.getStatus() != null) {
+            queryWrapper.eq(PreDepositDetail::getStatus, queryDTO.getStatus());
+        }
+
         // 时间范围筛选
         if (queryDTO.getStartDate() != null && !queryDTO.getStartDate().isEmpty()) {
             LocalDate startDate = LocalDate.parse(queryDTO.getStartDate(), DATE_FORMATTER);
@@ -218,7 +232,7 @@ public class DepositServiceImpl implements DepositService {
         }
 
         // 防止重复回调处理
-        if (detail.getStatus() == 1) {
+        if (DepositStatus.APPROVED.equals(detail.getStatus())) {
             // 已通过状态，检查外部交易号是否一致
             if (externalTradeNo != null && externalTradeNo.equals(detail.getExternalTradeNo())) {
                 log.info("充值记录已处理，忽略重复回调，内部订单号：{}，外部交易号：{}", internalOrderNo, externalTradeNo);
@@ -230,9 +244,15 @@ public class DepositServiceImpl implements DepositService {
             }
         }
 
-        if (detail.getStatus() == 2) {
+        if (DepositStatus.REJECTED.equals(detail.getStatus())) {
             log.warn("充值记录已拒绝，无法处理回调，内部订单号：{}", internalOrderNo);
             throw new BusinessException("充值记录已拒绝，无法处理回调");
+        }
+
+        // 只有"支付中"状态才能处理回调
+        if (!DepositStatus.PAYING.equals(detail.getStatus())) {
+            log.warn("充值记录状态不正确，无法处理回调，内部订单号：{}，当前状态：{}", internalOrderNo, detail.getStatus());
+            throw new BusinessException("充值记录状态不正确，无法处理回调");
         }
 
         // 更新外部交易号和备注
@@ -241,19 +261,22 @@ public class DepositServiceImpl implements DepositService {
 
         if (success) {
             // 支付成功，更新状态和余额
-            detail.setStatus(1); // 已通过
+            detail.setStatus(DepositStatus.APPROVED); // 已通过
             detail.setAuditTime(LocalDateTime.now());
 
-            // 获取预存款账户
+            // 获取预存款账户（使用悲观锁，防止并发充值导致余额不一致）
             PreDeposit preDeposit = preDepositRepository.selectOne(
                     new LambdaQueryWrapper<PreDeposit>()
                             .eq(PreDeposit::getUserId, detail.getUserId())
+                            .last("FOR UPDATE")  // 添加行锁，防止并发充值导致余额不一致
             );
 
             if (preDeposit != null) {
                 // 更新预存款余额
-                BigDecimal newBalance = preDeposit.getBalance().add(detail.getDepositAmount());
-                BigDecimal newAvailableBalance = preDeposit.getAvailableBalance().add(detail.getDepositAmount());
+                BigDecimal currentBalance = preDeposit.getBalance() != null ? preDeposit.getBalance() : BigDecimal.ZERO;
+                BigDecimal currentAvailableBalance = preDeposit.getAvailableBalance() != null ? preDeposit.getAvailableBalance() : BigDecimal.ZERO;
+                BigDecimal newBalance = currentBalance.add(detail.getDepositAmount());
+                BigDecimal newAvailableBalance = currentAvailableBalance.add(detail.getDepositAmount());
 
                 preDeposit.setBalance(newBalance);
                 preDeposit.setAvailableBalance(newAvailableBalance);
@@ -265,7 +288,7 @@ public class DepositServiceImpl implements DepositService {
             }
         } else {
             // 支付失败
-            detail.setStatus(2); // 已拒绝
+            detail.setStatus(DepositStatus.REJECTED); // 已拒绝
         }
 
         preDepositDetailRepository.updateById(detail);
@@ -276,10 +299,11 @@ public class DepositServiceImpl implements DepositService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void depositPayment(Long userId, Long orderId, String orderNo, BigDecimal amount) {
-        // 获取预存款账户
+        // 获取预存款账户（使用悲观锁，防止并发超支）
         PreDeposit preDeposit = preDepositRepository.selectOne(
                 new LambdaQueryWrapper<PreDeposit>()
                         .eq(PreDeposit::getUserId, userId)
+                        .last("FOR UPDATE")  // 添加行锁，防止并发支付导致余额超支
         );
 
         if (preDeposit == null) {
@@ -314,7 +338,7 @@ public class DepositServiceImpl implements DepositService {
         detail.setCurrentBalance(newBalance);
         detail.setAvailableBalance(newAvailableBalance);
         detail.setType(DepositType.CONSUME);
-        detail.setStatus(1); // 已通过
+        detail.setStatus(DepositStatus.APPROVED); // 已通过
         detail.setEvent("预存款支付");
         detail.setOrderId(orderId);
         detail.setOrderNo(orderNo);
@@ -328,10 +352,11 @@ public class DepositServiceImpl implements DepositService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void depositRefund(Long userId, Long orderId, String orderNo, BigDecimal amount) {
-        // 获取预存款账户
+        // 获取预存款账户（使用悲观锁，防止并发退款导致余额不一致）
         PreDeposit preDeposit = preDepositRepository.selectOne(
                 new LambdaQueryWrapper<PreDeposit>()
                         .eq(PreDeposit::getUserId, userId)
+                        .last("FOR UPDATE")  // 添加行锁，防止并发退款导致余额不一致
         );
 
         if (preDeposit == null) {
@@ -345,8 +370,10 @@ public class DepositServiceImpl implements DepositService {
         }
 
         // 更新预存款余额
-        BigDecimal newBalance = preDeposit.getBalance().add(amount);
-        BigDecimal newAvailableBalance = preDeposit.getAvailableBalance().add(amount);
+        BigDecimal currentBalance = preDeposit.getBalance() != null ? preDeposit.getBalance() : BigDecimal.ZERO;
+        BigDecimal currentAvailableBalance = preDeposit.getAvailableBalance() != null ? preDeposit.getAvailableBalance() : BigDecimal.ZERO;
+        BigDecimal newBalance = currentBalance.add(amount);
+        BigDecimal newAvailableBalance = currentAvailableBalance.add(amount);
 
         preDeposit.setBalance(newBalance);
         preDeposit.setAvailableBalance(newAvailableBalance);
@@ -363,7 +390,7 @@ public class DepositServiceImpl implements DepositService {
         detail.setCurrentBalance(newBalance);
         detail.setAvailableBalance(newAvailableBalance);
         detail.setType(DepositType.REFUND);
-        detail.setStatus(1); // 已通过
+        detail.setStatus(DepositStatus.APPROVED); // 已通过
         detail.setEvent("预存款退款");
         detail.setOrderId(orderId);
         detail.setOrderNo(orderNo);
@@ -390,6 +417,38 @@ public class DepositServiceImpl implements DepositService {
         vo.setCreateTime(detail.getCreateTime());
         vo.setRemark(detail.getRemark());
         vo.setOrderNo(detail.getOrderNo());
+        vo.setStatus(detail.getStatus());
+        vo.setPaymentMethod(detail.getPaymentMethod());
+        
+        // 设置状态名称
+        if (detail.getStatus() != null) {
+            switch (detail.getStatus()) {
+                case 0:
+                    vo.setStatusName("待审核");
+                    break;
+                case 1:
+                    vo.setStatusName("已通过");
+                    break;
+                case 2:
+                    // 根据支付方式判断：线上支付显示"支付失败"，线下充值显示"已拒绝"
+                    String paymentMethod = detail.getPaymentMethod();
+                    if ("alipay".equalsIgnoreCase(paymentMethod) || "wechat".equalsIgnoreCase(paymentMethod)) {
+                        vo.setStatusName("支付失败");
+                    } else {
+                        vo.setStatusName("已拒绝");
+                    }
+                    break;
+                case 3:
+                    vo.setStatusName("支付中");
+                    break;
+                case 4:
+                    vo.setStatusName("已超时");
+                    break;
+                default:
+                    vo.setStatusName("未知");
+            }
+        }
+        
         return vo;
     }
 }
