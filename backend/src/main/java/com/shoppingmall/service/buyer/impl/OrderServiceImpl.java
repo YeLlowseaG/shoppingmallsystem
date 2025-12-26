@@ -28,7 +28,7 @@ import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.repository.payment.PaymentRecordRepository;
 import com.shoppingmall.service.buyer.OrderService;
 import com.shoppingmall.service.buyer.DepositService;
-import com.shoppingmall.service.payment.PaymentService;
+import com.shoppingmall.payment.service.PaymentGatewayService;
 import com.shoppingmall.service.member.MemberLevelService;
 import com.shoppingmall.vo.MemberLevelVO;
 import com.shoppingmall.dto.OrderPaymentDTO;
@@ -80,7 +80,7 @@ public class OrderServiceImpl implements OrderService {
     private final UserRepository userRepository;
     private final PaymentRecordRepository paymentRecordRepository;
     private final DepositService depositService;
-    private final PaymentService paymentService;
+    private final PaymentGatewayService paymentGatewayService;
     private final MemberLevelService memberLevelService;
     private final ObjectMapper objectMapper;
 
@@ -941,7 +941,7 @@ public class OrderServiceImpl implements OrderService {
             paymentRequest.setDescription("订单支付：" + orderNo);
             paymentRequest.setUserId(userId);
             
-            PaymentResponseDTO paymentResponse = paymentService.createPayment(paymentRequest);
+            PaymentResponseDTO paymentResponse = paymentGatewayService.pay(paymentRequest);
             
             // 2.2 创建支付记录（支付中状态）
             PaymentRecord paymentRecord = new PaymentRecord();

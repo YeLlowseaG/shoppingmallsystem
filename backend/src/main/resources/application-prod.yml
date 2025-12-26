@@ -83,11 +83,11 @@ logging:
 # 文件存储配置 - Linux路径格式
 file:
   upload:
-    path: /www/wwwroot/shoppingmall/test/shopping-mall-backend/uploads
+    path: /www/wwwroot/shopping-mall-backend/uploads
     max-size: 10485760  # 10MB（字节）
     allowed-types: jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx
-    image-path: /www/wwwroot/shoppingmall/test/shopping-mall-backend/uploads/images
-    document-path: /www/wwwroot/shoppingmall/test/shopping-mall-backend/uploads/documents
+    image-path: /www/wwwroot/shopping-mall-backend/uploads/images
+    document-path: /www/wwwroot/shopping-mall-backend/uploads/documents
 
 # JWT配置
 jwt:

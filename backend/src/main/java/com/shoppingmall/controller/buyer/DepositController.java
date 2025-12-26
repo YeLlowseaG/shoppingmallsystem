@@ -7,6 +7,9 @@ import com.shoppingmall.dto.PaymentResponseDTO;
 import com.shoppingmall.service.buyer.DepositService;
 import com.shoppingmall.vo.DepositBalanceVO;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import java.net.URI;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -31,14 +34,52 @@ public class DepositController {
      * 预存款充值
      */
     @PostMapping("/recharge")
-    public Result<PaymentResponseDTO> recharge(@Valid @RequestBody DepositRechargeDTO rechargeDTO) {
+    public ResponseEntity<?> recharge(@Valid @RequestBody DepositRechargeDTO rechargeDTO) {
         Long userId = (Long) request.getAttribute("userId");
         if (userId == null) {
-            return Result.error(401, "未授权，请重新登录");
+            return ResponseEntity.status(401).body(Result.error(401, "未授权，请重新登录"));
         }
 
         PaymentResponseDTO paymentResponse = depositService.recharge(userId, rechargeDTO);
-        return Result.success("充值订单创建成功", paymentResponse);
+        // If client expects HTML and paymentParams contains an auto-submit form, return
+        // HTML so browser can redirect
+        String accept = request.getHeader("Accept");
+        if (accept != null && accept.contains("text/html") && paymentResponse.getPaymentParams() != null) {
+            String params = paymentResponse.getPaymentParams().trim();
+            if (params.startsWith("<form")) {
+                return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(params);
+            }
+        }
+
+        return ResponseEntity.ok(Result.success("充值订单创建成功", paymentResponse));
+    }
+
+    /**
+     * 直接返回 HTML 支付表单，供前端在新窗口中加载以触发支付宝页面跳转
+     */
+    @PostMapping("/recharge/html")
+    public ResponseEntity<?> rechargeHtml(@Valid @RequestBody DepositRechargeDTO rechargeDTO) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) {
+            return ResponseEntity.status(401).body(Result.error(401, "未授权，请重新登录"));
+        }
+
+        PaymentResponseDTO paymentResponse = depositService.recharge(userId, rechargeDTO);
+
+        // 如果返回的是 HTML 表单，直接以 text/html 返回
+        if (paymentResponse.getPaymentParams() != null) {
+            String params = paymentResponse.getPaymentParams().trim();
+            if (params.startsWith("<form")) {
+                return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(params);
+            }
+        }
+
+        // 否则如果有跳转 URL，返回 302 重定向
+        if (paymentResponse.getPaymentUrl() != null && !paymentResponse.getPaymentUrl().isEmpty()) {
+            return ResponseEntity.status(302).location(URI.create(paymentResponse.getPaymentUrl())).build();
+        }
+
+        return ResponseEntity.badRequest().body(Result.error(400, "无法生成支付跳转，请检查支付配置"));
     }
 
     /**
@@ -91,7 +132,7 @@ public class DepositController {
             }
 
             // 判断支付是否成功
-            boolean success = "TRADE_SUCCESS".equals(tradeStatus) 
+            boolean success = "TRADE_SUCCESS".equals(tradeStatus)
                     || "SUCCESS".equals(tradeStatus)
                     || "PAID".equals(tradeStatus);
 
@@ -103,4 +144,3 @@ public class DepositController {
         }
     }
 }
-
