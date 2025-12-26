@@ -64,14 +64,6 @@ public class AlipayPayStrategy implements PaymentStrategy {
             // 金额转换为字符串（支付宝使用元为单位）
             String amountStr = request.getAmount().toString();
 
-            // 调用支付宝工具类创建扫码支付订单
-            String qrCodeUrl = AlipayUtil.createQrPayment(
-                    envConfig,
-                    request.getInternalOrderNo(),
-                    amountStr,
-                    request.getDescription() != null ? request.getDescription() : "商品支付",
-                    notifyUrl);
-
             // 创建页面支付表单（用于跳转支付）
             String paymentForm = AlipayUtil.createPagePayment(
                     envConfig,
@@ -80,11 +72,10 @@ public class AlipayPayStrategy implements PaymentStrategy {
                     request.getDescription() != null ? request.getDescription() : "商品支付",
                     notifyUrl);
 
-            response.setQrCodeUrl(qrCodeUrl);
             response.setPaymentParams(paymentForm); // 支付表单HTML
-            response.setPaymentUrl(qrCodeUrl); // 也可以使用二维码URL
+            response.setPaymentUrl(null); // 页面支付不需要单独的支付URL，表单会自动提交跳转
 
-            log.info("支付宝支付订单创建成功，订单号：{}，二维码URL：{}", request.getInternalOrderNo(), qrCodeUrl);
+            log.info("支付宝支付订单创建成功，订单号：{}", request.getInternalOrderNo());
         } catch (Exception e) {
             log.error("创建支付宝支付订单失败，订单号：{}", request.getInternalOrderNo(), e);
             throw new PaymentException(500, "创建支付宝支付订单失败：" + e.getMessage(), e);

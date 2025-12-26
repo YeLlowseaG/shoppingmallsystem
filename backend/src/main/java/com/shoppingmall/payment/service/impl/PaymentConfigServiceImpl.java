@@ -141,6 +141,7 @@ public class PaymentConfigServiceImpl implements PaymentConfigService {
         AlipayConfig.AlipayEnvConfig sandbox = new AlipayConfig.AlipayEnvConfig();
         sandbox.setAppid(configMap.getOrDefault("payment.alipay.sandbox.appid", ""));
         sandbox.setEnv("sandbox");
+        sandbox.setGateway(configMap.getOrDefault("payment.alipay.sandbox.gateway", ""));
         sandbox.setPrivateKey(configMap.getOrDefault("payment.alipay.sandbox.private_key", ""));
         sandbox.setPublicKey(configMap.getOrDefault("payment.alipay.sandbox.public_key", ""));
         config.setSandbox(sandbox);
@@ -149,6 +150,7 @@ public class PaymentConfigServiceImpl implements PaymentConfigService {
         AlipayConfig.AlipayEnvConfig production = new AlipayConfig.AlipayEnvConfig();
         production.setAppid(configMap.getOrDefault("payment.alipay.production.appid", ""));
         production.setEnv("production");
+        production.setGateway(configMap.getOrDefault("payment.alipay.production.gateway", ""));
         production.setPrivateKey(configMap.getOrDefault("payment.alipay.production.private_key", ""));
         production.setPublicKey(configMap.getOrDefault("payment.alipay.production.public_key", ""));
         config.setProduction(production);

@@ -59,17 +59,45 @@ public class AlipayUtil {
             String subject,
             String notifyUrl) {
         try {
-            String gateway = "sandbox".equals(config.getEnv()) ? ALIPAY_SANDBOX_GATEWAY : ALIPAY_GATEWAY;
+            // 优先使用配置的网关地址，如果没有配置则使用默认地址
+            String gateway = null;
+            if (config.getGateway() != null && !config.getGateway().isEmpty()) {
+                gateway = config.getGateway();
+            } else {
+                gateway = "sandbox".equals(config.getEnv()) ? ALIPAY_SANDBOX_GATEWAY : ALIPAY_GATEWAY;
+            }
+
+            // 清理notifyUrl中的特殊字符，只保留纯粹的URL
+            // 移除反引号`、方括号[]、空格等特殊字符
+            String cleanNotifyUrl = notifyUrl != null 
+                ? notifyUrl.replace("`", "").replace("[", "").replace("]", "").trim()
+                : "";
+            log.info("notifyUrl清理前: [{}]", notifyUrl);
+            log.info("notifyUrl清理后: [{}]", cleanNotifyUrl);
+            
+            // 移除URL后面可能附加的查询参数（如 &sign_type=...&timestamp=...）
+            if (cleanNotifyUrl.contains("&")) {
+                int ampersandIndex = cleanNotifyUrl.indexOf('&');
+                cleanNotifyUrl = cleanNotifyUrl.substring(0, ampersandIndex);
+                log.info("notifyUrl移除额外参数后: [{}]", cleanNotifyUrl);
+            }
+            // 确保URL以http开头
+            if (!cleanNotifyUrl.toLowerCase().startsWith("http://") && 
+                !cleanNotifyUrl.toLowerCase().startsWith("https://")) {
+                cleanNotifyUrl = "";
+                log.warn("notifyUrl无效，已清空");
+            }
 
             // 构建请求参数
             Map<String, String> params = new HashMap<>();
             params.put("app_id", config.getAppid());
             params.put("method", "alipay.trade.page.pay");
-            params.put("charset", "utf-8");
+            // charset参数需要在URL查询字符串中，不放在表单参数中
+            // params.put("charset", "utf-8");
             params.put("sign_type", "RSA2");
             params.put("timestamp", formatTimestamp(new Date()));
             params.put("version", "1.0");
-            params.put("notify_url", notifyUrl);
+            params.put("notify_url", cleanNotifyUrl);
 
             // 业务参数
             Map<String, String> bizContent = new HashMap<>();
@@ -84,8 +112,8 @@ public class AlipayUtil {
             String sign = generateSign(params, config.getPrivateKey());
             params.put("sign", sign);
 
-            // 构建表单
-            return buildFormHtml(gateway, params);
+            // 构建表单（charset放在URL中）
+            return buildFormHtmlWithCharset(gateway, params);
 
         } catch (Exception e) {
             log.error("支付宝创建订单异常: orderNo={}", orderNo, e);
@@ -110,6 +138,21 @@ public class AlipayUtil {
             String notifyUrl) {
         try {
             String gateway = "sandbox".equals(config.getEnv()) ? ALIPAY_SANDBOX_GATEWAY : ALIPAY_GATEWAY;
+            
+            // 清理notifyUrl中的特殊字符，只保留纯粹的URL
+            String cleanNotifyUrl = notifyUrl != null 
+                ? notifyUrl.replace("`", "").trim()
+                : "";
+            // 移除URL后面可能附加的查询参数（如 &sign_type=...&timestamp=...）
+            if (cleanNotifyUrl.contains("&")) {
+                int ampersandIndex = cleanNotifyUrl.indexOf('&');
+                cleanNotifyUrl = cleanNotifyUrl.substring(0, ampersandIndex);
+            }
+            // 确保URL以http开头
+            if (!cleanNotifyUrl.toLowerCase().startsWith("http://") && 
+                !cleanNotifyUrl.toLowerCase().startsWith("https://")) {
+                cleanNotifyUrl = "";
+            }
 
             // 构建请求参数
             Map<String, String> params = new HashMap<>();
@@ -119,7 +162,7 @@ public class AlipayUtil {
             params.put("sign_type", "RSA2");
             params.put("timestamp", formatTimestamp(new Date()));
             params.put("version", "1.0");
-            params.put("notify_url", notifyUrl);
+            params.put("notify_url", cleanNotifyUrl);
 
             // 业务参数
             Map<String, String> bizContent = new HashMap<>();
@@ -497,14 +540,41 @@ public class AlipayUtil {
     }
 
     /**
+     * 构建支付表单HTML（charset放在URL中）
+     */
+    private static String buildFormHtmlWithCharset(String gateway, Map<String, String> params) {
+        StringBuilder html = new StringBuilder();
+        // 移除gateway中的反引号
+        String cleanGateway = gateway != null ? gateway.replace("`", "") : "";
+        // 将charset参数添加到URL查询字符串中
+        String formAction = cleanGateway + (cleanGateway.contains("?") ? "&" : "?") + "charset=utf-8";
+        html.append("<form id='alipayForm' method='post' action='").append(escapeHtml(formAction)).append("'>");
+        for (Map.Entry<String, String> entry : params.entrySet()) {
+            // 移除参数名和值中的反引号
+            String cleanKey = entry.getKey() != null ? entry.getKey().replace("`", "") : "";
+            String cleanValue = entry.getValue() != null ? entry.getValue().replace("`", "") : "";
+            html.append("<input type='hidden' name='").append(escapeHtml(cleanKey))
+                    .append("' value='").append(escapeHtml(cleanValue)).append("'/>");
+        }
+        html.append("</form>");
+        html.append("<script>document.getElementById('alipayForm').submit();</script>");
+        return html.toString();
+    }
+
+    /**
      * 构建支付表单HTML
      */
     private static String buildFormHtml(String gateway, Map<String, String> params) {
         StringBuilder html = new StringBuilder();
-        html.append("<form id='alipayForm' method='post' action='").append(gateway).append("'>");
+        // 移除gateway中的反引号
+        String cleanGateway = gateway != null ? gateway.replace("`", "") : "";
+        html.append("<form id='alipayForm' method='post' action='").append(escapeHtml(cleanGateway)).append("'>");
         for (Map.Entry<String, String> entry : params.entrySet()) {
-            html.append("<input type='hidden' name='").append(entry.getKey())
-                    .append("' value='").append(escapeHtml(entry.getValue())).append("'/>");
+            // 移除参数名和值中的反引号
+            String cleanKey = entry.getKey() != null ? entry.getKey().replace("`", "") : "";
+            String cleanValue = entry.getValue() != null ? entry.getValue().replace("`", "") : "";
+            html.append("<input type='hidden' name='").append(escapeHtml(cleanKey))
+                    .append("' value='").append(escapeHtml(cleanValue)).append("'/>");
         }
         html.append("</form>");
         html.append("<script>document.getElementById('alipayForm').submit();</script>");
