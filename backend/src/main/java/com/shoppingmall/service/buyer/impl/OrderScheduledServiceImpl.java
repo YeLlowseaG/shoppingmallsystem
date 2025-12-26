@@ -11,9 +11,9 @@ import com.shoppingmall.repository.order.OrderRepository;
 import com.shoppingmall.repository.product.ProductRepository;
 import com.shoppingmall.repository.product.ProductStockRepository;
 import com.shoppingmall.service.buyer.OrderScheduledService;
+import com.shoppingmall.service.system.SystemConfigService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,12 +36,23 @@ public class OrderScheduledServiceImpl implements OrderScheduledService {
     private final OrderItemRepository orderItemRepository;
     private final ProductRepository productRepository;
     private final ProductStockRepository productStockRepository;
+    private final SystemConfigService systemConfigService;
 
     /**
-     * 订单支付超时时间（小时），从配置文件读取，默认6小时
+     * 获取订单支付超时时间（小时），从数据库配置读取，默认4小时
+     * 每次执行定时任务时读取最新配置，确保配置修改后立即生效
+     *
+     * @return 支付超时时间（小时）
      */
-    @Value("${order.payment-timeout-hours:6}")
-    private Integer paymentTimeoutHours;
+    private Integer getPaymentTimeoutHours() {
+        String timeoutStr = systemConfigService.getConfigValue("order.payment-timeout-hours", "4");
+        try {
+            return Integer.parseInt(timeoutStr);
+        } catch (NumberFormatException e) {
+            log.warn("订单支付超时时间配置格式错误，使用默认值4小时: {}", timeoutStr);
+            return 4;
+        }
+    }
 
     /**
      * 自动取消超时的待付款订单
@@ -52,6 +63,8 @@ public class OrderScheduledServiceImpl implements OrderScheduledService {
     @Transactional(rollbackFor = Exception.class)
     public void cancelTimeoutOrders() {
         try {
+            // 每次执行时读取最新配置
+            Integer paymentTimeoutHours = getPaymentTimeoutHours();
             LocalDateTime timeoutThreshold = LocalDateTime.now().minusHours(paymentTimeoutHours);
 
             // 查找超时的待付款订单

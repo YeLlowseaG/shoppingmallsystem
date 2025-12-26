@@ -24,10 +24,10 @@ import java.util.Map;
 import com.shoppingmall.entity.PasswordResetCode;
 import com.shoppingmall.repository.user.PasswordResetCodeRepository;
 import com.shoppingmall.service.EmailService;
+import com.shoppingmall.service.system.SystemConfigService;
 import com.shoppingmall.dto.ResetPasswordDTO;
 import java.time.LocalDateTime;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Value;
 
 /**
  * 用户服务实现类
@@ -46,9 +46,23 @@ public class UserServiceImpl implements UserService {
     private final CaptchaController captchaController;
     private final PasswordResetCodeRepository passwordResetCodeRepository;
     private final EmailService emailService;
+    private final SystemConfigService systemConfigService;
 
-    @Value("${app.password.reset.token-expire-minutes:30}")
-    private int tokenExpireMinutes;
+    /**
+     * 获取密码重置令牌有效期（分钟），从数据库配置读取，默认30分钟
+     * 每次使用时读取最新配置，确保配置修改后立即生效
+     *
+     * @return 令牌有效期（分钟）
+     */
+    private int getTokenExpireMinutes() {
+        String minutesStr = systemConfigService.getConfigValue("app.password.reset.token-expire-minutes", "30");
+        try {
+            return Integer.parseInt(minutesStr);
+        } catch (NumberFormatException e) {
+            log.warn("密码重置令牌有效期配置格式错误，使用默认值30分钟: {}", minutesStr);
+            return 30;
+        }
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -206,6 +220,9 @@ public class UserServiceImpl implements UserService {
 
         // 生成重置验证码（使用UUID，取16位大写字母数字）
         String resetCode = UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
+        
+        // 获取令牌有效期（每次使用时读取最新配置）
+        int tokenExpireMinutes = getTokenExpireMinutes();
         
         // 计算过期时间
         LocalDateTime expireTime = LocalDateTime.now().plusMinutes(tokenExpireMinutes);
