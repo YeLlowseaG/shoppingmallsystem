@@ -68,6 +68,21 @@ public class DepositRecordVO {
      * 关联订单号
      */
     private String orderNo;
+
+    /**
+     * 状态（0-待审核，1-已通过，2-已拒绝/支付失败，3-支付中，4-已超时）
+     */
+    private Integer status;
+
+    /**
+     * 状态名称
+     */
+    private String statusName;
+
+    /**
+     * 支付方式
+     */
+    private String paymentMethod;
 }
 
 

@@ -45,7 +45,10 @@ public class AdminDepositRecordVO {
     private String typeName;
 
     /**
-     * 状态（0-待审核，1-已通过，2-已拒绝，3-支付中，4-已超时）
+     * 状态（0-待审核，1-已通过，2-已拒绝/支付失败，3-支付中，4-已超时）
+     * 注意：状态2根据支付方式显示不同文案
+     * - 线上充值（支付宝/微信）：显示为"支付失败"
+     * - 线下充值/代充值：显示为"已拒绝"
      */
     private Integer status;
 

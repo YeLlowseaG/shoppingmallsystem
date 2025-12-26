@@ -50,14 +50,16 @@ public class AlipayUtil {
      * @param orderNo   商户订单号
      * @param amount    金额（元）
      * @param subject   订单标题
-     * @param notifyUrl 回调地址
+     * @param notifyUrl 异步回调地址（服务器端回调）
+     * @param returnUrl 同步回调地址（用户支付成功后跳转的页面）
      * @return 支付表单HTML
      */
     public static String createPagePayment(AlipayConfig.AlipayEnvConfig config,
             String orderNo,
             String amount,
             String subject,
-            String notifyUrl) {
+            String notifyUrl,
+            String returnUrl) {
         try {
             // 优先使用配置的网关地址，如果没有配置则使用默认地址
             String gateway = null;
@@ -128,6 +130,43 @@ public class AlipayUtil {
             params.put("timestamp", formatTimestamp(new Date()));
             params.put("version", "1.0");
             params.put("notify_url", cleanNotifyUrl);
+            
+            // 清理returnUrl（同步回调地址，用户支付成功后跳转）
+            String cleanReturnUrl = returnUrl;
+            if (cleanReturnUrl != null) {
+                cleanReturnUrl = cleanReturnUrl.trim();
+                // 移除特殊字符
+                cleanReturnUrl = cleanReturnUrl.replace("`", "")
+                                               .replace("'", "")
+                                               .replace("\"", "")
+                                               .replace("[", "")
+                                               .replace("]", "")
+                                               .replace("{", "")
+                                               .replace("}", "")
+                                               .replace("(", "")
+                                               .replace(")", "")
+                                               .trim();
+                // 移除URL后面可能附加的查询参数
+                if (cleanReturnUrl.contains("&")) {
+                    int ampersandIndex = cleanReturnUrl.indexOf('&');
+                    cleanReturnUrl = cleanReturnUrl.substring(0, ampersandIndex);
+                }
+                // 确保URL以http开头
+                if (!cleanReturnUrl.toLowerCase().startsWith("http://") && 
+                    !cleanReturnUrl.toLowerCase().startsWith("https://")) {
+                    cleanReturnUrl = "";
+                    log.warn("returnUrl无效，已清空");
+                }
+            } else {
+                cleanReturnUrl = "";
+            }
+            log.info("returnUrl清理前: [{}]", returnUrl);
+            log.info("returnUrl清理后: [{}]", cleanReturnUrl);
+            
+            // return_url参数必须参与签名
+            if (!cleanReturnUrl.isEmpty()) {
+                params.put("return_url", cleanReturnUrl);
+            }
 
             // 业务参数
             Map<String, String> bizContent = new HashMap<>();

@@ -37,7 +37,7 @@
             <el-option label="全部" :value="undefined" />
             <el-option label="待审核" :value="0" />
             <el-option label="已通过" :value="1" />
-            <el-option label="已拒绝" :value="2" />
+            <el-option label="支付失败/已拒绝" :value="2" />
             <el-option label="支付中" :value="3" />
             <el-option label="已超时" :value="4" />
           </el-select>

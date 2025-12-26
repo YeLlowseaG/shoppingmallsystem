@@ -129,13 +129,57 @@
 
     <!-- 底部 -->
     <Footer />
+
+    <!-- 支付状态弹窗 -->
+    <el-dialog
+      v-model="showPaymentStatusDialog"
+      title="支付状态"
+      width="500px"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      :show-close="paymentStatus !== 'paying'"
+    >
+      <div class="payment-status-content">
+        <!-- 付款中 -->
+        <div v-if="paymentStatus === 'paying'" class="status-paying">
+          <el-icon class="status-icon paying-icon"><Loading /></el-icon>
+          <div class="status-title">正在处理支付...</div>
+          <div class="status-desc">请在新打开的支付页面完成支付，完成后请点击下方按钮</div>
+          <div class="status-actions">
+            <el-button type="primary" @click="handleMarkAsPaid">我已付款</el-button>
+            <el-button @click="handlePaymentProblem">付款有问题</el-button>
+          </div>
+        </div>
+
+        <!-- 已付款 -->
+        <div v-if="paymentStatus === 'paid'" class="status-paid">
+          <el-icon class="status-icon success-icon"><CircleCheck /></el-icon>
+          <div class="status-title">支付成功！</div>
+          <div class="status-desc">充值金额已到账，正在跳转到余额页面...</div>
+        </div>
+
+        <!-- 付款有问题 -->
+        <div v-if="paymentStatus === 'problem'" class="status-problem">
+          <el-icon class="status-icon error-icon"><CircleClose /></el-icon>
+          <div class="status-title">支付遇到问题</div>
+          <div class="status-desc">如果您已完成支付但未到账，请联系客服处理</div>
+          <div class="status-actions">
+            <el-button type="primary" @click="handleContactService">联系客服</el-button>
+            <el-button @click="handleRetryPayment">重新支付</el-button>
+            <el-button @click="closePaymentStatusDialog">关闭</el-button>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useRouter } from 'vue-router'
 import { ElMessage, FormInstance, FormRules } from 'element-plus'
+import { Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
@@ -145,9 +189,15 @@ import MemberSidebar from '@/components/member/MemberSidebar.vue'
 import { rechargeDeposit, type PaymentResponseVO } from '@/api/buyer/deposit'
 
 const router = useRouter()
+const route = useRoute()
 const rechargeFormRef = ref<FormInstance>()
 const loading = ref(false)
 const unreadMessageCount = ref(0)
+
+// 支付状态弹窗
+const showPaymentStatusDialog = ref(false)
+const paymentStatus = ref<'paying' | 'paid' | 'problem' | ''>('')
+const currentPaymentOrderNo = ref<string>('')
 
 // 表单数据
 const rechargeForm = reactive({
@@ -206,8 +256,6 @@ const handlePayNow = async () => {
       try {
         const amount = parseFloat(rechargeForm.amount)
         
-        ElMessage.info('正在处理支付...')
-        
         // 调用真实充值接口
         const paymentResponse: PaymentResponseVO = await rechargeDeposit({
           amount,
@@ -215,20 +263,31 @@ const handlePayNow = async () => {
           paymentMethod: rechargeForm.paymentMethod
         })
         
+        // 保存订单号（如果有）
+        if (paymentResponse.internalOrderNo) {
+          currentPaymentOrderNo.value = paymentResponse.internalOrderNo
+        }
+        
         // 如果是模拟支付，直接显示成功
         if (paymentResponse.isMock) {
-          ElMessage.success('支付成功！充值金额已到账')
+          paymentStatus.value = 'paid'
+          showPaymentStatusDialog.value = true
           
           // 重置表单
           rechargeForm.amount = '0.01'
           rechargeForm.paymentMethod = 'wechat'
           
-          // 跳转到预存款页面查看余额
+          // 延迟关闭弹窗并跳转
           setTimeout(() => {
+            showPaymentStatusDialog.value = false
             router.push('/member/deposit/balance')
-          }, 1000)
+          }, 2000)
         } else {
-          // 真实支付，跳转到支付页面或展示二维码
+          // 真实支付，显示支付中弹窗
+          paymentStatus.value = 'paying'
+          showPaymentStatusDialog.value = true
+          
+          // 跳转到支付页面或展示二维码
           if (paymentResponse.paymentParams) {
             // 服务端返回 HTML 表单（auto-submit），在新窗口打开以触发支付宝页面跳转
             try {
@@ -237,12 +296,15 @@ const handlePayNow = async () => {
                 win.document.open()
                 win.document.write(paymentResponse.paymentParams)
                 win.document.close()
+                // 保持支付中状态，等待用户完成支付
               } else {
                 ElMessage.error('弹窗被拦截，请允许弹窗或改用非弹窗方式支付')
+                paymentStatus.value = 'problem'
               }
             } catch (e) {
               console.error('打开支付页面失败', e)
               ElMessage.error('打开支付页面失败，请重试')
+              paymentStatus.value = 'problem'
             }
           } else if (paymentResponse.paymentUrl) {
             // 跳转到支付URL
@@ -253,11 +315,14 @@ const handlePayNow = async () => {
             // TODO: 可以打开二维码弹窗显示二维码
           } else {
             ElMessage.warning('支付订单创建成功，但未返回支付URL')
+            paymentStatus.value = 'problem'
           }
         }
       } catch (error: any) {
         console.error('支付失败:', error)
         ElMessage.error(error.message || '支付失败，请重试')
+        paymentStatus.value = 'problem'
+        showPaymentStatusDialog.value = true
       } finally {
         loading.value = false
       }
@@ -265,7 +330,64 @@ const handlePayNow = async () => {
   })
 }
 
+// 我已付款
+const handleMarkAsPaid = () => {
+  ElMessage.info('正在验证支付状态...')
+  // 如果支付成功（通过回调），会自动跳转
+  // 这里可以添加轮询逻辑检查支付状态
+  // 暂时直接跳转到余额页面，让用户查看充值记录
+  showPaymentStatusDialog.value = false
+  router.push('/member/deposit/balance')
+}
+
+// 付款有问题
+const handlePaymentProblem = () => {
+  paymentStatus.value = 'problem'
+}
+
+// 联系客服
+const handleContactService = () => {
+  ElMessage.info('请联系客服处理支付问题，客服电话：400-xxx-xxxx')
+  // TODO: 可以跳转到客服页面或打开客服对话框
+}
+
+// 重新支付
+const handleRetryPayment = () => {
+  showPaymentStatusDialog.value = false
+  paymentStatus.value = ''
+  currentPaymentOrderNo.value = ''
+  // 可以重新触发支付流程
+  // 这里不自动触发，让用户重新点击付款按钮
+}
+
+// 关闭支付状态弹窗
+const closePaymentStatusDialog = () => {
+  showPaymentStatusDialog.value = false
+  paymentStatus.value = ''
+  currentPaymentOrderNo.value = ''
+}
+
 onMounted(() => {
+  // 检查URL参数中是否有支付成功标识
+  const urlPaymentStatus = route.query.paymentStatus as string
+  if (urlPaymentStatus === 'success') {
+    // 显示支付成功弹窗
+    paymentStatus.value = 'paid'
+    showPaymentStatusDialog.value = true
+    ElMessage.success('充值成功！金额已到账')
+    
+    // 延迟关闭弹窗并清除URL参数
+    setTimeout(() => {
+      showPaymentStatusDialog.value = false
+      router.replace({
+        path: '/member/deposit/recharge'
+      })
+      // 跳转到余额页面查看
+      setTimeout(() => {
+        router.push('/member/deposit/balance')
+      }, 500)
+    }, 2000)
+  }
   // 可以在这里加载用户信息、预存款余额等
 })
 </script>
@@ -462,6 +584,71 @@ onMounted(() => {
         }
       }
     }
+  }
+}
+
+// 支付状态弹窗样式
+.payment-status-content {
+  text-align: center;
+  padding: 20px;
+
+  .status-icon {
+    font-size: 64px;
+    margin-bottom: 20px;
+
+    &.paying-icon {
+      color: #409eff;
+      animation: rotate 1s linear infinite;
+    }
+
+    &.success-icon {
+      color: #67c23a;
+    }
+
+    &.error-icon {
+      color: #f56c6c;
+    }
+  }
+
+  .status-title {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: #333;
+  }
+
+  .status-desc {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 20px;
+    line-height: 1.6;
+  }
+
+  .status-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+
+  .status-paying,
+  .status-paid,
+  .status-problem {
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 </style>

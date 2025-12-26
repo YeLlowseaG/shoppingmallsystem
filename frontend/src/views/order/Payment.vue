@@ -117,6 +117,48 @@
       </template>
     </el-dialog>
 
+    <!-- 支付状态弹窗 -->
+    <el-dialog
+      v-model="showPaymentStatusDialog"
+      title="支付状态"
+      width="500px"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      :show-close="paymentStatus !== 'paying'"
+    >
+      <div class="payment-status-content">
+        <!-- 付款中 -->
+        <div v-if="paymentStatus === 'paying'" class="status-paying">
+          <el-icon class="status-icon paying-icon"><Loading /></el-icon>
+          <div class="status-title">正在处理支付...</div>
+          <div class="status-desc">请在新打开的支付页面完成支付，完成后请点击下方按钮</div>
+          <div class="status-actions">
+            <el-button type="primary" @click="handleMarkAsPaid">我已付款</el-button>
+            <el-button @click="handlePaymentProblem">付款有问题</el-button>
+          </div>
+        </div>
+
+        <!-- 已付款 -->
+        <div v-if="paymentStatus === 'paid'" class="status-paid">
+          <el-icon class="status-icon success-icon"><CircleCheck /></el-icon>
+          <div class="status-title">支付成功！</div>
+          <div class="status-desc">订单支付成功，正在跳转到订单详情页面...</div>
+        </div>
+
+        <!-- 付款有问题 -->
+        <div v-if="paymentStatus === 'problem'" class="status-problem">
+          <el-icon class="status-icon error-icon"><CircleClose /></el-icon>
+          <div class="status-title">支付遇到问题</div>
+          <div class="status-desc">如果您已完成支付但订单状态未更新，请联系客服处理</div>
+          <div class="status-actions">
+            <el-button type="primary" @click="handleContactService">联系客服</el-button>
+            <el-button @click="handleRetryPayment">重新支付</el-button>
+            <el-button @click="closePaymentStatusDialog">关闭</el-button>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
+
     <!-- 底部 -->
     <Footer />
   </div>
@@ -126,6 +168,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
@@ -154,6 +197,11 @@ const depositBalance = ref(0.00)
 const showPaymentPasswordDialog = ref(false)
 const paymentPassword = ref('')
 const paying = ref(false)
+
+// 支付状态弹窗
+const showPaymentStatusDialog = ref(false)
+const paymentStatus = ref<'paying' | 'paid' | 'problem' | ''>('')
+const currentPaymentOrderNo = ref<string>('')
 
 // 支付方式列表
 const paymentMethods = ref([
@@ -257,116 +305,138 @@ const processPayment = async () => {
     // 调用支付接口
     const response: PaymentResponseVO = await payOrder(orderNumber.value, paymentDTO)
 
+    // 保存订单号
+    currentPaymentOrderNo.value = orderNumber.value
+
     // 根据支付方式处理
-      if (selectedPaymentMethodId.value === 'pre_deposit') {
-        // 预存款支付直接成功
-        ElMessage.success('支付成功！')
-        setTimeout(() => {
-          router.push({
-            path: '/order/detail',
-            query: {
-              orderNumber: orderNumber.value,
-              amount: totalAmount.value.toFixed(2),
-              paymentStatus: 'success'
-            }
-          })
-        }, 1000)
-      } else {
-        // 支付宝/微信支付
-        if (response.isMock) {
-          // 模拟支付，调用模拟支付成功接口
-          ElMessage.info('正在处理支付...')
+    if (selectedPaymentMethodId.value === 'pre_deposit') {
+      // 预存款支付直接成功
+      paymentStatus.value = 'paid'
+      showPaymentStatusDialog.value = true
+      ElMessage.success('支付成功！')
+      
+      // 延迟关闭弹窗并跳转
+      setTimeout(() => {
+        showPaymentStatusDialog.value = false
+        router.push({
+          path: '/order/detail',
+          query: {
+            orderNumber: orderNumber.value,
+            paymentStatus: 'success'
+          }
+        })
+      }, 2000)
+    } else {
+      // 支付宝/微信支付
+      if (response.isMock) {
+        // 模拟支付，调用模拟支付成功接口
+        paymentStatus.value = 'paying'
+        showPaymentStatusDialog.value = true
+        ElMessage.info('正在处理支付...')
+        
+        // 调用模拟支付成功接口
+        try {
+          await request.post(`/api/buyer/payment/mock/success?orderNo=${orderNumber.value}&paymentMethod=${backendPaymentMethod}`);
           
-          // 调用模拟支付成功接口
-          try {
-            await request.post(`/api/buyer/payment/mock/success?orderNo=${orderNumber.value}&paymentMethod=${backendPaymentMethod}`);
-            
-            ElMessage.success('支付成功！')
-            setTimeout(() => {
-              router.push({
-                path: '/order/detail',
-                query: {
-                  orderNumber: orderNumber.value,
-                  amount: totalAmount.value.toFixed(2),
-                  paymentStatus: 'success'
-                }
-              })
-            }, 1000)
-          } catch (error: any) {
-            // request拦截器已经显示了错误消息，这里不需要再显示
-            console.error('支付处理失败:', error);
-          }
-        } else {
-          // 真实支付，处理支付表单或支付URL
-          if (response.paymentParams) {
-            // 服务端返回HTML表单，使用动态表单方式提交以确保跳转成功
-            try {
-              // 移除HTML内容中的反引号
-              const cleanHtml = response.paymentParams.replace(/`/g, '');
-              
-              // 解析表单HTML以获取action和参数
-              const parser = new DOMParser();
-              const doc = parser.parseFromString(cleanHtml, 'text/html');
-              const form = doc.querySelector('form#alipayForm');
-              
-              if (form && form.action) {
-                // 获取表单action和所有input参数
-                const formAction = form.action;
-                const formData = new FormData();
-                
-                // 收集所有隐藏输入字段
-                form.querySelectorAll('input[type="hidden"]').forEach(input => {
-                  if (input.name && input.value) {
-                    formData.append(input.name, input.value);
-                  }
-                });
-                
-                // 创建form元素并提交
-                const tempForm = document.createElement('form');
-                tempForm.method = 'POST';
-                tempForm.action = formAction;
-                tempForm.target = '_blank';
-                tempForm.style.display = 'none';
-                
-                // 添加所有参数
-                formData.forEach((value, key) => {
-                  const input = document.createElement('input');
-                  input.type = 'hidden';
-                  input.name = key;
-                  input.value = value;
-                  tempForm.appendChild(input);
-                });
-                
-                document.body.appendChild(tempForm);
-                tempForm.submit();
-                document.body.removeChild(tempForm);
-              } else {
-                // 如果解析失败，回退到原始方法
-                const win = window.open('', '_blank');
-                if (win) {
-                  win.document.open();
-                  win.document.write(cleanHtml);
-                  win.document.close();
-                } else {
-                  ElMessage.error('弹窗被拦截，请允许弹窗或改用非弹窗方式支付');
-                }
+          paymentStatus.value = 'paid'
+          ElMessage.success('支付成功！')
+          
+          // 延迟关闭弹窗并跳转
+          setTimeout(() => {
+            showPaymentStatusDialog.value = false
+            router.push({
+              path: '/order/detail',
+              query: {
+                orderNumber: orderNumber.value,
+                paymentStatus: 'success'
               }
-            } catch (e) {
-              console.error('打开支付页面失败', e);
-              ElMessage.error('打开支付页面失败，请重试');
+            })
+          }, 2000)
+        } catch (error: any) {
+          paymentStatus.value = 'problem'
+          console.error('支付处理失败:', error);
+        }
+      } else {
+        // 真实支付，显示支付中弹窗
+        paymentStatus.value = 'paying'
+        showPaymentStatusDialog.value = true
+        
+        // 处理支付表单或支付URL
+        if (response.paymentParams) {
+          // 服务端返回HTML表单，使用动态表单方式提交以确保跳转成功
+          try {
+            // 移除HTML内容中的反引号
+            const cleanHtml = response.paymentParams.replace(/`/g, '');
+            
+            // 解析表单HTML以获取action和参数
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(cleanHtml, 'text/html');
+            const form = doc.querySelector('form#alipayForm');
+            
+            if (form && form.action) {
+              // 获取表单action和所有input参数
+              const formAction = form.action;
+              const formData = new FormData();
+              
+              // 收集所有隐藏输入字段
+              form.querySelectorAll('input[type="hidden"]').forEach(input => {
+                if (input.name && input.value) {
+                  formData.append(input.name, input.value);
+                }
+              });
+              
+              // 创建form元素并提交
+              const tempForm = document.createElement('form');
+              tempForm.method = 'POST';
+              tempForm.action = formAction;
+              tempForm.target = '_blank';
+              tempForm.style.display = 'none';
+              
+              // 添加所有参数
+              formData.forEach((value, key) => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = value;
+                tempForm.appendChild(input);
+              });
+              
+              document.body.appendChild(tempForm);
+              tempForm.submit();
+              document.body.removeChild(tempForm);
+              // 保持支付中状态，等待用户完成支付
+            } else {
+              // 如果解析失败，回退到原始方法
+              const win = window.open('', '_blank');
+              if (win) {
+                win.document.open();
+                win.document.write(cleanHtml);
+                win.document.close();
+                // 保持支付中状态，等待用户完成支付
+              } else {
+                ElMessage.error('弹窗被拦截，请允许弹窗或改用非弹窗方式支付');
+                paymentStatus.value = 'problem'
+              }
             }
-          } else if (response.paymentUrl) {
-            // 跳转到支付URL
-            window.location.href = response.paymentUrl;
-          } else if (response.qrCodeUrl) {
-            // 显示二维码支付（微信支付使用）
-            ElMessage.info('请扫描二维码支付');
-            // TODO: 实现二维码支付显示逻辑
-          } else {
-            ElMessage.warning('支付信息未生成');
+          } catch (e) {
+            console.error('打开支付页面失败', e);
+            ElMessage.error('打开支付页面失败，请重试');
+            paymentStatus.value = 'problem'
           }
+        } else if (response.paymentUrl) {
+          // 跳转到支付URL
+          window.open(response.paymentUrl, '_blank');
+          // 保持支付中状态，等待用户完成支付
+        } else if (response.qrCodeUrl) {
+          // 显示二维码支付（微信支付使用）
+          ElMessage.info('请扫描二维码支付');
+          // TODO: 可以打开二维码弹窗显示二维码
+        } else {
+          ElMessage.warning('支付信息未生成');
+          paymentStatus.value = 'problem'
         }
       }
+    }
   } catch (error: any) {
     // request拦截器已经显示了错误消息，这里不需要再显示
     // 如果是支付密码错误，重新打开密码输入对话框
@@ -375,8 +445,13 @@ const processPayment = async () => {
       if (errorMessage.includes('支付密码错误')) {
         paymentPassword.value = ''
         showPaymentPasswordDialog.value = true
+        return
       }
     }
+    
+    // 其他错误，显示支付问题弹窗
+    paymentStatus.value = 'problem'
+    showPaymentStatusDialog.value = true
     console.error('支付失败:', error)
   } finally {
     paying.value = false
@@ -386,6 +461,46 @@ const processPayment = async () => {
       paymentPassword.value = ''
     }
   }
+}
+
+// 我已付款
+const handleMarkAsPaid = () => {
+  ElMessage.info('正在验证支付状态...')
+  // 跳转到订单详情页面，让用户查看订单状态
+  showPaymentStatusDialog.value = false
+  router.push({
+    path: '/order/detail',
+    query: {
+      orderNumber: orderNumber.value
+    }
+  })
+}
+
+// 付款有问题
+const handlePaymentProblem = () => {
+  paymentStatus.value = 'problem'
+}
+
+// 联系客服
+const handleContactService = () => {
+  ElMessage.info('请联系客服处理支付问题，客服电话：400-xxx-xxxx')
+  // TODO: 可以跳转到客服页面或打开客服对话框
+}
+
+// 重新支付
+const handleRetryPayment = () => {
+  showPaymentStatusDialog.value = false
+  paymentStatus.value = ''
+  currentPaymentOrderNo.value = ''
+  // 可以重新触发支付流程
+  // 这里不自动触发，让用户重新点击付款按钮
+}
+
+// 关闭支付状态弹窗
+const closePaymentStatusDialog = () => {
+  showPaymentStatusDialog.value = false
+  paymentStatus.value = ''
+  currentPaymentOrderNo.value = ''
 }
 
 // 加载预存款余额
@@ -413,6 +528,37 @@ onMounted(() => {
     if (paymentMethods.value.some(m => m.id === paymentMethod)) {
       selectedPaymentMethodId.value = paymentMethod
     }
+  }
+  
+  // 检查URL参数中是否有支付成功标识
+  const urlPaymentStatus = route.query.paymentStatus as string
+  if (urlPaymentStatus === 'success') {
+    // 显示支付成功弹窗
+    paymentStatus.value = 'paid'
+    showPaymentStatusDialog.value = true
+    ElMessage.success('支付成功！订单已确认，等待商家发货')
+    
+    // 延迟关闭弹窗并清除URL参数
+    setTimeout(() => {
+      showPaymentStatusDialog.value = false
+      router.replace({
+        path: '/order/payment',
+        query: {
+          orderNumber: orderNumber.value,
+          amount: totalAmount.value.toFixed(2),
+          paymentMethod: selectedPaymentMethodId.value
+        }
+      })
+      // 跳转到订单详情页面
+      setTimeout(() => {
+        router.push({
+          path: '/order/detail',
+          query: {
+            orderNumber: orderNumber.value
+          }
+        })
+      }, 500)
+    }, 2000)
   }
   
   // 加载预存款余额
@@ -686,6 +832,78 @@ onMounted(() => {
     font-size: 13px;
     line-height: 1.5;
     border-radius: 4px;
+  }
+}
+
+// 支付状态弹窗样式
+.payment-status-content {
+  text-align: center;
+  padding: 20px;
+
+  .status-icon {
+    font-size: 64px;
+    margin-bottom: 20px;
+
+    &.paying-icon {
+      color: #409eff;
+      animation: rotate 1s linear infinite;
+    }
+
+    &.success-icon {
+      color: #67c23a;
+    }
+
+    &.error-icon {
+      color: #f56c6c;
+    }
+  }
+
+  .status-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 10px;
+  }
+
+  .status-desc {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 20px;
+    line-height: 1.6;
+  }
+
+  .status-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .status-paying {
+    .status-desc {
+      margin-bottom: 30px;
+    }
+  }
+
+  .status-paid {
+    .status-desc {
+      color: #67c23a;
+    }
+  }
+
+  .status-problem {
+    .status-desc {
+      color: #f56c6c;
+    }
+  }
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 </style>

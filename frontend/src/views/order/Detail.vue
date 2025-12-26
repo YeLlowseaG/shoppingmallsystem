@@ -504,6 +504,19 @@ const loadOrderDetail = async (orderNo: string) => {
     orderDate.value = formatDateTime(data.orderDate)
     orderStatusValue.value = convertStatusNumberToString(data.status)
     
+    // 检查URL参数中是否有支付成功标识
+    const paymentStatus = route.query.paymentStatus as string
+    if (paymentStatus === 'success') {
+      ElMessage.success('支付成功！订单已确认，等待商家发货')
+      // 清除URL参数中的paymentStatus，避免刷新时重复提示
+      router.replace({
+        path: '/order/detail',
+        query: {
+          orderNumber: orderNo
+        }
+      })
+    }
+    
     // 加载退款记录
     await loadRefundList(orderNo)
   } catch (error: any) {

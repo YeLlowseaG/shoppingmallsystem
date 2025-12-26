@@ -54,6 +54,21 @@
                       <el-option label="预存款退款" value="deposit_refund" />
                       <el-option label="代充值" value="agent_recharge" />
                     </el-select>
+                    <label class="filter-label">支付状态:</label>
+                    <el-select
+                      v-model="filterForm.status"
+                      placeholder="所有"
+                      class="filter-select"
+                      style="width: 150px;"
+                      clearable
+                    >
+                      <el-option label="所有" :value="undefined" />
+                      <el-option label="待审核" :value="0" />
+                      <el-option label="已通过" :value="1" />
+                      <el-option label="支付失败/已拒绝" :value="2" />
+                      <el-option label="支付中" :value="3" />
+                      <el-option label="已超时" :value="4" />
+                    </el-select>
                     <label class="filter-label">起始时间:</label>
                     <el-date-picker
                       v-model="filterForm.startDate"
@@ -87,6 +102,7 @@
                         <el-checkbox v-model="selectAll" @change="handleSelectAll" />
                       </th>
                       <th width="150">事件</th>
+                      <th width="100">支付状态</th>
                       <th width="120">存入金额</th>
                       <th width="120">支出金额</th>
                       <th width="120">冻结金额</th>
@@ -115,6 +131,16 @@
                         </span>
                         <span v-else>{{ record.event }}</span>
                       </td>
+                      <td>
+                        <el-tag
+                          v-if="record.status !== undefined && record.statusName"
+                          :type="getStatusTagType(record.status)"
+                          size="small"
+                        >
+                          {{ record.statusName }}
+                        </el-tag>
+                        <span v-else>-</span>
+                      </td>
                       <td class="amount-cell deposit-amount">
                         {{ (record.depositAmount && record.depositAmount > 0) ? `¥${Number(record.depositAmount).toFixed(2)}` : '-' }}
                       </td>
@@ -137,7 +163,7 @@
                       <td class="remark-cell">{{ record.remark || '-' }}</td>
                     </tr>
                     <tr v-if="displayedRecords.length === 0">
-                      <td colspan="10" class="empty-data">暂无交易记录</td>
+                      <td colspan="11" class="empty-data">暂无交易记录</td>
                     </tr>
                   </tbody>
                 </table>
@@ -212,6 +238,7 @@ const availableBalance = ref(0)
 // 筛选表单
 const filterForm = reactive({
   operationType: '',
+  status: undefined as number | undefined,
   startDate: '',
   endDate: ''
 })
@@ -252,6 +279,7 @@ const loadRecords = async () => {
       pageNum: pagination.currentPage,
       pageSize: pagination.pageSize,
       operationType: filterForm.operationType || undefined,
+      status: filterForm.status,
       startDate: filterForm.startDate || undefined,
       endDate: filterForm.endDate || undefined
     }
@@ -389,6 +417,25 @@ const handleEventClick = (record: DepositRecordVO) => {
 }
 
 import { formatDateTime } from '@/utils'
+
+// 获取状态标签类型
+const getStatusTagType = (status?: number) => {
+  if (status === undefined) return ''
+  switch (status) {
+    case 0:
+      return 'warning' // 待审核
+    case 1:
+      return 'success' // 已通过
+    case 2:
+      return 'danger' // 支付失败/已拒绝
+    case 3:
+      return 'info' // 支付中
+    case 4:
+      return 'info' // 已超时
+    default:
+      return ''
+  }
+}
 
 // 初始化
 onMounted(() => {

@@ -164,7 +164,13 @@ public class DepositServiceImpl implements DepositService {
                         vo.setStatusName("已通过");
                         break;
                     case 2:
-                        vo.setStatusName("已拒绝");
+                        // 根据支付方式判断：线上支付显示"支付失败"，线下充值显示"已拒绝"
+                        String paymentMethod = detail.getPaymentMethod();
+                        if ("alipay".equalsIgnoreCase(paymentMethod) || "wechat".equalsIgnoreCase(paymentMethod)) {
+                            vo.setStatusName("支付失败");
+                        } else {
+                            vo.setStatusName("已拒绝");
+                        }
                         break;
                     case 3:
                         vo.setStatusName("支付中");
@@ -226,7 +232,13 @@ public class DepositServiceImpl implements DepositService {
                     vo.setStatusName("已通过");
                     break;
                 case 2:
-                    vo.setStatusName("已拒绝");
+                    // 根据支付方式判断：线上支付显示"支付失败"，线下充值显示"已拒绝"
+                    String paymentMethod = detail.getPaymentMethod();
+                    if ("alipay".equalsIgnoreCase(paymentMethod) || "wechat".equalsIgnoreCase(paymentMethod)) {
+                        vo.setStatusName("支付失败");
+                    } else {
+                        vo.setStatusName("已拒绝");
+                    }
                     break;
                 case 3:
                     vo.setStatusName("支付中");

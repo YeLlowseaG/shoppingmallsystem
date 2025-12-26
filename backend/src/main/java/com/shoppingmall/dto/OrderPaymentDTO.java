@@ -28,6 +28,11 @@ public class OrderPaymentDTO {
      * 支付密码（预存款支付时必填）
      */
     private String paymentPassword;
+    
+    /**
+     * 前端地址（用于构建return_url，可选）
+     */
+    private String frontendUrl;
 }
 
 

@@ -19,6 +19,7 @@ export interface DepositQueryDTO {
   operationType?: string
   startDate?: string
   endDate?: string
+  status?: number // 状态（0-待审核，1-已通过，2-已拒绝/支付失败，3-支付中，4-已超时）
 }
 
 /**
@@ -36,6 +37,9 @@ export interface DepositRecordVO {
   createTime: string
   remark: string
   orderNo?: string
+  status?: number // 状态（0-待审核，1-已通过，2-已拒绝/支付失败，3-支付中，4-已超时）
+  statusName?: string // 状态名称
+  paymentMethod?: string // 支付方式
 }
 
 /**
