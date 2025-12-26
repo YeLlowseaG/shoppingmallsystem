@@ -77,9 +77,10 @@ public class PaymentNotifyController {
     }
 
     /**
-     * 支付宝支付回调
+     * 支付宝支付回调（支持GET和POST）
+     * GET用于URL验证，POST用于实际回调
      */
-    @PostMapping("/alipay/notify")
+    @RequestMapping(value = "/alipay/notify", method = {RequestMethod.GET, RequestMethod.POST})
     @Transactional(rollbackFor = Exception.class)
     public String alipayNotify(HttpServletRequest request) {
         try {
