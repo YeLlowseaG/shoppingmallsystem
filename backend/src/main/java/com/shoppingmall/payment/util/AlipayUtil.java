@@ -68,10 +68,39 @@ public class AlipayUtil {
             }
 
             // 清理notifyUrl中的特殊字符，只保留纯粹的URL
-            // 移除反引号`、方括号[]、空格等特殊字符
-            String cleanNotifyUrl = notifyUrl != null 
-                ? notifyUrl.replace("`", "").replace("[", "").replace("]", "").trim()
-                : "";
+            // 移除所有非URL字符，只保留字母、数字、冒号、斜杠、点、问号、等于、&、减号、下划线
+            String cleanNotifyUrl = notifyUrl;
+            if (cleanNotifyUrl != null) {
+                // 首先移除开头和结尾的空白字符和非URL字符
+                cleanNotifyUrl = cleanNotifyUrl.trim();
+                // 移除开头可能存在的反引号、引号、方括号等
+                while (cleanNotifyUrl.length() > 0 && 
+                       ("`~!@#$%^&*()_+{}|:<>?\"'[]\\".indexOf(cleanNotifyUrl.charAt(0)) >= 0 || 
+                        cleanNotifyUrl.charAt(0) == ' ' || 
+                        cleanNotifyUrl.charAt(0) == '\t')) {
+                    cleanNotifyUrl = cleanNotifyUrl.substring(1).trim();
+                }
+                // 移除结尾可能存在的反引号、引号、方括号等
+                while (cleanNotifyUrl.length() > 0 && 
+                       ("`~!@#$%^&*()_+{}|:<>?\"'[]\\".indexOf(cleanNotifyUrl.charAt(cleanNotifyUrl.length() - 1)) >= 0 || 
+                        cleanNotifyUrl.charAt(cleanNotifyUrl.length() - 1) == ' ' || 
+                        cleanNotifyUrl.charAt(cleanNotifyUrl.length() - 1) == '\t')) {
+                    cleanNotifyUrl = cleanNotifyUrl.substring(0, cleanNotifyUrl.length() - 1).trim();
+                }
+                // 移除中间的所有反引号、引号、方括号等特殊字符
+                cleanNotifyUrl = cleanNotifyUrl.replace("`", "")
+                                               .replace("'", "")
+                                               .replace("\"", "")
+                                               .replace("[", "")
+                                               .replace("]", "")
+                                               .replace("{", "")
+                                               .replace("}", "")
+                                               .replace("(", "")
+                                               .replace(")", "")
+                                               .trim();
+            } else {
+                cleanNotifyUrl = "";
+            }
             log.info("notifyUrl清理前: [{}]", notifyUrl);
             log.info("notifyUrl清理后: [{}]", cleanNotifyUrl);
             
@@ -140,18 +169,53 @@ public class AlipayUtil {
             String gateway = "sandbox".equals(config.getEnv()) ? ALIPAY_SANDBOX_GATEWAY : ALIPAY_GATEWAY;
             
             // 清理notifyUrl中的特殊字符，只保留纯粹的URL
-            String cleanNotifyUrl = notifyUrl != null 
-                ? notifyUrl.replace("`", "").trim()
-                : "";
+            // 移除所有非URL字符，只保留字母、数字、冒号、斜杠、点、问号、等于、&、减号、下划线
+            String cleanNotifyUrl = notifyUrl;
+            if (cleanNotifyUrl != null) {
+                // 首先移除开头和结尾的空白字符和非URL字符
+                cleanNotifyUrl = cleanNotifyUrl.trim();
+                // 移除开头可能存在的反引号、引号、方括号等
+                while (cleanNotifyUrl.length() > 0 && 
+                       ("`~!@#$%^&*()_+{}|:<>?\"'[]\\".indexOf(cleanNotifyUrl.charAt(0)) >= 0 || 
+                        cleanNotifyUrl.charAt(0) == ' ' || 
+                        cleanNotifyUrl.charAt(0) == '\t')) {
+                    cleanNotifyUrl = cleanNotifyUrl.substring(1).trim();
+                }
+                // 移除结尾可能存在的反引号、引号、方括号等
+                while (cleanNotifyUrl.length() > 0 && 
+                       ("`~!@#$%^&*()_+{}|:<>?\"'[]\\".indexOf(cleanNotifyUrl.charAt(cleanNotifyUrl.length() - 1)) >= 0 || 
+                        cleanNotifyUrl.charAt(cleanNotifyUrl.length() - 1) == ' ' || 
+                        cleanNotifyUrl.charAt(cleanNotifyUrl.length() - 1) == '\t')) {
+                    cleanNotifyUrl = cleanNotifyUrl.substring(0, cleanNotifyUrl.length() - 1).trim();
+                }
+                // 移除中间的所有反引号、引号、方括号等特殊字符
+                cleanNotifyUrl = cleanNotifyUrl.replace("`", "")
+                                               .replace("'", "")
+                                               .replace("\"", "")
+                                               .replace("[", "")
+                                               .replace("]", "")
+                                               .replace("{", "")
+                                               .replace("}", "")
+                                               .replace("(", "")
+                                               .replace(")", "")
+                                               .trim();
+            } else {
+                cleanNotifyUrl = "";
+            }
+            log.info("notifyUrl清理前: [{}]", notifyUrl);
+            log.info("notifyUrl清理后: [{}]", cleanNotifyUrl);
+            
             // 移除URL后面可能附加的查询参数（如 &sign_type=...&timestamp=...）
             if (cleanNotifyUrl.contains("&")) {
                 int ampersandIndex = cleanNotifyUrl.indexOf('&');
                 cleanNotifyUrl = cleanNotifyUrl.substring(0, ampersandIndex);
+                log.info("notifyUrl移除额外参数后: [{}]", cleanNotifyUrl);
             }
             // 确保URL以http开头
             if (!cleanNotifyUrl.toLowerCase().startsWith("http://") && 
                 !cleanNotifyUrl.toLowerCase().startsWith("https://")) {
                 cleanNotifyUrl = "";
+                log.warn("notifyUrl无效，已清空");
             }
 
             // 构建请求参数
