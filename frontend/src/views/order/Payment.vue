@@ -258,53 +258,115 @@ const processPayment = async () => {
     const response: PaymentResponseVO = await payOrder(orderNumber.value, paymentDTO)
 
     // 根据支付方式处理
-    if (selectedPaymentMethodId.value === 'pre_deposit') {
-      // 预存款支付直接成功
-      ElMessage.success('支付成功！')
-      setTimeout(() => {
-        router.push({
-          path: '/order/detail',
-          query: {
-            orderNumber: orderNumber.value,
-            amount: totalAmount.value.toFixed(2),
-            paymentStatus: 'success'
-          }
-        })
-      }, 1000)
-    } else {
-      // 支付宝/微信支付
-      if (response.isMock) {
-        // 模拟支付，调用模拟支付成功接口
-        ElMessage.info('正在处理支付...')
-        
-        // 调用模拟支付成功接口
-        try {
-          await request.post(`/api/buyer/payment/mock/success?orderNo=${orderNumber.value}&paymentMethod=${backendPaymentMethod}`)
-          
-          ElMessage.success('支付成功！')
-          setTimeout(() => {
-            router.push({
-              path: '/order/detail',
-              query: {
-                orderNumber: orderNumber.value,
-                amount: totalAmount.value.toFixed(2),
-                paymentStatus: 'success'
-              }
-            })
-          }, 1000)
-        } catch (error: any) {
-          // request拦截器已经显示了错误消息，这里不需要再显示
-          console.error('支付处理失败:', error)
-        }
+      if (selectedPaymentMethodId.value === 'pre_deposit') {
+        // 预存款支付直接成功
+        ElMessage.success('支付成功！')
+        setTimeout(() => {
+          router.push({
+            path: '/order/detail',
+            query: {
+              orderNumber: orderNumber.value,
+              amount: totalAmount.value.toFixed(2),
+              paymentStatus: 'success'
+            }
+          })
+        }, 1000)
       } else {
-        // 真实支付，跳转到支付URL
-        if (response.paymentUrl) {
-          window.location.href = response.paymentUrl
+        // 支付宝/微信支付
+        if (response.isMock) {
+          // 模拟支付，调用模拟支付成功接口
+          ElMessage.info('正在处理支付...')
+          
+          // 调用模拟支付成功接口
+          try {
+            await request.post(`/api/buyer/payment/mock/success?orderNo=${orderNumber.value}&paymentMethod=${backendPaymentMethod}`);
+            
+            ElMessage.success('支付成功！')
+            setTimeout(() => {
+              router.push({
+                path: '/order/detail',
+                query: {
+                  orderNumber: orderNumber.value,
+                  amount: totalAmount.value.toFixed(2),
+                  paymentStatus: 'success'
+                }
+              })
+            }, 1000)
+          } catch (error: any) {
+            // request拦截器已经显示了错误消息，这里不需要再显示
+            console.error('支付处理失败:', error);
+          }
         } else {
-          ElMessage.warning('支付URL未生成')
+          // 真实支付，处理支付表单或支付URL
+          if (response.paymentParams) {
+            // 服务端返回HTML表单，使用动态表单方式提交以确保跳转成功
+            try {
+              // 移除HTML内容中的反引号
+              const cleanHtml = response.paymentParams.replace(/`/g, '');
+              
+              // 解析表单HTML以获取action和参数
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(cleanHtml, 'text/html');
+              const form = doc.querySelector('form#alipayForm');
+              
+              if (form && form.action) {
+                // 获取表单action和所有input参数
+                const formAction = form.action;
+                const formData = new FormData();
+                
+                // 收集所有隐藏输入字段
+                form.querySelectorAll('input[type="hidden"]').forEach(input => {
+                  if (input.name && input.value) {
+                    formData.append(input.name, input.value);
+                  }
+                });
+                
+                // 创建form元素并提交
+                const tempForm = document.createElement('form');
+                tempForm.method = 'POST';
+                tempForm.action = formAction;
+                tempForm.target = '_blank';
+                tempForm.style.display = 'none';
+                
+                // 添加所有参数
+                formData.forEach((value, key) => {
+                  const input = document.createElement('input');
+                  input.type = 'hidden';
+                  input.name = key;
+                  input.value = value;
+                  tempForm.appendChild(input);
+                });
+                
+                document.body.appendChild(tempForm);
+                tempForm.submit();
+                document.body.removeChild(tempForm);
+              } else {
+                // 如果解析失败，回退到原始方法
+                const win = window.open('', '_blank');
+                if (win) {
+                  win.document.open();
+                  win.document.write(cleanHtml);
+                  win.document.close();
+                } else {
+                  ElMessage.error('弹窗被拦截，请允许弹窗或改用非弹窗方式支付');
+                }
+              }
+            } catch (e) {
+              console.error('打开支付页面失败', e);
+              ElMessage.error('打开支付页面失败，请重试');
+            }
+          } else if (response.paymentUrl) {
+            // 跳转到支付URL
+            window.location.href = response.paymentUrl;
+          } else if (response.qrCodeUrl) {
+            // 显示二维码支付（微信支付使用）
+            ElMessage.info('请扫描二维码支付');
+            // TODO: 实现二维码支付显示逻辑
+          } else {
+            ElMessage.warning('支付信息未生成');
+          }
         }
       }
-    }
   } catch (error: any) {
     // request拦截器已经显示了错误消息，这里不需要再显示
     // 如果是支付密码错误，重新打开密码输入对话框
@@ -627,4 +689,5 @@ onMounted(() => {
   }
 }
 </style>
+
 

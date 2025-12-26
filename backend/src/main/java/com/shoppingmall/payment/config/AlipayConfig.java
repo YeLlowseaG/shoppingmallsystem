@@ -52,6 +52,11 @@ public class AlipayConfig {
         private String env;
 
         /**
+         * 网关地址
+         */
+        private String gateway;
+
+        /**
          * 应用私钥
          */
         private String privateKey;
