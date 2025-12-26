@@ -1,5 +1,1136 @@
 # 修改日志
 
+## 2025-12-27 - 添加退款前订单状态验证
+
+### 功能说明
+在支付宝退款前先查询订单状态，确认订单是否存在且已支付成功，避免因订单不存在或状态不正确导致的退款失败。
+
+### 修改原因
+- 支付宝退款返回错误码 `20000`（系统异常），可能是订单不存在或状态不正确
+- 退款前应该先验证订单状态，提供更明确的错误提示
+- 避免无效的退款请求，提升用户体验
+
+### 问题分析
+
+**问题现象：**
+- 支付宝退款返回错误码 `20000`，子错误码 `aop.ACQ.SYSTEM_ERROR`
+- 错误信息：`Service Currently Unavailable`（服务暂时不可用）
+- 子错误信息：`系统异常`
+
+**可能的原因：**
+1. 订单不存在：订单号在支付宝中不存在
+2. 订单状态不对：订单未支付成功或已退款
+3. 订单状态不允许退款：订单状态不是 `TRADE_SUCCESS` 或 `TRADE_FINISHED`
+
+### 修改内容
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/strategy/impl/AlipayPayStrategy.java`
+
+- **修改 `refund()` 方法**：
+  - 在退款前先调用 `AlipayUtil.queryOrder()` 查询订单状态
+  - 验证订单是否存在（状态不为 `UNKNOWN`）
+  - 验证订单状态是否允许退款（状态为 `TRADE_SUCCESS` 或 `TRADE_FINISHED`）
+  - 如果订单不存在或状态不允许退款，提前抛出明确的错误提示
+  - 只有订单状态验证通过后，才调用退款接口
+
+**代码逻辑：**
+```java
+// 退款前先查询订单状态，确认订单是否存在且已支付成功
+log.info("退款前查询订单状态，订单号：{}", paymentNo);
+Map<String, String> orderStatus = AlipayUtil.queryOrder(envConfig, paymentNo);
+String tradeStatus = orderStatus.get("trade_status");
+
+if ("UNKNOWN".equals(tradeStatus)) {
+    log.warn("无法查询到订单状态，订单号：{}，可能订单不存在", paymentNo);
+    throw new PaymentException(500, "订单不存在或无法查询订单状态，请确认订单号是否正确且已支付成功");
+}
+
+// 检查订单状态是否允许退款
+if (!"TRADE_SUCCESS".equals(tradeStatus) && !"TRADE_FINISHED".equals(tradeStatus)) {
+    log.warn("订单状态不允许退款，订单号：{}，订单状态：{}", paymentNo, tradeStatus);
+    throw new PaymentException(500, "订单状态不允许退款，当前订单状态：" + tradeStatus + "，只有已支付成功或已完成的订单才能退款");
+}
+
+log.info("订单状态验证通过，订单号：{}，订单状态：{}，可以退款", paymentNo, tradeStatus);
+```
+
+### 订单状态说明
+
+支付宝订单状态：
+- `TRADE_SUCCESS`：交易成功（已支付）
+- `TRADE_FINISHED`：交易完成（已支付且已结算）
+- `WAIT_BUYER_PAY`：等待买家付款
+- `TRADE_CLOSED`：交易关闭
+- `UNKNOWN`：未知状态（订单不存在或查询失败）
+
+**允许退款的状态：**
+- `TRADE_SUCCESS`：交易成功
+- `TRADE_FINISHED`：交易完成
+
+### 功能流程
+
+**修改前流程：**
+1. 直接调用退款接口
+2. 如果订单不存在，支付宝返回 `20000` 错误
+3. 错误提示不够明确
+
+**修改后流程：**
+1. 退款前先查询订单状态
+2. 验证订单是否存在
+3. 验证订单状态是否允许退款
+4. 如果验证失败，提前抛出明确的错误提示
+5. 只有验证通过后，才调用退款接口
+
+### 影响范围
+
+- ✅ 支付宝退款接口（`/api/admin/deposit/refund`）
+- ✅ 订单退款接口
+- ✅ 支付记录退款接口
+- ✅ 订单状态验证
+- ✅ 错误提示优化
+
+### 测试建议
+
+1. **订单状态验证测试**：
+   - 测试订单不存在的情况
+   - 测试订单未支付的情况
+   - 测试订单已关闭的情况
+   - 验证错误提示是否明确
+
+2. **正常退款测试**：
+   - 测试订单已支付成功的情况
+   - 测试订单已交易完成的情况
+   - 验证退款流程是否正常
+
+### 注意事项
+
+- ✅ **订单验证**：退款前先验证订单状态，避免无效请求
+- ✅ **错误提示**：提供明确的错误提示，帮助用户快速定位问题
+- ✅ **性能影响**：增加一次订单查询请求，但可以避免无效的退款请求
+- ✅ **兼容性**：保持向后兼容，不影响现有功能
+
+---
+
+## 2025-12-27 - 优化支付宝退款错误处理和提示
+
+### 功能说明
+优化支付宝退款接口的错误处理，根据支付宝返回的错误码和子错误码提供更详细的错误提示，帮助用户快速定位问题。
+
+### 修改原因
+- 支付宝返回错误码 `20000`（系统异常）时，错误提示不够详细
+- 需要根据不同的错误码提供针对性的错误提示
+- 帮助用户快速定位退款失败的原因
+
+### 问题分析
+
+**问题现象：**
+- 支付宝退款返回错误码 `20000`，子错误码 `aop.ACQ.SYSTEM_ERROR`
+- 错误信息：`Service Currently Unavailable`（服务暂时不可用）
+- 子错误信息：`系统异常`
+- 错误提示不够详细，难以定位问题
+
+**可能的原因：**
+1. 订单不存在：订单号在支付宝中不存在
+2. 订单状态不对：订单未支付成功或已退款
+3. 支付宝系统暂时不可用：支付宝沙箱环境问题
+
+### 修改内容
+
+#### 1. 增强错误信息解析
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/util/AlipayUtil.java`
+
+- **修改 `refund()` 方法**：
+  - 提取子错误码（`sub_code`）字段
+  - 调用 `buildRefundErrorDetail()` 方法构建详细的错误信息
+  - 记录更详细的错误日志
+
+- **新增 `buildRefundErrorDetail()` 方法**：
+  - 根据错误码和子错误码提供详细的错误说明
+  - 针对常见错误码提供针对性的提示
+  - 帮助用户快速定位问题
+
+**错误码处理：**
+- `20000` + `aop.ACQ.SYSTEM_ERROR`：系统异常，可能是订单不存在、订单状态不正确或支付宝系统暂时不可用
+- `20000` + `aop.ACQ.TRADE_NOT_EXIST`：订单不存在
+- `40004`：业务处理失败
+- `40001`：缺少必填参数
+- `40002`：参数格式错误
+
+#### 2. 优化错误提示
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/strategy/impl/AlipayPayStrategy.java`
+
+- **修改 `refund()` 方法**：
+  - 提取子错误码和子错误信息
+  - 构建详细的错误信息
+  - 针对特定错误码提供更详细的提示
+
+**代码逻辑：**
+```java
+String code = result.get("code");
+if (!"10000".equals(code)) {
+    String msg = result.get("msg");
+    String subMsg = result.get("sub_msg");
+    String subCode = result.get("sub_code");
+    
+    // 构建详细的错误信息
+    StringBuilder errorMsg = new StringBuilder("支付宝退款失败");
+    if (subMsg != null && !subMsg.isEmpty()) {
+        errorMsg.append(": ").append(subMsg);
+    } else if (msg != null && !msg.isEmpty()) {
+        errorMsg.append(": ").append(msg);
+    }
+    
+    // 对于特定错误码，提供更详细的提示
+    if ("20000".equals(code)) {
+        if ("aop.ACQ.SYSTEM_ERROR".equals(subCode)) {
+            errorMsg.append("。可能是订单不存在、订单状态不正确或支付宝系统暂时不可用，请检查订单号是否正确且已支付成功");
+        } else if ("aop.ACQ.TRADE_NOT_EXIST".equals(subCode)) {
+            errorMsg.append("。订单不存在，请确认订单号是否正确或订单是否已支付成功");
+        }
+    }
+    
+    throw new PaymentException(500, errorMsg.toString());
+}
+```
+
+### 错误码说明
+
+| 错误码 | 子错误码 | 说明 | 处理建议 |
+|--------|---------|------|---------|
+| 20000 | aop.ACQ.SYSTEM_ERROR | 系统异常 | 检查订单是否存在且已支付成功 |
+| 20000 | aop.ACQ.TRADE_NOT_EXIST | 订单不存在 | 确认订单号是否正确或订单是否已支付成功 |
+| 40004 | - | 业务处理失败 | 检查退款参数是否正确 |
+| 40001 | - | 缺少必填参数 | 检查请求参数是否完整 |
+| 40002 | - | 参数格式错误 | 检查参数格式是否正确 |
+
+### 影响范围
+
+- ✅ 支付宝退款接口（`/api/admin/deposit/refund`）
+- ✅ 订单退款接口
+- ✅ 支付记录退款接口
+- ✅ 错误提示信息
+- ✅ 错误日志记录
+
+### 测试建议
+
+1. **错误处理测试**：
+   - 测试订单不存在的情况
+   - 测试订单状态不正确的情况
+   - 验证错误提示是否详细和友好
+
+2. **错误码测试**：
+   - 测试不同的错误码和子错误码
+   - 验证错误提示是否正确
+   - 验证日志记录是否完整
+
+### 注意事项
+
+- ✅ **错误提示**：根据错误码提供针对性的错误提示，帮助用户快速定位问题
+- ✅ **日志记录**：记录详细的错误信息，包括错误码、子错误码、错误信息等
+- ✅ **兼容性**：保持向后兼容，不影响现有功能
+- ⚠️ **订单验证**：退款前应验证订单是否存在且已支付成功
+
+---
+
+## 2025-12-27 - 优化支付宝退款接口实现
+
+### 功能说明
+优化支付宝退款接口的实现，修复退款金额格式问题，改进网关地址判断逻辑，增强日志记录，确保退款接口能够正常工作。
+
+### 修改原因
+- 支付宝退款API要求退款金额格式为两位小数（如 "1.00"），但当前代码可能产生 "1" 格式
+- 网关地址判断逻辑需要更健壮，优先使用配置的网关地址
+- 需要更详细的日志记录来排查退款问题
+
+### 问题分析
+
+**问题现象：**
+- 支付宝退款接口超时
+- 退款请求发送成功，但没有看到响应
+- 退款金额格式可能不符合支付宝要求
+
+**根本原因：**
+1. 退款金额格式问题：支付宝要求金额格式为两位小数（如 "1.00"），但 `BigDecimal.toString()` 可能产生 "1" 格式
+2. 网关地址判断：如果 `env` 字段为空，可能导致网关地址判断错误
+3. 日志不足：缺少详细的请求和响应日志，难以排查问题
+
+### 修改内容
+
+#### 1. 退款金额格式化
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/util/AlipayUtil.java`
+
+- **新增 `formatRefundAmount()` 方法**：
+  - 确保退款金额格式为两位小数
+  - 使用 `String.format("%.2f", amount)` 格式化金额
+  - 处理格式错误的情况，提供默认值
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/strategy/impl/AlipayPayStrategy.java`
+
+- **修改退款金额转换**：
+  - 修改前：`refundAmount.toString()`（可能产生 "1" 格式）
+  - 修改后：`String.format("%.2f", refundAmount.doubleValue())`（确保 "1.00" 格式）
+
+#### 2. 网关地址判断优化
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/util/AlipayUtil.java`
+
+- **改进网关地址判断逻辑**：
+  - 优先使用配置的网关地址（`config.getGateway()`）
+  - 如果未配置，根据 `env` 字段判断
+  - 如果 `env` 字段为空，根据 `appid` 判断（沙箱appid通常以9021开头）
+  - 确保网关地址正确
+
+**代码逻辑：**
+```java
+// 优先使用配置的网关地址，如果没有配置则根据环境判断
+String gateway = null;
+if (config.getGateway() != null && !config.getGateway().isEmpty()) {
+    gateway = config.getGateway();
+} else {
+    String env = config.getEnv();
+    if (env == null || env.isEmpty()) {
+        // 如果env字段为空，根据appid判断（沙箱appid通常以9021开头）
+        String appid = config.getAppid();
+        if (appid != null && appid.startsWith("9021")) {
+            env = "sandbox";
+        } else {
+            env = "production";
+        }
+    }
+    gateway = "sandbox".equals(env) ? ALIPAY_SANDBOX_GATEWAY : ALIPAY_GATEWAY;
+}
+```
+
+#### 3. 增强日志记录
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/util/AlipayUtil.java`
+
+- **添加详细的请求日志**：
+  - 记录订单号、退款单号、退款金额、网关地址
+  - 记录签名前参数列表（敏感信息截断显示）
+  - 记录生成的签名
+
+- **添加详细的响应日志**：
+  - 记录HTTP响应状态码和响应体长度
+  - 记录完整的响应体（如果长度小于1000字符）
+  - 在 `sendHttpRequest()` 方法中记录请求和响应信息
+
+**代码示例：**
+```java
+log.info("========== 支付宝退款请求参数 ==========");
+log.info("订单号: {}", orderNo);
+log.info("退款单号: {}", refundNo);
+log.info("退款金额: {} (格式化后: {})", refundAmount, formattedRefundAmount);
+log.info("网关地址: {}", gateway);
+log.info("签名前参数列表:");
+params.forEach((key, value) -> {
+    if (!"sign".equals(key)) {
+        log.info("  {} = {}", key, value.length() > 200 ? value.substring(0, 200) + "..." : value);
+    }
+});
+log.info("生成的签名: {}", sign);
+log.info("========================================");
+```
+
+### 功能流程
+
+**修改前流程：**
+1. 退款金额可能格式不正确（如 "1" 而不是 "1.00"）
+2. 网关地址判断可能错误（如果env字段为空）
+3. 日志不足，难以排查问题
+
+**修改后流程：**
+1. 退款金额自动格式化为两位小数（如 "1.00"）
+2. 网关地址优先使用配置值，多重判断确保正确
+3. 详细的请求和响应日志，便于排查问题
+
+### 影响范围
+
+- ✅ 支付宝退款接口（`/api/admin/deposit/refund`）
+- ✅ 订单退款接口
+- ✅ 支付记录退款接口
+- ✅ 退款金额格式
+- ✅ 网关地址判断
+- ✅ 日志记录
+
+### 测试建议
+
+1. **退款金额格式测试**：
+   - 测试退款金额为整数（如 1）的情况
+   - 测试退款金额为小数（如 1.5）的情况
+   - 验证格式化后的金额格式正确（如 "1.00", "1.50"）
+
+2. **网关地址测试**：
+   - 测试配置了网关地址的情况
+   - 测试未配置网关地址但env字段正确的情况
+   - 测试env字段为空但appid正确的情况
+
+3. **退款接口测试**：
+   - 测试支付宝退款接口（沙箱环境）
+   - 验证退款金额格式正确
+   - 验证网关地址正确
+   - 验证日志记录完整
+
+### 注意事项
+
+- ✅ **金额格式**：支付宝要求金额格式为两位小数，必须使用 `String.format("%.2f", amount)` 格式化
+- ✅ **网关地址**：优先使用配置的网关地址，确保退款请求发送到正确的网关
+- ✅ **日志记录**：详细的日志记录有助于排查问题，但要注意敏感信息脱敏
+- ✅ **兼容性**：保持向后兼容，如果配置正确，不影响现有功能
+
+---
+
+## 2025-12-27 - 修复订单详情页面支付方式显示错误
+
+### 功能说明
+修复前端订单详情页面支付方式显示错误的问题。当订单已支付时，优先从支付记录中获取实际使用的支付方式，而不是从订单表中获取，确保显示正确的支付方式。
+
+### 修改原因
+- 用户反馈：订单详情页面显示支付方式有误，微信支付显示成了支付宝
+- 问题原因：订单创建时设置的支付方式可能与实际支付时选择的支付方式不一致
+- 解决方案：订单已支付时，优先从支付记录中获取支付方式（更准确）
+
+### 问题分析
+
+**问题现象：**
+- 订单详情页面显示支付方式错误
+- 微信支付显示成了支付宝
+- 管理后台的订单详情显示是正确的
+
+**根本原因：**
+1. 订单创建时，`paymentMethod` 字段是从创建订单DTO中设置的
+2. 用户可能在创建订单后，实际支付时选择了不同的支付方式
+3. 订单详情查询时，直接从订单表的 `paymentMethod` 字段获取，而不是从支付记录中获取
+4. 支付记录中存储的是实际使用的支付方式，更准确
+
+### 修改内容
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java`
+
+- **修改 `convertToDetailVO()` 方法**：
+  - 在设置支付方式时，优先从支付记录中获取
+  - 如果订单已支付（`PAID`）或支付中（`PAYING`），查询支付记录获取实际使用的支付方式
+  - 如果支付记录中没有，则使用订单表中的支付方式
+  - 确保显示的是实际使用的支付方式
+
+**代码逻辑：**
+```java
+// 获取支付方式：如果订单已支付，优先从支付记录中获取（更准确）
+String paymentMethod = null;
+if (PaymentStatus.PAID.equals(order.getPaymentStatus()) || PaymentStatus.PAYING.equals(order.getPaymentStatus())) {
+    // 查询支付记录，获取实际使用的支付方式
+    LambdaQueryWrapper<PaymentRecord> paymentWrapper = new LambdaQueryWrapper<>();
+    paymentWrapper.eq(PaymentRecord::getOrderId, order.getId());
+    paymentWrapper.orderByDesc(PaymentRecord::getCreateTime);
+    paymentWrapper.last("LIMIT 1");
+    PaymentRecord paymentRecord = paymentRecordRepository.selectOne(paymentWrapper);
+    if (paymentRecord != null && paymentRecord.getPaymentMethod() != null) {
+        paymentMethod = paymentRecord.getPaymentMethod();
+    }
+}
+// 如果支付记录中没有，则使用订单表中的支付方式
+if (paymentMethod == null) {
+    paymentMethod = order.getPaymentMethod();
+}
+recipientInfo.setPaymentMethod(paymentMethod != null ? 
+    getPaymentMethodText(paymentMethod) : "未知");
+```
+
+### 功能流程
+
+**修改前流程：**
+1. 订单详情查询时，直接从订单表的 `paymentMethod` 字段获取
+2. 如果订单创建时选择的支付方式与实际支付时不一致，会显示错误的支付方式
+
+**修改后流程：**
+1. 订单详情查询时，先检查订单是否已支付或支付中
+2. 如果已支付，从支付记录中获取实际使用的支付方式
+3. 如果支付记录中没有，则使用订单表中的支付方式
+4. 确保显示的是实际使用的支付方式
+
+### 影响范围
+
+- ✅ 前端订单详情页面（`/order/detail`）
+- ✅ 订单支付方式显示
+- ✅ 已支付订单的支付方式显示
+
+### 测试建议
+
+1. **支付方式显示测试**：
+   - 创建订单时选择一种支付方式
+   - 实际支付时选择另一种支付方式
+   - 验证订单详情页面显示的是实际使用的支付方式
+
+2. **不同支付方式测试**：
+   - 测试微信支付订单
+   - 测试支付宝支付订单
+   - 测试预存款支付订单
+   - 验证支付方式显示正确
+
+### 注意事项
+
+- ✅ **支付记录优先**：已支付订单优先从支付记录中获取支付方式
+- ✅ **兼容性**：如果支付记录中没有，则使用订单表中的支付方式
+- ✅ **支付方式转换**：使用 `getPaymentMethodText()` 方法将支付方式代码转换为中文显示
+- ✅ **管理后台一致性**：管理后台的订单详情已经正确显示支付方式，前端现在也保持一致
+
+---
+
+## 2025-12-27 - 修复预存款退款编译错误
+
+### 功能说明
+修复预存款退款接口的编译错误，移除不可达的 `TimeoutException` catch 块，改为通过异常消息判断超时异常。
+
+### 修改原因
+- 编译错误：`Unreachable catch block for TimeoutException`
+- `HttpClient.send()` 方法在超时时不会抛出 `TimeoutException`，而是抛出 `IOException`
+- 需要正确识别超时异常，提供友好的错误提示
+
+### 问题分析
+
+**错误信息：**
+```
+Unresolved compilation problem: 
+Unreachable catch block for TimeoutException. 
+This exception is never thrown from the try statement body
+```
+
+**根本原因：**
+- `HttpClient.send()` 是同步方法，超时时抛出 `IOException`，而不是 `TimeoutException`
+- `TimeoutException` 是 `java.util.concurrent` 包中的异常，主要用于 `Future.get()` 等异步操作
+- 之前的代码错误地尝试捕获 `TimeoutException`，导致编译错误
+
+### 修改内容
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/util/AlipayUtil.java`
+
+- **修改 `sendHttpRequest()` 方法**：
+  - 移除 `TimeoutException` 的 catch 块
+  - 在 `IOException` catch 块中，通过异常消息判断是否是超时异常
+  - 检查异常消息中是否包含 "timeout"、"timed out"、"连接超时"、"read timed out" 等关键词
+  - 如果是超时异常，提供友好的错误提示
+  - 如果不是超时异常，提供通用的错误提示
+
+**代码逻辑：**
+```java
+} catch (java.io.IOException e) {
+    // 检查是否是超时异常（HttpClient超时会抛出IOException，异常消息可能包含"timeout"）
+    String errorMessage = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+    boolean isTimeout = errorMessage.contains("timeout") || 
+                       errorMessage.contains("timed out") ||
+                       errorMessage.contains("连接超时") ||
+                       errorMessage.contains("read timed out");
+    
+    if (isTimeout) {
+        log.warn("支付宝API请求超时，第{}次尝试，网关：{}，超时时间：{}秒，异常信息：{}", 
+                attempt, gateway, requestTimeout.getSeconds(), e.getMessage());
+        if (attempt == maxAttempts) {
+            log.error("支付宝API请求最终超时，网关：{}，请求体长度：{}", gateway, requestBody.length());
+            throw new PaymentException(500, "支付宝API请求超时，请稍后重试或联系技术支持", e);
+        }
+    } else {
+        log.warn("支付宝API HTTP请求第{}次尝试失败: {}", attempt, e.getMessage());
+        if (attempt == maxAttempts) {
+            log.error("支付宝API HTTP请求最终失败，网关：{}，请求体长度：{}", gateway, requestBody.length());
+            throw new PaymentException(500, "支付宝API请求异常：" + e.getMessage(), e);
+        }
+    }
+    
+    // 重试前等待
+    try {
+        Thread.sleep(1000L * attempt);
+    } catch (InterruptedException ignored) {
+        Thread.currentThread().interrupt();
+    }
+}
+```
+
+### 影响范围
+
+- ✅ 支付宝退款接口（`/api/admin/deposit/refund`）
+- ✅ 支付宝支付接口（所有使用 `sendHttpRequest()` 的接口）
+- ✅ 错误处理和日志记录
+
+### 测试建议
+
+1. **退款接口测试**：
+   - 测试支付宝退款接口（沙箱环境）
+   - 验证编译错误已修复
+   - 验证超时异常处理是否正确
+
+2. **超时异常测试**：
+   - 模拟网络超时情况
+   - 验证超时异常识别是否正确
+   - 验证错误提示是否友好
+
+### 注意事项
+
+- ✅ **异常处理**：正确识别超时异常，提供友好的错误提示
+- ✅ **兼容性**：支持中英文超时异常消息
+- ✅ **日志记录**：记录详细的超时异常信息，便于问题排查
+- ✅ **重试机制**：超时异常也会触发重试机制
+
+---
+
+## 2025-12-27 - 预存款充值模拟支付直接显示成功
+
+### 功能说明
+修改预存款充值功能，当使用模拟支付方式时，直接处理为支付成功状态，更新充值记录状态为"已通过"并更新预存款余额，前端直接显示支付成功弹窗。
+
+### 修改原因
+- 用户反馈：预存款充值使用模拟支付时，显示的是"支付中"状态，希望直接显示"支付成功"
+- 模拟支付是测试功能，应该直接完成支付流程，无需等待回调
+- 提升测试体验，模拟支付时立即看到成功结果
+
+### 问题分析
+
+**问题现象：**
+- 预存款充值使用模拟支付时，前端显示"支付中"状态
+- 后端充值记录状态为"支付中"（PAYING），未更新为"已通过"（APPROVED）
+- 预存款余额未更新
+
+**根本原因：**
+1. 前端检测到模拟支付时，直接显示成功，但未调用后端接口更新状态
+2. 后端创建充值记录时，状态设置为"支付中"，等待支付回调
+3. 模拟支付不会触发真实的支付回调，导致状态一直为"支付中"
+
+### 修改内容
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/buyer/impl/DepositServiceImpl.java`
+
+- **修改 `recharge()` 方法**：
+  - 在返回支付响应前，检测是否为模拟支付
+  - 如果是模拟支付（`paymentResponse.getIsMock() == true`），直接调用 `handlePaymentCallback()` 方法
+  - 自动生成模拟外部交易号（如果响应中没有）
+  - 将充值记录状态更新为"已通过"（APPROVED）
+  - 更新预存款余额和可用余额
+  - 记录审核时间
+
+**代码逻辑：**
+```java
+// 如果是模拟支付，直接处理为支付成功（更新状态和余额）
+if (paymentResponse.getIsMock() != null && paymentResponse.getIsMock()) {
+    log.info("检测到模拟支付，直接处理为支付成功，内部订单号：{}", internalOrderNo);
+    String mockExternalTradeNo = paymentResponse.getMockExternalTradeNo();
+    if (mockExternalTradeNo == null || mockExternalTradeNo.isEmpty()) {
+        // 如果没有模拟交易号，生成一个
+        mockExternalTradeNo = "MOCK_" + rechargeDTO.getPaymentMethod().toUpperCase() + "_" 
+                + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+    // 直接调用回调处理方法，更新状态为已通过并更新余额
+    handlePaymentCallback(internalOrderNo, mockExternalTradeNo, true);
+}
+```
+
+### 功能流程
+
+**修改前流程：**
+1. 用户发起预存款充值
+2. 后端创建充值记录，状态为"支付中"（PAYING）
+3. 返回模拟支付响应（`isMock = true`）
+4. 前端显示"支付中"弹窗
+5. 后端状态一直为"支付中"，余额未更新
+
+**修改后流程：**
+1. 用户发起预存款充值
+2. 后端创建充值记录，状态为"支付中"（PAYING）
+3. 返回模拟支付响应（`isMock = true`）
+4. **后端检测到模拟支付，直接调用回调处理**
+5. **充值记录状态更新为"已通过"（APPROVED）**
+6. **预存款余额和可用余额更新**
+7. 前端显示"支付成功"弹窗
+8. 2秒后自动跳转到余额页面
+
+### 影响范围
+
+- ✅ 预存款充值功能（`/member/deposit/recharge`）
+- ✅ 模拟支付模式（支付方式未启用时自动切换）
+- ✅ 充值记录状态更新
+- ✅ 预存款余额更新
+
+### 测试建议
+
+1. **模拟支付测试**：
+   - 禁用微信支付或支付宝支付（触发模拟支付模式）
+   - 发起预存款充值
+   - 验证前端显示"支付成功"弹窗
+   - 验证充值记录状态为"已通过"
+   - 验证预存款余额已更新
+
+2. **真实支付测试**：
+   - 启用微信支付或支付宝支付
+   - 发起预存款充值
+   - 验证流程不受影响，仍等待支付回调
+
+### 注意事项
+
+- ✅ **模拟支付**：仅在模拟支付模式下生效，不影响真实支付流程
+- ✅ **事务安全**：使用 `@Transactional` 确保数据一致性
+- ✅ **状态更新**：充值记录状态从"支付中"更新为"已通过"
+- ✅ **余额更新**：使用悲观锁（`FOR UPDATE`）防止并发问题
+- ✅ **日志记录**：记录模拟支付处理日志，便于问题排查
+
+---
+
+## 2025-12-27 - 修复预存款退款接口超时问题
+
+### 功能说明
+修复预存款退款接口超时问题，增加前端和后端的请求超时时间，优化错误处理和日志记录，确保支付宝退款API能够正常响应。
+
+### 修改原因
+- 支付宝退款API响应较慢，可能超过30秒
+- 前端请求超时设置为30秒，导致退款请求超时
+- 需要增加超时时间，确保退款接口能够正常完成
+
+### 问题分析
+
+**问题现象：**
+- 预存款退款接口超时：`timeout of 30000ms exceeded`
+- 支付宝退款API请求已发送，签名成功，但HTTP请求超时
+
+**根本原因：**
+1. 前端请求超时设置为30秒（`timeout: 30000`）
+2. 后端HTTP客户端请求超时设置为60秒
+3. 支付宝退款API响应可能超过30秒，导致前端超时
+
+### 修改内容
+
+#### 1. 前端请求超时调整
+
+**文件：** `admin-frontend/src/utils/request.ts`
+- **修改默认超时时间**：
+  - 修改前：`timeout: 30000`（30秒）
+  - 修改后：`timeout: 90000`（90秒）
+  - 说明：支付/退款接口可能需要更长时间，增加默认超时时间
+
+**文件：** `admin-frontend/src/api/admin/deposit.ts`
+- **退款接口单独设置超时时间**：
+  - 为 `refundDepositRecharge` 接口设置120秒超时
+  - 代码：`timeout: 120000`（120秒）
+  - 说明：退款接口可能需要更长时间，单独设置更长的超时时间
+
+#### 2. 后端HTTP客户端超时调整
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/util/AlipayUtil.java`
+- **修改 `sendHttpRequest()` 方法**：
+  - 修改前：`Duration requestTimeout = Duration.ofSeconds(60);`（60秒）
+  - 修改后：`Duration requestTimeout = Duration.ofSeconds(90);`（90秒）
+  - 说明：增加支付宝API请求超时时间，确保退款接口能够正常完成
+
+- **增强错误处理**：
+  - 添加 `TimeoutException` 异常处理
+  - 区分超时异常和其他IO异常
+  - 提供更详细的错误信息和日志记录
+
+- **增强日志记录**：
+  - 记录每次请求尝试的详细信息
+  - 记录超时异常和重试情况
+  - 便于问题排查和调试
+
+### 超时时间设置
+
+| 层级 | 修改前 | 修改后 | 说明 |
+|------|--------|--------|------|
+| 前端默认超时 | 30秒 | 90秒 | 适用于所有接口 |
+| 前端退款接口超时 | 30秒 | 120秒 | 退款接口单独设置 |
+| 后端HTTP请求超时 | 60秒 | 90秒 | 支付宝API请求超时 |
+| 后端连接超时 | 20秒 | 20秒 | 保持不变 |
+
+### 错误处理优化
+
+**超时异常处理：**
+- 区分 `TimeoutException` 和其他 `IOException`
+- 超时异常提供更友好的错误提示
+- 记录详细的超时日志，便于问题排查
+
+**重试机制：**
+- 保持3次重试机制
+- 每次重试间隔递增（1秒、2秒、3秒）
+- 记录每次重试的详细信息
+
+### 测试建议
+
+1. **退款接口测试**：
+   - 测试支付宝退款接口（沙箱环境）
+   - 验证超时时间设置是否合理
+   - 验证错误处理和日志记录
+
+2. **网络异常测试**：
+   - 测试网络超时情况
+   - 验证重试机制是否正常工作
+   - 验证错误提示是否友好
+
+3. **性能测试**：
+   - 测试退款接口的响应时间
+   - 验证超时时间设置是否合理
+   - 验证系统稳定性
+
+### 注意事项
+
+- ⚠️ **超时时间设置**：超时时间过长可能影响用户体验，需要根据实际情况调整
+- ⚠️ **网络环境**：支付宝沙箱环境可能响应较慢，生产环境可能更快
+- ✅ **错误处理**：超时异常会提供友好的错误提示，不会影响其他功能
+- ✅ **日志记录**：详细的日志记录便于问题排查和性能优化
+
+---
+
+## 2025-12-26 - 移除支付问题弹窗中的客服电话
+
+### 功能说明
+移除订单支付页面和预存款充值页面中"联系客服"按钮点击后显示的客服电话，只保留"请联系客服处理支付问题"的提示信息。
+
+### 修改原因
+- 客服电话信息需要屏蔽，避免暴露敏感信息
+- 简化提示信息，只保留必要的提示内容
+
+### 修改内容
+
+**前端页面：**
+- `frontend/src/views/order/Payment.vue`
+  - **修改 `handleContactService()` 方法**：
+    - 移除客服电话：`400-xxx-xxxx`
+    - 修改前：`ElMessage.info('请联系客服处理支付问题，客服电话：400-xxx-xxxx')`
+    - 修改后：`ElMessage.info('请联系客服处理支付问题')`
+
+- `frontend/src/views/member/DepositRecharge.vue`
+  - **修改 `handleContactService()` 方法**：
+    - 移除客服电话：`400-xxx-xxxx`
+    - 修改前：`ElMessage.info('请联系客服处理支付问题，客服电话：400-xxx-xxxx')`
+    - 修改后：`ElMessage.info('请联系客服处理支付问题')`
+
+### 影响范围
+- ✅ 订单支付页面（`/order/payment`）的"联系客服"按钮
+- ✅ 预存款充值页面（`/member/deposit/recharge`）的"联系客服"按钮
+
+---
+
+## 2025-12-26 - 修复支付宝退款功能，对接真实退款接口
+
+### 功能说明
+修复退款功能中的关键问题，确保支付宝退款正确调用真实退款接口，使用正确的订单号参数，并增强错误处理和事务安全性。
+
+### 修改原因
+- 退款功能涉及金额，是重要的业务环节，必须确保正确性
+- 支付宝退款API需要的是订单号（out_trade_no），而不是支付流水号
+- 需要确保退款失败时不会更新数据库状态，保证数据一致性
+- 增强错误处理和日志记录，便于问题排查
+
+### 关键问题修复
+
+**问题1：订单号参数错误**
+- **问题**：支付宝退款API需要的是创建支付订单时的订单号（out_trade_no），但代码中传入的是支付流水号（paymentNo）
+- **影响**：会导致支付宝退款失败
+- **修复**：使用订单号（orderNo）而不是支付流水号
+
+**问题2：预存款充值退款参数错误**
+- **问题**：预存款充值退款时，使用外部交易号（externalTradeNo）而不是内部订单号（internalOrderNo）
+- **影响**：会导致支付宝退款失败
+- **修复**：使用内部订单号（internalOrderNo）作为退款参数
+
+### 修改内容
+
+#### 1. 订单退款修复
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java`
+
+**修改点：**
+- 第456-479行：修复支付宝/微信退款调用
+- **关键修改**：使用订单号（`order.getOrderNo()`）而不是支付流水号（`paymentRecord.getPaymentNo()`）
+- **增强日志**：记录订单号、支付流水号、退款金额等关键信息
+- **错误处理**：区分PaymentException和其他异常，提供更详细的错误信息
+
+**代码示例：**
+```java
+// 修改前：使用支付流水号
+refundPaymentNo = paymentGatewayService.refund(
+    paymentMethod,
+    paymentRecord.getPaymentNo(), // ❌ 错误：支付流水号
+    totalRefundAmount,
+    refundDTO.getRefundReason()
+);
+
+// 修改后：使用订单号
+String orderNoForRefund = order.getOrderNo();
+refundPaymentNo = paymentGatewayService.refund(
+    paymentMethod,
+    orderNoForRefund, // ✅ 正确：订单号
+    totalRefundAmount,
+    refundDTO.getRefundReason()
+);
+```
+
+#### 2. 支付记录退款修复
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/admin/impl/FinanceServiceImpl.java`
+
+**修改点：**
+- 第219-242行：修复支付宝/微信退款调用
+- **关键修改**：从支付记录关联的订单中获取订单号，使用订单号而不是支付流水号
+- **安全检查**：确保订单存在，避免空指针异常
+- **增强日志**：记录订单号、支付流水号等关键信息
+
+**代码示例：**
+```java
+// 修改前：使用支付流水号
+refundPaymentNo = paymentGatewayService.refund(
+    paymentMethod,
+    paymentRecord.getPaymentNo(), // ❌ 错误：支付流水号
+    refundDTO.getRefundAmount(),
+    refundDTO.getRefundReason()
+);
+
+// 修改后：使用订单号
+Order order = orderRepository.selectById(paymentRecord.getOrderId());
+if (order == null) {
+    throw new BusinessException(404, "订单不存在，无法退款");
+}
+String orderNoForRefund = order.getOrderNo();
+refundPaymentNo = paymentGatewayService.refund(
+    paymentMethod,
+    orderNoForRefund, // ✅ 正确：订单号
+    refundDTO.getRefundAmount(),
+    refundDTO.getRefundReason()
+);
+```
+
+#### 3. 预存款充值退款修复
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/admin/impl/DepositServiceImpl.java`
+
+**修改点：**
+- 第315-394行：修复支付宝/微信充值退款调用
+- **关键修改**：使用内部订单号（`internalOrderNo`）而不是外部交易号（`externalTradeNo`）
+- **安全检查**：确保内部订单号存在，避免退款失败
+- **余额回滚**：退款失败时自动回滚预存款余额，保证数据一致性
+
+**代码示例：**
+```java
+// 修改前：使用外部交易号
+refundExternalTradeNo = paymentGatewayService.refund(
+    PaymentMethod.ALIPAY,
+    externalTradeNo, // ❌ 错误：外部交易号
+    refundDTO.getRefundAmount(),
+    refundDTO.getRefundReason()
+);
+
+// 修改后：使用内部订单号
+String internalOrderNo = detail.getInternalOrderNo();
+if (internalOrderNo == null || internalOrderNo.isEmpty()) {
+    throw new BusinessException(400, "内部订单号不存在，无法退款");
+}
+refundExternalTradeNo = paymentGatewayService.refund(
+    PaymentMethod.ALIPAY,
+    internalOrderNo, // ✅ 正确：内部订单号
+    refundDTO.getRefundAmount(),
+    refundDTO.getRefundReason()
+);
+```
+
+### 安全措施
+
+**1. 事务管理：**
+- 所有退款操作都在`@Transactional`事务中执行
+- 退款失败时自动回滚数据库操作
+- 预存款退款失败时自动回滚余额
+
+**2. 错误处理：**
+- 区分PaymentException和其他异常
+- 提供详细的错误信息
+- 记录完整的错误日志
+
+**3. 参数验证：**
+- 验证订单是否存在
+- 验证内部订单号是否存在
+- 验证退款金额是否合法
+
+**4. 日志记录：**
+- 记录退款开始、成功、失败的完整日志
+- 记录订单号、支付流水号、退款金额等关键信息
+- 便于问题排查和审计
+
+### 退款流程说明
+
+**订单退款流程：**
+1. 验证订单状态和支付状态
+2. 验证退款金额（不能超过可退款金额）
+3. 调用支付网关退款接口（传入订单号）
+4. 创建退款记录
+5. 更新支付记录和订单状态
+
+**支付记录退款流程：**
+1. 验证支付记录状态
+2. 验证退款金额
+3. 从支付记录关联的订单中获取订单号
+4. 调用支付网关退款接口（传入订单号）
+5. 更新支付记录状态
+
+**预存款充值退款流程：**
+1. 验证充值记录状态
+2. 验证退款金额
+3. 扣除预存款余额
+4. 调用支付网关退款接口（传入内部订单号）
+5. 如果退款失败，回滚预存款余额
+6. 更新充值记录状态
+
+### 测试建议
+
+**1. 订单退款测试：**
+- 测试支付宝订单退款（全额退款）
+- 测试支付宝订单退款（部分退款）
+- 测试退款失败时的错误处理
+- 验证退款后订单状态和支付记录状态
+
+**2. 支付记录退款测试：**
+- 测试通过支付记录直接退款
+- 验证退款金额限制
+- 测试退款失败时的错误处理
+
+**3. 预存款充值退款测试：**
+- 测试支付宝充值退款
+- 验证退款失败时的余额回滚
+- 验证退款后充值记录状态
+
+### 注意事项
+
+- ⚠️ **重要**：退款功能涉及金额，测试时请使用沙箱环境
+- ⚠️ **重要**：确保支付宝配置正确（AppID、私钥、公钥等）
+- ⚠️ **重要**：退款操作不可逆，请谨慎操作
+- ✅ 所有退款操作都有完整的日志记录
+- ✅ 退款失败时会抛出异常，不会更新数据库状态
+- ✅ 预存款退款失败时会自动回滚余额
+
+---
+
+## 2025-12-26 - 支付方式禁用时自动切换到模拟支付模式
+
+### 功能说明
+当微信支付或支付宝支付在管理后台被禁用时，系统自动切换到模拟支付模式，方便测试支付流程，无需配置第三方支付参数即可测试。
+
+### 修改原因
+- 测试环境需要频繁测试支付流程，但配置第三方支付参数繁琐
+- 支付方式禁用时抛出异常，不便于测试
+- 需要根据开关灵活切换真实支付和模拟支付
+- 提升开发和测试效率
+
+### 修改内容
+
+#### 后端代码修改
+
+**支付网关服务：**
+- `backend/src/main/java/com/shoppingmall/payment/service/impl/PaymentGatewayServiceImpl.java`
+  - **修改 `pay()` 方法**：
+    - 当支付方式未启用时，不再抛出异常
+    - 自动返回模拟支付响应（`isMock = true`）
+    - 生成模拟的外部交易号（格式：`MOCK_{METHOD}_{TIMESTAMP}_{UUID}`）
+  - **新增 `createMockPaymentResponse()` 方法**：
+    - 创建模拟支付响应
+    - 设置 `isMock = true`
+    - 生成模拟交易号
+    - 记录日志便于追踪
+  - **修改 `refund()` 方法**：
+    - 当支付方式未启用时，不再抛出异常
+    - 自动返回模拟退款流水号（格式：`MOCK_REFUND_{METHOD}_{TIMESTAMP}_{UUID}`）
+    - 记录日志便于追踪
+  - **新增 `createMockRefundNo()` 方法**：
+    - 创建模拟退款流水号
+    - 生成格式化的退款流水号
+    - 记录日志便于追踪
+
+### 功能特性
+- ✅ 支付方式禁用时自动切换到模拟支付模式
+- ✅ 支付方式禁用时自动切换到模拟退款模式
+- ✅ 支付方式启用时正常调用第三方支付/退款接口
+- ✅ 不影响正常支付/退款功能（启用时逻辑完全不变）
+- ✅ 支持订单支付和预存款充值
+- ✅ 支持订单退款、支付记录退款、预存款充值退款
+- ✅ 前端自动识别模拟支付并调用模拟支付成功接口
+
+### 工作流程
+
+**支付方式禁用时（支付）：**
+1. 用户选择支付方式（支付宝/微信）
+2. 系统检测到支付方式未启用
+3. 自动返回模拟支付响应（`isMock = true`）
+4. 前端检测到模拟支付，自动调用模拟支付成功接口
+5. 订单状态自动更新为已支付
+
+**支付方式禁用时（退款）：**
+1. 管理员发起退款操作
+2. 系统检测到支付方式未启用
+3. 自动返回模拟退款流水号（格式：`MOCK_REFUND_{METHOD}_{TIMESTAMP}_{UUID}`）
+4. 退款记录保存模拟退款流水号
+5. 订单/支付记录状态正常更新
+
+**支付方式启用时（支付）：**
+1. 用户选择支付方式（支付宝/微信）
+2. 系统检测到支付方式已启用
+3. 正常调用第三方支付接口
+4. 跳转到第三方支付页面
+5. 用户完成支付后回调更新订单状态
+
+**支付方式启用时（退款）：**
+1. 管理员发起退款操作
+2. 系统检测到支付方式已启用
+3. 正常调用第三方退款接口
+4. 返回真实的退款流水号
+5. 订单/支付记录状态正常更新
+
+### 使用说明
+
+1. **禁用支付方式（使用模拟支付）：**
+   - 登录管理后台，进入"系统设置" -> "支付配置"
+   - 关闭"微信支付"或"支付宝"的启用开关
+   - 保存配置
+   - 用户选择该支付方式时，自动使用模拟支付
+
+2. **启用支付方式（使用真实支付）：**
+   - 登录管理后台，进入"系统设置" -> "支付配置"
+   - 开启"微信支付"或"支付宝"的启用开关
+   - 配置支付参数（AppID、密钥等）
+   - 保存配置
+   - 用户选择该支付方式时，正常调用第三方支付接口
+
+3. **配置不完整但启用：**
+   - 如果启用但配置不完整（如缺少AppID），策略层会抛出异常
+   - 这是正常行为，需要管理员配置完整的支付参数
+
+### 影响范围
+- ✅ `backend/src/main/java/com/shoppingmall/payment/service/impl/PaymentGatewayServiceImpl.java` - 支付网关服务
+- ✅ 订单支付功能（`OrderServiceImpl.payOrder()`）
+- ✅ 预存款充值功能（`DepositServiceImpl.recharge()`）
+- ✅ 订单退款功能（`OrderServiceImpl.refundOrder()`）
+- ✅ 支付记录退款功能（`FinanceServiceImpl.refundPaymentRecord()`）
+- ✅ 预存款充值退款功能（`DepositServiceImpl.refundRecharge()`）
+- ✅ 前端支付处理逻辑（已有 `isMock` 判断，无需修改）
+
+### 技术细节
+- **模拟支付响应格式**：
+  - `isMock = true`
+  - `mockExternalTradeNo = "MOCK_{METHOD}_{TIMESTAMP}_{UUID}"`
+  - 其他字段为空（前端根据 `isMock` 判断）
+- **模拟退款流水号格式**：
+  - `MOCK_REFUND_{METHOD}_{TIMESTAMP}_{UUID}`
+  - 例如：`MOCK_REFUND_ALIPAY_1735123456789_A1B2C3D4`
+- **日志记录**：
+  - 记录何时切换到模拟支付/退款模式
+  - 记录模拟交易号和退款流水号，便于追踪和调试
+- **向后兼容**：
+  - 启用状态下的逻辑完全不变
+  - 前端已有模拟支付处理逻辑，无需修改
+  - 退款功能在禁用时返回模拟退款流水号，不影响业务逻辑
+
+### 注意事项
+1. **模拟退款**：退款功能在支付方式禁用时返回模拟退款流水号，不会抛出异常
+2. **配置验证**：启用但配置不完整时，策略层会抛出异常，需要管理员配置完整
+3. **测试环境**：建议在测试环境禁用支付方式，使用模拟支付/退款进行测试
+4. **生产环境**：生产环境应启用支付方式并配置完整的支付参数
+5. **退款流水号**：模拟退款流水号格式为 `MOCK_REFUND_{METHOD}_{TIMESTAMP}_{UUID}`，便于识别和追踪
+
+---
+
 ## 2025-12-26 - 优化支付超时时间配置
 
 ### 功能说明

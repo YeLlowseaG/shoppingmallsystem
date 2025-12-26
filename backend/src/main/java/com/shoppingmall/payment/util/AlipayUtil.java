@@ -431,7 +431,25 @@ public class AlipayUtil {
             String refundNo,
             String refundAmount) {
         try {
-            String gateway = "sandbox".equals(config.getEnv()) ? ALIPAY_SANDBOX_GATEWAY : ALIPAY_GATEWAY;
+            // 优先使用配置的网关地址，如果没有配置则根据环境判断
+            String gateway = null;
+            if (config.getGateway() != null && !config.getGateway().isEmpty()) {
+                gateway = config.getGateway();
+            } else {
+                String env = config.getEnv();
+                if (env == null || env.isEmpty()) {
+                    // 如果env字段为空，根据appid判断（沙箱appid通常以9021开头）
+                    String appid = config.getAppid();
+                    if (appid != null && appid.startsWith("9021")) {
+                        env = "sandbox";
+                    } else {
+                        env = "production";
+                    }
+                }
+                gateway = "sandbox".equals(env) ? ALIPAY_SANDBOX_GATEWAY : ALIPAY_GATEWAY;
+            }
+            
+            log.info("支付宝退款网关地址: {}", gateway);
 
             // 构建请求参数
             Map<String, String> params = new HashMap<>();
@@ -446,17 +464,35 @@ public class AlipayUtil {
             Map<String, String> bizContent = new HashMap<>();
             bizContent.put("out_trade_no", orderNo);
             bizContent.put("out_request_no", refundNo);
-            bizContent.put("refund_amount", refundAmount);
+            // 确保退款金额格式正确（保留两位小数）
+            String formattedRefundAmount = formatRefundAmount(refundAmount);
+            bizContent.put("refund_amount", formattedRefundAmount);
 
             params.put("biz_content", mapToJson(bizContent));
 
+            // 记录退款请求参数（用于调试）
+            log.info("========== 支付宝退款请求参数 ==========");
+            log.info("订单号: {}", orderNo);
+            log.info("退款单号: {}", refundNo);
+            log.info("退款金额: {} (格式化后: {})", refundAmount, formattedRefundAmount);
+            log.info("网关地址: {}", gateway);
+            log.info("签名前参数列表:");
+            params.forEach((key, value) -> {
+                if (!"sign".equals(key)) {
+                    log.info("  {} = {}", key, value.length() > 200 ? value.substring(0, 200) + "..." : value);
+                }
+            });
+            
             // 生成签名
             String sign = generateSign(params, config.getPrivateKey());
             params.put("sign", sign);
+            log.info("生成的签名: {}", sign);
+            log.info("========================================");
 
             // 发送HTTP请求到支付宝API
             try {
                 String responseBody = sendHttpRequest(gateway, params);
+                log.info("支付宝退款响应: {}", responseBody);
 
                 // 解析响应
                 JsonNode responseJson = OBJECT_MAPPER.readTree(responseBody);
@@ -466,6 +502,7 @@ public class AlipayUtil {
                     String code = refundResponse.get("code") != null ? refundResponse.get("code").asText() : "";
                     String msg = refundResponse.get("msg") != null ? refundResponse.get("msg").asText() : "";
                     String subMsg = refundResponse.get("sub_msg") != null ? refundResponse.get("sub_msg").asText() : "";
+                    String subCode = refundResponse.get("sub_code") != null ? refundResponse.get("sub_code").asText() : "";
 
                     Map<String, String> result = new HashMap<>();
                     result.put("code", code);
@@ -473,12 +510,17 @@ public class AlipayUtil {
                     if (!subMsg.isEmpty()) {
                         result.put("sub_msg", subMsg);
                     }
+                    if (!subCode.isEmpty()) {
+                        result.put("sub_code", subCode);
+                    }
 
                     if ("10000".equals(code)) {
                         log.info("支付宝退款成功，订单号：{}，退款单号：{}，退款金额：{}", orderNo, refundNo, refundAmount);
                     } else {
-                        log.error("支付宝退款失败，订单号：{}，退款单号：{}，错误码：{}，错误信息：{}，子错误信息：{}",
-                                orderNo, refundNo, code, msg, subMsg);
+                        // 根据错误码提供更详细的错误信息
+                        String errorDetail = buildRefundErrorDetail(code, subCode, msg, subMsg, orderNo);
+                        log.error("支付宝退款失败，订单号：{}，退款单号：{}，错误码：{}，子错误码：{}，错误信息：{}，子错误信息：{}，详情：{}",
+                                orderNo, refundNo, code, subCode, msg, subMsg, errorDetail);
                     }
 
                     return result;
@@ -749,7 +791,7 @@ public class AlipayUtil {
                 .collect(Collectors.joining("&"));
 
         int maxAttempts = 3;
-        Duration requestTimeout = Duration.ofSeconds(60);
+        Duration requestTimeout = Duration.ofSeconds(90); // 增加到90秒超时（退款接口可能需要更长时间）
 
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
@@ -760,8 +802,17 @@ public class AlipayUtil {
                         .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
                         .build();
 
+                log.info("发送HTTP请求到支付宝API，网关：{}，第{}次尝试，超时时间：{}秒，请求体长度：{}", 
+                        gateway, attempt, requestTimeout.getSeconds(), requestBody.length());
+                
                 HttpResponse<String> response = HTTP_CLIENT.send(request,
                         HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+
+                log.info("支付宝API响应，状态码：{}，响应体长度：{}", 
+                        response.statusCode(), response.body() != null ? response.body().length() : 0);
+                if (response.body() != null && response.body().length() < 1000) {
+                    log.debug("支付宝API响应体：{}", response.body());
+                }
 
                 if (response.statusCode() != 200) {
                     throw new PaymentException(500, "支付宝API请求失败，HTTP状态码：" + response.statusCode());
@@ -769,11 +820,29 @@ public class AlipayUtil {
 
                 return response.body();
             } catch (java.io.IOException e) {
-                log.warn("支付宝扫码支付HTTP请求第{}次尝试失败: {}", attempt, e.getMessage());
-                if (attempt == maxAttempts) {
-                    log.error("支付宝扫码支付HTTP请求最终失败，订单网关：{}，请求体长度：{}", gateway, requestBody.length());
-                    throw new PaymentException(500, "支付宝扫码支付请求异常：" + e.getMessage(), e);
+                // 检查是否是超时异常（HttpClient超时会抛出IOException，异常消息可能包含"timeout"）
+                String errorMessage = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+                boolean isTimeout = errorMessage.contains("timeout") || 
+                                   errorMessage.contains("timed out") ||
+                                   errorMessage.contains("连接超时") ||
+                                   errorMessage.contains("read timed out");
+                
+                if (isTimeout) {
+                    log.warn("支付宝API请求超时，第{}次尝试，网关：{}，超时时间：{}秒，异常信息：{}", 
+                            attempt, gateway, requestTimeout.getSeconds(), e.getMessage());
+                    if (attempt == maxAttempts) {
+                        log.error("支付宝API请求最终超时，网关：{}，请求体长度：{}", gateway, requestBody.length());
+                        throw new PaymentException(500, "支付宝API请求超时，请稍后重试或联系技术支持", e);
+                    }
+                } else {
+                    log.warn("支付宝API HTTP请求第{}次尝试失败: {}", attempt, e.getMessage());
+                    if (attempt == maxAttempts) {
+                        log.error("支付宝API HTTP请求最终失败，网关：{}，请求体长度：{}", gateway, requestBody.length());
+                        throw new PaymentException(500, "支付宝API请求异常：" + e.getMessage(), e);
+                    }
                 }
+                
+                // 重试前等待
                 try {
                     Thread.sleep(1000L * attempt);
                 } catch (InterruptedException ignored) {
@@ -782,7 +851,7 @@ public class AlipayUtil {
             }
         }
 
-        throw new PaymentException(500, "支付宝扫码支付请求异常：重试失败");
+        throw new PaymentException(500, "支付宝API请求异常：重试失败");
     }
 
     /**
@@ -806,5 +875,67 @@ public class AlipayUtil {
         java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         sdf.setTimeZone(java.util.TimeZone.getTimeZone("GMT+8"));
         return sdf.format(date);
+    }
+
+    /**
+     * 格式化退款金额（确保保留两位小数）
+     * 支付宝退款API要求金额格式为两位小数，如 "1.00"
+     *
+     * @param refundAmount 退款金额字符串
+     * @return 格式化后的退款金额字符串
+     */
+    private static String formatRefundAmount(String refundAmount) {
+        if (refundAmount == null || refundAmount.isEmpty()) {
+            return "0.00";
+        }
+        try {
+            double amount = Double.parseDouble(refundAmount);
+            // 使用String.format确保保留两位小数
+            return String.format("%.2f", amount);
+        } catch (NumberFormatException e) {
+            log.warn("退款金额格式错误: {}，使用原值", refundAmount);
+            return refundAmount;
+        }
+    }
+
+    /**
+     * 构建退款错误详情信息
+     * 根据支付宝返回的错误码和子错误码，提供更详细的错误说明
+     *
+     * @param code    错误码
+     * @param subCode 子错误码
+     * @param msg     错误信息
+     * @param subMsg  子错误信息
+     * @param orderNo 订单号
+     * @return 错误详情信息
+     */
+    private static String buildRefundErrorDetail(String code, String subCode, String msg, String subMsg, String orderNo) {
+        StringBuilder detail = new StringBuilder();
+        
+        // 根据错误码提供详细说明
+        if ("20000".equals(code)) {
+            detail.append("支付宝系统异常");
+            if ("aop.ACQ.SYSTEM_ERROR".equals(subCode)) {
+                detail.append("：可能是订单不存在、订单状态不正确或支付宝系统暂时不可用。");
+                detail.append("请检查订单号 ").append(orderNo).append(" 是否在支付宝中存在且已支付成功。");
+            } else if ("aop.ACQ.TRADE_NOT_EXIST".equals(subCode)) {
+                detail.append("：订单不存在。请确认订单号 ").append(orderNo).append(" 是否正确，或订单是否已支付成功。");
+            } else {
+                detail.append("：").append(subMsg != null && !subMsg.isEmpty() ? subMsg : msg);
+            }
+        } else if ("40004".equals(code)) {
+            detail.append("业务处理失败：").append(subMsg != null && !subMsg.isEmpty() ? subMsg : msg);
+        } else if ("40001".equals(code)) {
+            detail.append("缺少必填参数");
+        } else if ("40002".equals(code)) {
+            detail.append("参数格式错误");
+        } else {
+            detail.append(msg);
+            if (subMsg != null && !subMsg.isEmpty()) {
+                detail.append(" - ").append(subMsg);
+            }
+        }
+        
+        return detail.toString();
     }
 }

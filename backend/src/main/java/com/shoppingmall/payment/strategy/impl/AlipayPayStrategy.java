@@ -222,11 +222,30 @@ public class AlipayPayStrategy implements PaymentStrategy {
                 throw new PaymentException(400, "支付宝配置不完整");
             }
 
+            // 退款前先查询订单状态，确认订单是否存在且已支付成功
+            log.info("退款前查询订单状态，订单号：{}", paymentNo);
+            Map<String, String> orderStatus = AlipayUtil.queryOrder(envConfig, paymentNo);
+            String tradeStatus = orderStatus.get("trade_status");
+            
+            if ("UNKNOWN".equals(tradeStatus)) {
+                log.warn("无法查询到订单状态，订单号：{}，可能订单不存在", paymentNo);
+                throw new PaymentException(500, "订单不存在或无法查询订单状态，请确认订单号是否正确且已支付成功");
+            }
+            
+            // 检查订单状态是否允许退款
+            if (!"TRADE_SUCCESS".equals(tradeStatus) && !"TRADE_FINISHED".equals(tradeStatus)) {
+                log.warn("订单状态不允许退款，订单号：{}，订单状态：{}", paymentNo, tradeStatus);
+                throw new PaymentException(500, "订单状态不允许退款，当前订单状态：" + tradeStatus + "，只有已支付成功或已完成的订单才能退款");
+            }
+            
+            log.info("订单状态验证通过，订单号：{}，订单状态：{}，可以退款", paymentNo, tradeStatus);
+
             // 生成退款单号
             String refundNo = "ALI_REFUND_" + System.currentTimeMillis();
 
-            // 金额转换为字符串（支付宝使用元为单位）
-            String refundAmountStr = refundAmount.toString();
+            // 金额转换为字符串（支付宝使用元为单位，需要保留两位小数）
+            // 使用String.format确保格式正确，如 "1.00" 而不是 "1"
+            String refundAmountStr = String.format("%.2f", refundAmount.doubleValue());
 
             // 调用退款接口
             Map<String, String> result = AlipayUtil.refund(
@@ -238,7 +257,27 @@ public class AlipayPayStrategy implements PaymentStrategy {
             String code = result.get("code");
             if (!"10000".equals(code)) {
                 String msg = result.get("msg");
-                throw new PaymentException(500, "支付宝退款失败: " + msg);
+                String subMsg = result.get("sub_msg");
+                String subCode = result.get("sub_code");
+                
+                // 构建详细的错误信息
+                StringBuilder errorMsg = new StringBuilder("支付宝退款失败");
+                if (subMsg != null && !subMsg.isEmpty()) {
+                    errorMsg.append(": ").append(subMsg);
+                } else if (msg != null && !msg.isEmpty()) {
+                    errorMsg.append(": ").append(msg);
+                }
+                
+                // 对于特定错误码，提供更详细的提示
+                if ("20000".equals(code)) {
+                    if ("aop.ACQ.SYSTEM_ERROR".equals(subCode)) {
+                        errorMsg.append("。可能是订单不存在、订单状态不正确或支付宝系统暂时不可用，请检查订单号是否正确且已支付成功");
+                    } else if ("aop.ACQ.TRADE_NOT_EXIST".equals(subCode)) {
+                        errorMsg.append("。订单不存在，请确认订单号是否正确或订单是否已支付成功");
+                    }
+                }
+                
+                throw new PaymentException(500, errorMsg.toString());
             }
 
             return refundNo;

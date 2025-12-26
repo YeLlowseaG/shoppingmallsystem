@@ -137,6 +137,19 @@ public class DepositServiceImpl implements DepositService {
             paymentResponse.setIsMock(false);
         }
 
+        // 如果是模拟支付，直接处理为支付成功（更新状态和余额）
+        if (paymentResponse.getIsMock() != null && paymentResponse.getIsMock()) {
+            log.info("检测到模拟支付，直接处理为支付成功，内部订单号：{}", internalOrderNo);
+            String mockExternalTradeNo = paymentResponse.getMockExternalTradeNo();
+            if (mockExternalTradeNo == null || mockExternalTradeNo.isEmpty()) {
+                // 如果没有模拟交易号，生成一个
+                mockExternalTradeNo = "MOCK_" + rechargeDTO.getPaymentMethod().toUpperCase() + "_" 
+                        + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            }
+            // 直接调用回调处理方法，更新状态为已通过并更新余额
+            handlePaymentCallback(internalOrderNo, mockExternalTradeNo, true);
+        }
+
         return paymentResponse;
     }
 
