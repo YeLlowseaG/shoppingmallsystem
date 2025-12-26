@@ -1,5 +1,478 @@
 # 修改日志
 
+## 2025-12-26 - 优化支付超时时间配置
+
+### 功能说明
+根据电商平台行业标准和B2B业务特点，优化了支付超时时间的默认配置，使其更加合理和符合实际业务需求。
+
+### 修改原因
+- 原默认值6小时过长，参考淘宝15分钟、京东30分钟等主流平台
+- B2B平台需要平衡用户体验和库存管理效率
+- 支付中状态通常不会持续太久，需要及时释放资源
+
+### 修改内容
+
+**超时时间调整：**
+
+| 配置项 | 原默认值 | 新默认值 | 说明 |
+|--------|---------|---------|------|
+| 订单支付超时时间 | 6小时 | **4小时** | B2B平台建议4-6小时，给企业用户充足的决策和审批时间 |
+| 支付记录自动取消时间 | 6小时 | **2小时** | 支付中状态通常不会持续太久，2小时足够完成支付流程 |
+| 预存款记录自动取消时间 | 6小时 | **1小时** | 充值流程相对简单，不需要太长的等待时间 |
+
+### 修改文件
+
+**数据库配置脚本：**
+- `database/update-20251226-add-system-configs.sql` - 订单支付超时时间改为4小时
+- `database/update-20251226-add-payment-record-timeout-config.sql` - 支付记录超时时间改为2小时
+- `database/update-20251226-add-deposit-record-timeout-config.sql` - 预存款记录超时时间改为1小时
+
+**后端代码：**
+- `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderScheduledServiceImpl.java` - 默认值改为4小时
+- `backend/src/main/java/com/shoppingmall/service/payment/impl/PaymentRecordScheduledServiceImpl.java` - 默认值改为2小时
+- `backend/src/main/java/com/shoppingmall/service/deposit/impl/DepositScheduledServiceImpl.java` - 默认值改为1小时
+
+### 时间设置说明
+
+**订单支付超时（4小时）：**
+- 适合B2B企业采购场景
+- 给企业用户充足的决策和审批时间
+- 平衡库存管理和用户体验
+
+**支付记录自动取消（2小时）：**
+- 支付中状态通常不会持续太久
+- 2小时足够用户完成支付流程
+- 避免长时间占用支付通道
+
+**预存款充值超时（1小时）：**
+- 充值流程相对简单
+- 不需要太长的等待时间
+- 及时释放资源
+
+### 注意事项
+
+- 所有配置都支持在管理后台动态修改
+- 修改后立即生效，无需重启服务
+- 建议根据实际业务数据（超时率）进行微调
+- 如果超时率 > 10%，可考虑适当延长
+- 如果超时率 < 5%，可考虑适当缩短
+
+---
+
+## 2025-12-26 - 预存款支付中记录自动取消功能
+
+### 功能说明
+实现预存款支付中状态的记录自动取消功能，类似支付记录自动取消机制。当预存款记录处于"支付中"状态超过配置的时间（默认6小时）后，系统会自动将其更新为"已超时"状态。
+
+### 修改原因
+- 预存款支付中状态的记录如果长时间未完成支付，需要自动更新为已超时
+- 避免预存款记录长期处于支付中状态，影响数据统计和业务处理
+- 与支付记录自动取消机制保持一致，提升系统自动化程度
+
+### 修改内容
+
+#### 数据库配置
+
+**新增配置项：**
+- `database/update-20251226-add-deposit-record-timeout-config.sql`
+  - `deposit.record-timeout-hours`：预存款记录自动取消时间（小时，默认：6）
+    - 配置支付中状态的预存款记录自动超时时间
+    - 支持在管理后台动态修改，修改后立即生效
+
+#### 后端代码修改
+
+**1. 预存款定时任务服务接口（新建）：**
+- `backend/src/main/java/com/shoppingmall/service/deposit/DepositScheduledService.java`
+  - **功能**：定义预存款定时任务服务接口
+  - **方法**：
+    - `cancelTimeoutDepositRecords()`：自动取消超时的支付中预存款记录
+
+**2. 预存款定时任务服务实现类（新建）：**
+- `backend/src/main/java/com/shoppingmall/service/deposit/impl/DepositScheduledServiceImpl.java`
+  - **功能**：实现预存款自动取消定时任务
+  - **特性**：
+    - 每小时执行一次，检查超时的支付中预存款记录（降低系统压力）
+    - 从数据库读取最新配置，确保配置修改后立即生效
+    - 将超时的支付中记录状态更新为"已超时"（TIMEOUT）
+    - 记录详细日志，便于问题排查
+  - **方法**：
+    - `getDepositRecordTimeoutHours()`：从数据库读取预存款记录自动取消时间配置
+    - `cancelTimeoutDepositRecords()`：执行自动取消超时预存款记录的任务
+
+### 技术细节
+
+**定时任务配置：**
+- 执行频率：每小时执行一次（`@Scheduled(fixedRate = 3600000)`）
+- 事务支持：使用 `@Transactional` 确保数据一致性
+- 异常处理：单个记录处理失败不影响其他记录的处理
+- **优化说明**：相比每分钟执行，每小时执行可大幅降低系统压力，同时仍能及时处理超时记录
+
+**状态流转：**
+- 支付中（PAYING，状态值：3）→ 已超时（TIMEOUT，状态值：4）
+
+**配置管理：**
+- 配置键：`deposit.record-timeout-hours`
+- 默认值：1小时（已优化，原为6小时）
+- 配置类型：number
+- 支持在管理后台动态修改
+
+**注意：** 此服务与现有的 `buyer.DepositScheduledService`（处理待审核状态）功能不同，两者互不冲突。
+
+### 使用说明
+
+1. **执行SQL脚本**：
+   ```sql
+   -- 执行数据库脚本添加配置项
+   source database/update-20251226-add-deposit-record-timeout-config.sql
+   ```
+
+2. **配置自动取消时间**：
+   - 登录管理后台
+   - 进入"系统管理" → "系统配置"
+   - 找到"预存款记录自动取消时间"配置项
+   - 修改时间值（单位：小时）
+   - 保存后立即生效，无需重启服务
+
+3. **查看日志**：
+   - 定时任务执行日志会记录在应用日志中
+   - 可通过日志查看自动更新的预存款记录详情
+
+### 注意事项
+
+- 定时任务会在应用启动后自动运行，无需手动启动
+- 配置修改后，下次定时任务执行时立即生效
+- 已超时的预存款记录不会再次被处理
+- 建议根据实际业务需求调整自动取消时间
+
+---
+
+## 2025-12-26 - 支付记录自动取消功能
+
+### 功能说明
+实现支付中状态的支付记录自动取消功能，类似订单自动取消机制。当支付记录处于"支付中"状态超过配置的时间（默认6小时）后，系统会自动将其关闭。
+
+### 修改原因
+- 支付中状态的支付记录如果长时间未完成支付，需要自动关闭
+- 避免支付记录长期处于支付中状态，影响数据统计和业务处理
+- 与订单自动取消机制保持一致，提升系统自动化程度
+
+### 修改内容
+
+#### 数据库配置
+
+**新增配置项：**
+- `database/update-20251226-add-payment-record-timeout-config.sql`
+  - `payment.record-timeout-hours`：支付记录自动取消时间（小时，默认：6）
+    - 配置支付中状态的支付记录自动关闭时间
+    - 支持在管理后台动态修改，修改后立即生效
+
+#### 后端代码修改
+
+**1. 支付记录定时任务服务接口（新建）：**
+- `backend/src/main/java/com/shoppingmall/service/payment/PaymentRecordScheduledService.java`
+  - **功能**：定义支付记录定时任务服务接口
+  - **方法**：
+    - `cancelTimeoutPaymentRecords()`：自动取消超时的支付中支付记录
+
+**2. 支付记录定时任务服务实现类（新建）：**
+- `backend/src/main/java/com/shoppingmall/service/payment/impl/PaymentRecordScheduledServiceImpl.java`
+  - **功能**：实现支付记录自动取消定时任务
+  - **特性**：
+    - 每小时执行一次，检查超时的支付中支付记录（降低系统压力）
+    - 从数据库读取最新配置，确保配置修改后立即生效
+    - 将超时的支付中记录状态更新为"已关闭"（CLOSED）
+    - 记录详细日志，便于问题排查
+  - **方法**：
+    - `getPaymentRecordTimeoutHours()`：从数据库读取支付记录自动取消时间配置
+    - `cancelTimeoutPaymentRecords()`：执行自动取消超时支付记录的任务
+
+### 技术细节
+
+**定时任务配置：**
+- 执行频率：每小时执行一次（`@Scheduled(fixedRate = 3600000)`）
+- 事务支持：使用 `@Transactional` 确保数据一致性
+- 异常处理：单个记录处理失败不影响其他记录的处理
+- **优化说明**：相比每分钟执行，每小时执行可大幅降低系统压力，同时仍能及时处理超时记录
+
+**状态流转：**
+- 支付中（PAYING，状态值：1）→ 已关闭（CLOSED，状态值：3）
+
+**配置管理：**
+- 配置键：`payment.record-timeout-hours`
+- 默认值：2小时（已优化，原为6小时）
+- 配置类型：number
+- 支持在管理后台动态修改
+
+### 使用说明
+
+1. **执行SQL脚本**：
+   ```sql
+   -- 执行数据库脚本添加配置项
+   source database/update-20251226-add-payment-record-timeout-config.sql
+   ```
+
+2. **配置自动取消时间**：
+   - 登录管理后台
+   - 进入"系统管理" → "系统配置"
+   - 找到"支付记录自动取消时间"配置项
+   - 修改时间值（单位：小时）
+   - 保存后立即生效，无需重启服务
+
+3. **查看日志**：
+   - 定时任务执行日志会记录在应用日志中
+   - 可通过日志查看自动关闭的支付记录详情
+
+### 注意事项
+
+- 定时任务会在应用启动后自动运行，无需手动启动
+- 配置修改后，下次定时任务执行时立即生效
+- 已关闭的支付记录不会再次被处理
+- 建议根据实际业务需求调整自动取消时间
+
+---
+
+## 2025-12-26 - 系统配置改为数据库管理（邮箱、订单、应用配置）
+
+### 功能说明
+将邮箱配置、订单配置、应用配置从配置文件改为数据库配置管理，支持管理员在后台动态修改，无需重启服务即可生效。
+
+### 修改原因
+- 配置文件修改需要重启服务，不便于运维管理
+- 需要支持动态配置，提升系统灵活性
+- 统一在系统配置管理页面管理，便于维护
+- 支持配置历史记录和权限控制
+
+### 修改内容
+
+#### 数据库配置
+
+**新增配置项：**
+- `database/update-20251226-add-system-configs.sql`
+  - **邮箱配置**：
+    - `mail.host`：邮件服务器地址（默认：smtp.qq.com）
+    - `mail.port`：邮件服务器端口（默认：587）
+    - `mail.username`：发件人邮箱
+    - `mail.password`：邮箱授权码
+  - **订单配置**：
+    - `order.payment-timeout-hours`：订单支付超时时间（小时，默认：6）
+  - **应用配置**：
+    - `app.password.reset.token-expire-minutes`：密码重置令牌有效期（分钟，默认：30）
+
+#### 后端代码修改
+
+**1. 邮件配置服务（新建）：**
+- `backend/src/main/java/com/shoppingmall/service/impl/MailConfigService.java`
+  - **功能**：动态创建 `JavaMailSender`，每次发送邮件时从数据库读取最新配置
+  - **方法**：
+    - `createMailSender()`：创建邮件发送器（使用最新配置）
+    - `getFromEmail()`：获取发件人邮箱地址
+
+**2. 邮件服务实现类：**
+- `backend/src/main/java/com/shoppingmall/service/impl/EmailServiceImpl.java`
+  - **移除 `JavaMailSender` 注入**：改为使用 `MailConfigService` 动态创建
+  - **修改 `sendPasswordResetEmail()` 方法**：每次发送邮件时动态创建 `JavaMailSender`
+
+**3. 订单定时任务服务：**
+- `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderScheduledServiceImpl.java`
+  - **移除 `@Value` 注解**：不再从配置文件读取订单配置
+  - **添加 `SystemConfigService` 依赖**：用于从数据库读取配置
+  - **添加 `getPaymentTimeoutHours()` 方法**：从数据库读取订单支付超时时间
+  - **修改 `cancelTimeoutOrders()` 方法**：每次执行定时任务时读取最新配置
+
+**4. 用户服务实现类：**
+- `backend/src/main/java/com/shoppingmall/service/user/impl/UserServiceImpl.java`
+  - **移除 `@Value` 注解**：不再从配置文件读取密码重置令牌有效期
+  - **添加 `SystemConfigService` 依赖**：用于从数据库读取配置
+  - **添加 `getTokenExpireMinutes()` 方法**：从数据库读取令牌有效期
+  - **修改 `forgotPassword()` 方法**：每次使用时读取最新配置
+
+### 功能特性
+- ✅ 邮箱配置可动态修改（服务器地址、端口、账号、授权码）
+- ✅ 订单支付超时时间可动态修改
+- ✅ 密码重置令牌有效期可动态修改
+- ✅ 配置修改后立即生效，无需重启服务
+- ✅ 提供默认值作为兜底机制
+- ✅ 配置格式验证（端口、有效期等数字类型）
+
+### 配置读取策略
+
+1. **邮箱配置**：
+   - 每次发送邮件时从数据库读取最新配置
+   - 动态创建 `JavaMailSender`，确保使用最新配置
+   - 配置缺失时抛出异常，提示管理员配置
+
+2. **订单配置**：
+   - 定时任务每次执行时读取最新配置
+   - 配置格式错误时使用默认值（6小时）
+
+3. **密码重置令牌有效期**：
+   - 每次使用时读取最新配置
+   - 配置格式错误时使用默认值（30分钟）
+
+### 使用说明
+
+1. **执行数据库脚本**：
+   ```bash
+   mysql -u root -p < database/update-20251226-add-system-configs.sql
+   ```
+
+2. **在管理后台修改配置**：
+   - 登录管理后台，进入"系统设置" -> "基础配置"
+   - 找到以下配置项进行编辑：
+     - `mail.host`：邮件服务器地址
+     - `mail.port`：邮件服务器端口
+     - `mail.username`：发件人邮箱
+     - `mail.password`：邮箱授权码
+     - `order.payment-timeout-hours`：订单支付超时时间
+     - `app.password.reset.token-expire-minutes`：密码重置令牌有效期
+
+3. **配置修改后立即生效**：
+   - 邮箱配置：下次发送邮件时生效
+   - 订单配置：下次定时任务执行时生效
+   - 密码重置令牌有效期：下次使用时生效
+
+### 注意事项
+
+1. **邮箱配置**：
+   - 修改邮箱配置后，下次发送邮件时自动使用新配置
+   - 如果配置错误，邮件发送会失败，需要检查配置
+   - 邮箱授权码不是登录密码，需要在邮箱设置中生成
+
+2. **订单配置**：
+   - 修改订单支付超时时间后，下次定时任务执行时生效
+   - 建议设置为合理的值（如6-24小时）
+
+3. **密码重置令牌有效期**：
+   - 修改后，新生成的令牌使用新的有效期
+   - 已生成的令牌仍使用原来的有效期
+
+4. **配置格式验证**：
+   - 端口和有效期必须是数字
+   - 配置格式错误时使用默认值，并记录警告日志
+
+### 影响范围
+- ✅ `backend/src/main/java/com/shoppingmall/service/impl/MailConfigService.java` - 邮件配置服务（新建）
+- ✅ `backend/src/main/java/com/shoppingmall/service/impl/EmailServiceImpl.java` - 邮件服务实现类
+- ✅ `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderScheduledServiceImpl.java` - 订单定时任务服务
+- ✅ `backend/src/main/java/com/shoppingmall/service/user/impl/UserServiceImpl.java` - 用户服务实现类
+- ✅ `database/update-20251226-add-system-configs.sql` - 数据库配置初始化脚本
+
+### 技术细节
+- **配置读取优先级**：数据库配置 > 默认值
+- **动态配置更新**：每次使用时读取最新配置，确保配置修改后立即生效
+- **错误处理**：配置格式错误时使用默认值，并记录警告日志
+- **性能考虑**：配置读取有缓存机制（`SystemConfigService`），性能影响可忽略
+
+---
+
+## 2025-12-26 - 密码重置邮件内容改为系统配置管理
+
+### 功能说明
+将密码重置邮件的内容（主题和正文）改为通过系统配置管理，支持管理员在后台自定义邮件模板，无需修改代码即可调整邮件内容。
+
+### 修改原因
+- 邮件内容硬编码在代码中，不便于修改
+- 需要支持自定义邮件模板，适应不同业务场景
+- 需要支持模板变量替换，动态生成邮件内容
+- 提升系统的灵活性和可配置性
+
+### 修改内容
+
+#### 数据库配置
+
+**新增配置项：**
+- `database/update-20251226-add-mail-template-config.sql`
+  - **`mail.password-reset.subject`**：密码重置邮件主题模板
+    - 支持变量：`{username}`（用户名）、`{platform}`（平台名称）
+    - 默认值：`密码重置验证码 - B2B采购平台`
+  - **`mail.password-reset.content`**：密码重置邮件正文模板
+    - 支持变量：`{username}`（用户名）、`{resetCode}`（验证码）、`{resetUrl}`（重置链接）、`{expireMinutes}`（有效期分钟数）、`{platform}`（平台名称）
+    - 默认值：包含完整邮件正文模板
+  - **`app.platform.name`**：平台名称
+    - 默认值：`B2B采购平台`
+    - 用于邮件模板等场景
+
+#### 后端代码修改
+
+**邮件服务实现类：**
+- `backend/src/main/java/com/shoppingmall/service/impl/EmailServiceImpl.java`
+  - **移除 `@Value` 注解**：不再从配置文件读取邮件相关配置
+  - **添加 `SystemConfigService` 依赖**：用于从数据库读取配置
+  - **添加配置读取方法**：
+    - `getFromEmail()`：从数据库读取发件人邮箱（`mail.username`）
+    - `getFrontendUrl()`：从数据库读取前端地址（`app.frontend.url`）
+    - `getPlatformName()`：从数据库读取平台名称（`app.platform.name`）
+  - **添加模板处理方法**：
+    - `replaceTemplateVariables()`：替换模板变量
+    - `getPasswordResetSubjectTemplate()`：获取邮件主题模板（带默认值）
+    - `getPasswordResetContentTemplate()`：获取邮件正文模板（带默认值）
+  - **修改 `sendPasswordResetEmail()` 方法**：
+    - 从数据库读取邮件主题和正文模板
+    - 准备模板变量映射（用户名、验证码、重置链接、有效期、平台名称）
+    - 使用 `replaceTemplateVariables()` 替换模板变量
+    - 发送邮件
+
+### 功能特性
+- ✅ 邮件主题和正文模板可配置
+- ✅ 支持模板变量替换（`{username}`, `{resetCode}`, `{resetUrl}`, `{expireMinutes}`, `{platform}`）
+- ✅ 配置修改后立即生效，无需重启服务
+- ✅ 提供默认模板作为兜底机制
+- ✅ 平台名称可配置，便于品牌定制
+
+### 模板变量说明
+
+支持的模板变量：
+- `{username}` - 用户名
+- `{resetCode}` - 重置验证码
+- `{resetUrl}` - 重置密码链接（完整URL）
+- `{expireMinutes}` - 验证码有效期（分钟数）
+- `{platform}` - 平台名称（从 `app.platform.name` 配置读取）
+
+### 使用说明
+
+1. **在系统配置管理页面修改邮件模板**：
+   - 登录管理后台，进入"系统设置" -> "基础配置"
+   - 找到 `mail.password-reset.subject`（邮件主题）和 `mail.password-reset.content`（邮件正文）
+   - 编辑模板内容，使用 `{变量名}` 作为占位符
+   - 保存后立即生效
+
+2. **模板示例**：
+   ```
+   主题：密码重置验证码 - {platform}
+   
+   正文：
+   尊敬的 {username} 用户：
+   
+   您申请了密码重置，请使用以下验证码重置您的密码：
+   
+   验证码：{resetCode}
+   
+   或者点击以下链接直接重置密码：
+   {resetUrl}
+   
+   此验证码有效期为{expireMinutes}分钟，请及时操作。
+   如果您没有申请密码重置，请忽略此邮件。
+   
+   {platform}
+   ```
+
+3. **注意事项**：
+   - 模板变量必须使用大括号包裹，如 `{username}`
+   - 变量名区分大小写
+   - 如果模板中使用了不存在的变量，该变量不会被替换（保持原样）
+   - 建议在修改模板前先备份原模板
+
+### 影响范围
+- ✅ `backend/src/main/java/com/shoppingmall/service/impl/EmailServiceImpl.java` - 邮件服务实现类
+- ✅ `database/update-20251226-add-mail-template-config.sql` - 数据库配置初始化脚本
+
+### 技术细节
+- **配置读取优先级**：数据库配置 > 默认值
+- **模板变量替换**：使用 `String.replace()` 方法替换模板变量
+- **错误处理**：如果配置缺失，使用默认模板，确保邮件发送功能正常
+
+---
+
 ## 2025-12-26 - 订单支付页面添加支付状态弹窗功能
 
 ### 功能说明
