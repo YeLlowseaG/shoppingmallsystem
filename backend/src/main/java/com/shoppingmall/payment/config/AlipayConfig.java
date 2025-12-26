@@ -67,3 +67,4 @@ public class AlipayConfig {
         private String publicKey;
     }
 }
+
