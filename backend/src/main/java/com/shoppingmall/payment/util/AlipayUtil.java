@@ -68,10 +68,39 @@ public class AlipayUtil {
             }
 
             // 清理notifyUrl中的特殊字符，只保留纯粹的URL
-            // 移除反引号`、方括号[]、空格等特殊字符
-            String cleanNotifyUrl = notifyUrl != null 
-                ? notifyUrl.replace("`", "").replace("[", "").replace("]", "").trim()
-                : "";
+            // 移除所有非URL字符，只保留字母、数字、冒号、斜杠、点、问号、等于、&、减号、下划线
+            String cleanNotifyUrl = notifyUrl;
+            if (cleanNotifyUrl != null) {
+                // 首先移除开头和结尾的空白字符和非URL字符
+                cleanNotifyUrl = cleanNotifyUrl.trim();
+                // 移除开头可能存在的反引号、引号、方括号等
+                while (cleanNotifyUrl.length() > 0 && 
+                       ("`~!@#$%^&*()_+{}|:<>?\"'[]\\".indexOf(cleanNotifyUrl.charAt(0)) >= 0 || 
+                        cleanNotifyUrl.charAt(0) == ' ' || 
+                        cleanNotifyUrl.charAt(0) == '\t')) {
+                    cleanNotifyUrl = cleanNotifyUrl.substring(1).trim();
+                }
+                // 移除结尾可能存在的反引号、引号、方括号等
+                while (cleanNotifyUrl.length() > 0 && 
+                       ("`~!@#$%^&*()_+{}|:<>?\"'[]\\".indexOf(cleanNotifyUrl.charAt(cleanNotifyUrl.length() - 1)) >= 0 || 
+                        cleanNotifyUrl.charAt(cleanNotifyUrl.length() - 1) == ' ' || 
+                        cleanNotifyUrl.charAt(cleanNotifyUrl.length() - 1) == '\t')) {
+                    cleanNotifyUrl = cleanNotifyUrl.substring(0, cleanNotifyUrl.length() - 1).trim();
+                }
+                // 移除中间的所有反引号、引号、方括号等特殊字符
+                cleanNotifyUrl = cleanNotifyUrl.replace("`", "")
+                                               .replace("'", "")
+                                               .replace("\"", "")
+                                               .replace("[", "")
+                                               .replace("]", "")
+                                               .replace("{", "")
+                                               .replace("}", "")
+                                               .replace("(", "")
+                                               .replace(")", "")
+                                               .trim();
+            } else {
+                cleanNotifyUrl = "";
+            }
             log.info("notifyUrl清理前: [{}]", notifyUrl);
             log.info("notifyUrl清理后: [{}]", cleanNotifyUrl);
             
@@ -92,8 +121,9 @@ public class AlipayUtil {
             Map<String, String> params = new HashMap<>();
             params.put("app_id", config.getAppid());
             params.put("method", "alipay.trade.page.pay");
-            // charset参数需要在URL查询字符串中，不放在表单参数中
-            // params.put("charset", "utf-8");
+            // charset参数必须参与签名（支付宝验签时会包含它）
+            // 同时也要放在URL查询字符串中
+            params.put("charset", "utf-8");
             params.put("sign_type", "RSA2");
             params.put("timestamp", formatTimestamp(new Date()));
             params.put("version", "1.0");
@@ -108,9 +138,24 @@ public class AlipayUtil {
 
             params.put("biz_content", mapToJson(bizContent));
 
+            // 记录签名前的参数（用于调试）
+            log.info("========== 支付宝支付签名参数 ==========");
+            log.info("订单号: {}", orderNo);
+            log.info("金额: {}", amount);
+            log.info("AppID: {}", config.getAppid());
+            log.info("签名前参数列表:");
+            params.forEach((key, value) -> {
+                if (!"sign".equals(key)) {
+                    log.info("  {} = {}", key, value);
+                }
+            });
+
             // 生成签名
             String sign = generateSign(params, config.getPrivateKey());
             params.put("sign", sign);
+            
+            log.info("生成的签名: {}", sign);
+            log.info("========================================");
 
             // 构建表单（charset放在URL中）
             return buildFormHtmlWithCharset(gateway, params);
@@ -140,18 +185,53 @@ public class AlipayUtil {
             String gateway = "sandbox".equals(config.getEnv()) ? ALIPAY_SANDBOX_GATEWAY : ALIPAY_GATEWAY;
             
             // 清理notifyUrl中的特殊字符，只保留纯粹的URL
-            String cleanNotifyUrl = notifyUrl != null 
-                ? notifyUrl.replace("`", "").trim()
-                : "";
+            // 移除所有非URL字符，只保留字母、数字、冒号、斜杠、点、问号、等于、&、减号、下划线
+            String cleanNotifyUrl = notifyUrl;
+            if (cleanNotifyUrl != null) {
+                // 首先移除开头和结尾的空白字符和非URL字符
+                cleanNotifyUrl = cleanNotifyUrl.trim();
+                // 移除开头可能存在的反引号、引号、方括号等
+                while (cleanNotifyUrl.length() > 0 && 
+                       ("`~!@#$%^&*()_+{}|:<>?\"'[]\\".indexOf(cleanNotifyUrl.charAt(0)) >= 0 || 
+                        cleanNotifyUrl.charAt(0) == ' ' || 
+                        cleanNotifyUrl.charAt(0) == '\t')) {
+                    cleanNotifyUrl = cleanNotifyUrl.substring(1).trim();
+                }
+                // 移除结尾可能存在的反引号、引号、方括号等
+                while (cleanNotifyUrl.length() > 0 && 
+                       ("`~!@#$%^&*()_+{}|:<>?\"'[]\\".indexOf(cleanNotifyUrl.charAt(cleanNotifyUrl.length() - 1)) >= 0 || 
+                        cleanNotifyUrl.charAt(cleanNotifyUrl.length() - 1) == ' ' || 
+                        cleanNotifyUrl.charAt(cleanNotifyUrl.length() - 1) == '\t')) {
+                    cleanNotifyUrl = cleanNotifyUrl.substring(0, cleanNotifyUrl.length() - 1).trim();
+                }
+                // 移除中间的所有反引号、引号、方括号等特殊字符
+                cleanNotifyUrl = cleanNotifyUrl.replace("`", "")
+                                               .replace("'", "")
+                                               .replace("\"", "")
+                                               .replace("[", "")
+                                               .replace("]", "")
+                                               .replace("{", "")
+                                               .replace("}", "")
+                                               .replace("(", "")
+                                               .replace(")", "")
+                                               .trim();
+            } else {
+                cleanNotifyUrl = "";
+            }
+            log.info("notifyUrl清理前: [{}]", notifyUrl);
+            log.info("notifyUrl清理后: [{}]", cleanNotifyUrl);
+            
             // 移除URL后面可能附加的查询参数（如 &sign_type=...&timestamp=...）
             if (cleanNotifyUrl.contains("&")) {
                 int ampersandIndex = cleanNotifyUrl.indexOf('&');
                 cleanNotifyUrl = cleanNotifyUrl.substring(0, ampersandIndex);
+                log.info("notifyUrl移除额外参数后: [{}]", cleanNotifyUrl);
             }
             // 确保URL以http开头
             if (!cleanNotifyUrl.toLowerCase().startsWith("http://") && 
                 !cleanNotifyUrl.toLowerCase().startsWith("https://")) {
                 cleanNotifyUrl = "";
+                log.warn("notifyUrl无效，已清空");
             }
 
             // 构建请求参数
@@ -439,28 +519,35 @@ public class AlipayUtil {
 
     /**
      * 获取待签名字符串
+     * 
+     * 注意：根据支付宝的验签字符串格式，参数值应该使用原始值（不进行URL编码）
+     * 支付宝验签字符串格式：key=value&key=value（值未编码）
      */
     private static String getSignContent(Map<String, String> params) {
         // 参数排序
         List<String> keys = new ArrayList<>(params.keySet());
         Collections.sort(keys);
 
-        // 拼接字符串
+        // 拼接字符串（使用原始值，不进行URL编码）
         StringBuilder sb = new StringBuilder();
         for (String key : keys) {
             String value = params.get(key);
-            if (value != null && !value.isEmpty()) {
-                if (sb.length() > 0) {
-                    sb.append("&");
-                }
-                try {
-                    sb.append(key).append("=").append(URLEncoder.encode(value, "UTF-8"));
-                } catch (UnsupportedEncodingException e) {
-                    sb.append(key).append("=").append(value);
-                }
+            // 跳过sign参数和空值
+            if ("sign".equals(key) || value == null || value.isEmpty()) {
+                continue;
             }
+            if (sb.length() > 0) {
+                sb.append("&");
+            }
+            // 直接使用原始值，不进行URL编码
+            // 根据支付宝验签字符串格式，参数值应该是原始值
+            sb.append(key).append("=").append(value);
+            log.debug("签名参数: {} = {}", key, value);
         }
-        return sb.toString();
+        String signContent = sb.toString();
+        log.info("待签名字符串: {}", signContent);
+        
+        return signContent;
     }
 
     /**
@@ -468,11 +555,20 @@ public class AlipayUtil {
      */
     private static String sign(String content, String privateKey) {
         try {
+            log.info("开始RSA2签名，待签名字符串长度: {}", content.length());
+            
             // 移除私钥的头部和尾部
             String privateKeyPEM = privateKey
                     .replace("-----BEGIN PRIVATE KEY-----", "")
                     .replace("-----END PRIVATE KEY-----", "")
+                    .replace("-----BEGIN RSA PRIVATE KEY-----", "")
+                    .replace("-----END RSA PRIVATE KEY-----", "")
                     .replaceAll("\\s", "");
+            
+            log.debug("私钥处理后的长度: {}", privateKeyPEM.length());
+            if (privateKeyPEM.length() < 100) {
+                log.warn("私钥长度异常，可能格式不正确");
+            }
 
             // Base64解码
             byte[] keyBytes = Base64.getDecoder().decode(privateKeyPEM);
@@ -487,11 +583,15 @@ public class AlipayUtil {
             byte[] signBytes = signature.sign();
 
             // Base64编码
-            return Base64.getEncoder().encodeToString(signBytes);
+            String signResult = Base64.getEncoder().encodeToString(signBytes);
+            log.info("签名成功，签名长度: {}", signResult.length());
+            return signResult;
 
         } catch (Exception e) {
-            log.error("RSA2签名异常", e);
-            throw new RuntimeException("签名失败", e);
+            log.error("RSA2签名异常，待签名字符串: {}", content, e);
+            log.error("私钥前100字符: {}", privateKey != null && privateKey.length() > 100 
+                    ? privateKey.substring(0, 100) : privateKey);
+            throw new RuntimeException("签名失败: " + e.getMessage(), e);
         }
     }
 
@@ -545,25 +645,38 @@ public class AlipayUtil {
     }
 
     /**
-     * 构建支付表单HTML（charset放在URL中）
+     * 构建支付表单HTML（charset参数放在URL查询字符串中）
      */
     private static String buildFormHtmlWithCharset(String gateway, Map<String, String> params) {
         StringBuilder html = new StringBuilder();
         // 移除gateway中的反引号
         String cleanGateway = gateway != null ? gateway.replace("`", "") : "";
-        // 将charset参数添加到URL查询字符串中
+        // 将charset参数添加到URL查询字符串中（不参与签名）
         String formAction = cleanGateway + (cleanGateway.contains("?") ? "&" : "?") + "charset=utf-8";
+        
+        log.info("构建支付表单，网关地址: {}", formAction);
+        log.info("表单参数列表（不包含charset，charset在URL中）:");
+        params.forEach((key, value) -> {
+            log.info("  {} = {}", key, value != null && value.length() > 100 
+                    ? value.substring(0, 100) + "..." : value);
+        });
+        
         html.append("<form id='alipayForm' method='post' action='").append(escapeHtml(formAction)).append("'>");
         for (Map.Entry<String, String> entry : params.entrySet()) {
             // 移除参数名和值中的反引号
             String cleanKey = entry.getKey() != null ? entry.getKey().replace("`", "") : "";
             String cleanValue = entry.getValue() != null ? entry.getValue().replace("`", "") : "";
+            // 注意：这里使用escapeHtml转义，但签名时使用的是原始值，这是正确的
+            // 因为浏览器提交表单时会自动解码HTML实体
             html.append("<input type='hidden' name='").append(escapeHtml(cleanKey))
                     .append("' value='").append(escapeHtml(cleanValue)).append("'/>");
         }
         html.append("</form>");
         html.append("<script>document.getElementById('alipayForm').submit();</script>");
-        return html.toString();
+        
+        String htmlResult = html.toString();
+        log.debug("生成的表单HTML长度: {}", htmlResult.length());
+        return htmlResult;
     }
 
     /**
