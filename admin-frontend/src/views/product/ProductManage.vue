@@ -990,6 +990,7 @@ import {
   type ProductSpecKeyVO
 } from '@/api/admin/sku'
 import RichTextEditor from '@/components/common/RichTextEditor.vue'
+import request from '@/utils/request'
 
 const router = useRouter()
 
@@ -1019,6 +1020,12 @@ const brandOptions = ref<any[]>([])
 
 // 运费模板列表
 const shippingTemplates = ref<any[]>([])
+
+// 监控运费模板数据变化
+watch(shippingTemplates, (newVal) => {
+  console.log('📦 shippingTemplates 数据变化:', newVal)
+  console.log('📦 运费模板数量:', newVal ? newVal.length : 0)
+}, { deep: true })
 
 // 扁平化分类列表（用于下拉选择）
 const flatCategories = computed(() => {
@@ -1178,11 +1185,15 @@ const loadBrands = async () => {
 
 // 加载运费模板列表
 const loadShippingTemplates = async () => {
+  console.log('🚀 开始加载运费模板列表...')
   try {
     const response = await request.get('/api/admin/shipping/template/all')
+    console.log('✅ 运费模板API返回数据:', response)
+    console.log('✅ 运费模板数量:', response ? response.length : 0)
     shippingTemplates.value = response || []
+    console.log('✅ shippingTemplates.value 已设置:', shippingTemplates.value)
   } catch (error) {
-    // 静默处理，不显示错误
+    console.error('❌ 加载运费模板失败:', error)
     shippingTemplates.value = []
   }
 }
