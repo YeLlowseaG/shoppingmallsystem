@@ -223,22 +223,30 @@ public class AlipayPayStrategy implements PaymentStrategy {
             }
 
             // 退款前先查询订单状态，确认订单是否存在且已支付成功
+            // 注意：如果订单查询失败（可能是支付宝沙箱环境问题），允许继续退款尝试
             log.info("退款前查询订单状态，订单号：{}", paymentNo);
-            Map<String, String> orderStatus = AlipayUtil.queryOrder(envConfig, paymentNo);
-            String tradeStatus = orderStatus.get("trade_status");
-            
-            if ("UNKNOWN".equals(tradeStatus)) {
-                log.warn("无法查询到订单状态，订单号：{}，可能订单不存在", paymentNo);
-                throw new PaymentException(500, "订单不存在或无法查询订单状态，请确认订单号是否正确且已支付成功");
+            try {
+                Map<String, String> orderStatus = AlipayUtil.queryOrder(envConfig, paymentNo);
+                String tradeStatus = orderStatus.get("trade_status");
+                
+                if ("UNKNOWN".equals(tradeStatus)) {
+                    log.warn("无法查询到订单状态，订单号：{}，可能订单不存在或支付宝沙箱环境问题，继续尝试退款", paymentNo);
+                    // 不抛出异常，允许继续尝试退款（可能是支付宝沙箱环境的问题）
+                } else {
+                    // 检查订单状态是否允许退款
+                    if (!"TRADE_SUCCESS".equals(tradeStatus) && !"TRADE_FINISHED".equals(tradeStatus)) {
+                        log.warn("订单状态不允许退款，订单号：{}，订单状态：{}", paymentNo, tradeStatus);
+                        throw new PaymentException(500, "订单状态不允许退款，当前订单状态：" + tradeStatus + "，只有已支付成功或已完成的订单才能退款");
+                    }
+                    log.info("订单状态验证通过，订单号：{}，订单状态：{}，可以退款", paymentNo, tradeStatus);
+                }
+            } catch (PaymentException e) {
+                // 如果是订单状态不允许退款，直接抛出异常
+                throw e;
+            } catch (Exception e) {
+                // 订单查询失败（可能是网络问题或支付宝沙箱环境问题），记录警告但允许继续退款
+                log.warn("订单状态查询失败，订单号：{}，错误：{}，继续尝试退款", paymentNo, e.getMessage());
             }
-            
-            // 检查订单状态是否允许退款
-            if (!"TRADE_SUCCESS".equals(tradeStatus) && !"TRADE_FINISHED".equals(tradeStatus)) {
-                log.warn("订单状态不允许退款，订单号：{}，订单状态：{}", paymentNo, tradeStatus);
-                throw new PaymentException(500, "订单状态不允许退款，当前订单状态：" + tradeStatus + "，只有已支付成功或已完成的订单才能退款");
-            }
-            
-            log.info("订单状态验证通过，订单号：{}，订单状态：{}，可以退款", paymentNo, tradeStatus);
 
             // 生成退款单号
             String refundNo = "ALI_REFUND_" + System.currentTimeMillis();

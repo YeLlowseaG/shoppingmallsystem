@@ -25,6 +25,7 @@ export interface PaymentRecordVO {
   userId: number
   username: string
   paymentNo: string
+  externalTradeNo?: string
   paymentMethod: string
   paymentMethodName: string
   amount: number

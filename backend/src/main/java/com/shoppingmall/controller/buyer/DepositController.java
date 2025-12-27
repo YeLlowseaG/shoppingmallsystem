@@ -136,7 +136,7 @@ public class DepositController {
                     || "SUCCESS".equals(tradeStatus)
                     || "PAID".equals(tradeStatus);
 
-            depositService.handlePaymentCallback(internalOrderNo, externalTradeNo, success);
+            depositService.handlePaymentCallback(internalOrderNo, externalTradeNo, success, callbackData);
 
             return Result.success("回调处理成功");
         } catch (Exception e) {

@@ -332,6 +332,42 @@
         <el-descriptions-item label="配送方式">{{ currentOrder.recipientInfo.shippingMethod }}</el-descriptions-item>
         <el-descriptions-item label="支付方式">{{ currentOrder.recipientInfo.paymentMethod }}</el-descriptions-item>
       </el-descriptions>
+
+      <!-- 补单操作区域 -->
+      <el-divider>支付补单</el-divider>
+      <div v-if="currentOrder" style="padding: 20px; background: #f5f7fa; border-radius: 4px; margin-top: 20px;">
+        <el-alert
+          type="info"
+          :closable="false"
+          style="margin-bottom: 15px;"
+        >
+          <template #title>
+            <div style="font-size: 14px; line-height: 1.6;">
+              <div style="font-weight: bold; margin-bottom: 8px;">什么情况下需要补单？</div>
+              <div style="margin-left: 0;">
+                <div>• 用户已支付成功，但订单状态仍显示"待付款"</div>
+                <div>• 支付回调丢失，导致订单状态未更新</div>
+                <div>• 支付宝/微信支付成功，但系统未收到支付通知</div>
+                <div style="color: #e6a23c; margin-top: 5px;">注意：补单功能会自动查询第三方支付平台，确认支付状态后更新订单状态</div>
+              </div>
+            </div>
+          </template>
+        </el-alert>
+        <div style="text-align: right;">
+          <el-button
+            type="primary"
+            :loading="syncPaymentLoading"
+            :disabled="!currentOrder || currentOrder.status !== 0"
+            @click="handleSyncPayment"
+          >
+            <el-icon><Refresh /></el-icon>
+            执行补单
+          </el-button>
+        </div>
+        <div v-if="currentOrder.status !== 0" style="margin-top: 10px; color: #909399; font-size: 12px; text-align: right;">
+          提示：只有"待付款"状态的订单才能执行补单操作
+        </div>
+      </div>
     </el-dialog>
 
     <!-- 发货对话框 -->
@@ -462,8 +498,8 @@
         </div>
       </div>
       <template #footer>
-        <el-button @click="refundDialogVisible = false">取消</el-button>
-        <el-button type="danger" @click="handleRefundSubmit" :disabled="totalRefundAmount <= 0">确认退款</el-button>
+        <el-button @click="refundDialogVisible = false" :disabled="refundLoading">取消</el-button>
+        <el-button type="danger" @click="handleRefundSubmit" :loading="refundLoading" :disabled="totalRefundAmount <= 0 || refundLoading">确认退款</el-button>
       </template>
     </el-dialog>
 
@@ -508,7 +544,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Picture, ArrowDown } from '@element-plus/icons-vue'
+import { Picture, ArrowDown, Refresh } from '@element-plus/icons-vue'
 import { formatDateTime } from '@/utils'
 import {
   getOrderList,
@@ -517,7 +553,8 @@ import {
   shipOrder,
   addOrderRemark,
   refundOrder,
-  getOrderRefundList
+  getOrderRefundList,
+  syncPaymentStatus
 } from '@/api/admin/order'
 import type { OrderListVO, OrderDetailVO, OrderRefundRequestDTO, OrderRefundVO } from '@/api/admin/order'
 import { pushOrderToErp, pullOrderLogistics } from '@/api/admin/erp'
@@ -549,6 +586,8 @@ const shipDialogVisible = ref(false)
 const remarkDialogVisible = ref(false)
 const logisticsDialogVisible = ref(false)
 const refundDialogVisible = ref(false)
+const refundLoading = ref(false)
+const syncPaymentLoading = ref(false)
 const currentOrder = ref<OrderDetailVO | null>(null)
 const currentLogisticsOrder = ref<OrderListVO | null>(null)
 const currentRefundOrder = ref<OrderListVO | null>(null)
@@ -722,6 +761,43 @@ const handleCopyTrackingNo = (trackingNo: string) => {
   })
 }
 
+// 执行补单
+const handleSyncPayment = async () => {
+  if (!currentOrder.value) {
+    ElMessage.error('订单信息不存在')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要对订单 ${currentOrder.value.orderNo} 执行补单操作吗？\n\n系统将查询第三方支付平台，确认支付状态后更新订单状态。`,
+      '确认补单',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    syncPaymentLoading.value = true
+    try {
+      await syncPaymentStatus(currentOrder.value.orderNo)
+      ElMessage.success('补单成功，订单状态已更新')
+      // 重新加载订单详情
+      const order = await getOrderDetail(currentOrder.value.orderNo)
+      currentOrder.value = order
+      // 刷新订单列表
+      loadOrderList()
+    } finally {
+      syncPaymentLoading.value = false
+    }
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '补单失败')
+    }
+  }
+}
+
 // 取消订单
 const handleCancel = async (row: OrderListVO) => {
   try {
@@ -858,7 +934,7 @@ const handleSelectionChange = (selection: any[]) => {
 
 // 提交退款
 const handleRefundSubmit = async () => {
-  if (!refundFormRef.value || !currentOrder.value) return
+  if (!refundFormRef.value || !currentOrder.value || refundLoading.value) return
 
   await refundFormRef.value.validate(async (valid) => {
     if (!valid) return
@@ -882,6 +958,11 @@ const handleRefundSubmit = async () => {
       }
     }
 
+    if (!currentOrder.value) {
+      ElMessage.error('订单信息不存在')
+      return
+    }
+
     try {
       const refundDTO: OrderRefundRequestDTO = {
         orderNo: currentOrder.value.orderNo,
@@ -902,24 +983,29 @@ const handleRefundSubmit = async () => {
         }
       )
 
-      const refundNo = await refundOrder(currentOrder.value.orderNo, refundDTO)
-      ElMessage.success(`退款成功，退款单号：${refundNo}`)
-      refundDialogVisible.value = false
-      loadOrderList()
-      // 如果详情对话框打开，重新加载订单详情和退款记录
-      if (detailDialogVisible.value && currentOrder.value) {
-        const order = await getOrderDetail(currentOrder.value.orderNo)
-        currentOrder.value = order
-        await loadRefundList(currentOrder.value.orderNo)
-      }
-      if (detailDialogVisible.value && currentOrder.value) {
-        const order = await getOrderDetail(currentOrder.value.orderNo)
-        currentOrder.value = order
+      // 设置loading状态
+      refundLoading.value = true
+      try {
+        const refundNo = await refundOrder(currentOrder.value.orderNo, refundDTO)
+        ElMessage.success(`退款成功，退款单号：${refundNo}`)
+        refundDialogVisible.value = false
+        loadOrderList()
+        // 如果详情对话框打开，重新加载订单详情和退款记录
+        if (detailDialogVisible.value && currentOrder.value) {
+          const order = await getOrderDetail(currentOrder.value.orderNo)
+          currentOrder.value = order
+          await loadRefundList(order.orderNo)
+        }
+      } finally {
+        // 无论成功还是失败，都要重置loading状态
+        refundLoading.value = false
       }
     } catch (error: any) {
       if (error !== 'cancel') {
         ElMessage.error(error.message || '退款失败')
       }
+      // 如果是取消操作，不需要重置loading（因为loading还没设置）
+      // 如果是其他错误，loading已经在finally中重置了
     }
   })
 }

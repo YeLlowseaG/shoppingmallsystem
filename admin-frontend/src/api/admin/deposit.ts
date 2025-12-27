@@ -45,6 +45,8 @@ export interface DepositRecordVO {
   remark?: string
   createTime: string
   auditTime?: string
+  refundedAmount?: number // 已退款金额（针对充值记录）
+  refundableAmount?: number // 可退款金额（针对充值记录）
 }
 
 /**

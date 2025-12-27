@@ -12,9 +12,6 @@
         <el-form-item label="用户名">
           <el-input v-model="searchForm.username" placeholder="请输入用户名" clearable style="width: 150px" />
         </el-form-item>
-        <el-form-item label="用户ID">
-          <el-input-number v-model="searchForm.userId" placeholder="用户ID" :min="1" clearable style="width: 150px" />
-        </el-form-item>
         <el-form-item label="事件类型">
           <el-select v-model="searchForm.event" placeholder="请选择事件类型" clearable style="width: 150px">
             <el-option label="全部" :value="undefined" />
@@ -81,7 +78,6 @@
       <el-table :data="recordList" v-loading="loading" border stripe>
         <el-table-column prop="id" label="记录ID" width="80" />
         <el-table-column prop="username" label="用户名" width="120" />
-        <el-table-column prop="userId" label="用户ID" width="100" />
         <el-table-column prop="event" label="事件" width="120" />
         <el-table-column prop="typeName" label="类型" width="80" />
         <el-table-column prop="statusName" label="状态" width="100">
@@ -127,7 +123,9 @@
         </el-table-column>
         <el-table-column prop="paymentMethod" label="支付方式" width="100">
           <template #default="{ row }">
-            {{ getPaymentMethodName(row.paymentMethod) }}
+            <span :style="getPaymentMethodStyle(row.paymentMethod)">
+              {{ getPaymentMethodName(row.paymentMethod) }}
+            </span>
           </template>
         </el-table-column>
         <el-table-column prop="orderNo" label="订单号" width="180" show-overflow-tooltip>
@@ -178,7 +176,6 @@
     <el-dialog v-model="detailDialogVisible" title="预存款交易记录详情" width="800px">
       <el-descriptions :column="2" border v-if="currentRecord">
         <el-descriptions-item label="记录ID">{{ currentRecord.id }}</el-descriptions-item>
-        <el-descriptions-item label="用户ID">{{ currentRecord.userId }}</el-descriptions-item>
         <el-descriptions-item label="用户名">{{ currentRecord.username }}</el-descriptions-item>
         <el-descriptions-item label="事件">{{ currentRecord.event }}</el-descriptions-item>
         <el-descriptions-item label="类型">
@@ -219,7 +216,11 @@
         <el-descriptions-item label="可用余额">
           <span style="font-weight: bold">¥{{ currentRecord.availableBalance.toFixed(2) }}</span>
         </el-descriptions-item>
-        <el-descriptions-item label="支付方式">{{ getPaymentMethodName(currentRecord.paymentMethod) || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="支付方式">
+          <span :style="getPaymentMethodStyle(currentRecord.paymentMethod)">
+            {{ getPaymentMethodName(currentRecord.paymentMethod) || '-' }}
+          </span>
+        </el-descriptions-item>
         <el-descriptions-item label="订单ID">{{ currentRecord.orderId || '-' }}</el-descriptions-item>
         <el-descriptions-item label="订单号" :span="2">
           <el-link v-if="currentRecord.orderNo" type="primary" :underline="false" @click="handleViewOrder(currentRecord.orderNo)">
@@ -240,20 +241,36 @@
 
     <!-- 退款对话框 -->
     <el-dialog v-model="refundDialogVisible" title="退款" width="500px" @close="handleRefundDialogClose">
-      <el-form :model="refundForm" :rules="refundRules" ref="refundFormRef" label-width="100px">
+      <el-form :model="refundForm" :rules="refundRules" ref="refundFormRef" label-width="120px">
         <el-form-item label="充值金额">
-          <span>¥{{ getRechargeAmount(currentRecord).toFixed(2) }}</span>
+          <span style="font-weight: bold; font-size: 16px; color: #303133">
+            ¥{{ getRechargeAmount(currentRecord).toFixed(2) }}
+          </span>
         </el-form-item>
-        <el-form-item label="退款金额" prop="refundAmount">
+        <el-form-item label="已退款金额">
+          <span style="color: #f56c6c; font-weight: bold">
+            ¥{{ getRefundedAmount(currentRecord).toFixed(2) }}
+          </span>
+        </el-form-item>
+        <el-form-item label="剩余可退款金额">
+          <span style="color: #67c23a; font-weight: bold; font-size: 16px">
+            ¥{{ getRefundableAmount(currentRecord).toFixed(2) }}
+          </span>
+        </el-form-item>
+        <el-divider />
+        <el-form-item label="本次退款金额" prop="refundAmount">
           <el-input-number
             v-model="refundForm.refundAmount"
             :min="0.01"
-            :max="getRechargeAmount(currentRecord)"
+            :max="getRefundableAmount(currentRecord)"
             :precision="2"
             :step="0.01"
             placeholder="请输入退款金额"
             style="width: 100%"
           />
+          <div style="color: #909399; font-size: 12px; margin-top: 5px">
+            提示：本次退款金额不能超过剩余可退款金额
+          </div>
         </el-form-item>
         <el-form-item label="退款原因" prop="refundReason">
           <el-input
@@ -288,7 +305,6 @@ const recordList = ref<DepositRecordVO[]>([])
 
 const searchForm = reactive<DepositQueryDTO>({
   username: '',
-  userId: undefined,
   event: undefined,
   type: undefined,
   status: undefined,
@@ -324,10 +340,21 @@ const refundRules = {
       validator: (rule: any, value: number, callback: any) => {
         if (value <= 0) {
           callback(new Error('退款金额必须大于0'))
-        } else if (currentRecord.value && value > getRechargeAmount(currentRecord.value)) {
-          callback(new Error(`退款金额不能超过充值金额：¥${getRechargeAmount(currentRecord.value).toFixed(2)}`))
+        } else if (!currentRecord.value) {
+          callback(new Error('请选择充值记录'))
         } else {
-          callback()
+          const refundableAmount = getRefundableAmount(currentRecord.value)
+          const refundedAmount = getRefundedAmount(currentRecord.value)
+          const rechargeAmount = getRechargeAmount(currentRecord.value)
+          
+          // 验证：本次退款金额 + 已退款金额 <= 充值金额
+          if (value + refundedAmount > rechargeAmount) {
+            callback(new Error(`本次退款金额 + 已退款金额（¥${refundedAmount.toFixed(2)}）不能超过充值金额（¥${rechargeAmount.toFixed(2)}），剩余可退款金额：¥${refundableAmount.toFixed(2)}`))
+          } else if (value > refundableAmount) {
+            callback(new Error(`退款金额不能超过剩余可退款金额：¥${refundableAmount.toFixed(2)}`))
+          } else {
+            callback()
+          }
         }
       },
       trigger: 'blur'
@@ -372,7 +399,6 @@ const handleSearch = () => {
 // 重置
 const handleReset = () => {
   searchForm.username = ''
-  searchForm.userId = undefined
   searchForm.event = undefined
   searchForm.type = undefined
   searchForm.status = undefined
@@ -452,10 +478,52 @@ const getPaymentMethodName = (paymentMethod?: string) => {
   }
 }
 
+// 获取支付方式样式（颜色）
+const getPaymentMethodStyle = (paymentMethod?: string) => {
+  if (!paymentMethod) {
+    return {}
+  }
+  const methodLower = paymentMethod.toLowerCase()
+  if (methodLower === 'alipay') {
+    // 支付宝：蓝色
+    return {
+      color: '#409EFF',
+      fontWeight: 'bold'
+    }
+  } else if (methodLower === 'wechat' || methodLower === 'wechatpay') {
+    // 微信：绿色
+    return {
+      color: '#67C23A',
+      fontWeight: 'bold'
+    }
+  }
+  return {}
+}
+
 // 获取充值金额
 const getRechargeAmount = (record: DepositRecordVO | null) => {
   if (!record) return 0
-  return record.depositAmount > 0 ? record.depositAmount : record.amount || 0
+  return record.depositAmount > 0 ? record.depositAmount : 0
+}
+
+// 获取已退款金额
+const getRefundedAmount = (record: DepositRecordVO | null) => {
+  if (!record) return 0
+  return record.refundedAmount || 0
+}
+
+// 获取可退款金额（剩余可退款金额）
+const getRefundableAmount = (record: DepositRecordVO | null) => {
+  if (!record) return 0
+  // 如果后端返回了可退款金额，直接使用
+  if (record.refundableAmount !== undefined && record.refundableAmount !== null) {
+    return record.refundableAmount
+  }
+  // 否则计算：充值金额 - 已退款金额
+  const rechargeAmount = getRechargeAmount(record)
+  const refundedAmount = getRefundedAmount(record)
+  const refundable = rechargeAmount - refundedAmount
+  return refundable > 0 ? refundable : 0
 }
 
 // 退款

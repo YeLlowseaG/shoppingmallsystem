@@ -33,6 +33,11 @@ public class PaymentRecord {
     private String paymentNo;
 
     /**
+     * 外部交易号（支付宝返回的trade_no或微信返回的transaction_id）
+     */
+    private String externalTradeNo;
+
+    /**
      * 支付方式（ALIPAY-支付宝，WECHAT-微信，PRE_DEPOSIT-预存款，OFFLINE-线下支付）
      */
     private String paymentMethod;

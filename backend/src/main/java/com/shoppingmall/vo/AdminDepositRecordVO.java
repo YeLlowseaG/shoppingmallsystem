@@ -126,6 +126,16 @@ public class AdminDepositRecordVO {
      * 审核时间
      */
     private LocalDateTime auditTime;
+
+    /**
+     * 已退款金额（针对充值记录，累计已退款金额）
+     */
+    private BigDecimal refundedAmount;
+
+    /**
+     * 可退款金额（针对充值记录，充值金额 - 已退款金额）
+     */
+    private BigDecimal refundableAmount;
 }
 
 

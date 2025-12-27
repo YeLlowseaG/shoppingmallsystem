@@ -121,6 +121,11 @@ public class PreDepositDetail {
     private String internalOrderNo;
 
     /**
+     * 回调数据（JSON格式，保存第三方支付返回的原始数据）
+     */
+    private String callbackData;
+
+    /**
      * 创建时间
      */
     @TableField(fill = FieldFill.INSERT)

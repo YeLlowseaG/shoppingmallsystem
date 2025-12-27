@@ -44,6 +44,11 @@ public class PaymentRecordVO {
     private String paymentNo;
 
     /**
+     * 外部交易号（支付宝返回的trade_no或微信返回的transaction_id）
+     */
+    private String externalTradeNo;
+
+    /**
      * 支付方式
      */
     private String paymentMethod;

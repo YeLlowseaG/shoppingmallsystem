@@ -14,8 +14,11 @@ import com.shoppingmall.entity.User;
 import com.shoppingmall.repository.deposit.PreDepositDetailRepository;
 import com.shoppingmall.repository.deposit.PreDepositRepository;
 import com.shoppingmall.repository.user.UserRepository;
+import com.shoppingmall.payment.config.AlipayConfig;
 import com.shoppingmall.payment.exception.PaymentException;
+import com.shoppingmall.payment.service.PaymentConfigService;
 import com.shoppingmall.payment.service.PaymentGatewayService;
+import com.shoppingmall.payment.util.AlipayUtil;
 import com.shoppingmall.service.admin.DepositService;
 import com.shoppingmall.vo.AdminDepositRecordVO;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +52,7 @@ public class DepositServiceImpl implements DepositService {
     private final PreDepositRepository preDepositRepository;
     private final UserRepository userRepository;
     private final PaymentGatewayService paymentGatewayService;
+    private final PaymentConfigService paymentConfigService;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
@@ -186,6 +190,24 @@ public class DepositServiceImpl implements DepositService {
                 }
             }
 
+            // 如果是充值记录，计算已退款金额和可退款金额
+            if (DepositType.RECHARGE.equals(detail.getType()) && detail.getStatus() == 1) {
+                BigDecimal refundedAmount = calculateRefundedAmount(detail.getId());
+                vo.setRefundedAmount(refundedAmount);
+                
+                BigDecimal depositAmount = detail.getDepositAmount() != null 
+                        ? detail.getDepositAmount() 
+                        : detail.getAmount();
+                BigDecimal refundableAmount = depositAmount.subtract(refundedAmount);
+                if (refundableAmount.compareTo(BigDecimal.ZERO) < 0) {
+                    refundableAmount = BigDecimal.ZERO;
+                }
+                vo.setRefundableAmount(refundableAmount);
+            } else {
+                vo.setRefundedAmount(BigDecimal.ZERO);
+                vo.setRefundableAmount(BigDecimal.ZERO);
+            }
+
             recordVOList.add(vo);
         }
 
@@ -252,6 +274,24 @@ public class DepositServiceImpl implements DepositService {
                 default:
                     vo.setStatusName("未知");
             }
+        }
+
+        // 如果是充值记录，计算已退款金额和可退款金额
+        if (DepositType.RECHARGE.equals(detail.getType()) && detail.getStatus() == 1) {
+            BigDecimal refundedAmount = calculateRefundedAmount(detail.getId());
+            vo.setRefundedAmount(refundedAmount);
+            
+            BigDecimal depositAmount = detail.getDepositAmount() != null 
+                    ? detail.getDepositAmount() 
+                    : detail.getAmount();
+            BigDecimal refundableAmount = depositAmount.subtract(refundedAmount);
+            if (refundableAmount.compareTo(BigDecimal.ZERO) < 0) {
+                refundableAmount = BigDecimal.ZERO;
+            }
+            vo.setRefundableAmount(refundableAmount);
+        } else {
+            vo.setRefundedAmount(BigDecimal.ZERO);
+            vo.setRefundableAmount(BigDecimal.ZERO);
         }
 
         return vo;
@@ -363,27 +403,139 @@ public class DepositServiceImpl implements DepositService {
                     throw new BusinessException(500, "微信退款异常：" + e.getMessage() + "，已回滚预存款余额");
                 }
             } else if (PaymentMethod.ALIPAY.equals(paymentMethodUpper) || "ALIPAY".equals(paymentMethodUpper)) {
-                // 支付宝退款（调用真实退款接口）
-                // 重要：支付宝退款API需要的是商户订单号（out_trade_no），即创建支付订单时的订单号
+                // 支付宝预存款退款（直接调用AlipayUtil，不经过PaymentGatewayService）
+                // 预存款退款和订单退款使用不同的逻辑路径，避免混合
                 if (internalOrderNo == null || internalOrderNo.isEmpty()) {
                     throw new BusinessException(400, "内部订单号不存在，无法退款");
                 }
                 
                 try {
-                    log.info("开始调用支付宝退款接口，充值记录ID：{}，内部订单号：{}，外部交易号：{}，退款金额：{}，退款原因：{}",
+                    log.info("开始调用支付宝预存款退款接口，充值记录ID：{}，内部订单号：{}，外部交易号：{}，退款金额：{}，退款原因：{}",
                             detail.getId(), internalOrderNo, externalTradeNo, refundDTO.getRefundAmount(), refundDTO.getRefundReason());
                     
-                    refundExternalTradeNo = paymentGatewayService.refund(
-                            PaymentMethod.ALIPAY,
-                            internalOrderNo, // 使用内部订单号（创建支付订单时的订单号），而不是外部交易号
-                            refundDTO.getRefundAmount(),
-                            refundDTO.getRefundReason() != null ? refundDTO.getRefundReason() : "预存款充值退款"
-                    );
+                    // 获取支付宝配置
+                    AlipayConfig alipayConfig = paymentConfigService.getAlipayConfig();
+                    if (alipayConfig == null || !Boolean.TRUE.equals(alipayConfig.getEnabled())) {
+                        throw new BusinessException(400, "支付宝未启用");
+                    }
                     
-                    log.info("支付宝充值退款成功：充值记录ID={}, internalOrderNo={}, externalTradeNo={}, refundAmount={}, refundExternalTradeNo={}", 
-                            detail.getId(), internalOrderNo, externalTradeNo, refundDTO.getRefundAmount(), refundExternalTradeNo);
+                    AlipayConfig.AlipayEnvConfig envConfig = "production".equals(alipayConfig.getEnv())
+                            ? alipayConfig.getProduction()
+                            : alipayConfig.getSandbox();
+                    
+                    if (envConfig == null) {
+                        throw new BusinessException(400, "支付宝环境配置不存在");
+                    }
+                    
+                    String refundNo = "ALI_REFUND_" + System.currentTimeMillis();
+                    String refundAmountStr = String.format("%.2f", refundDTO.getRefundAmount().doubleValue());
+                    
+                    // 先尝试使用商户订单号（out_trade_no）进行退款
+                    try {
+                        log.info("尝试使用商户订单号进行预存款退款，充值记录ID：{}，内部订单号：{}，外部交易号：{}，退款金额：{}，退款单号：{}",
+                                detail.getId(), internalOrderNo, externalTradeNo, refundAmountStr, refundNo);
+                        
+                        Map<String, String> result = AlipayUtil.refund(
+                                envConfig,
+                                internalOrderNo, // 使用内部订单号（out_trade_no）
+                                refundNo,
+                                refundAmountStr,
+                                false // 使用out_trade_no
+                        );
+                        
+                        String code = result.get("code");
+                        String subCode = result.get("sub_code");
+                        String subMsg = result.get("sub_msg");
+                        String msg = result.get("msg");
+                        
+                        log.info("支付宝预存款退款响应，充值记录ID：{}，内部订单号：{}，响应码：{}，子错误码：{}，错误信息：{}",
+                                detail.getId(), internalOrderNo, code, subCode, subMsg != null ? subMsg : msg);
+                        
+                        if ("10000".equals(code)) {
+                            refundExternalTradeNo = refundNo;
+                            log.info("支付宝预存款退款成功（使用商户订单号）：充值记录ID={}, internalOrderNo={}, externalTradeNo={}, refundAmount={}, refundExternalTradeNo={}", 
+                                    detail.getId(), internalOrderNo, externalTradeNo, refundDTO.getRefundAmount(), refundExternalTradeNo);
+                        } else {
+                            String errorMsg = subMsg != null && !subMsg.isEmpty() ? subMsg : (msg != null ? msg : "退款失败");
+                            
+                            // 如果是系统错误，尝试使用trade_no
+                            if ("20000".equals(code) && "aop.ACQ.SYSTEM_ERROR".equals(subCode)) {
+                                if (externalTradeNo != null && !externalTradeNo.isEmpty()) {
+                                    log.warn("使用商户订单号退款失败（系统错误），尝试使用支付宝交易号进行退款，充值记录ID：{}，内部订单号：{}，外部交易号：{}，错误信息：{}",
+                                            detail.getId(), internalOrderNo, externalTradeNo, errorMsg);
+                                    throw new PaymentException(500, errorMsg); // 抛出异常，触发重试逻辑
+                                } else {
+                                    log.error("使用商户订单号退款失败，但没有外部交易号，无法重试，充值记录ID：{}，内部订单号：{}，错误信息：{}",
+                                            detail.getId(), internalOrderNo, errorMsg);
+                                    throw new PaymentException(500, errorMsg);
+                                }
+                            } else {
+                                log.error("使用商户订单号退款失败（非系统错误），充值记录ID：{}，内部订单号：{}，错误码：{}，子错误码：{}，错误信息：{}",
+                                        detail.getId(), internalOrderNo, code, subCode, errorMsg);
+                                throw new PaymentException(500, errorMsg);
+                            }
+                        }
+                    } catch (PaymentException e) {
+                        // 如果使用商户订单号退款失败，且错误码是系统错误，尝试使用支付宝交易号（trade_no）
+                        String errorMessage = e.getMessage();
+                        if (errorMessage != null && (errorMessage.contains("系统异常") || errorMessage.contains("SYSTEM_ERROR") || errorMessage.contains("订单不存在"))) {
+                            if (externalTradeNo != null && !externalTradeNo.isEmpty()) {
+                                log.warn("使用商户订单号退款失败，尝试使用支付宝交易号进行预存款退款，充值记录ID：{}，内部订单号：{}，外部交易号：{}，错误信息：{}",
+                                        detail.getId(), internalOrderNo, externalTradeNo, errorMessage);
+                                
+                                // 使用支付宝交易号（trade_no）进行退款
+                                try {
+                                    String retryRefundNo = "ALI_REFUND_" + System.currentTimeMillis();
+                                    
+                                    log.info("准备使用支付宝交易号进行预存款退款，充值记录ID：{}，内部订单号：{}，外部交易号：{}，退款金额：{}，退款单号：{}",
+                                            detail.getId(), internalOrderNo, externalTradeNo, refundAmountStr, retryRefundNo);
+                                    
+                                    Map<String, String> result = AlipayUtil.refund(
+                                            envConfig,
+                                            externalTradeNo, // 使用外部交易号（trade_no）
+                                            retryRefundNo,
+                                            refundAmountStr,
+                                            true // 使用trade_no
+                                    );
+                                    
+                                    String code = result.get("code");
+                                    String subCode = result.get("sub_code");
+                                    String subMsg = result.get("sub_msg");
+                                    String msg = result.get("msg");
+                                    
+                                    log.info("支付宝预存款退款响应（使用trade_no），充值记录ID：{}，外部交易号：{}，响应码：{}，子错误码：{}，错误信息：{}",
+                                            detail.getId(), externalTradeNo, code, subCode, subMsg != null ? subMsg : msg);
+                                    
+                                    if ("10000".equals(code)) {
+                                        refundExternalTradeNo = retryRefundNo;
+                                        log.info("支付宝预存款退款成功（使用支付宝交易号）：充值记录ID={}, internalOrderNo={}, externalTradeNo={}, refundAmount={}, refundExternalTradeNo={}", 
+                                                detail.getId(), internalOrderNo, externalTradeNo, refundDTO.getRefundAmount(), refundExternalTradeNo);
+                                    } else {
+                                        String errorMsg = subMsg != null && !subMsg.isEmpty() ? subMsg : (msg != null ? msg : "退款失败");
+                                        log.error("使用支付宝交易号退款失败，充值记录ID：{}，内部订单号：{}，外部交易号：{}，错误码：{}，子错误码：{}，错误信息：{}",
+                                                detail.getId(), internalOrderNo, externalTradeNo, code, subCode, errorMsg);
+                                        throw new PaymentException(500, "使用支付宝交易号退款失败：" + errorMsg);
+                                    }
+                                } catch (PaymentException e2) {
+                                    log.error("使用支付宝交易号退款也失败，充值记录ID：{}，内部订单号：{}，外部交易号：{}，错误信息：{}",
+                                            detail.getId(), internalOrderNo, externalTradeNo, e2.getMessage(), e2);
+                                    throw e2; // 抛出重试失败的异常
+                                } catch (Exception e2) {
+                                    log.error("使用支付宝交易号退款异常，充值记录ID：{}，内部订单号：{}，外部交易号：{}，错误信息：{}",
+                                            detail.getId(), internalOrderNo, externalTradeNo, e2.getMessage(), e2);
+                                    throw new PaymentException(500, "使用支付宝交易号退款异常：" + e2.getMessage(), e2);
+                                }
+                            } else {
+                                // 没有外部交易号，抛出原始异常
+                                throw e;
+                            }
+                        } else {
+                            // 不是系统错误，直接抛出异常
+                            throw e;
+                        }
+                    }
                 } catch (PaymentException e) {
-                    log.error("支付宝充值退款失败，充值记录ID：{}，内部订单号：{}，外部交易号：{}，退款金额：{}，错误信息：{}",
+                    log.error("支付宝预存款退款失败，充值记录ID：{}，内部订单号：{}，外部交易号：{}，退款金额：{}，错误信息：{}",
                             detail.getId(), internalOrderNo, externalTradeNo, refundDTO.getRefundAmount(), e.getMessage(), e);
                     // 如果退款失败，需要回滚预存款余额
                     BigDecimal rollbackBalance = preDeposit.getBalance().add(refundDTO.getRefundAmount());
@@ -393,9 +545,9 @@ public class DepositServiceImpl implements DepositService {
                     preDepositRepository.updateById(preDeposit);
                     throw new BusinessException(500, "支付宝退款失败：" + e.getMessage() + "，已回滚预存款余额");
                 } catch (Exception e) {
-                    log.error("支付宝充值退款异常，充值记录ID：{}，内部订单号：{}，外部交易号：{}，退款金额：{}",
-                            detail.getId(), internalOrderNo, externalTradeNo, refundDTO.getRefundAmount(), e);
-                    // 如果退款异常，需要回滚预存款余额
+                    log.error("支付宝预存款退款异常，充值记录ID：{}，内部订单号：{}，外部交易号：{}，退款金额：{}，错误信息：{}",
+                            detail.getId(), internalOrderNo, externalTradeNo, refundDTO.getRefundAmount(), e.getMessage(), e);
+                    // 如果退款失败，需要回滚预存款余额
                     BigDecimal rollbackBalance = preDeposit.getBalance().add(refundDTO.getRefundAmount());
                     BigDecimal rollbackAvailableBalance = preDeposit.getAvailableBalance().add(refundDTO.getRefundAmount());
                     preDeposit.setBalance(rollbackBalance);
@@ -441,14 +593,82 @@ public class DepositServiceImpl implements DepositService {
         refundDetail.setEvent("充值退款");
         refundDetail.setPaymentMethod(paymentMethod); // 记录原支付方式
         refundDetail.setExternalTradeNo(refundExternalTradeNo); // 记录退款外部交易号
+        // 转换支付方式为中文名称
+        String paymentMethodName = getPaymentMethodName(paymentMethod);
         refundDetail.setRemark("充值退款，原充值记录ID：" + detail.getId() + 
-                "，原支付方式：" + (paymentMethod != null ? paymentMethod : "未知") + 
+                "，原支付方式：" + paymentMethodName + 
                 "，退款原因：" + refundDTO.getRefundReason());
         preDepositDetailRepository.insert(refundDetail);
 
         log.info("预存款充值退款成功：depositDetailId={}, refundAmount={}, userId={}, paymentMethod={}, refundExternalTradeNo={}", 
                 refundDTO.getDepositDetailId(), refundDTO.getRefundAmount(), detail.getUserId(), 
                 paymentMethod, refundExternalTradeNo);
+    }
+
+    /**
+     * 计算指定充值记录的已退款金额
+     * 查询所有退款记录，remark中包含"原充值记录ID：{充值记录ID}"的退款记录，累加退款金额
+     *
+     * @param rechargeDetailId 充值记录ID
+     * @return 已退款金额
+     */
+    private BigDecimal calculateRefundedAmount(Long rechargeDetailId) {
+        // 查询所有退款记录，remark中包含"原充值记录ID：{充值记录ID}"
+        String remarkPattern = "原充值记录ID：" + rechargeDetailId;
+        List<PreDepositDetail> refundRecords = preDepositDetailRepository.selectList(
+                new LambdaQueryWrapper<PreDepositDetail>()
+                        .eq(PreDepositDetail::getType, DepositType.REFUND) // 退款类型
+                        .eq(PreDepositDetail::getStatus, 1) // 已通过状态
+                        .like(PreDepositDetail::getRemark, remarkPattern) // remark中包含原充值记录ID
+        );
+
+        // 累加退款金额
+        BigDecimal totalRefunded = BigDecimal.ZERO;
+        for (PreDepositDetail refundRecord : refundRecords) {
+            BigDecimal refundAmount = refundRecord.getExpenseAmount() != null 
+                    ? refundRecord.getExpenseAmount() 
+                    : refundRecord.getAmount();
+            if (refundAmount != null && refundAmount.compareTo(BigDecimal.ZERO) > 0) {
+                totalRefunded = totalRefunded.add(refundAmount);
+            }
+        }
+
+        return totalRefunded;
+    }
+
+    /**
+     * 获取支付方式的中文名称
+     *
+     * @param paymentMethod 支付方式（英文）
+     * @return 支付方式中文名称
+     */
+    private String getPaymentMethodName(String paymentMethod) {
+        if (paymentMethod == null || paymentMethod.isEmpty()) {
+            return "未知";
+        }
+        
+        String methodUpper = paymentMethod.toUpperCase();
+        switch (methodUpper) {
+            case "ALIPAY":
+                return "支付宝";
+            case "WECHAT":
+            case "WECHATPAY":
+                return "微信";
+            case "PRE_DEPOSIT":
+                return "预存款";
+            case "OFFLINE":
+                return "线下支付";
+            default:
+                // 如果包含alipay关键字，返回支付宝
+                if (methodUpper.contains("ALIPAY")) {
+                    return "支付宝";
+                }
+                // 如果包含wechat或weixin关键字，返回微信
+                if (methodUpper.contains("WECHAT") || methodUpper.contains("WEIXIN")) {
+                    return "微信";
+                }
+                return paymentMethod;
+        }
     }
 }
 

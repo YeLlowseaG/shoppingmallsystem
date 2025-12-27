@@ -349,7 +349,22 @@ public class AlipayUtil {
      */
     public static Map<String, String> queryOrder(AlipayConfig.AlipayEnvConfig config, String orderNo) {
         try {
-            String gateway = "sandbox".equals(config.getEnv()) ? ALIPAY_SANDBOX_GATEWAY : ALIPAY_GATEWAY;
+            // 优先使用配置的网关地址，如果没有配置则根据环境判断
+            String gateway = null;
+            if (config.getGateway() != null && !config.getGateway().isEmpty()) {
+                gateway = config.getGateway();
+            } else {
+                String env = config.getEnv();
+                if (env == null || env.isEmpty()) {
+                    String appid = config.getAppid();
+                    if (appid != null && appid.startsWith("9021")) {
+                        env = "sandbox";
+                    } else {
+                        env = "production";
+                    }
+                }
+                gateway = "sandbox".equals(env) ? ALIPAY_SANDBOX_GATEWAY : ALIPAY_GATEWAY;
+            }
 
             // 构建请求参数
             Map<String, String> params = new HashMap<>();
@@ -361,6 +376,10 @@ public class AlipayUtil {
             params.put("version", "1.0");
 
             // 业务参数
+            // 支付宝订单查询API支持两种方式：
+            // 1. 使用商户订单号（out_trade_no）
+            // 2. 使用支付宝交易号（trade_no）
+            // 这里先尝试使用out_trade_no
             Map<String, String> bizContent = new HashMap<>();
             bizContent.put("out_trade_no", orderNo);
             params.put("biz_content", mapToJson(bizContent));
@@ -372,6 +391,7 @@ public class AlipayUtil {
             // 发送HTTP请求到支付宝API
             try {
                 String responseBody = sendHttpRequest(gateway, params);
+                log.debug("支付宝订单查询响应: {}", responseBody);
 
                 // 解析响应
                 JsonNode responseJson = OBJECT_MAPPER.readTree(responseBody);
@@ -379,20 +399,31 @@ public class AlipayUtil {
 
                 if (queryResponse != null) {
                     String code = queryResponse.get("code") != null ? queryResponse.get("code").asText() : "";
+                    String msg = queryResponse.get("msg") != null ? queryResponse.get("msg").asText() : "";
+                    String subCode = queryResponse.get("sub_code") != null ? queryResponse.get("sub_code").asText() : "";
+                    
                     if ("10000".equals(code)) {
-                        // 成功，返回订单状态
+                        // 成功，返回订单状态和交易号
                         Map<String, String> result = new HashMap<>();
                         String tradeStatus = queryResponse.get("trade_status") != null
                                 ? queryResponse.get("trade_status").asText()
                                 : "UNKNOWN";
                         result.put("trade_status", tradeStatus);
-                        log.info("支付宝查询订单成功，订单号：{}，状态：{}", orderNo, tradeStatus);
+                        // 获取支付宝交易号（trade_no）
+                        String tradeNo = queryResponse.get("trade_no") != null
+                                ? queryResponse.get("trade_no").asText()
+                                : null;
+                        if (tradeNo != null && !tradeNo.isEmpty()) {
+                            result.put("trade_no", tradeNo);
+                        }
+                        log.info("支付宝查询订单成功，订单号：{}，状态：{}，交易号：{}", orderNo, tradeStatus, tradeNo);
                         return result;
                     } else {
-                        String msg = queryResponse.get("msg") != null
-                                ? queryResponse.get("msg").asText()
-                                : "未知错误";
-                        log.warn("支付宝查询订单失败，订单号：{}，错误码：{}，错误信息：{}", orderNo, code, msg);
+                        log.warn("支付宝查询订单失败，订单号：{}，错误码：{}，子错误码：{}，错误信息：{}", orderNo, code, subCode, msg);
+                        // 如果是订单不存在错误，记录详细信息
+                        if ("40004".equals(code) || (subCode != null && subCode.contains("TRADE_NOT_EXIST"))) {
+                            log.warn("订单不存在，订单号：{}，如果这是商户订单号（out_trade_no），可以尝试使用支付宝交易号（trade_no）查询", orderNo);
+                        }
                         // 查询失败时返回未知状态
                         Map<String, String> result = new HashMap<>();
                         result.put("trade_status", "UNKNOWN");
@@ -421,7 +452,7 @@ public class AlipayUtil {
      * 申请退款
      *
      * @param config       支付宝配置
-     * @param orderNo      商户订单号
+     * @param orderNo      商户订单号（out_trade_no）或支付宝交易号（trade_no）
      * @param refundNo     退款单号
      * @param refundAmount 退款金额（元）
      * @return 退款结果
@@ -430,6 +461,24 @@ public class AlipayUtil {
             String orderNo,
             String refundNo,
             String refundAmount) {
+        return refund(config, orderNo, refundNo, refundAmount, false);
+    }
+
+    /**
+     * 申请退款
+     *
+     * @param config       支付宝配置
+     * @param orderNo      商户订单号（out_trade_no）或支付宝交易号（trade_no）
+     * @param refundNo     退款单号
+     * @param refundAmount 退款金额（元）
+     * @param useTradeNo   是否使用支付宝交易号（trade_no），true表示使用trade_no，false表示使用out_trade_no
+     * @return 退款结果
+     */
+    public static Map<String, String> refund(AlipayConfig.AlipayEnvConfig config,
+            String orderNo,
+            String refundNo,
+            String refundAmount,
+            boolean useTradeNo) {
         try {
             // 优先使用配置的网关地址，如果没有配置则根据环境判断
             String gateway = null;
@@ -461,8 +510,19 @@ public class AlipayUtil {
             params.put("version", "1.0");
 
             // 业务参数
+            // 支付宝退款API支持两种方式：
+            // 1. 使用商户订单号（out_trade_no）
+            // 2. 使用支付宝交易号（trade_no）
             Map<String, String> bizContent = new HashMap<>();
-            bizContent.put("out_trade_no", orderNo);
+            if (useTradeNo) {
+                // 使用支付宝交易号（trade_no）
+                bizContent.put("trade_no", orderNo);
+                log.info("使用支付宝交易号（trade_no）进行退款：{}", orderNo);
+            } else {
+                // 使用商户订单号（out_trade_no）
+                bizContent.put("out_trade_no", orderNo);
+                log.info("使用商户订单号（out_trade_no）进行退款：{}", orderNo);
+            }
             bizContent.put("out_request_no", refundNo);
             // 确保退款金额格式正确（保留两位小数）
             String formattedRefundAmount = formatRefundAmount(refundAmount);
@@ -521,6 +581,11 @@ public class AlipayUtil {
                         String errorDetail = buildRefundErrorDetail(code, subCode, msg, subMsg, orderNo);
                         log.error("支付宝退款失败，订单号：{}，退款单号：{}，错误码：{}，子错误码：{}，错误信息：{}，子错误信息：{}，详情：{}",
                                 orderNo, refundNo, code, subCode, msg, subMsg, errorDetail);
+                        
+                        // 如果是订单不存在错误，记录提示信息（可能需要使用trade_no而不是out_trade_no）
+                        if ("20000".equals(code) && "aop.ACQ.SYSTEM_ERROR".equals(subCode)) {
+                            log.warn("提示：如果订单号 {} 是商户订单号（out_trade_no），可以尝试使用支付宝交易号（trade_no）进行退款", orderNo);
+                        }
                     }
 
                     return result;

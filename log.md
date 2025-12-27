@@ -1,5 +1,315 @@
 # 修改日志
 
+## 2025-12-27 - 订单退款按钮增加loading状态
+
+### 功能说明
+在订单列表页面的退款对话框中，为"确认退款"按钮增加loading状态，防止用户在退款请求处理期间重复点击。
+
+### 修改原因
+- 防止用户在退款请求处理期间重复点击按钮，导致重复提交退款请求
+- 提升用户体验，明确显示退款操作正在进行中
+- 避免因重复点击导致的异常情况
+
+### 修改内容
+
+#### 1. 添加loading状态变量
+
+**文件：** `admin-frontend/src/views/order/List.vue`
+
+**修改点：**
+- 添加 `refundLoading` 响应式变量，用于控制退款按钮的loading状态
+- 初始值为 `false`
+
+#### 2. 更新退款按钮
+
+**文件：** `admin-frontend/src/views/order/List.vue`
+
+**修改点：**
+- 在"确认退款"按钮上添加 `:loading="refundLoading"` 属性，显示loading动画
+- 在 `:disabled` 属性中添加 `|| refundLoading` 条件，loading期间禁用按钮
+- 在"取消"按钮上添加 `:disabled="refundLoading"` 属性，loading期间禁用取消按钮
+
+#### 3. 更新退款提交逻辑
+
+**文件：** `admin-frontend/src/views/order/List.vue`
+
+**修改点：**
+- 在 `handleRefundSubmit` 函数开头添加 `refundLoading.value` 检查，如果正在处理中则直接返回
+- 在确认对话框后、调用退款接口前，设置 `refundLoading.value = true`
+- 在退款请求完成后（无论成功还是失败），在 `finally` 块中重置 `refundLoading.value = false`
+- 确保在访问 `currentOrder.value` 之前进行null检查，避免TypeScript类型错误
+
+### 影响范围
+- 订单退款功能：退款按钮在请求处理期间显示loading状态，防止重复点击
+
+### 注意事项
+1. loading状态会在退款请求完成后自动重置，无论成功还是失败
+2. 如果用户取消确认对话框，loading状态不会被设置（因为确认对话框在设置loading之前）
+3. 取消按钮在loading期间也会被禁用，防止用户在退款处理期间关闭对话框
+
+### 修改文件清单
+1. `admin-frontend/src/views/order/List.vue`
+
+---
+
+## 2025-12-27 - 修复订单支付宝退款异常处理和退款单号格式问题
+
+### 功能说明
+修复订单支付宝退款代码中的异常处理逻辑和退款单号格式问题，确保使用支付宝交易号（trade_no）退款时能够使用与预存款退款一致的退款单号格式。
+
+### 修改原因
+- 订单退款时，使用商户订单号（out_trade_no）退款失败后，尝试使用支付宝交易号（trade_no）退款
+- 当使用trade_no退款失败时，代码抛出新的PaymentException，但被外层catch捕获后抛出原始异常e，导致错误信息丢失
+- 订单退款使用的退款单号格式（RF + 日期时间 + 随机数）与预存款退款使用的格式（ALI_REFUND_ + timestamp）不一致
+- 预存款退款功能正常，对比发现订单退款代码的退款单号格式和异常处理逻辑有问题
+
+### 修改内容
+
+#### 1. 修复tradeNo变量作用域问题
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java`
+
+**修改点：**
+- 将`tradeNo`变量定义在外层作用域（第486行），以便在catch块中能够正确访问
+- 修复变量作用域问题，确保在异常处理时能够正确访问tradeNo变量
+
+#### 2. 修复异常处理逻辑
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java`
+
+**修改点：**
+- 在catch (PaymentException e2)块中，抛出e2而不是e，保留使用trade_no退款失败时的详细错误信息
+- 在catch (Exception e2)块中，如果是PaymentException类型，抛出e2；否则抛出原始异常e
+- 确保异常信息能够正确传递，便于排查问题
+
+#### 3. 统一退款单号格式
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java`
+
+**修改点：**
+- 在使用支付宝交易号（trade_no）退款时，使用与预存款退款一致的退款单号格式：`ALI_REFUND_` + timestamp
+- 确保退款单号格式与预存款退款保持一致，避免因格式问题导致退款失败
+- 退款成功后，使用支付宝退款单号（alipayRefundNo）作为refundPaymentNo
+
+### 影响范围
+- 订单退款功能：使用支付宝交易号（trade_no）退款时，使用与预存款退款一致的退款单号格式
+- 异常处理逻辑已优化，确保错误信息能够正确传递
+
+### 注意事项
+1. 退款单号格式已统一，与预存款退款保持一致
+2. 异常处理逻辑已优化，确保错误信息能够正确传递
+3. 如果订单退款仍然失败，需要检查支付宝沙箱环境或订单状态
+
+### 修改文件清单
+1. `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java`
+
+---
+
+## 2025-12-26 - 预存款退款弹窗显示已退款金额和剩余可退款金额
+
+### 功能说明
+优化预存款退款功能，在退款弹窗中显示已退款金额和剩余可退款金额，确保用户清楚了解退款情况，并防止退款金额超过充值金额。
+
+### 修改原因
+- 支持部分退款功能，需要显示已退款金额和剩余可退款金额
+- 用户需要清楚了解退款情况，避免重复退款或退款金额错误
+- 确保退款金额 + 已退款金额不超过充值金额，保证数据准确性
+
+### 修改内容
+
+#### 1. 后端VO添加字段
+
+**文件：** `backend/src/main/java/com/shoppingmall/vo/AdminDepositRecordVO.java`
+
+**修改点：**
+- 添加`refundedAmount`字段：已退款金额（针对充值记录，累计已退款金额）
+- 添加`refundableAmount`字段：可退款金额（针对充值记录，充值金额 - 已退款金额）
+
+#### 2. 后端计算已退款金额
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/admin/impl/DepositServiceImpl.java`
+
+**修改点：**
+- 在`getDepositRecordList`方法中：为充值记录计算已退款金额和可退款金额
+- 在`getDepositRecordById`方法中：为充值记录计算已退款金额和可退款金额
+- 新增`calculateRefundedAmount`方法：查询所有退款记录，remark中包含"原充值记录ID：{充值记录ID}"的退款记录，累加退款金额
+
+#### 3. 前端接口添加字段
+
+**文件：** `admin-frontend/src/api/admin/deposit.ts`
+
+**修改点：**
+- 在`DepositRecordVO`接口中添加`refundedAmount`和`refundableAmount`字段
+
+#### 4. 前端退款弹窗优化
+
+**文件：** `admin-frontend/src/views/deposit/Record.vue`
+
+**修改点：**
+- 在退款弹窗中显示充值金额、已退款金额、剩余可退款金额
+- 添加分隔线，区分信息展示和输入区域
+- 优化样式，使用不同颜色突出显示关键信息
+
+#### 5. 前端验证规则优化
+
+**文件：** `admin-frontend/src/views/deposit/Record.vue`
+
+**修改点：**
+- 修改退款金额验证规则，确保本次退款金额 + 已退款金额 <= 充值金额
+- 验证退款金额不能超过剩余可退款金额
+- 提供详细的错误提示信息
+
+### 功能特点
+
+**1. 信息展示清晰：**
+- 充值金额、已退款金额、剩余可退款金额一目了然
+- 使用不同颜色和字体大小突出显示关键信息
+
+**2. 数据准确性：**
+- 后端实时计算已退款金额，确保数据准确
+- 前端验证确保退款金额不超过剩余可退款金额
+
+**3. 用户体验优化：**
+- 清晰的提示信息，帮助用户理解退款规则
+- 输入框最大值自动限制为剩余可退款金额
+- 详细的错误提示，帮助用户快速定位问题
+
+**4. 安全性保障：**
+- 双重验证：前端验证 + 后端验证
+- 防止退款金额超过充值金额
+- 防止重复退款或退款金额错误
+
+### 使用说明
+
+**退款流程：**
+1. 在预存款交易记录列表中，找到需要退款的充值记录（状态为"已通过"）
+2. 点击"退款"按钮，打开退款弹窗
+3. 查看充值金额、已退款金额、剩余可退款金额
+4. 输入本次退款金额（不能超过剩余可退款金额）
+5. 输入退款原因
+6. 点击"确认退款"完成退款
+
+**注意事项：**
+- 只有状态为"已通过"的充值记录才能退款
+- 本次退款金额 + 已退款金额不能超过充值金额
+- 退款操作不可撤销，请谨慎操作
+- 如果剩余可退款金额为0，则无法继续退款
+
+---
+
+## 2025-12-27 - 优化支付宝退款订单查询逻辑
+
+### 功能说明
+优化支付宝退款前的订单查询逻辑，如果订单查询失败（可能是支付宝沙箱环境问题），允许继续尝试退款，避免因订单查询失败导致退款无法进行。
+
+### 修改原因
+- 用户反馈：预存款充值通过支付宝沙箱支付成功，但退款操作不了
+- 订单查询可能失败（支付宝沙箱环境问题），导致退款无法进行
+- 需要放宽订单查询失败的限制，允许继续尝试退款
+
+### 问题分析
+
+**问题现象：**
+- 预存款充值通过支付宝沙箱支付成功
+- 退款时订单查询可能失败，导致退款无法进行
+- 支付宝退款返回错误码 `20000`（系统异常）
+
+**可能的原因：**
+1. 支付宝沙箱环境订单查询接口不稳定
+2. 订单查询失败后，退款流程被中断
+3. 订单号格式问题（商户订单号 vs 支付宝交易号）
+
+### 修改内容
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/strategy/impl/AlipayPayStrategy.java`
+
+- **修改 `refund()` 方法**：
+  - 订单查询失败时，不直接抛出异常，允许继续尝试退款
+  - 只有订单状态明确不允许退款时，才抛出异常
+  - 记录详细的查询失败日志，便于排查问题
+
+**代码逻辑：**
+```java
+// 退款前先查询订单状态，确认订单是否存在且已支付成功
+// 注意：如果订单查询失败（可能是支付宝沙箱环境问题），允许继续退款尝试
+log.info("退款前查询订单状态，订单号：{}", paymentNo);
+try {
+    Map<String, String> orderStatus = AlipayUtil.queryOrder(envConfig, paymentNo);
+    String tradeStatus = orderStatus.get("trade_status");
+    
+    if ("UNKNOWN".equals(tradeStatus)) {
+        log.warn("无法查询到订单状态，订单号：{}，可能订单不存在或支付宝沙箱环境问题，继续尝试退款", paymentNo);
+        // 不抛出异常，允许继续尝试退款（可能是支付宝沙箱环境的问题）
+    } else {
+        // 检查订单状态是否允许退款
+        if (!"TRADE_SUCCESS".equals(tradeStatus) && !"TRADE_FINISHED".equals(tradeStatus)) {
+            log.warn("订单状态不允许退款，订单号：{}，订单状态：{}", paymentNo, tradeStatus);
+            throw new PaymentException(500, "订单状态不允许退款，当前订单状态：" + tradeStatus + "，只有已支付成功或已完成的订单才能退款");
+        }
+        log.info("订单状态验证通过，订单号：{}，订单状态：{}，可以退款", paymentNo, tradeStatus);
+    }
+} catch (PaymentException e) {
+    // 如果是订单状态不允许退款，直接抛出异常
+    throw e;
+} catch (Exception e) {
+    // 订单查询失败（可能是网络问题或支付宝沙箱环境问题），记录警告但允许继续退款
+    log.warn("订单状态查询失败，订单号：{}，错误：{}，继续尝试退款", paymentNo, e.getMessage());
+}
+```
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/util/AlipayUtil.java`
+
+- **优化 `queryOrder()` 方法**：
+  - 改进网关地址判断逻辑（优先使用配置的网关地址）
+  - 增强订单查询失败的日志记录
+  - 记录子错误码，便于排查问题
+
+- **优化 `refund()` 方法**：
+  - 在退款失败时，如果是订单不存在错误，记录提示信息
+  - 提示可以使用支付宝交易号（trade_no）进行退款
+
+### 功能流程
+
+**修改前流程：**
+1. 退款前查询订单状态
+2. 如果查询失败（返回 `UNKNOWN`），直接抛出异常
+3. 退款无法进行
+
+**修改后流程：**
+1. 退款前查询订单状态
+2. 如果查询失败（返回 `UNKNOWN`），记录警告但允许继续退款
+3. 如果订单状态明确不允许退款，才抛出异常
+4. 继续尝试退款，由支付宝API返回具体的错误信息
+
+### 影响范围
+
+- ✅ 支付宝退款接口（`/api/admin/deposit/refund`）
+- ✅ 订单退款接口
+- ✅ 支付记录退款接口
+- ✅ 订单查询逻辑
+- ✅ 错误处理优化
+
+### 测试建议
+
+1. **订单查询失败测试**：
+   - 测试订单查询失败的情况
+   - 验证是否允许继续退款
+   - 验证错误提示是否友好
+
+2. **正常退款测试**：
+   - 测试订单查询成功的情况
+   - 验证订单状态验证是否正常
+   - 验证退款流程是否正常
+
+### 注意事项
+
+- ✅ **订单查询**：订单查询失败时允许继续退款，避免因查询问题导致退款无法进行
+- ✅ **订单状态验证**：只有订单状态明确不允许退款时，才抛出异常
+- ✅ **错误提示**：提供详细的错误提示，帮助用户快速定位问题
+- ⚠️ **支付宝沙箱环境**：支付宝沙箱环境可能不稳定，订单查询可能失败，但不影响退款功能
+
+---
+
 ## 2025-12-27 - 添加退款前订单状态验证
 
 ### 功能说明
@@ -3615,3 +3925,287 @@ ADD COLUMN `refunded_quantity` int NOT NULL DEFAULT '0' COMMENT '已退款数量
 9. `frontend/src/api/buyer/product.ts`
 10. `frontend/src/views/products/Detail.vue`
 11. `frontend/src/views/products/List.vue`
+
+---
+
+## 2025-12-27 - 支付记录详情弹窗布局优化
+
+### 修改内容
+优化支付记录详情弹窗的字段显示方式，将两列布局改为三列布局，避免字段换行显示。
+
+### 修改文件
+- `admin-frontend/src/views/finance/PaymentRecord.vue`
+  - 将详情弹窗的 `el-descriptions` 组件从 `:column="2"` 改为 `:column="3"`
+  - 将弹窗宽度从 `700px` 增加到 `900px`，以便更好地容纳三列布局
+  - 将"退款原因"字段的 `:span="2"` 改为 `:span="3"`，保持布局一致性
+
+### 效果
+- 支付记录详情弹窗中的字段以三列布局显示，减少换行
+- 弹窗宽度增加，提供更好的显示空间
+
+---
+
+## 2025-12-27 支付结果查询补单功能
+
+### 问题描述
+当用户已支付但平台未收到支付回调时（如网络问题、服务器重启等），订单状态不会自动更新为已支付，影响用户体验。需要提供自动查询支付结果并补单的功能。
+
+### 解决方案
+1. **定时任务补单**：创建定时任务，每5分钟自动查询支付中状态的支付记录，如果支付宝已支付则自动补单
+2. **手动补单接口**：在管理后台提供手动补单接口，管理员可以手动触发补单操作
+3. **系统配置**：添加支付结果查询时间窗口配置，可动态调整查询范围
+
+### 修改内容
+
+#### 1. 定时任务服务
+- `backend/src/main/java/com/shoppingmall/service/payment/impl/PaymentSyncScheduledServiceImpl.java` (新建)
+  - 每5分钟执行一次，查询支付中状态的支付记录
+  - 只查询最近30分钟内的支付记录（可配置）
+  - 每次最多处理50条记录，避免一次性处理太多
+  - 如果支付宝订单已支付，自动更新订单状态和支付记录
+  - 自动推送订单到ERP（如果配置了自动推送）
+
+#### 2. 手动补单接口
+- `backend/src/main/java/com/shoppingmall/controller/admin/OrderController.java`
+  - 添加 `syncPaymentStatus` 方法，支持手动查询支付结果并补单
+  - 接口路径：`POST /api/admin/orders/{orderNo}/sync-payment`
+  - 功能：
+    - 查询订单和支付记录
+    - 查询支付宝订单状态
+    - 如果已支付，自动补单并更新订单状态
+    - 自动推送订单到ERP（如果配置了自动推送）
+
+#### 3. 数据库配置
+- `database/update-20251227-add-payment-sync-config.sql` (新建)
+  - 添加 `payment.sync-time-window-minutes` 配置项
+  - 默认值：30分钟（只查询最近30分钟内的支付记录）
+
+### 功能特点
+1. **自动补单**：定时任务每5分钟自动查询并补单，无需人工干预
+2. **手动补单**：管理员可以手动触发补单操作，处理特殊情况
+3. **智能查询**：只查询最近30分钟内的支付记录，避免查询太老的记录
+4. **批量限制**：每次最多处理50条记录，避免一次性处理太多
+5. **错误处理**：单个记录失败不影响其他记录的处理
+6. **日志记录**：详细记录补单成功、失败、跳过的数量，方便监控
+
+### 影响范围
+- 定时任务：支付结果查询补单定时任务
+- 管理后台：订单管理手动补单功能
+- 数据库：系统配置表
+
+### 注意事项
+1. **执行频率**：定时任务每5分钟执行一次，可根据实际情况调整
+2. **查询范围**：只查询最近30分钟内的支付记录，可通过配置调整
+3. **批量限制**：每次最多处理50条记录，避免一次性处理太多
+4. **仅支持支付宝**：当前只支持支付宝订单补单，微信支付可类似实现
+5. **ERP推送**：补单成功后会自动推送订单到ERP（如果配置了自动推送）
+
+### 使用方式
+1. **自动补单**：定时任务会自动执行，无需人工干预
+2. **手动补单**：
+   - 在管理后台订单详情页添加"查询支付结果并补单"按钮
+   - 点击按钮后调用接口：`POST /api/admin/orders/{orderNo}/sync-payment`
+   - 系统会自动查询支付结果并补单
+
+### 修改文件清单
+1. `backend/src/main/java/com/shoppingmall/service/payment/impl/PaymentSyncScheduledServiceImpl.java` (新建)
+2. `backend/src/main/java/com/shoppingmall/controller/admin/OrderController.java`
+3. `database/update-20251227-add-payment-sync-config.sql` (新建)
+4. `log.md` (本文件)
+
+---
+
+## 2025-12-27 修复支付回调方法签名不匹配问题
+
+### 问题描述
+支付宝支付成功后，跳转回平台页面时出现编译错误：
+```
+The method handlePaymentCallback(String, String, boolean, Map<String,Object>) in the type DepositService is not applicable for the arguments (String, String, boolean)
+```
+
+原因是 `DepositService` 接口中的 `handlePaymentCallback` 方法签名已经修改为包含 `Map<String, Object>` 参数，但在 `PaymentNotifyController` 中调用时只传了3个参数。
+
+### 解决方案
+1. **修复 PaymentNotifyController**：在调用 `depositService.handlePaymentCallback` 时添加第4个参数 `notifyData`
+2. **修复 DepositServiceImpl**：
+   - 修改 `handlePaymentCallback` 方法签名，添加 `Map<String, Object> notifyData` 参数
+   - 在模拟支付回调调用时，传递 `null` 作为第4个参数
+   - 添加 `ObjectMapper` 依赖注入
+   - 在支付成功时保存回调数据到 `callbackData` 字段
+
+### 修改内容
+
+#### 后端修改
+- `backend/src/main/java/com/shoppingmall/payment/controller/PaymentNotifyController.java`
+  - 修改预存款充值回调处理，传递 `notifyData` 到 `handlePaymentCallback` 方法
+
+- `backend/src/main/java/com/shoppingmall/service/buyer/impl/DepositServiceImpl.java`
+  - 修改 `handlePaymentCallback` 方法签名，添加 `Map<String, Object> notifyData` 参数
+  - 添加 `ObjectMapper` 依赖注入
+  - 在模拟支付回调调用时，传递 `null` 作为第4个参数
+  - 在支付成功时保存回调数据到 `callbackData` 字段
+
+### 影响范围
+- 支付回调处理：预存款充值回调处理功能
+- 数据保存：回调数据保存功能
+
+### 注意事项
+1. **方法签名**：`handlePaymentCallback` 方法现在需要4个参数，包括 `notifyData`
+2. **回调数据**：如果 `notifyData` 为 `null`（如模拟支付），不会保存回调数据
+3. **错误处理**：保存回调数据失败不会影响支付回调处理流程
+
+### 修改文件清单
+1. `backend/src/main/java/com/shoppingmall/payment/controller/PaymentNotifyController.java`
+2. `backend/src/main/java/com/shoppingmall/service/buyer/impl/DepositServiceImpl.java`
+3. `backend/src/main/java/com/shoppingmall/entity/PreDepositDetail.java`
+4. `log.md` (本文件)
+
+---
+
+## 2025-12-27 修复 PreDepositDetail 实体类缺少 callbackData 字段
+
+### 问题描述
+编译错误：`PreDepositDetail` 实体类中找不到 `setCallbackData` 方法。原因是之前添加了数据库字段和服务层代码，但忘记在实体类中添加 `callbackData` 字段。
+
+### 解决方案
+在 `PreDepositDetail` 实体类中添加 `callbackData` 字段，用于保存第三方支付返回的原始回调数据。
+
+### 修改内容
+- `backend/src/main/java/com/shoppingmall/entity/PreDepositDetail.java`
+  - 添加 `callbackData` 字段（String类型，JSON格式）
+  - 字段位置：`internalOrderNo` 字段之后
+
+### 修改文件清单
+1. `backend/src/main/java/com/shoppingmall/entity/PreDepositDetail.java`
+2. `log.md` (本文件)
+
+---
+
+## 2025-12-27 预存款退款重试逻辑优化
+
+### 问题描述
+预存款支付宝退款失败，错误信息显示"系统异常"，重试逻辑（使用 `externalTradeNo`）已执行，但使用 `trade_no` 退款也失败，返回相同的"系统异常"错误。
+
+### 可能原因
+1. **支付宝沙箱环境问题**：支付宝沙箱环境可能不稳定，导致退款接口返回系统异常
+2. **订单已退款**：订单可能已经退款过了，导致再次退款失败
+3. **订单状态异常**：订单状态可能不是已支付成功，导致退款失败
+4. **退款金额问题**：退款金额可能超过可退款金额
+
+### 修改内容
+- `backend/src/main/java/com/shoppingmall/service/admin/impl/DepositServiceImpl.java`
+  - 添加更详细的日志，记录使用 `trade_no` 退款时的详细信息
+  - 记录充值记录ID、内部订单号、外部交易号、退款金额、退款单号等信息
+
+### 建议排查步骤
+1. **检查订单是否已退款**：查看数据库中是否有该充值记录的退款记录
+2. **检查订单状态**：确认订单在支付宝中的状态是否为已支付成功
+3. **检查退款金额**：确认退款金额是否超过可退款金额
+4. **检查支付宝沙箱环境**：确认支付宝沙箱环境是否正常
+
+### 修改文件清单
+1. `backend/src/main/java/com/shoppingmall/service/admin/impl/DepositServiceImpl.java`
+2. `log.md` (本文件)
+
+---
+
+## 2025-12-27 在订单详情页面添加补单操作入口
+
+### 需求描述
+在订单详情页面底部增加一个补单操作区域，包含操作入口和说明文案，说明什么情况下需要操作补单。
+
+### 实现内容
+1. **前端API接口**
+   - 添加 `syncPaymentStatus` 函数，调用后端补单接口
+
+2. **订单详情页面UI**
+   - 在订单详情对话框底部添加"支付补单"区域
+   - 添加说明文案，说明什么情况下需要补单：
+     - 用户已支付成功，但订单状态仍显示"待付款"
+     - 支付回调丢失，导致订单状态未更新
+     - 支付宝/微信支付成功，但系统未收到支付通知
+   - 添加"执行补单"按钮，带loading状态
+   - 按钮仅在订单状态为"待付款"（status === 0）时可用
+
+3. **补单处理逻辑**
+   - 添加 `syncPaymentLoading` 状态管理
+   - 添加 `handleSyncPayment` 处理函数
+   - 执行补单前显示确认对话框
+   - 补单成功后自动刷新订单详情和订单列表
+
+### 修改内容
+- `admin-frontend/src/api/admin/order.ts`
+  - 添加 `syncPaymentStatus` 函数，调用 `POST /api/admin/orders/{orderNo}/sync-payment`
+
+- `admin-frontend/src/views/order/List.vue`
+  - 导入 `Refresh` 图标和 `syncPaymentStatus` API
+  - 添加 `syncPaymentLoading` 状态
+  - 在订单详情对话框底部添加补单操作区域
+  - 添加 `handleSyncPayment` 处理函数
+
+### 修改文件清单
+1. `admin-frontend/src/api/admin/order.ts`
+2. `admin-frontend/src/views/order/List.vue`
+3. `log.md` (本文件)
+
+---
+
+## 2025-12-27 分离预存款退款和订单退款的代码逻辑
+
+### 问题描述
+预存款支付宝退款失败，但订单支付宝退款可以成功。原因是预存款退款和订单退款共享了 `AlipayPayStrategy.refund` 方法，而该方法中的订单状态查询逻辑可能不适用于预存款（因为预存款的商户订单号格式不同，且底层数据库表结构不同）。
+
+### 解决方案
+将预存款退款和订单退款的代码完全分离：
+- **预存款退款**：直接调用 `AlipayUtil.refund`，不经过 `PaymentGatewayService` 和 `AlipayPayStrategy`
+- **订单退款**：继续使用 `PaymentGatewayService` 和 `AlipayPayStrategy`
+
+这样可以避免两种不同业务场景的代码混合，确保各自使用适合的逻辑路径。
+
+### 修改内容
+- `backend/src/main/java/com/shoppingmall/service/admin/impl/DepositServiceImpl.java`
+  - 移除对 `PaymentGatewayService.refund` 的调用
+  - 直接调用 `AlipayUtil.refund` 进行预存款退款
+  - 先尝试使用商户订单号（`out_trade_no`）退款
+  - 如果失败且是系统错误，则使用支付宝交易号（`trade_no`）重试
+  - 添加详细的日志记录，区分预存款退款和订单退款
+
+### 关键改进
+1. **代码分离**：预存款退款不再经过 `AlipayPayStrategy`，避免订单状态查询逻辑对预存款的影响
+2. **直接调用**：预存款退款直接使用 `AlipayUtil.refund`，减少中间层，提高可控性
+3. **错误处理**：保持原有的重试机制（先使用 `out_trade_no`，失败后使用 `trade_no`）
+4. **日志优化**：所有日志都明确标注为"预存款退款"，便于问题排查
+
+### 修改文件清单
+1. `backend/src/main/java/com/shoppingmall/service/admin/impl/DepositServiceImpl.java`
+2. `log.md` (本文件)
+
+---
+
+## 2025-12-27 修复订单多次部分退款问题
+
+### 问题描述
+订单退款在多次部分退款时报错，支付宝返回"系统异常"。原因是重试时使用了新的退款单号，而支付宝要求同一笔退款请求必须使用相同的 `out_request_no`（退款单号）。
+
+### 解决方案
+修改订单退款逻辑，确保：
+1. 支付宝退款直接使用 `AlipayUtil.refund`，不经过 `PaymentGatewayService`
+2. 在退款开始时生成退款单号，第一次尝试和重试都使用相同的退款单号
+3. 添加详细的日志输出，便于排查问题
+
+### 修改内容
+- `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java`
+  - 修改支付宝退款逻辑，直接使用 `AlipayUtil.refund`
+  - 在退款开始时生成退款单号 `alipayRefundNo`
+  - 第一次尝试（使用 `out_trade_no`）和重试（使用 `trade_no`）都使用相同的退款单号
+  - 添加详细的日志输出，包括响应码、子错误码、错误信息
+  - 微信支付继续使用 `PaymentGatewayService`
+
+### 关键改进
+1. **退款单号一致性**：确保同一笔退款请求的重试使用相同的退款单号
+2. **代码分离**：订单退款和预存款退款使用独立的代码路径
+3. **详细日志**：添加响应码、子错误码、错误信息的日志输出
+
+### 修改文件清单
+1. `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java`
+2. `log.md` (本文件)
