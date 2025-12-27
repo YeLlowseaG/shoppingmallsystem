@@ -606,7 +606,7 @@ const loadBrands = async () => {
 // 加载运费模板列表
 const loadShippingTemplates = async () => {
   try {
-    const response = await request.get('/api/admin/logistics/shipping-templates/enabled')
+    const response = await request.get('/api/admin/shipping/template/all')
     shippingTemplates.value = response || []
   } catch (error) {
     // 静默处理，不显示错误
