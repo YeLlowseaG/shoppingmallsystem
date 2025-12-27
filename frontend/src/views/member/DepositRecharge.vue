@@ -347,7 +347,7 @@ const handlePaymentProblem = () => {
 
 // 联系客服
 const handleContactService = () => {
-  ElMessage.info('请联系客服处理支付问题，客服电话：400-xxx-xxxx')
+  ElMessage.info('请联系客服处理支付问题')
   // TODO: 可以跳转到客服页面或打开客服对话框
 }
 

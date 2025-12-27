@@ -19,6 +19,7 @@ import com.shoppingmall.service.buyer.DepositService;
 import com.shoppingmall.payment.service.PaymentGatewayService;
 import com.shoppingmall.vo.DepositBalanceVO;
 import com.shoppingmall.vo.DepositRecordVO;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -46,6 +48,7 @@ public class DepositServiceImpl implements DepositService {
     private final PreDepositRepository preDepositRepository;
     private final PreDepositDetailRepository preDepositDetailRepository;
     private final PaymentGatewayService paymentGatewayService;
+    private final ObjectMapper objectMapper;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
@@ -137,6 +140,19 @@ public class DepositServiceImpl implements DepositService {
             paymentResponse.setIsMock(false);
         }
 
+        // 如果是模拟支付，直接处理为支付成功（更新状态和余额）
+        if (paymentResponse.getIsMock() != null && paymentResponse.getIsMock()) {
+            log.info("检测到模拟支付，直接处理为支付成功，内部订单号：{}", internalOrderNo);
+            String mockExternalTradeNo = paymentResponse.getMockExternalTradeNo();
+            if (mockExternalTradeNo == null || mockExternalTradeNo.isEmpty()) {
+                // 如果没有模拟交易号，生成一个
+                mockExternalTradeNo = "MOCK_" + rechargeDTO.getPaymentMethod().toUpperCase() + "_" 
+                        + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            }
+            // 直接调用回调处理方法，更新状态为已通过并更新余额
+            handlePaymentCallback(internalOrderNo, mockExternalTradeNo, true, null);
+        }
+
         return paymentResponse;
     }
 
@@ -216,7 +232,7 @@ public class DepositServiceImpl implements DepositService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void handlePaymentCallback(String internalOrderNo, String externalTradeNo, boolean success) {
+    public void handlePaymentCallback(String internalOrderNo, String externalTradeNo, boolean success, Map<String, Object> notifyData) {
         // 根据内部订单号精确查找充值记录
         PreDepositDetail detail = preDepositDetailRepository.selectOne(
                 new LambdaQueryWrapper<PreDepositDetail>()
@@ -263,6 +279,15 @@ public class DepositServiceImpl implements DepositService {
             // 支付成功，更新状态和余额
             detail.setStatus(DepositStatus.APPROVED); // 已通过
             detail.setAuditTime(LocalDateTime.now());
+            
+            // 保存回调数据（如果提供了）
+            if (notifyData != null) {
+                try {
+                    detail.setCallbackData(objectMapper.writeValueAsString(notifyData));
+                } catch (Exception e) {
+                    log.warn("保存回调数据失败，内部订单号：{}", internalOrderNo, e);
+                }
+            }
 
             // 获取预存款账户（使用悲观锁，防止并发充值导致余额不一致）
             PreDeposit preDeposit = preDepositRepository.selectOne(

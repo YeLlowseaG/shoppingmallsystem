@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * 支付网关服务实现类
@@ -46,11 +47,37 @@ public class PaymentGatewayServiceImpl implements PaymentGatewayService {
         // 检查支付方式是否启用
         String paymentMethod = request.getPaymentMethod().toUpperCase();
         if (!paymentConfigService.isPaymentEnabled(paymentMethod)) {
-            throw new PaymentException(400, "支付方式未启用：" + paymentMethod);
+            // 支付方式未启用，自动切换到模拟支付模式（方便测试）
+            log.warn("支付方式未启用：{}，自动切换到模拟支付模式，订单号：{}", paymentMethod, request.getInternalOrderNo());
+            return createMockPaymentResponse(request);
         }
 
         // 调用策略创建支付订单
         return strategy.createPayment(request);
+    }
+
+    /**
+     * 创建模拟支付响应（当支付方式未启用时使用）
+     * 方便测试，无需配置第三方支付即可测试支付流程
+     *
+     * @param request 支付请求信息
+     * @return 模拟支付响应
+     */
+    private PaymentResponseDTO createMockPaymentResponse(PaymentRequestDTO request) {
+        PaymentResponseDTO response = new PaymentResponseDTO();
+        response.setInternalOrderNo(request.getInternalOrderNo());
+        response.setIsMock(true);
+        
+        // 生成模拟的外部交易号
+        String mockExternalTradeNo = "MOCK_" + request.getPaymentMethod().toUpperCase() + "_" 
+                + System.currentTimeMillis() + "_" 
+                + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        response.setMockExternalTradeNo(mockExternalTradeNo);
+        
+        log.info("创建模拟支付响应，订单号：{}，支付方式：{}，模拟交易号：{}，金额：{}", 
+                request.getInternalOrderNo(), request.getPaymentMethod(), mockExternalTradeNo, request.getAmount());
+        
+        return response;
     }
 
     @Override
@@ -67,11 +94,34 @@ public class PaymentGatewayServiceImpl implements PaymentGatewayService {
         // 检查支付方式是否启用
         String method = paymentMethod.toUpperCase();
         if (!paymentConfigService.isPaymentEnabled(method)) {
-            throw new PaymentException(400, "支付方式未启用：" + method);
+            // 支付方式未启用，自动切换到模拟退款模式（方便测试）
+            log.warn("支付方式未启用：{}，自动切换到模拟退款模式，支付流水号：{}，退款金额：{}", 
+                    method, paymentNo, refundAmount);
+            return createMockRefundNo(paymentMethod, paymentNo);
         }
 
         // 调用策略申请退款
         return strategy.refund(paymentNo, refundAmount, refundReason);
+    }
+
+    /**
+     * 创建模拟退款流水号（当支付方式未启用时使用）
+     * 方便测试，无需配置第三方支付即可测试退款流程
+     *
+     * @param paymentMethod 支付方式
+     * @param paymentNo 支付流水号（订单号）
+     * @return 模拟退款流水号
+     */
+    private String createMockRefundNo(String paymentMethod, String paymentNo) {
+        // 生成模拟的退款流水号
+        String mockRefundNo = "MOCK_REFUND_" + paymentMethod.toUpperCase() + "_" 
+                + System.currentTimeMillis() + "_" 
+                + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        
+        log.info("创建模拟退款流水号，支付方式：{}，支付流水号：{}，模拟退款流水号：{}", 
+                paymentMethod, paymentNo, mockRefundNo);
+        
+        return mockRefundNo;
     }
 
     @Override

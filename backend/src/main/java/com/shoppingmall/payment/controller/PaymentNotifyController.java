@@ -263,7 +263,7 @@ public class PaymentNotifyController {
         if (orderNo.startsWith("DEPOSIT_")) {
             // 预存款充值回调处理
             log.info("处理预存款充值回调，订单号：{}，外部交易号：{}，支付结果：{}", orderNo, externalTradeNo, success);
-            depositService.handlePaymentCallback(orderNo, externalTradeNo, success);
+            depositService.handlePaymentCallback(orderNo, externalTradeNo, success, notifyData);
             return;
         }
 
@@ -302,6 +302,8 @@ public class PaymentNotifyController {
             // 支付成功
             paymentRecord.setPaymentStatus(PaymentStatus.PAID);
             paymentRecord.setPaymentTime(LocalDateTime.now());
+            // 保存外部交易号（支付宝返回的trade_no或微信返回的transaction_id）
+            paymentRecord.setExternalTradeNo(externalTradeNo);
             try {
                 paymentRecord.setCallbackData(objectMapper.writeValueAsString(notifyData));
             } catch (Exception e) {

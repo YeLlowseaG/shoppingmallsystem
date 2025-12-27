@@ -38,7 +38,7 @@ const paramsSerializer = (params: any): string => {
 // 创建axios实例
 const service: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '',
-  timeout: 30000,
+  timeout: 90000, // 默认90秒超时（支付/退款接口可能需要更长时间）
   headers: {
     'Content-Type': 'application/json;charset=UTF-8'
   },

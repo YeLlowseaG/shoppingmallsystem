@@ -645,8 +645,26 @@ public class OrderServiceImpl implements OrderService {
             .map(item -> item.getWeight().multiply(BigDecimal.valueOf(item.getQuantity())))
             .reduce(BigDecimal.ZERO, BigDecimal::add)); // 总重量单位是克
         recipientInfo.setDeliveryTime(order.getDeliveryTime());
-        recipientInfo.setPaymentMethod(order.getPaymentMethod() != null ? 
-            getPaymentMethodText(order.getPaymentMethod()) : "未知");
+        
+        // 获取支付方式：如果订单已支付，优先从支付记录中获取（更准确）
+        String paymentMethod = null;
+        if (PaymentStatus.PAID.equals(order.getPaymentStatus()) || PaymentStatus.PAYING.equals(order.getPaymentStatus())) {
+            // 查询支付记录，获取实际使用的支付方式
+            LambdaQueryWrapper<PaymentRecord> paymentWrapper = new LambdaQueryWrapper<>();
+            paymentWrapper.eq(PaymentRecord::getOrderId, order.getId());
+            paymentWrapper.orderByDesc(PaymentRecord::getCreateTime);
+            paymentWrapper.last("LIMIT 1");
+            PaymentRecord paymentRecord = paymentRecordRepository.selectOne(paymentWrapper);
+            if (paymentRecord != null && paymentRecord.getPaymentMethod() != null) {
+                paymentMethod = paymentRecord.getPaymentMethod();
+            }
+        }
+        // 如果支付记录中没有，则使用订单表中的支付方式
+        if (paymentMethod == null) {
+            paymentMethod = order.getPaymentMethod();
+        }
+        recipientInfo.setPaymentMethod(paymentMethod != null ? 
+            getPaymentMethodText(paymentMethod) : "未知");
         recipientInfo.setPaymentCurrency("人民币");
         vo.setRecipientInfo(recipientInfo);
 

@@ -45,6 +45,8 @@ export interface DepositRecordVO {
   remark?: string
   createTime: string
   auditTime?: string
+  refundedAmount?: number // 已退款金额（针对充值记录）
+  refundableAmount?: number // 可退款金额（针对充值记录）
 }
 
 /**
@@ -78,8 +80,11 @@ export interface RefundRequestDTO {
 
 /**
  * 预存款充值退款
+ * 注意：退款接口可能需要较长时间（支付宝/微信退款API响应较慢），设置120秒超时
  */
 export const refundDepositRecharge = (data: RefundRequestDTO): Promise<void> => {
-  return request.post('/api/admin/deposit/refund', data)
+  return request.post('/api/admin/deposit/refund', data, {
+    timeout: 120000 // 120秒超时（退款接口可能需要更长时间）
+  })
 }
 

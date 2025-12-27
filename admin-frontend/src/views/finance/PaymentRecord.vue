@@ -73,6 +73,12 @@
         <el-table-column prop="orderNo" label="订单号" width="180" show-overflow-tooltip />
         <el-table-column prop="username" label="用户名" width="100" />
         <el-table-column prop="paymentNo" label="支付流水号" width="190" show-overflow-tooltip />
+        <el-table-column prop="externalTradeNo" label="外部交易号" width="200" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="row.externalTradeNo">{{ row.externalTradeNo }}</span>
+            <span v-else style="color: #909399">-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="paymentMethodName" label="支付方式" width="90">
           <template #default="{ row }">
             <el-tag :type="getPaymentMethodTagType(row.paymentMethod)" size="small">
@@ -140,13 +146,21 @@
     </el-card>
 
     <!-- 详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="支付记录详情" width="700px">
-      <el-descriptions :column="2" border v-if="currentRecord">
+    <el-dialog v-model="detailDialogVisible" title="支付记录详情" width="900px">
+      <el-descriptions :column="3" border v-if="currentRecord" class="payment-record-detail">
         <el-descriptions-item label="记录ID">{{ currentRecord.id }}</el-descriptions-item>
-        <el-descriptions-item label="订单号">{{ currentRecord.orderNo }}</el-descriptions-item>
+        <el-descriptions-item label="订单号">
+          <span class="no-wrap-text">{{ currentRecord.orderNo }}</span>
+        </el-descriptions-item>
         <el-descriptions-item label="用户名">{{ currentRecord.username }}</el-descriptions-item>
         <el-descriptions-item label="用户ID">{{ currentRecord.userId }}</el-descriptions-item>
-        <el-descriptions-item label="支付流水号">{{ currentRecord.paymentNo }}</el-descriptions-item>
+        <el-descriptions-item label="支付流水号">
+          <span class="no-wrap-text">{{ currentRecord.paymentNo }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="外部交易号">
+          <span v-if="currentRecord.externalTradeNo" class="no-wrap-text">{{ currentRecord.externalTradeNo }}</span>
+          <span v-else style="color: #909399">-</span>
+        </el-descriptions-item>
         <el-descriptions-item label="支付方式">{{ currentRecord.paymentMethodName }}</el-descriptions-item>
         <el-descriptions-item label="支付金额">¥{{ currentRecord.amount.toFixed(2) }}</el-descriptions-item>
         <el-descriptions-item label="已退款金额">
@@ -161,18 +175,20 @@
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="支付时间">
-          {{ currentRecord.paymentTime ? formatDateTime(currentRecord.paymentTime) : '-' }}
+          <span class="no-wrap-text">{{ currentRecord.paymentTime ? formatDateTime(currentRecord.paymentTime) : '-' }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="退款时间" v-if="currentRecord.refundTime">
-          {{ formatDateTime(currentRecord.refundTime) }}
+          <span class="no-wrap-text">{{ formatDateTime(currentRecord.refundTime) }}</span>
         </el-descriptions-item>
-        <el-descriptions-item label="退款原因" v-if="currentRecord.refundReason" :span="2">
+        <el-descriptions-item label="退款原因" v-if="currentRecord.refundReason" :span="3">
           {{ currentRecord.refundReason }}
         </el-descriptions-item>
         <el-descriptions-item label="退款操作人" v-if="currentRecord.refundOperatorName">
           {{ currentRecord.refundOperatorName }}
         </el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ formatDateTime(currentRecord.createTime) }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">
+          <span class="no-wrap-text">{{ formatDateTime(currentRecord.createTime) }}</span>
+        </el-descriptions-item>
       </el-descriptions>
     </el-dialog>
   </div>
@@ -388,6 +404,28 @@ onMounted(() => {
       &:hover {
         background-color: #ffedd5 !important;
       }
+    }
+  }
+
+  // 支付记录详情弹窗样式 - 防止字段换行
+  :deep(.payment-record-detail) {
+    .el-descriptions__label {
+      white-space: nowrap;
+      font-weight: 500;
+    }
+
+    .el-descriptions__content {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .no-wrap-text {
+      display: inline-block;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
   }
 }

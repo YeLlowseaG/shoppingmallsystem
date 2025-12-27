@@ -32,6 +32,11 @@ import com.shoppingmall.repository.payment.PaymentRecordRepository;
 import com.shoppingmall.repository.product.ProductRepository;
 import com.shoppingmall.repository.product.ProductStockRepository;
 import com.shoppingmall.repository.user.UserRepository;
+import com.shoppingmall.payment.config.AlipayConfig;
+import com.shoppingmall.payment.exception.PaymentException;
+import com.shoppingmall.payment.service.PaymentConfigService;
+import com.shoppingmall.payment.service.PaymentGatewayService;
+import com.shoppingmall.payment.util.AlipayUtil;
 import com.shoppingmall.service.admin.OrderService;
 import com.shoppingmall.service.buyer.DepositService;
 import com.shoppingmall.vo.OrderDetailVO;
@@ -47,6 +52,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -70,6 +76,8 @@ public class OrderServiceImpl implements OrderService {
     private final ProductStockRepository productStockRepository;
     private final UserRepository userRepository;
     private final DepositService depositService;
+    private final PaymentGatewayService paymentGatewayService;
+    private final PaymentConfigService paymentConfigService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -448,22 +456,173 @@ public class OrderServiceImpl implements OrderService {
 
         // 10. 执行退款（根据支付方式）
         String paymentMethod = paymentRecord.getPaymentMethod();
-        boolean refundSuccess = false;
         String refundPaymentNo = null;
 
         if (PaymentMethod.WECHAT.equals(paymentMethod) || PaymentMethod.ALIPAY.equals(paymentMethod)) {
-            // 微信/支付宝退款（模拟）
-            refundSuccess = mockThirdPartyRefund(paymentMethod, paymentRecord.getPaymentNo(), totalRefundAmount);
-            if (refundSuccess) {
-                refundPaymentNo = paymentMethod + "_REFUND_" + System.currentTimeMillis();
-            } else {
-                throw new BusinessException(500, "第三方退款失败，请稍后重试");
+            // 微信/支付宝退款（调用真实退款接口）
+            // 重要：支付宝退款API需要的是订单号（out_trade_no），而不是支付流水号
+            // 支付流水号格式：PAY_timestamp_orderNo，需要提取订单号
+            String orderNoForRefund = order.getOrderNo();
+            
+            try {
+                log.info("开始调用第三方退款接口，支付方式：{}，订单号：{}，支付流水号：{}，退款金额：{}，退款原因：{}",
+                        paymentMethod, orderNoForRefund, paymentRecord.getPaymentNo(), totalRefundAmount, refundDTO.getRefundReason());
+                
+                // 先尝试使用商户订单号（out_trade_no）进行退款
+                // 注意：支付宝要求同一笔退款请求必须使用相同的 out_request_no（退款单号）
+                // 如果第一次退款失败需要重试，必须使用相同的退款单号
+                String alipayRefundNo = "ALI_REFUND_" + System.currentTimeMillis();
+                
+                try {
+                    // 对于支付宝，直接使用 AlipayUtil 以便控制退款单号
+                    if (PaymentMethod.ALIPAY.equals(paymentMethod)) {
+                        AlipayConfig alipayConfig = paymentConfigService.getAlipayConfig();
+                        if (alipayConfig == null || !Boolean.TRUE.equals(alipayConfig.getEnabled())) {
+                            throw new BusinessException(400, "支付宝未启用");
+                        }
+                        
+                        AlipayConfig.AlipayEnvConfig envConfig = "production".equals(alipayConfig.getEnv())
+                                ? alipayConfig.getProduction()
+                                : alipayConfig.getSandbox();
+                        
+                        if (envConfig == null) {
+                            throw new BusinessException(400, "支付宝环境配置不存在");
+                        }
+                        
+                        String refundAmountStr = String.format("%.2f", totalRefundAmount.doubleValue());
+                        
+                        // 先尝试使用商户订单号（out_trade_no）进行退款
+                        try {
+                            log.info("尝试使用商户订单号进行订单退款，订单号：{}，退款金额：{}，退款单号：{}",
+                                    orderNoForRefund, refundAmountStr, alipayRefundNo);
+                            
+                            Map<String, String> result = AlipayUtil.refund(
+                                    envConfig,
+                                    orderNoForRefund, // 使用订单号（out_trade_no）
+                                    alipayRefundNo, // 使用统一的退款单号
+                                    refundAmountStr,
+                                    false // 使用out_trade_no
+                            );
+                            
+                            String code = result.get("code");
+                            String subCode = result.get("sub_code");
+                            String subMsg = result.get("sub_msg");
+                            String msg = result.get("msg");
+                            
+                            log.info("支付宝订单退款响应（使用out_trade_no），订单号：{}，响应码：{}，子错误码：{}，错误信息：{}",
+                                    orderNoForRefund, code, subCode, subMsg != null ? subMsg : msg);
+                            
+                            if ("10000".equals(code)) {
+                                refundPaymentNo = alipayRefundNo;
+                                log.info("支付宝订单退款成功（使用商户订单号），订单号：{}，退款单号：{}，退款金额：{}",
+                                        orderNoForRefund, refundPaymentNo, totalRefundAmount);
+                            } else {
+                                String errorMsg = subMsg != null && !subMsg.isEmpty() ? subMsg : (msg != null ? msg : "退款失败");
+                                
+                                // 如果是系统错误，尝试使用trade_no
+                                if ("20000".equals(code) && "aop.ACQ.SYSTEM_ERROR".equals(subCode)) {
+                                    String tradeNo = paymentRecord.getExternalTradeNo();
+                                    if (tradeNo != null && !tradeNo.isEmpty()) {
+                                        log.warn("使用商户订单号退款失败（系统错误），尝试使用支付宝交易号进行退款，订单号：{}，支付宝交易号：{}，错误信息：{}",
+                                                orderNoForRefund, tradeNo, errorMsg);
+                                        throw new PaymentException(500, errorMsg); // 抛出异常，触发重试逻辑
+                                    } else {
+                                        throw new PaymentException(500, errorMsg);
+                                    }
+                                } else {
+                                    throw new PaymentException(500, errorMsg);
+                                }
+                            }
+                        } catch (PaymentException e) {
+                            // 如果使用商户订单号退款失败，且错误码是系统错误，尝试使用支付宝交易号（trade_no）
+                            String errorMessage = e.getMessage();
+                            if (errorMessage != null && (errorMessage.contains("系统异常") || errorMessage.contains("SYSTEM_ERROR") || errorMessage.contains("订单不存在"))) {
+                                String tradeNo = paymentRecord.getExternalTradeNo();
+                                
+                                if (tradeNo != null && !tradeNo.isEmpty()) {
+                                    log.warn("使用商户订单号退款失败，尝试使用支付宝交易号进行订单退款，订单号：{}，支付宝交易号：{}，错误信息：{}",
+                                            orderNoForRefund, tradeNo, errorMessage);
+                                    
+                                    // 使用支付宝交易号（trade_no）进行退款
+                                    // 重要：使用相同的退款单号（alipayRefundNo），因为这是同一笔退款请求的重试
+                                    // 注意：refundAmountStr 已经在外部作用域声明，这里直接使用
+                                    
+                                    Map<String, String> result = AlipayUtil.refund(
+                                            envConfig,
+                                            tradeNo, // 使用支付宝交易号（trade_no）
+                                            alipayRefundNo, // 使用相同的退款单号
+                                            refundAmountStr, // 使用外部作用域已声明的 refundAmountStr
+                                            true // 使用trade_no
+                                    );
+                                    
+                                    String code = result.get("code");
+                                    String subCode = result.get("sub_code");
+                                    String subMsg = result.get("sub_msg");
+                                    String msg = result.get("msg");
+                                    
+                                    log.info("支付宝订单退款响应（使用trade_no），订单号：{}，支付宝交易号：{}，响应码：{}，子错误码：{}，错误信息：{}",
+                                            orderNoForRefund, tradeNo, code, subCode, subMsg != null ? subMsg : msg);
+                                    
+                                    if ("10000".equals(code)) {
+                                        refundPaymentNo = alipayRefundNo;
+                                        log.info("支付宝订单退款成功（使用支付宝交易号），订单号：{}，支付宝交易号：{}，退款单号：{}，退款金额：{}",
+                                                orderNoForRefund, tradeNo, refundPaymentNo, totalRefundAmount);
+                                    } else {
+                                        String errorMsg = subMsg != null && !subMsg.isEmpty() ? subMsg : (msg != null ? msg : "退款失败");
+                                        log.error("使用支付宝交易号退款也失败，订单号：{}，支付宝交易号：{}，错误码：{}，子错误码：{}，错误信息：{}",
+                                                orderNoForRefund, tradeNo, code, subCode, errorMsg);
+                                        throw new PaymentException(500, "使用支付宝交易号退款失败：" + errorMsg);
+                                    }
+                                } else {
+                                    log.error("支付记录中没有保存外部交易号，订单号：{}，无法使用trade_no进行退款", orderNoForRefund);
+                                    throw e; // 抛出原始异常
+                                }
+                            } else {
+                                // 不是系统错误，直接抛出异常
+                                throw e;
+                            }
+                        }
+                    } else {
+                        // 微信支付，使用 PaymentGatewayService
+                        refundPaymentNo = paymentGatewayService.refund(
+                                paymentMethod,
+                                orderNoForRefund,
+                                totalRefundAmount,
+                                refundDTO.getRefundReason() != null ? refundDTO.getRefundReason() : "管理员退款"
+                        );
+                        
+                        log.info("第三方退款成功（使用商户订单号），支付方式：{}，订单号：{}，支付流水号：{}，退款流水号：{}，退款金额：{}",
+                                paymentMethod, orderNoForRefund, paymentRecord.getPaymentNo(), refundPaymentNo, totalRefundAmount);
+                    }
+                } catch (PaymentException e) {
+                    log.error("第三方退款失败，支付方式：{}，订单号：{}，支付流水号：{}，退款金额：{}，错误信息：{}",
+                            paymentMethod, orderNoForRefund, paymentRecord.getPaymentNo(), totalRefundAmount, e.getMessage(), e);
+                    throw new BusinessException(500, "第三方退款失败：" + e.getMessage());
+                }
+            } catch (PaymentException e) {
+                log.error("第三方退款失败，支付方式：{}，订单号：{}，支付流水号：{}，退款金额：{}，错误信息：{}",
+                        paymentMethod, orderNoForRefund, paymentRecord.getPaymentNo(), totalRefundAmount, e.getMessage(), e);
+                throw new BusinessException(500, "第三方退款失败：" + e.getMessage());
+            } catch (Exception e) {
+                log.error("第三方退款异常，支付方式：{}，订单号：{}，支付流水号：{}，退款金额：{}",
+                        paymentMethod, orderNoForRefund, paymentRecord.getPaymentNo(), totalRefundAmount, e);
+                throw new BusinessException(500, "第三方退款异常：" + e.getMessage());
             }
         } else if (PaymentMethod.PRE_DEPOSIT.equals(paymentMethod)) {
             // 预存款退款
-            depositService.depositRefund(order.getUserId(), order.getId(), order.getOrderNo(), totalRefundAmount);
-            refundSuccess = true;
-            refundPaymentNo = "DEPOSIT_REFUND_" + System.currentTimeMillis();
+            try {
+                log.info("开始预存款退款，订单号：{}，用户ID：{}，退款金额：{}",
+                        order.getOrderNo(), order.getUserId(), totalRefundAmount);
+                
+                depositService.depositRefund(order.getUserId(), order.getId(), order.getOrderNo(), totalRefundAmount);
+                refundPaymentNo = "DEPOSIT_REFUND_" + System.currentTimeMillis();
+                
+                log.info("预存款退款成功，订单号：{}，退款流水号：{}，退款金额：{}",
+                        order.getOrderNo(), refundPaymentNo, totalRefundAmount);
+            } catch (Exception e) {
+                log.error("预存款退款失败，订单号：{}，退款金额：{}", order.getOrderNo(), totalRefundAmount, e);
+                throw new BusinessException(500, "预存款退款失败：" + e.getMessage());
+            }
         } else {
             throw new BusinessException(400, "不支持的支付方式：" + paymentMethod);
         }
@@ -770,16 +929,6 @@ public class OrderServiceImpl implements OrderService {
         return "RF" + dateTime + String.format("%06d", random);
     }
 
-    /**
-     * 模拟第三方退款（微信/支付宝）
-     */
-    private boolean mockThirdPartyRefund(String paymentMethod, String paymentNo, BigDecimal refundAmount) {
-        // 模拟退款处理
-        log.info("模拟{}退款：paymentNo={}, refundAmount={}", paymentMethod, paymentNo, refundAmount);
-        // 实际应该调用第三方退款接口
-        // TODO: 实现真实的第三方退款接口调用
-        return true; // 模拟退款成功
-    }
 
     /**
      * 更新商品销量（退款时扣减）

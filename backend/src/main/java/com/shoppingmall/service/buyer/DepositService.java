@@ -37,8 +37,9 @@ public interface DepositService {
      * @param internalOrderNo 内部订单号
      * @param externalTradeNo 外部交易号（微信/支付宝返回）
      * @param success 是否支付成功
+     * @param notifyData 回调数据（JSON格式，可选，用于保存第三方支付返回的完整数据）
      */
-    void handlePaymentCallback(String internalOrderNo, String externalTradeNo, boolean success);
+    void handlePaymentCallback(String internalOrderNo, String externalTradeNo, boolean success, java.util.Map<String, Object> notifyData);
 
     /**
      * 预存款支付（用于订单支付）

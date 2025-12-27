@@ -16,6 +16,8 @@ import com.shoppingmall.repository.payment.PaymentRecordRepository;
 import com.shoppingmall.repository.permission.AdminUserRepository;
 import com.shoppingmall.repository.product.ProductRepository;
 import com.shoppingmall.repository.user.UserRepository;
+import com.shoppingmall.payment.exception.PaymentException;
+import com.shoppingmall.payment.service.PaymentGatewayService;
 import com.shoppingmall.service.admin.FinanceService;
 import com.shoppingmall.service.buyer.DepositService;
 import com.shoppingmall.vo.PaymentRecordVO;
@@ -54,6 +56,7 @@ public class FinanceServiceImpl implements FinanceService {
     private final UserRepository userRepository;
     private final AdminUserRepository adminUserRepository;
     private final DepositService depositService;
+    private final PaymentGatewayService paymentGatewayService;
     private final HttpServletRequest request;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -211,13 +214,40 @@ public class FinanceServiceImpl implements FinanceService {
 
         // 5. 根据支付方式处理退款
         String paymentMethod = paymentRecord.getPaymentMethod();
-        boolean refundSuccess = false;
+        String refundPaymentNo = null;
 
         if (PaymentMethod.WECHAT.equals(paymentMethod) || PaymentMethod.ALIPAY.equals(paymentMethod)) {
-            // 微信/支付宝退款（模拟）
-            refundSuccess = mockThirdPartyRefund(paymentMethod, paymentRecord.getPaymentNo(), refundDTO.getRefundAmount());
-            if (!refundSuccess) {
-                throw new BusinessException(500, "第三方退款失败，请稍后重试");
+            // 微信/支付宝退款（调用真实退款接口）
+            // 重要：支付宝退款API需要的是订单号（out_trade_no），而不是支付流水号
+            // 需要从支付记录关联的订单中获取订单号
+            Order order = orderRepository.selectById(paymentRecord.getOrderId());
+            if (order == null) {
+                throw new BusinessException(404, "订单不存在，无法退款");
+            }
+            String orderNoForRefund = order.getOrderNo();
+            
+            try {
+                log.info("开始调用第三方退款接口，支付方式：{}，订单号：{}，支付流水号：{}，退款金额：{}，退款原因：{}",
+                        paymentMethod, orderNoForRefund, paymentRecord.getPaymentNo(), refundDTO.getRefundAmount(), refundDTO.getRefundReason());
+                
+                // 调用退款接口，传入订单号（支付宝/微信退款API需要的是创建支付订单时的订单号）
+                refundPaymentNo = paymentGatewayService.refund(
+                        paymentMethod,
+                        orderNoForRefund, // 使用订单号而不是支付流水号
+                        refundDTO.getRefundAmount(),
+                        refundDTO.getRefundReason() != null ? refundDTO.getRefundReason() : "管理员退款"
+                );
+                
+                log.info("第三方退款成功，支付方式：{}，订单号：{}，支付流水号：{}，退款流水号：{}，退款金额：{}",
+                        paymentMethod, orderNoForRefund, paymentRecord.getPaymentNo(), refundPaymentNo, refundDTO.getRefundAmount());
+            } catch (PaymentException e) {
+                log.error("第三方退款失败，支付方式：{}，订单号：{}，支付流水号：{}，退款金额：{}，错误信息：{}",
+                        paymentMethod, orderNoForRefund, paymentRecord.getPaymentNo(), refundDTO.getRefundAmount(), e.getMessage(), e);
+                throw new BusinessException(500, "第三方退款失败：" + e.getMessage());
+            } catch (Exception e) {
+                log.error("第三方退款异常，支付方式：{}，订单号：{}，支付流水号：{}，退款金额：{}",
+                        paymentMethod, orderNoForRefund, paymentRecord.getPaymentNo(), refundDTO.getRefundAmount(), e);
+                throw new BusinessException(500, "第三方退款异常：" + e.getMessage());
             }
         } else if (PaymentMethod.PRE_DEPOSIT.equals(paymentMethod)) {
             // 预存款退款
@@ -225,8 +255,19 @@ public class FinanceServiceImpl implements FinanceService {
             if (order == null) {
                 throw new BusinessException(404, "订单不存在");
             }
-            depositService.depositRefund(order.getUserId(), order.getId(), order.getOrderNo(), refundDTO.getRefundAmount());
-            refundSuccess = true;
+            try {
+                log.info("开始预存款退款，订单号：{}，用户ID：{}，退款金额：{}",
+                        order.getOrderNo(), order.getUserId(), refundDTO.getRefundAmount());
+                
+                depositService.depositRefund(order.getUserId(), order.getId(), order.getOrderNo(), refundDTO.getRefundAmount());
+                refundPaymentNo = "DEPOSIT_REFUND_" + System.currentTimeMillis();
+                
+                log.info("预存款退款成功，订单号：{}，退款流水号：{}，退款金额：{}",
+                        order.getOrderNo(), refundPaymentNo, refundDTO.getRefundAmount());
+            } catch (Exception e) {
+                log.error("预存款退款失败，订单号：{}，退款金额：{}", order.getOrderNo(), refundDTO.getRefundAmount(), e);
+                throw new BusinessException(500, "预存款退款失败：" + e.getMessage());
+            }
         } else {
             throw new BusinessException(400, "不支持的支付方式：" + paymentMethod);
         }
@@ -238,6 +279,12 @@ public class FinanceServiceImpl implements FinanceService {
         paymentRecord.setRefundReason(refundDTO.getRefundReason());
         paymentRecord.setRefundOperatorId(adminId);
         paymentRecord.setRefundOperatorName(adminName);
+        // 保存退款流水号（如果有）
+        if (refundPaymentNo != null && paymentRecord.getCallbackData() != null) {
+            // 可以在callbackData中保存退款流水号，或者添加新字段
+            // 这里暂时记录在日志中，后续可以考虑添加refund_payment_no字段
+            log.info("退款流水号：{}，支付记录ID：{}", refundPaymentNo, paymentRecord.getId());
+        }
 
         // 如果全额退款，更新支付状态
         if (newRefundedAmount.compareTo(paymentRecord.getAmount()) >= 0) {
@@ -335,24 +382,6 @@ public class FinanceServiceImpl implements FinanceService {
         return vo;
     }
 
-    /**
-     * 模拟第三方退款（微信/支付宝）
-     */
-    private boolean mockThirdPartyRefund(String paymentMethod, String paymentNo, BigDecimal refundAmount) {
-        // 模拟退款处理
-        log.info("模拟{}退款：paymentNo={}, refundAmount={}", paymentMethod, paymentNo, refundAmount);
-        
-        // 模拟处理时间
-        try {
-            Thread.sleep(100);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-
-        // 模拟退款成功（实际应该调用第三方退款接口）
-        // TODO: 实现真实的第三方退款接口调用
-        return true;
-    }
 
     /**
      * 获取当前管理员ID

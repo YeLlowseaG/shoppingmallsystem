@@ -226,5 +226,12 @@ export const getRefundDetail = (refundId: number): Promise<OrderRefundVO> => {
   return request.get(`/api/admin/orders/refunds/${refundId}`)
 }
 
+/**
+ * 手动查询支付结果并补单
+ */
+export const syncPaymentStatus = (orderNo: string): Promise<void> => {
+  return request.post(`/api/admin/orders/${orderNo}/sync-payment`)
+}
+
 
 
