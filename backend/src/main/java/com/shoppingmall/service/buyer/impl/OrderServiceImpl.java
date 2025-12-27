@@ -53,7 +53,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+import com.shoppingmall.dto.ShippingFeeCalculateDTO;
 
 /**
  * 订单服务实现类
@@ -83,6 +85,7 @@ public class OrderServiceImpl implements OrderService {
     private final PaymentGatewayService paymentGatewayService;
     private final MemberLevelService memberLevelService;
     private final ObjectMapper objectMapper;
+    private final com.shoppingmall.service.logistics.ShippingService shippingService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -219,7 +222,9 @@ public class OrderServiceImpl implements OrderService {
             orderItem.setPrice(memberPrice);
             orderItem.setSubtotal(itemSubtotal);
             orderItem.setWeight(weight);
-            
+            // 保存运费模板ID（历史快照）
+            orderItem.setShippingTemplateId(product.getShippingTemplateId());
+
             // 设置SKU信息
             if (sku != null) {
                 orderItem.setSkuId(sku.getId());
@@ -248,7 +253,7 @@ public class OrderServiceImpl implements OrderService {
         order.setShippingAddress(shippingAddressJson);
 
         // 设置订单金额
-        BigDecimal shippingFee = BigDecimal.ZERO; // 运费暂时为0，后续根据配送方式计算
+        BigDecimal shippingFee = calculateOrderShippingFee(orderItemList, address); // 根据商品运费模板计算运费
         BigDecimal tax = BigDecimal.ZERO; // 税金为0
         order.setTotalAmount(totalAmount);
         order.setShippingFee(shippingFee);
@@ -1153,6 +1158,82 @@ public class OrderServiceImpl implements OrderService {
                 return "全额退款";
             default:
                 return "未知";
+        }
+    }
+
+    /**
+     * 计算订单运费
+     *
+     * @param orderItems 订单商品列表
+     * @param address 收货地址
+     * @return 运费金额
+     */
+    private BigDecimal calculateOrderShippingFee(List<OrderItem> orderItems, UserAddress address) {
+        try {
+            // 按运费模板分组商品
+            Map<Long, List<OrderItem>> templateGroups = orderItems.stream()
+                .filter(item -> item.getShippingTemplateId() != null)
+                .collect(Collectors.groupingBy(OrderItem::getShippingTemplateId));
+
+            // 无运费模板的商品（包邮）
+            List<OrderItem> freeShippingItems = orderItems.stream()
+                .filter(item -> item.getShippingTemplateId() == null)
+                .collect(Collectors.toList());
+
+            if (templateGroups.isEmpty()) {
+                log.info("订单所有商品包邮，运费为0");
+                return BigDecimal.ZERO;
+            }
+
+            BigDecimal totalShippingFee = BigDecimal.ZERO;
+
+            // 计算每个运费模板组的运费
+            for (Map.Entry<Long, List<OrderItem>> entry : templateGroups.entrySet()) {
+                Long templateId = entry.getKey();
+                List<OrderItem> items = entry.getValue();
+
+                // 计算该模板组的总重量和总金额
+                BigDecimal totalWeight = items.stream()
+                    .map(item -> {
+                        BigDecimal weight = item.getWeight() != null ? item.getWeight() : BigDecimal.ZERO;
+                        return weight.multiply(BigDecimal.valueOf(item.getQuantity()));
+                    })
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                BigDecimal totalAmount = items.stream()
+                    .map(OrderItem::getSubtotal)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                Integer totalQuantity = items.stream()
+                    .mapToInt(OrderItem::getQuantity)
+                    .sum();
+
+                // 构建运费计算参数
+                ShippingFeeCalculateDTO calculateDTO = new ShippingFeeCalculateDTO();
+                calculateDTO.setShippingMethodId(templateId);
+                calculateDTO.setProvince(address.getProvince());
+                calculateDTO.setCity(address.getCity());
+                calculateDTO.setDistrict(address.getDistrict());
+                // 转换为kg（商品重量单位是克）
+                calculateDTO.setTotalWeight(totalWeight.divide(new BigDecimal("1000"), 2, BigDecimal.ROUND_HALF_UP));
+                calculateDTO.setTotalAmount(totalAmount);
+                calculateDTO.setTotalQuantity(totalQuantity);
+
+                // 调用运费计算服务
+                BigDecimal fee = shippingService.calculateShippingFee(calculateDTO);
+                totalShippingFee = totalShippingFee.add(fee);
+
+                log.info("模板ID={} 运费={}, 商品数={}, 总重量={}g, 总金额={}",
+                    templateId, fee, items.size(), totalWeight, totalAmount);
+            }
+
+            log.info("订单运费计算完成: 总运费={}, 模板组数={}, 包邮商品数={}",
+                totalShippingFee, templateGroups.size(), freeShippingItems.size());
+
+            return totalShippingFee;
+        } catch (Exception e) {
+            log.error("计算运费失败，使用默认运费0", e);
+            return BigDecimal.ZERO;
         }
     }
 }

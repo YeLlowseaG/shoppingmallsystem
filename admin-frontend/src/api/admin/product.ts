@@ -13,6 +13,7 @@ export interface ProductDTO {
   productName: string
   categoryId: number
   brandId?: number | null
+  shippingTemplateId?: number | null
   mainImage?: string
   images?: string
   description?: string
@@ -39,6 +40,8 @@ export interface ProductVO {
   categoryName: string
   brandId?: number | null
   brandName?: string
+  shippingTemplateId?: number | null
+  shippingTemplateName?: string
   mainImage: string
   imageList: string[]
   description: string

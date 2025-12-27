@@ -131,6 +131,7 @@ public class ProductImportServiceImpl implements ProductImportService {
                     dto.setProductName(record.get("商品名称"));
                     dto.setCategoryName(record.get("分类名称"));
                     dto.setBrandName(getStringOrNull(record, "品牌名称"));
+                    dto.setShippingTemplateId(getLong(record, "运费模板ID"));
                     dto.setBasePrice(getBigDecimal(record, "基础价"));
                     dto.setSuggestedRetailPrice(getBigDecimal(record, "建议零售价"));
                     dto.setMarketRetailPrice(getBigDecimal(record, "市场零售价"));
@@ -189,22 +190,23 @@ public class ProductImportServiceImpl implements ProductImportService {
                     dto.setProductName(getCellValue(row, 3));
                     dto.setCategoryName(getCellValue(row, 4));
                     dto.setBrandName(getCellValue(row, 5));
-                    dto.setBasePrice(getBigDecimalFromCell(row, 6));
-                    dto.setSuggestedRetailPrice(getBigDecimalFromCell(row, 7));
-                    dto.setMarketRetailPrice(getBigDecimalFromCell(row, 8));
-                    dto.setWarningStock(getIntegerFromCell(row, 9));
-                    dto.setWeight(getBigDecimalFromCell(row, 10));
-                    dto.setDescription(getCellValue(row, 11));
+                    dto.setShippingTemplateId(getLongFromCell(row, 6));
+                    dto.setBasePrice(getBigDecimalFromCell(row, 7));
+                    dto.setSuggestedRetailPrice(getBigDecimalFromCell(row, 8));
+                    dto.setMarketRetailPrice(getBigDecimalFromCell(row, 9));
+                    dto.setWarningStock(getIntegerFromCell(row, 10));
+                    dto.setWeight(getBigDecimalFromCell(row, 11));
+                    dto.setDescription(getCellValue(row, 12));
                     // 批量导入商品默认为草稿状态，除非明确指定
-                    String status = getCellValue(row, 12);
+                    String status = getCellValue(row, 13);
                     dto.setStatus(StringUtil.isBlank(status) ? "草稿" : status);
-                    dto.setEnableSpec("是".equals(getCellValue(row, 13)));
-                    dto.setSkuCode(getCellValue(row, 14));
-                    dto.setSpecCombination(getCellValue(row, 15));
-                    dto.setSkuPrice(getBigDecimalFromCell(row, 16));
-                    dto.setSkuStock(getIntegerFromCell(row, 17));
-                    dto.setSkuMemberPrice(getBigDecimalFromCell(row, 18));
-                    dto.setEnableSkuMemberPrice("是".equals(getCellValue(row, 19)));
+                    dto.setEnableSpec("是".equals(getCellValue(row, 14)));
+                    dto.setSkuCode(getCellValue(row, 15));
+                    dto.setSpecCombination(getCellValue(row, 16));
+                    dto.setSkuPrice(getBigDecimalFromCell(row, 17));
+                    dto.setSkuStock(getIntegerFromCell(row, 18));
+                    dto.setSkuMemberPrice(getBigDecimalFromCell(row, 19));
+                    dto.setEnableSkuMemberPrice("是".equals(getCellValue(row, 20)));
 
                     dataList.add(dto);
                 } catch (Exception e) {
@@ -267,6 +269,18 @@ public class ProductImportServiceImpl implements ProductImportService {
         }
         try {
             return Integer.parseInt(value.trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private Long getLongFromCell(Row row, int cellIndex) {
+        String value = getCellValue(row, cellIndex);
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(value.trim());
         } catch (Exception e) {
             return null;
         }
@@ -343,6 +357,7 @@ public class ProductImportServiceImpl implements ProductImportService {
         productDTO.setProductName(firstRow.getProductName());
         productDTO.setCategoryId(categoryId);
         productDTO.setBrandId(brandId);
+        productDTO.setShippingTemplateId(firstRow.getShippingTemplateId());
         productDTO.setBasePrice(firstRow.getBasePrice());
         productDTO.setSuggestedRetailPrice(firstRow.getSuggestedRetailPrice());
         productDTO.setMarketRetailPrice(firstRow.getMarketRetailPrice());
@@ -467,6 +482,18 @@ public class ProductImportServiceImpl implements ProductImportService {
                 return null;
             }
             return Integer.parseInt(value.trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private Long getLong(CSVRecord record, String column) {
+        try {
+            String value = record.get(column);
+            if (value == null || value.trim().isEmpty()) {
+                return null;
+            }
+            return Long.parseLong(value.trim());
         } catch (Exception e) {
             return null;
         }

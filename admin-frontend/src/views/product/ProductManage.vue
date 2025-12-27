@@ -230,6 +230,23 @@
           </el-select>
         </el-form-item>
 
+        <el-form-item label="运费模板" prop="shippingTemplateId">
+          <el-select
+            v-model="formData.shippingTemplateId"
+            placeholder="请选择运费模板（可选，不选则包邮）"
+            clearable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="template in shippingTemplates"
+              :key="template.id"
+              :label="template.templateName"
+              :value="template.id"
+            />
+          </el-select>
+          <div class="form-tip">不选择运费模板则该商品包邮</div>
+        </el-form-item>
+
         <!-- 价格与库存 -->
         <el-divider content-position="left">价格与库存</el-divider>
 
@@ -1000,6 +1017,9 @@ const categoryTree = ref<ProductCategoryVO[]>([])
 // 品牌列表
 const brandOptions = ref<any[]>([])
 
+// 运费模板列表
+const shippingTemplates = ref<any[]>([])
+
 // 扁平化分类列表（用于下拉选择）
 const flatCategories = computed(() => {
   const flatten = (categories: ProductCategoryVO[], level = 0): ProductCategoryVO[] => {
@@ -1030,6 +1050,7 @@ const formData = ref<ProductDTO>({
   productName: '',
   categoryId: 0,
   brandId: null,
+  shippingTemplateId: null,
   basePrice: 0,
   suggestedRetailPrice: 0,
   marketRetailPrice: 0,
@@ -1152,6 +1173,17 @@ const loadBrands = async () => {
   } catch (error) {
     // 静默处理，不显示错误
     brandOptions.value = []
+  }
+}
+
+// 加载运费模板列表
+const loadShippingTemplates = async () => {
+  try {
+    const response = await request.get('/api/admin/logistics/shipping-templates/enabled')
+    shippingTemplates.value = response || []
+  } catch (error) {
+    // 静默处理，不显示错误
+    shippingTemplates.value = []
   }
 }
 
@@ -1300,6 +1332,7 @@ const handleEdit = async (row: ProductVO) => {
     productName: row.productName,
     categoryId: row.categoryId,
     brandId: row.brandId || null,
+    shippingTemplateId: row.shippingTemplateId || null,
     basePrice: row.basePrice,
     suggestedRetailPrice: row.suggestedRetailPrice || 0,
     marketRetailPrice: row.marketRetailPrice || 0,
@@ -1995,6 +2028,7 @@ const handleResultClose = () => {
 onMounted(() => {
   loadCategoryTree()
   loadBrands()
+  loadShippingTemplates()
   loadProductList()
 })
 </script>

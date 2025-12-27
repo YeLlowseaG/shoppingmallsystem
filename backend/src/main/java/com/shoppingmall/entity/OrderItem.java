@@ -33,6 +33,11 @@ public class OrderItem {
     private Long productId;
 
     /**
+     * 运费模板ID（快照，记录下单时商品使用的运费模板）
+     */
+    private Long shippingTemplateId;
+
+    /**
      * 商品名称（快照）
      */
     private String productName;
