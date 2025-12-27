@@ -4209,3 +4209,163 @@ The method handlePaymentCallback(String, String, boolean, Map<String,Object>) in
 ### 修改文件清单
 1. `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java`
 2. `log.md` (本文件)
+
+---
+
+## 2025-12-27: 重新设计物流配置功能
+
+### 问题描述
+用户要求重新设计物流配置功能，按照标准电商的方式设置：
+- 移除物流公司、配送方式标签页面
+- 保留运费模板配置，支持首重、首费，续重、续费、指定地区规则
+- 指定地区规则优先于默认规则生效
+- 新增发货地址库配置页面
+
+### 解决方案
+1. **创建发货地址库功能**
+   - 新增 `warehouse_address` 表存储发货地址信息
+   - 实现后端实体、Repository、Service、Controller
+   - 实现前端API和页面
+
+2. **优化运费规则表结构**
+   - 将 `shipping_rule` 表的 `region_code` 和 `region_name` 字段改为TEXT类型
+   - 支持JSON格式存储多个地区信息
+
+3. **简化前端页面**
+   - 移除物流公司和配送方式标签页
+   - 保留运费模板管理
+   - 新增发货地址库管理
+   - 运费模板支持默认规则和指定地区规则
+
+### 修改内容
+
+#### 数据库修改
+- `database/update-20251227-add-warehouse-address-table.sql`
+  - 创建 `warehouse_address` 表
+- `database/update-20251227-optimize-shipping-rule-region.sql`
+  - 优化 `shipping_rule` 表结构，支持多地区存储
+
+#### 后端修改
+- `backend/src/main/java/com/shoppingmall/entity/WarehouseAddress.java`
+  - 发货地址实体类
+- `backend/src/main/java/com/shoppingmall/repository/logistics/WarehouseAddressRepository.java`
+  - 发货地址Repository
+- `backend/src/main/java/com/shoppingmall/vo/WarehouseAddressVO.java`
+  - 发货地址VO
+- `backend/src/main/java/com/shoppingmall/dto/WarehouseAddressDTO.java`
+  - 发货地址DTO
+- `backend/src/main/java/com/shoppingmall/service/logistics/WarehouseAddressService.java`
+  - 发货地址服务接口
+- `backend/src/main/java/com/shoppingmall/service/logistics/impl/WarehouseAddressServiceImpl.java`
+  - 发货地址服务实现
+- `backend/src/main/java/com/shoppingmall/controller/admin/WarehouseAddressController.java`
+  - 发货地址控制器
+- `backend/src/main/java/com/shoppingmall/dto/RegionInfoDTO.java`
+  - 地区信息DTO（用于运费规则中的多地区存储）
+- `backend/src/main/java/com/shoppingmall/dto/ShippingRuleDTO.java`
+  - 添加 `regions` 字段支持地区列表
+- `backend/src/main/java/com/shoppingmall/vo/ShippingRuleVO.java`
+  - 添加 `regions` 字段支持地区列表
+
+#### 前端修改
+- `admin-frontend/src/api/admin/logistics.ts`
+  - 添加发货地址库相关API接口
+- `admin-frontend/src/views/system/Logistics.vue`
+  - 创建简化的物流配置页面
+  - 移除物流公司和配送方式标签
+  - 保留运费模板管理
+  - 新增发货地址库管理
+- `admin-frontend/src/router/componentMaps/logistics.ts`
+  - 更新路由组件映射
+
+### 功能说明
+1. **运费模板管理**
+   - 支持按重量、按件数、按金额三种计算方式
+   - 支持默认运费规则（首重、首费、续重、续费）
+   - 支持指定地区规则（优先级高于默认规则）
+   - 地区选择器功能待实现（TODO）
+
+2. **发货地址库管理**
+   - 支持多个发货地址
+   - 支持设置默认发货地址
+   - 支持启用/禁用地址
+   - 包含仓库名称、联系人、联系电话、地址等信息
+
+### 已完成功能
+1. ✅ 运费模板的地区选择器组件（省/市/区三级联动）- 已实现多地区选择器
+2. ✅ 更新运费计算逻辑，支持多地区匹配和优先级 - 已实现JSON格式地区匹配
+3. ⏳ 发货地址的地区选择器（可选，当前使用文本输入）- 暂未实现，使用文本输入
+
+### 新增功能说明
+
+#### 多地区选择器组件
+- 创建了 `MultiRegionSelector.vue` 组件
+- 支持省/市/区三级联动选择
+- 支持多选地区（可同时选择多个省份、城市、区县）
+- 自动处理地区层级关系（区县 > 城市 > 省份）
+- 显示已选地区标签，支持删除
+
+#### 运费计算逻辑优化
+- 更新了 `findMatchedRule` 方法，支持JSON格式的地区匹配
+- 实现了优先级匹配：区县 > 城市 > 省份 > 默认规则
+- 支持一个规则包含多个地区
+- 向后兼容旧的字符串格式地区规则
+
+### 修改文件清单
+1. `database/update-20251227-add-warehouse-address-table.sql`
+2. `database/update-20251227-optimize-shipping-rule-region.sql`
+3. `backend/src/main/java/com/shoppingmall/entity/WarehouseAddress.java`
+4. `backend/src/main/java/com/shoppingmall/repository/logistics/WarehouseAddressRepository.java`
+5. `backend/src/main/java/com/shoppingmall/vo/WarehouseAddressVO.java`
+6. `backend/src/main/java/com/shoppingmall/dto/WarehouseAddressDTO.java`
+7. `backend/src/main/java/com/shoppingmall/service/logistics/WarehouseAddressService.java`
+8. `backend/src/main/java/com/shoppingmall/service/logistics/impl/WarehouseAddressServiceImpl.java`
+9. `backend/src/main/java/com/shoppingmall/controller/admin/WarehouseAddressController.java`
+10. `backend/src/main/java/com/shoppingmall/dto/RegionInfoDTO.java`
+11. `backend/src/main/java/com/shoppingmall/dto/ShippingRuleDTO.java`
+12. `backend/src/main/java/com/shoppingmall/vo/ShippingRuleVO.java`
+13. `admin-frontend/src/api/admin/logistics.ts`
+14. `admin-frontend/src/views/system/Logistics.vue`
+15. `admin-frontend/src/router/componentMaps/logistics.ts`
+16. `admin-frontend/src/api/common/region.ts` (新增)
+17. `admin-frontend/src/components/common/MultiRegionSelector.vue` (新增)
+18. `backend/src/main/java/com/shoppingmall/service/logistics/impl/ShippingServiceImpl.java`
+19. `log.md` (本文件)
+
+### SQL执行说明
+执行以下SQL脚本（按顺序）：
+1. `database/update-20251227-add-warehouse-address-table.sql` - 创建发货地址库表
+2. `database/update-20251227-optimize-shipping-rule-region.sql` - 优化运费规则表结构
+   - 注意：如果索引不存在，删除索引的语句会报错，可以忽略继续执行
+
+---
+
+## 2025-12-27: 创建完全隔离环境部署方案文档
+
+### 问题描述
+用户需要在同一个域名下部署完全隔离的正式环境和测试环境，通过路径区分：
+- 正式环境：`www.shop.quaichao.com/` 和 `www.shop.quaichao.com/admin`
+- 测试环境：`www.shop.quaichao.com/test` 和 `www.shop.quaichao.com/test/admin`
+
+### 解决方案
+创建完整的部署方案文档，包含：
+1. **后端部署配置**：两个独立的Java项目（端口8081和8082），使用不同的数据库和配置文件
+2. **前端部署配置**：两套独立的构建产物，支持子路径部署
+3. **Nginx配置**：通过路径路由到不同的后端服务
+4. **数据库准备**：两个独立的数据库实例
+5. **部署步骤**：详细的部署流程和注意事项
+
+### 文档内容
+- 方案概述和架构说明
+- 后端配置文件修改（application-test.yml 和 application-prod.yml）
+- 前端环境变量和构建配置
+- 完整的Nginx配置示例
+- 数据库准备和初始化步骤
+- 详细的部署步骤总结
+- 环境隔离说明
+- 常见问题排查
+- 维护建议和备份策略
+
+### 修改文件清单
+1. `docs/完全隔离环境部署方案.md` (新建)
+2. `log.md` (本文件)

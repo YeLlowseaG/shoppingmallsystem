@@ -231,6 +231,98 @@ export const updateShippingTemplateStatus = (id: number, status: number): Promis
   })
 }
 
+// ==================== 发货地址库管理 ====================
+
+/**
+ * 发货地址库VO
+ */
+export interface WarehouseAddressVO {
+  id?: number
+  warehouseName: string
+  contactName: string
+  contactPhone: string
+  province: string
+  city: string
+  district?: string
+  detailAddress: string
+  zipCode?: string
+  isDefault?: number
+  status: number
+  createTime?: string
+  updateTime?: string
+  fullAddress?: string
+}
+
+/**
+ * 获取发货地址列表
+ */
+export const getWarehouseAddressList = (params: {
+  page?: number
+  pageSize?: number
+  keyword?: string
+  status?: number
+}): Promise<any> => {
+  return request.get('/api/admin/warehouse-address/list', { params })
+}
+
+/**
+ * 获取所有启用的发货地址
+ */
+export const getAllEnabledWarehouseAddresses = (): Promise<WarehouseAddressVO[]> => {
+  return request.get('/api/admin/warehouse-address/all')
+}
+
+/**
+ * 获取默认发货地址
+ */
+export const getDefaultWarehouseAddress = (): Promise<WarehouseAddressVO> => {
+  return request.get('/api/admin/warehouse-address/default')
+}
+
+/**
+ * 获取发货地址详情
+ */
+export const getWarehouseAddressById = (id: number): Promise<WarehouseAddressVO> => {
+  return request.get(`/api/admin/warehouse-address/${id}`)
+}
+
+/**
+ * 新增发货地址
+ */
+export const addWarehouseAddress = (data: WarehouseAddressVO): Promise<void> => {
+  return request.post('/api/admin/warehouse-address', data)
+}
+
+/**
+ * 更新发货地址
+ */
+export const updateWarehouseAddress = (id: number, data: WarehouseAddressVO): Promise<void> => {
+  return request.put(`/api/admin/warehouse-address/${id}`, data)
+}
+
+/**
+ * 删除发货地址
+ */
+export const deleteWarehouseAddress = (id: number): Promise<void> => {
+  return request.delete(`/api/admin/warehouse-address/${id}`)
+}
+
+/**
+ * 启用/禁用发货地址
+ */
+export const updateWarehouseAddressStatus = (id: number, status: number): Promise<void> => {
+  return request.put(`/api/admin/warehouse-address/${id}/status`, null, {
+    params: { status }
+  })
+}
+
+/**
+ * 设置默认发货地址
+ */
+export const setDefaultWarehouseAddress = (id: number): Promise<void> => {
+  return request.put(`/api/admin/warehouse-address/${id}/set-default`)
+}
+
 
 
 
