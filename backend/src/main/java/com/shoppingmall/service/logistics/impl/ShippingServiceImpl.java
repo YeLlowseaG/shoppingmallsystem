@@ -2,7 +2,10 @@ package com.shoppingmall.service.logistics.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shoppingmall.common.exception.BusinessException;
+import com.shoppingmall.dto.RegionInfoDTO;
 import com.shoppingmall.dto.ShippingFeeCalculateDTO;
 import com.shoppingmall.dto.ShippingMethodDTO;
 import com.shoppingmall.dto.ShippingRuleDTO;
@@ -28,6 +31,7 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -46,6 +50,7 @@ public class ShippingServiceImpl implements ShippingService {
     private final ShippingTemplateRepository shippingTemplateRepository;
     private final ShippingRuleRepository shippingRuleRepository;
     private final LogisticsCompanyRepository logisticsCompanyRepository;
+    private final ObjectMapper objectMapper;
 
     @Override
     public List<ShippingMethodVO> getEnabledShippingMethods() {
@@ -322,6 +327,7 @@ public class ShippingServiceImpl implements ShippingService {
 
     /**
      * 查找匹配的运费规则
+     * 优先级：区县 > 城市 > 省份 > 默认规则
      */
     private ShippingRule findMatchedRule(Long templateId, ShippingFeeCalculateDTO calculateDTO) {
         LambdaQueryWrapper<ShippingRule> wrapper = new LambdaQueryWrapper<>();
@@ -330,37 +336,118 @@ public class ShippingServiceImpl implements ShippingService {
 
         List<ShippingRule> rules = shippingRuleRepository.selectList(wrapper);
 
-        // 优先匹配最具体的地区规则（省市区）
-        if (StringUtils.hasText(calculateDTO.getDistrict())) {
-            for (ShippingRule rule : rules) {
-                if (StringUtils.hasText(rule.getRegionCode()) && rule.getRegionCode().contains(calculateDTO.getDistrict())) {
-                    return rule;
-                }
+        String province = calculateDTO.getProvince();
+        String city = calculateDTO.getCity();
+        String district = calculateDTO.getDistrict();
+
+        // 1. 优先匹配最具体的地区规则（区县）
+        if (StringUtils.hasText(district)) {
+            ShippingRule matchedRule = findRuleByRegion(rules, province, city, district);
+            if (matchedRule != null) {
+                return matchedRule;
             }
         }
 
-        // 匹配城市规则
-        if (StringUtils.hasText(calculateDTO.getCity())) {
-            for (ShippingRule rule : rules) {
-                if (StringUtils.hasText(rule.getRegionCode()) && rule.getRegionCode().contains(calculateDTO.getCity())) {
-                    return rule;
-                }
+        // 2. 匹配城市规则
+        if (StringUtils.hasText(city)) {
+            ShippingRule matchedRule = findRuleByRegion(rules, province, city, null);
+            if (matchedRule != null) {
+                return matchedRule;
             }
         }
 
-        // 匹配省份规则
-        if (StringUtils.hasText(calculateDTO.getProvince())) {
-            for (ShippingRule rule : rules) {
-                if (StringUtils.hasText(rule.getRegionCode()) && rule.getRegionCode().contains(calculateDTO.getProvince())) {
-                    return rule;
-                }
+        // 3. 匹配省份规则
+        if (StringUtils.hasText(province)) {
+            ShippingRule matchedRule = findRuleByRegion(rules, province, null, null);
+            if (matchedRule != null) {
+                return matchedRule;
             }
         }
 
-        // 返回默认规则（regionCode为空）
+        // 4. 返回默认规则（regionCode为空）
         for (ShippingRule rule : rules) {
             if (!StringUtils.hasText(rule.getRegionCode())) {
                 return rule;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 根据地区信息查找匹配的规则
+     * 
+     * @param rules 规则列表
+     * @param province 省份名称
+     * @param city 城市名称（可选）
+     * @param district 区县名称（可选）
+     * @return 匹配的规则，如果没有匹配则返回null
+     */
+    private ShippingRule findRuleByRegion(List<ShippingRule> rules, String province, String city, String district) {
+        for (ShippingRule rule : rules) {
+            if (!StringUtils.hasText(rule.getRegionCode())) {
+                continue; // 跳过默认规则
+            }
+
+            try {
+                // 解析JSON格式的地区编码
+                List<RegionInfoDTO> regions = objectMapper.readValue(
+                    rule.getRegionCode(),
+                    new TypeReference<List<RegionInfoDTO>>() {}
+                );
+
+                // 检查是否匹配
+                for (RegionInfoDTO region : regions) {
+                    boolean provinceMatch = StringUtils.hasText(region.getProvinceCode()) || 
+                                          (StringUtils.hasText(province) && province.equals(region.getProvinceName()));
+                    
+                    if (!provinceMatch) {
+                        continue;
+                    }
+
+                    // 如果指定了区县，必须完全匹配（省+市+区）
+                    if (StringUtils.hasText(district)) {
+                        boolean cityMatch = !StringUtils.hasText(region.getCityCode()) || 
+                                          (StringUtils.hasText(city) && city.equals(region.getCityName()));
+                        boolean districtMatch = !StringUtils.hasText(region.getDistrictCode()) || 
+                                              district.equals(region.getDistrictName());
+                        
+                        if (cityMatch && districtMatch) {
+                            return rule;
+                        }
+                    }
+                    // 如果指定了城市，必须匹配（省+市）
+                    else if (StringUtils.hasText(city)) {
+                        boolean cityMatch = !StringUtils.hasText(region.getCityCode()) || 
+                                          city.equals(region.getCityName());
+                        // 如果规则中没有指定区县，则匹配
+                        boolean noDistrict = !StringUtils.hasText(region.getDistrictCode());
+                        
+                        if (cityMatch && noDistrict) {
+                            return rule;
+                        }
+                    }
+                    // 只指定了省份，匹配省份规则（规则中不能有城市和区县）
+                    else {
+                        boolean noCity = !StringUtils.hasText(region.getCityCode());
+                        boolean noDistrict = !StringUtils.hasText(region.getDistrictCode());
+                        
+                        if (noCity && noDistrict) {
+                            return rule;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("解析运费规则地区信息失败: ruleId={}, regionCode={}", rule.getId(), rule.getRegionCode(), e);
+                // 如果JSON解析失败，尝试使用旧的字符串匹配方式（向后兼容）
+                String regionCode = rule.getRegionCode();
+                if (StringUtils.hasText(district) && regionCode.contains(district)) {
+                    return rule;
+                } else if (StringUtils.hasText(city) && regionCode.contains(city)) {
+                    return rule;
+                } else if (StringUtils.hasText(province) && regionCode.contains(province)) {
+                    return rule;
+                }
             }
         }
 

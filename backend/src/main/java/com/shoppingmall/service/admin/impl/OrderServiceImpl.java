@@ -584,17 +584,17 @@ public class OrderServiceImpl implements OrderService {
                         }
                     } else {
                         // 微信支付，使用 PaymentGatewayService
-                        refundPaymentNo = paymentGatewayService.refund(
-                                paymentMethod,
+                refundPaymentNo = paymentGatewayService.refund(
+                        paymentMethod,
                                 orderNoForRefund,
-                                totalRefundAmount,
-                                refundDTO.getRefundReason() != null ? refundDTO.getRefundReason() : "管理员退款"
-                        );
-                        
+                        totalRefundAmount,
+                        refundDTO.getRefundReason() != null ? refundDTO.getRefundReason() : "管理员退款"
+                );
+                
                         log.info("第三方退款成功（使用商户订单号），支付方式：{}，订单号：{}，支付流水号：{}，退款流水号：{}，退款金额：{}",
                                 paymentMethod, orderNoForRefund, paymentRecord.getPaymentNo(), refundPaymentNo, totalRefundAmount);
                     }
-                } catch (PaymentException e) {
+            } catch (PaymentException e) {
                     log.error("第三方退款失败，支付方式：{}，订单号：{}，支付流水号：{}，退款金额：{}，错误信息：{}",
                             paymentMethod, orderNoForRefund, paymentRecord.getPaymentNo(), totalRefundAmount, e.getMessage(), e);
                     throw new BusinessException(500, "第三方退款失败：" + e.getMessage());
