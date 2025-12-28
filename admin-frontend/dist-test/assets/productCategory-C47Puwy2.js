@@ -1,0 +1,1 @@
+import{s as a}from"./request-Bxxq47Sc.js";const o=()=>a.get("/api/admin/product-category/tree"),c=t=>a.post("/api/admin/product-category",t),p=t=>a.put("/api/admin/product-category",t),s=t=>a.delete(`/api/admin/product-category/${t}`),u=(t,e)=>a.put(`/api/admin/product-category/${t}/status`,null,{params:{status:e}});export{u as a,c,s as d,o as g,p as u};

@@ -1,0 +1,1 @@
+import{s as e}from"./Footer-74050ba0.js";const t=()=>e.get("/api/buyer/addresses"),a=s=>e.get(`/api/buyer/addresses/${s}`),u=s=>e.post("/api/buyer/addresses",s),n=(s,r)=>e.put(`/api/buyer/addresses/${s}`,r),p=s=>e.delete(`/api/buyer/addresses/${s}`),o=s=>e.put(`/api/buyer/addresses/${s}/default`);export{a,u as b,p as d,t as g,o as s,n as u};

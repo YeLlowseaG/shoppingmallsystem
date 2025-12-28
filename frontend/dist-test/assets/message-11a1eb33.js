@@ -1,0 +1,1 @@
+import{s}from"./Footer-74050ba0.js";const r=e=>s.get("/api/buyer/messages/inbox",{params:e}),t=e=>s.put(`/api/buyer/messages/${e}/read`),n=()=>s.get("/api/buyer/messages/unread-count");export{r as a,n as g,t as m};
