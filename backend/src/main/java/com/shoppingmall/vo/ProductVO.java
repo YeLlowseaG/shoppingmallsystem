@@ -62,6 +62,16 @@ public class ProductVO {
     private String brandName;
 
     /**
+     * 运费模板ID
+     */
+    private Long shippingTemplateId;
+
+    /**
+     * 运费模板名称
+     */
+    private String shippingTemplateName;
+
+    /**
      * 主图URL
      */
     private String mainImage;

@@ -55,6 +55,23 @@
           </el-select>
         </el-form-item>
 
+        <el-form-item label="运费模板" prop="shippingTemplateId">
+          <el-select
+            v-model="productForm.shippingTemplateId"
+            placeholder="请选择运费模板（可选，不选则包邮）"
+            clearable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="template in shippingTemplates"
+              :key="template.id"
+              :label="template.templateName"
+              :value="template.id"
+            />
+          </el-select>
+          <div class="form-tip">不选择运费模板则该商品包邮</div>
+        </el-form-item>
+
         <!-- 价格与库存 -->
         <el-divider content-position="left">价格与库存</el-divider>
 
@@ -473,6 +490,7 @@ import type { FormInstance, FormRules, UploadFile, UploadUserFile } from 'elemen
 import { createProduct } from '@/api/admin/product'
 import { getCategoryTree } from '@/api/admin/productCategory'
 import { getBrandOptions } from '@/api/admin/brand'
+import request from '@/utils/request'
 import RichTextEditor from '@/components/common/RichTextEditor.vue'
 
 const router = useRouter()
@@ -485,6 +503,7 @@ const productForm = ref({
   barcode: '',
   unit: '',
   brandId: null as any,
+  shippingTemplateId: null as any,
   basePrice: 0,
   suggestedRetailPrice: 0,
   marketRetailPrice: 0,
@@ -555,6 +574,7 @@ const formRules: FormRules = {
 
 const categoryOptions = ref<any[]>([])
 const brandOptions = ref<any[]>([])
+const shippingTemplates = ref<any[]>([])
 
 const cascaderProps = {
   value: 'id',
@@ -580,6 +600,17 @@ const loadBrands = async () => {
   } catch (error) {
     // 静默处理，不显示错误
     brandOptions.value = []
+  }
+}
+
+// 加载运费模板列表
+const loadShippingTemplates = async () => {
+  try {
+    const response = await request.get('/api/admin/shipping/template/all')
+    shippingTemplates.value = response || []
+  } catch (error) {
+    // 静默处理，不显示错误
+    shippingTemplates.value = []
   }
 }
 
@@ -833,6 +864,7 @@ const removeSku = (index: number) => {
 onMounted(() => {
   loadCategories()
   loadBrands()
+  loadShippingTemplates()
 })
 </script>
 

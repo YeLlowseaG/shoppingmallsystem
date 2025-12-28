@@ -57,6 +57,11 @@ public class ProductDTO {
     private Long brandId;
 
     /**
+     * 运费模板ID（非必填，为空表示包邮）
+     */
+    private Long shippingTemplateId;
+
+    /**
      * 主图URL
      */
     private String mainImage;

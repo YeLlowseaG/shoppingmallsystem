@@ -648,9 +648,14 @@ public class AlipayUtil {
         try {
             // 获取待签名字符串
             String signContent = getSignContent(params);
+            log.info("【签名调试】待签名字符串: {}", signContent);
+            log.info("【签名调试】私钥前20字符: {}", privateKey != null && privateKey.length() > 20 ? privateKey.substring(0, 20) + "..." : "null");
 
             // 使用私钥签名
-            return sign(signContent, privateKey);
+            String signature = sign(signContent, privateKey);
+            log.info("【签名调试】生成的签名前20字符: {}", signature.substring(0, Math.min(20, signature.length())) + "...");
+
+            return signature;
 
         } catch (Exception e) {
             log.error("生成支付宝签名异常", e);

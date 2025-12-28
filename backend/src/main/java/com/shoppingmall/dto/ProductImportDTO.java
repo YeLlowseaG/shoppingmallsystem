@@ -23,7 +23,9 @@ public class ProductImportDTO {
     private String categoryName;
     
     private String brandName;
-    
+
+    private Long shippingTemplateId;
+
     private BigDecimal basePrice;
     
     private BigDecimal suggestedRetailPrice;

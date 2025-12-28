@@ -53,6 +53,11 @@ public class Product {
     private Long brandId;
 
     /**
+     * 运费模板ID（关联shipping_template表，为空表示包邮）
+     */
+    private Long shippingTemplateId;
+
+    /**
      * 主图URL
      */
     private String mainImage;
