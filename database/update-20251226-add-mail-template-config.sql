@@ -51,3 +51,7 @@ ON DUPLICATE KEY UPDATE
 -- 查询验证
 SELECT * FROM `system_config` WHERE `config_key` IN ('mail.password-reset.subject', 'mail.password-reset.content', 'app.platform.name');
 
+
+
+
+

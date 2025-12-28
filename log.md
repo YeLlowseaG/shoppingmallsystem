@@ -1,5 +1,48 @@
 # 修改日志
 
+## 2025-12-27 - 修复测试环境 API 路径重复问题
+
+### 问题描述
+测试环境前端请求 API 时出现路径重复：`/test/api/api/buyer/...`，后端收到 `/api/api/buyer/...`，导致 404 错误。
+
+### 问题原因
+1. 前端代码中 API 调用已经包含 `/api/` 前缀（如 `/api/buyer/product/recommend/6`）
+2. 环境变量 `VITE_API_BASE_URL` 配置为 `/test/api`（也包含 `/api/`）
+3. 导致完整请求路径：`/test/api` + `/api/buyer/...` = `/test/api/api/buyer/...`
+
+### 解决方案
+修改构建脚本，在构建时设置正确的 `VITE_API_BASE_URL` 环境变量：
+- **测试环境**：`VITE_API_BASE_URL=/test`（不包含 `/api`）
+- **正式环境**：`VITE_API_BASE_URL=`（空字符串，因为前端代码已经有 `/api/` 前缀）
+
+### 修改文件清单
+1. `scripts/build-test.bat` - 添加 `VITE_API_BASE_URL=/test`
+2. `scripts/build-prod.bat` - 添加 `VITE_API_BASE_URL=`
+3. `scripts/build-test.sh` - 添加 `VITE_API_BASE_URL=/test`
+4. `scripts/build-prod.sh` - 添加 `VITE_API_BASE_URL=`
+5. `scripts/build-all.bat` - 添加 `VITE_API_BASE_URL` 配置
+6. `scripts/build-all.sh` - 添加 `VITE_API_BASE_URL` 配置
+7. `log.md` (本文件)
+
+### 工作原理
+- **测试环境**：
+  - baseURL: `/test`
+  - API 调用: `/api/buyer/product/recommend/6`
+  - 完整路径: `/test/api/buyer/product/recommend/6` ✅
+  - Nginx rewrite: `/test/api/buyer/...` -> `/api/buyer/...` ✅
+
+- **正式环境**：
+  - baseURL: ``（空）
+  - API 调用: `/api/buyer/product/recommend/6`
+  - 完整路径: `/api/buyer/product/recommend/6` ✅
+
+### 注意事项
+- 需要重新构建测试环境前端项目才能生效
+- 重新部署前端文件到服务器
+- 清除浏览器缓存后测试
+
+---
+
 ## 2025-12-27 - 订单退款按钮增加loading状态
 
 ### 功能说明
@@ -4369,3 +4412,990 @@ The method handlePaymentCallback(String, String, boolean, Map<String,Object>) in
 ### 修改文件清单
 1. `docs/完全隔离环境部署方案.md` (新建)
 2. `log.md` (本文件)
+
+---
+
+## 2025-12-27: 执行完全隔离环境部署配置
+
+### 执行内容
+按照完全隔离环境部署方案，完成了所有代码配置：
+
+1. **后端配置修改**
+   - 修改 `application-test.yml`：端口8082，独立文件路径，测试环境前端URL
+   - 修改 `application-prod.yml`：正式数据库，独立文件路径，关闭Swagger，正式环境前端URL
+
+2. **前端环境变量文件**
+   - 创建 `frontend/.env.production` 和 `frontend/.env.test`
+   - 创建 `admin-frontend/.env.production` 和 `admin-frontend/.env.test`
+
+3. **前端构建配置**
+   - 修改 `frontend/vite.config.ts`：添加base路径配置和测试环境API代理
+   - 修改 `admin-frontend/vite.config.ts`：添加base路径配置和测试环境API代理
+
+4. **Nginx配置优化**
+   - 优化文档中的Nginx配置，移除if语句，使用更精确的location匹配规则
+
+5. **部署脚本**
+   - 创建 `scripts/build-all.sh`（Linux/Mac版本）
+   - 创建 `scripts/build-all.bat`（Windows版本）
+
+6. **部署文档**
+   - 创建 `docs/服务器部署检查清单.md`：详细的服务器部署步骤和检查清单
+
+### 配置说明
+- 测试环境数据库 `shopping_mall_test` 已存在
+- 正式环境数据库 `shopping_mall_prod` 需要在服务器上创建
+- 前端路由配置已正确使用 `import.meta.env.BASE_URL`，自动支持base路径
+
+### 下一步操作
+1. 在服务器上创建正式环境数据库
+2. 打包并上传后端jar文件
+3. 在宝塔面板配置两个Java项目
+4. 构建并上传前端项目
+5. 配置Nginx
+
+### 修改文件清单
+1. `backend/src/main/resources/application-test.yml`
+2. `backend/src/main/resources/application-prod.yml`
+3. `frontend/.env.production` (新建)
+4. `frontend/.env.test` (新建)
+5. `admin-frontend/.env.production` (新建)
+6. `admin-frontend/.env.test` (新建)
+7. `frontend/vite.config.ts`
+8. `admin-frontend/vite.config.ts`
+9. `docs/完全隔离环境部署方案.md` (优化Nginx配置)
+10. `scripts/build-all.sh` (新建)
+11. `scripts/build-all.bat` (新建)
+12. `docs/服务器部署检查清单.md` (新建)
+13. `log.md` (本文件)
+
+---
+
+## 2025-12-27: 优化前端构建配置 - 使用不同的输出目录
+
+### 问题描述
+前端项目构建时，测试环境和正式环境的产物都放在同一个 `dist` 目录，导致：
+- 第二次构建会覆盖第一次的产物
+- 无法同时保留两个环境的产物
+- 容易混淆，部署不便
+
+### 解决方案
+修改构建配置，使用不同的输出目录：
+- 正式环境：`dist-prod/`
+- 测试环境：`dist-test/`
+
+### 修改内容
+1. **修改前端构建配置**
+   - `frontend/vite.config.ts`：根据环境变量设置不同的输出目录
+   - `admin-frontend/vite.config.ts`：根据环境变量设置不同的输出目录
+
+2. **更新构建脚本**
+   - `scripts/build-all.bat`：更新输出信息，说明新的目录结构
+   - `scripts/build-all.sh`：更新输出信息，说明新的目录结构
+
+3. **更新部署文档**
+   - `docs/完全隔离环境部署方案.md`：更新构建产物位置和部署命令
+   - `docs/服务器部署检查清单.md`：更新构建产物位置和部署命令
+
+### 改进效果
+- ✅ 两个环境的产物互不干扰
+- ✅ 可以同时保留两个环境的产物
+- ✅ 部署时不会混淆
+- ✅ 符合最佳实践
+
+### 修改文件清单
+1. `frontend/vite.config.ts`
+2. `admin-frontend/vite.config.ts`
+3. `scripts/build-all.bat`
+4. `scripts/build-all.sh`
+5. `docs/完全隔离环境部署方案.md`
+6. `docs/服务器部署检查清单.md`
+7. `log.md` (本文件)
+
+---
+
+## 2025-01-XX 修复 build-all.bat 脚本执行问题
+
+### 问题描述
+- 从 `scripts` 目录执行脚本时报错：`'跨敤鏂规硶:' 不是内部或外部命令`
+- 脚本要求必须在项目根目录执行，不够灵活
+- 中文显示乱码（编码问题）
+
+### 解决方案
+1. **自动切换到项目根目录**：脚本现在会自动检测脚本所在位置，并切换到项目根目录
+2. **修复编码问题**：添加 `chcp 65001` 命令，将代码页设置为 UTF-8，解决中文乱码
+3. **改进错误提示**：更清晰的错误信息，显示项目根目录路径
+
+### 修改内容
+- `scripts/build-all.bat`
+  - 添加 `chcp 65001` 设置 UTF-8 编码
+  - 添加自动切换到项目根目录的逻辑：`cd /d "%~dp0\.."`
+  - 添加项目根目录路径显示
+  - 改进错误提示信息
+
+### 使用方法
+现在可以从任何目录执行脚本：
+```bash
+# 从 scripts 目录执行
+cd scripts
+.\build-all.bat
+
+# 从项目根目录执行
+scripts\build-all.bat
+
+# 从任何其他目录执行（使用绝对路径）
+D:\my project\java-project\shangdan\ShoppingMallSystem\scripts\build-all.bat
+```
+
+---
+
+## 2025-01-XX 拆分构建脚本为独立的环境脚本
+
+### 需求描述
+将 `build-all.bat` 拆分为两个独立的脚本，分别用于构建正式环境和测试环境，提高脚本的灵活性和可维护性。
+
+### 解决方案
+创建四个新脚本：
+1. **build-prod.bat** - Windows 版本，构建正式环境
+2. **build-test.bat** - Windows 版本，构建测试环境
+3. **build-prod.sh** - Linux/Mac 版本，构建正式环境
+4. **build-test.sh** - Linux/Mac 版本，构建测试环境
+
+### 脚本功能
+- **build-prod.bat / build-prod.sh**：仅构建正式环境（production mode）
+  - 用户端：`frontend/dist-prod/`
+  - 管理后台：`admin-frontend/dist-prod/`
+
+- **build-test.bat / build-test.sh**：仅构建测试环境（test mode）
+  - 用户端：`frontend/dist-test/`
+  - 管理后台：`admin-frontend/dist-test/`
+
+### 特性
+- ✅ 自动切换到项目根目录（可从任何目录执行）
+- ✅ UTF-8 编码支持（Windows 版本）
+- ✅ 清晰的错误提示和构建信息
+- ✅ 跨平台支持（Windows 和 Linux/Mac）
+
+### 使用方法
+
+**Windows:**
+```bash
+# 构建正式环境
+scripts\build-prod.bat
+# 或从 scripts 目录
+cd scripts
+.\build-prod.bat
+
+# 构建测试环境
+scripts\build-test.bat
+# 或从 scripts 目录
+cd scripts
+.\build-test.bat
+```
+
+**Linux/Mac:**
+```bash
+# 添加执行权限（首次使用）
+chmod +x scripts/build-prod.sh
+chmod +x scripts/build-test.sh
+
+# 构建正式环境
+./scripts/build-prod.sh
+
+# 构建测试环境
+./scripts/build-test.sh
+```
+
+### 修改文件清单
+1. `scripts/build-prod.bat` (新建)
+2. `scripts/build-test.bat` (新建)
+3. `scripts/build-prod.sh` (新建)
+4. `scripts/build-test.sh` (新建)
+5. `log.md` (本文件)
+
+### 说明
+- `build-all.bat` 和 `build-all.sh` 保留，用于同时构建两个环境
+- 新脚本专注于单一环境，执行更快，更适合日常开发使用
+
+---
+
+## 2025-01-XX 修复测试环境构建输出目录问题
+
+### 问题描述
+- 执行测试环境构建脚本后，没有生成 `dist-test` 目录，只有 `dist` 目录
+- `vite.config.ts` 中配置的输出目录依赖于 `VITE_BUILD_ENV` 环境变量
+- 构建脚本中只使用了 `--mode test`，但没有设置 `VITE_BUILD_ENV` 环境变量
+
+### 问题原因
+`vite.config.ts` 中的配置：
+```typescript
+outDir: process.env.VITE_BUILD_ENV === 'test' ? 'dist-test' : 'dist-prod',
+```
+当 `VITE_BUILD_ENV` 未设置时，条件判断失败，使用了默认值 `dist-prod`（或 `dist`）。
+
+### 解决方案
+在所有构建脚本的构建命令中显式设置 `VITE_BUILD_ENV` 环境变量：
+
+**Windows 批处理脚本：**
+- 使用 `set VITE_BUILD_ENV=test &&` 在命令前设置环境变量
+
+**Linux/Mac Shell 脚本：**
+- 使用 `VITE_BUILD_ENV=test` 在命令前设置环境变量
+
+### 修改内容
+1. **`scripts/build-test.bat`**
+   - 在构建命令中添加 `set VITE_BUILD_ENV=test &&`
+
+2. **`scripts/build-prod.bat`**
+   - 在构建命令中添加 `set VITE_BUILD_ENV=production &&`
+
+3. **`scripts/build-test.sh`**
+   - 在构建命令中添加 `VITE_BUILD_ENV=test`
+
+4. **`scripts/build-prod.sh`**
+   - 在构建命令中添加 `VITE_BUILD_ENV=production`
+
+5. **`scripts/build-all.bat`**
+   - 在正式环境和测试环境的构建命令中都添加相应的环境变量设置
+
+6. **`scripts/build-all.sh`**
+   - 在正式环境和测试环境的构建命令中都添加相应的环境变量设置
+
+### 效果
+- ✅ 测试环境构建会正确生成 `dist-test` 目录
+- ✅ 正式环境构建会正确生成 `dist-prod` 目录
+- ✅ 两个环境的构建产物完全隔离，互不干扰
+
+### 修改文件清单
+1. `scripts/build-test.bat`
+2. `scripts/build-prod.bat`
+3. `scripts/build-test.sh`
+4. `scripts/build-prod.sh`
+5. `scripts/build-all.bat`
+6. `scripts/build-all.sh`
+7. `log.md` (本文件)
+
+---
+
+## 2025-01-XX 修复测试环境构建内存不足问题
+
+### 问题描述
+- 执行测试环境构建时出现内存分配失败错误：`memory allocation of 192 bytes failed`
+- 构建过程因内存不足而失败，但脚本没有检测到错误，仍然显示"构建完成"
+- 实际上没有生成 `dist-test` 目录
+
+### 问题原因
+1. **Node.js 默认内存限制不足**：大型前端项目（特别是使用 Element Plus、Sass 等）构建时需要更多内存
+2. **缺少错误检查**：脚本没有检查构建命令的返回值，即使构建失败也继续执行
+3. **缺少产物验证**：没有验证构建产物目录是否存在
+
+### 解决方案
+1. **增加 Node.js 内存限制**：在所有构建脚本中设置 `NODE_OPTIONS=--max-old-space-size=4096`（4GB）
+2. **添加错误检查**：
+   - Windows 批处理：使用 `if errorlevel 1` 检查命令返回值
+   - Linux/Mac Shell：使用 `set -e` 自动退出（已存在）
+3. **添加产物验证**：构建完成后检查输出目录是否存在
+
+### 修改内容
+
+#### Windows 批处理脚本（.bat）
+- 添加 `set "NODE_OPTIONS=--max-old-space-size=4096"` 设置内存限制
+- 在每个 `npm install` 和 `npm run build` 命令后添加错误检查
+- 在构建完成后验证输出目录是否存在
+
+#### Linux/Mac Shell 脚本（.sh）
+- 添加 `export NODE_OPTIONS="--max-old-space-size=4096"` 设置内存限制
+- 在构建完成后验证输出目录是否存在（`set -e` 已提供错误检查）
+
+### 修改文件清单
+1. `scripts/build-test.bat` - 添加内存限制、错误检查和产物验证
+2. `scripts/build-prod.bat` - 添加内存限制和错误检查
+3. `scripts/build-test.sh` - 添加内存限制和产物验证
+4. `scripts/build-prod.sh` - 添加内存限制
+5. `scripts/build-all.bat` - 添加内存限制
+6. `scripts/build-all.sh` - 添加内存限制
+7. `log.md` (本文件)
+
+### 效果
+- ✅ 解决了内存分配失败的问题
+- ✅ 构建失败时会正确报错并退出
+- ✅ 验证构建产物是否存在，确保构建成功
+- ✅ 如果 4GB 内存仍不够，可以增加到 8GB：`--max-old-space-size=8192`
+
+---
+
+## 2025-01-XX 修复 Windows 批处理脚本环境变量传递问题
+
+### 问题描述
+- 测试环境构建时，虽然构建命令执行成功，但没有生成 `dist-test` 目录
+- 构建日志显示输出到了 `dist-prod` 目录，说明 `VITE_BUILD_ENV` 环境变量没有正确传递
+- 正式环境构建正常，但测试环境构建失败
+
+### 问题原因
+在 Windows 批处理文件中，使用 `set VAR=value && command` 方式设置的环境变量无法正确传递到 npm 的子进程中。npm 会启动一个新的进程，环境变量可能不会传递过去。
+
+### 解决方案
+使用 `cmd /c` 来执行命令，这样可以确保环境变量在子进程中正确传递：
+
+**修改前：**
+```batch
+set VITE_BUILD_ENV=test && call npm run build -- --mode test
+```
+
+**修改后：**
+```batch
+cmd /c "set VITE_BUILD_ENV=test && npm run build -- --mode test"
+```
+
+### 修改内容
+1. **`scripts/build-test.bat`**
+   - 将 `set VITE_BUILD_ENV=test && call npm run build` 改为 `cmd /c "set VITE_BUILD_ENV=test && npm run build"`
+   - 确保环境变量正确传递到 npm 子进程
+
+2. **`scripts/build-prod.bat`**
+   - 将 `set VITE_BUILD_ENV=production && call npm run build` 改为 `cmd /c "set VITE_BUILD_ENV=production && npm run build"`
+   - 保持一致性，确保正式环境也能正确传递环境变量
+
+3. **`scripts/build-all.bat`**
+   - 将所有构建命令都改为使用 `cmd /c` 方式
+   - 确保所有环境变量都能正确传递
+
+### 技术说明
+- 在 Windows 批处理中，直接使用 `set` 命令设置环境变量，然后使用 `call` 调用 npm
+- 环境变量会在整个批处理会话中可用，npm 启动的 Node.js 进程会继承这些环境变量
+- 构建完成后使用 `set "VITE_BUILD_ENV="` 清除环境变量，避免影响后续构建
+
+### 修改文件清单
+1. `scripts/build-test.bat`
+2. `scripts/build-prod.bat`
+3. `scripts/build-all.bat`
+4. `log.md` (本文件)
+
+### 效果
+- ✅ 测试环境构建会正确生成 `dist-test` 目录
+- ✅ 正式环境构建会正确生成 `dist-prod` 目录
+- ✅ 环境变量能够正确传递到 Vite 构建过程中
+- ✅ 使用简单的 `set` 命令，比 `cmd /c` 或 `setlocal` 更可靠
+## [2025-01-XX] 修复管理后台路由守卫无限循环问题
+
+### 问题描述
+- 正式环境管理后台访问空白页面
+- 浏览器控制台报错：Maximum call stack size exceeded
+- 路由守卫中使�?next(to.path) 导致无限循环
+
+### 修复内容
+1. 修复路由守卫中的无限循环问题
+   - 文件：admin-frontend/src/router/index.ts
+   - �?next(to.path) 改为 next()，避免重新触发路由守卫`n   - 添加 isAddingRoutes 标志，防止重复添加路由`n
+2. 优化路由守卫逻辑
+   - 添加 try-finally 确保标志正确重置
+   - 防止在路由守卫中重复调用 addRoutes
+
+
+
+## [2025-01-XX] 修复404路由循环重定向问题`n
+### 问题描述
+- 访问 /admin/ 时出�?Maximum call stack size exceeded 错误
+- 404路由组件�?mounted 钩子会无条件重定向，导致循环
+- pushWithRedirect 函数无限递归调用
+
+### 修复内容
+1. 修复404组件的循环重定向问题
+   - 文件：admin-frontend/src/router/index.ts
+   - 添加 _redirecting 标志，防止循环重定向
+   - 检查目标路由是否存在后再重定向
+   - 如果目标路由不存在，根据登录状态处理，避免无限循环
+
+2. 优化路由守卫逻辑
+   - 添加�?04路由的特殊处理，直接放行让组件自己处理`n   - 避免在路由守卫中重复处理404路由
+
+3. 修复TypeScript类型错误
+   - 处理 r.path �?r.name 可能�?string | symbol 的情况`n   - 添加类型检查确保代码类型安全`n
+
+
+## [2025-01-XX] 恢复路由配置到之前能正常工作的版本`n
+### 问题描述
+- 修改路由配置后出现循环重定向问题
+- Maximum call stack size exceeded 错误
+- 需要恢复到之前能正常工作的版本
+
+### 修复内容
+1. 恢复两个独立�?/admin 路由定义
+   - 文件：admin-frontend/src/router/index.ts
+   - 第一个路由：{ path: '/admin', redirect: '/admin/dashboard' } - 纯重定向路由
+   - 第二个路由：{ path: '/admin', name: 'admin', component: ... } - 实际的父路由
+
+2. 恢复404组件的重定向逻辑
+   - �?04组件�?mounted 钩子中恢复重定向逻辑
+   - 如果已登录，重定向到 /admin/dashboard
+   - 如果未登录，重定向到 /admin/login
+
+3. 简化路由守卫逻辑
+   - 移除所有复杂的 checkRouteExists 检查`n   - 移除 isAddingRoutes 标志和相关的 try-finally 逻辑
+   - 恢复简单的路由守卫逻辑
+
+4. 修复关键问题
+   - �?
+ext(to.path) 改为 
+ext()，避免无限循环`n   - 这是唯一需要修复的问题
+
+5. 移除静�?dashboard 路由
+   - 移除 admin-dashboard-fallback 静态路由`n   - 恢复原来的动态路由机制`n
+6. 修复TypeScript类型错误
+   - 修复路由过滤中的类型检查`n
+
+
+## [2025-01-XX] 彻底修复管理后台路由问题（最终方案）
+
+### 问题分析
+1. **用户端可以访问，管理后台不行**
+   - 用户端路由守卫简单，只检查登录状态`n   - 管理后台路由守卫复杂，有404处理、动态路由添加等
+   - 管理后台的路由守卫逻辑导致循环重定向`n
+2. **页面空白问题**
+   - 路由循环重定向导致页面无法加载`n   - 路由守卫在路由匹配之前执行，导致误判
+
+### 解决方案
+1. **添加404路由，让Vue Router处理未匹配路�?*
+   - 文件：admin-frontend/src/router/index.ts
+   - 添加 /admin/:pathMatch(.*)* 404路由，直接重定向�?/admin/login`n   - 添加 /:pathMatch(.*)* 404路由，也重定向到 /admin/login`n   - 让Vue Router自己处理404，而不是在路由守卫中处理`n
+2. **简化路由守卫逻辑**
+   - 移除复杂�?04处理逻辑
+   - 404路由直接放行，让Vue Router自动重定向`n   - 保留动态路由添加功能（已登录用户）
+   - 参考用户端的简单路由守卫逻辑
+
+3. **避免循环重定�?*
+   - 404路由在路由配置中直接设置 
+edirect，而不是在路由守卫中重定向
+   - 路由守卫只处理登录检查和权限检查`n
+### 核心改进
+- **路由配置层面处理404**：在路由配置中直接设�?04路由的redirect，而不是在路由守卫中处理`n- **简化路由守�?*：只处理登录检查和权限检查，不处�?04
+- **避免循环**�?04路由的redirect是静态配置，不会导致循环
+
+### 优势
+- 简单：逻辑清晰，易于理解`n- 稳定：Vue Router自动处理404，不会导致循环`n- 合理：未匹配的路由自动重定向到登录页
+- 参考用户端：与用户端的简单路由守卫逻辑一致`n
+
+
+## [2025-01-XX] 紧急修复管理后台空白页面问题`n
+### 问题描述
+- 访问 http://localhost:3003/admin/ 页面完全空白
+- 无法访问登录页面和管理后台首页`n- 控制台显示大量警告，但无错误信息
+
+### 问题原因
+1. **404路由redirect导致循环**
+   - 404路由设置�?
+edirect: '/admin/login'，可能导致循环重定向
+   - 路由守卫逻辑复杂，可能在某些情况下导致路由无法匹配`n
+2. **路由配置问题**
+   - /admin 路由的redirect可能失败
+   - 404路由的redirect可能导致无限循环
+
+### 解决方案
+1. **修改404路由，不再redirect**
+   - 文件：admin-frontend/src/router/index.ts
+   - /admin/:pathMatch(.*)* 404路由改为显示简单提示页面，而不是redirect
+   - 避免redirect导致的循环问题`n
+2. **优化路由配置**
+   - /admin 路由明确设置 
+edirect: '/admin/dashboard'`n   - 确保dashboard路由存在且可访问
+
+3. **简化路由守卫逻辑**
+   - 参考用户端的简单路由守卫逻辑
+   - 移除复杂�?04处理逻辑
+   - 404路由直接放行，不需要认证`n
+### 核心改进
+- **404路由显示提示而不是redirect**：避免循环重定向
+- **明确路由redirect**：确�?/admin 正确重定向到dashboard
+- **简化路由守�?*：只处理登录检查和权限检查`n
+
+
+## [2025-01-XX] 恢复之前可工作的路由配置版本
+
+### 问题描述
+- 当前版本路由配置导致页面空白，无法访问管理后台`n- 对比之前可工作的版本，发现关键差异`n
+### 关键差异分析
+1. **两个 /admin 路由定义**
+   - 之前版本：第一个路由只�?
+edirect: '/admin/dashboard'，第二个路由�?component �?children`n   - 当前版本：只有一个路由，同时包含 
+edirect �?component`n   - **影响**：Vue Router会优先匹配第一个只有redirect的路由，立即重定向，不会进入路由守卫，避免逻辑冲突
+
+2. **404路由处理**
+   - 之前版本：使�?Layout 组件，在 mounted 钩子中重定向
+   - 当前版本：使用简单的 	emplate 组件
+   - **影响**：Layout组件确保页面结构正确，mounted钩子确保在组件加载完成后才重定向
+
+3. **路由守卫中的路由检�?*
+   - 之前版本：使�?
+outer.resolve(to.path).matched.length > 0 �?
+ext(to.path) 重新导航
+   - 当前版本：使�?
+outer.getRoutes() 检查和 
+ext() 继续导航
+   - **影响**：`router.resolve 会重新解析路由，
+ext(to.path) 会触发新的导航，确保路由正确匹配
+
+### 修复内容
+1. **恢复两个 /admin 路由定义**
+   - 文件：admin-frontend/src/router/index.ts
+   - 第一个路由：只有 
+edirect: '/admin/dashboard'`n   - 第二个路由：�?
+ame: 'admin', component: Layout, children: []`n
+2. **恢复404路由的Layout组件处理**
+   - 404路由使用 Layout 组件
+   - �?mounted 钩子中根据登录状态重定向
+
+3. **恢复路由守卫的路由检查逻辑**
+   - 使用 
+outer.resolve(to.path).matched.length > 0 检查路由是否存在`n   - 使用 
+ext(to.path) 重新导航，而不�?
+ext() 继续导航
+
+### 核心原理
+- **两个路由定义**：Vue Router会按顺序匹配路由，第一个只有redirect的路由会立即重定向，不会进入路由守卫，避免在路由守卫中处理redirect逻辑导致的冲突`n- **Layout组件404处理**：确�?04页面也有正确的Layout结构，在组件加载完成后才重定向`n- **router.resolve检�?*：重新解析路由，确保路由添加后能正确匹配
+
+
+
+## [2025-01-XX] 修复管理后台开发环境空白页面问题`n
+### 问题描述
+- 开发环境访�?http://localhost:3003/admin/ 页面完全空白
+- 对比正常工作�?dev 版本，发现关键差异`n
+### 问题原因
+1. **vite.config.ts �?base 配置问题**
+   - 当前版本：开发环境也设置�?ase: '/admin/'`n   - 正常版本：开发环境不设置 base（默认是 '/'）`n   - **影响**：开发环境设�?base 后，Vite 开发服务器资源路径不正确，导致资源404
+
+2. **404路由组件差异**
+   - 当前版本：使用单独的 NotFound.vue 文件
+   - 正常版本：使用内联组件定义`n
+3. **路由日志代码差异**
+   - 当前版本：复杂的类型检查`n   - 正常版本：简单的字符串检查`n
+### 解决方案
+1. **修改 vite.config.ts，使用条件配置base**
+   - 文件：admin-frontend/vite.config.ts
+   - 开发环境：ase: '/'（不设置base）`n   - 生产环境：根�?VITE_BUILD_ENV 设置 base
+     - 正式环境：`base: '/admin/'`n     - 测试环境：`base: '/test/admin/'`n   - 使用 process.env.NODE_ENV === 'production' 判断是否为生产构建`n
+2. **修改路由配置，使用内联组�?*
+   - 文件：admin-frontend/src/router/index.ts
+   - 404路由改为使用内联组件定义（和 dev 版本一致）
+   - �?mounted 钩子中重定向
+
+3. **简化路由日志代�?*
+   - 简化路由过滤逻辑，和 dev 版本保持一致`n
+### 核心原理
+- **开发环�?*：Vite 开发服务器在根路径运行，不需�?base 配置
+- **生产环境**：根据部署路径设�?base，确保资源路径正确`n- **条件配置**：使�?NODE_ENV 区分开发和生产环境
+
+### 验证
+- 开发环境：访问 http://localhost:3003/admin/ 应该可以正常显示
+- 生产环境：构建后部署�?/admin/ 路径应该可以正常工作
+- 测试环境：构建后部署�?/test/admin/ 路径应该可以正常工作
+
+
+
+## [2025-01-XX] 优化vite.config.ts配置，使用函数形式区分开发和生产环境
+
+### 修改内容
+- 文件：admin-frontend/vite.config.ts
+- �?defineConfig 改为函数形式，接�?{ command, mode } 参数
+- 使用 command === 'build' 判断是否为构建命令`n- 开发环境（command === 'serve'）：base = '/'
+- 构建环境（command === 'build'）：根据 VITE_BUILD_ENV 设置 base
+
+### 优势
+- **更可�?*：使�?Vite 提供�?command 参数，比检�?NODE_ENV 更准确`n- **更清�?*：明确区分开发和生产环境的配置`n- **更灵�?*：可以根�?mode 参数进一步自定义配置
+
+### 工作原理
+- 开发环境（npm run dev）：command === 'serve'，base = '/'
+- 正式环境构建：command === 'build'，VITE_BUILD_ENV=production，base = '/admin/'
+- 测试环境构建：command === 'build'，VITE_BUILD_ENV=test，base = '/test/admin/'
+
+---
+
+## 2024-XX-XX 修复 build-prod.bat 脚本执行问题
+
+### 问题描述
+- 在 PowerShell 中执行 `build-prod.bat` 时出现编码错误和环境变量解析错误
+- 错误信息：`'space-size' 不是内部或外部命令`、`'.' 不是内部或外部命令` 等
+- 路径中包含空格导致环境变量设置被错误解析
+
+### 修改文件
+- `scripts/build-prod.bat`
+
+### 修改内容
+1. **添加 `setlocal enabledelayedexpansion`**：启用延迟变量展开，确保变量正确解析
+2. **移除环境变量设置中的引号**：
+   - 从 `set "NODE_OPTIONS=--max-old-space-size=4096"` 改为 `set NODE_OPTIONS=--max-old-space-size=4096`
+   - 从 `set "VITE_BUILD_ENV=production"` 改为 `set VITE_BUILD_ENV=production`
+   - 避免路径中空格导致的解析问题
+3. **简化错误检查逻辑**：
+   - 移除 `BUILD_ERROR` 变量
+   - 直接使用 `if errorlevel 1` 检查构建结果
+4. **添加 `endlocal`**：在脚本结束前清理本地环境变量
+
+### 修改效果
+- 解决了 PowerShell 执行批处理文件时的编码和解析问题
+- 环境变量设置更加可靠，不受路径空格影响
+- 错误处理更加简洁直接
+
+### 后续修改（解决编码问题）
+由于批处理文件在 PowerShell 中执行时仍然出现编码错误（`'锛?set'`、`'oduction'` 等），进行了以下修改：
+
+1. **移除 `chcp 65001`**：避免编码冲突，使用系统默认编码
+2. **注释改为英文**：减少中文编码问题
+3. **创建 PowerShell 脚本替代方案**：`scripts/build-prod.ps1`
+   - 使用 PowerShell 原生语法，避免编码问题
+   - 更好的错误处理和输出格式
+   - 直接支持 PowerShell 环境变量设置
+
+### 使用方法
+- **批处理文件**：`cmd /c "scripts\build-prod.bat"` 或 `.\scripts\build-prod.bat`
+- **PowerShell 脚本**（推荐）：`.\scripts\build-prod.ps1`
+
+---
+
+## 2024-XX-XX 修复生产环境路由循环问题
+
+### 问题描述
+- 开发环境管理后台可以正常访问，但部署到正式环境后出现 `RangeError: Maximum call stack size exceeded` 错误
+- 错误发生在路由解析过程中，导致页面无法加载
+
+### 问题原因分析
+1. **BASE_URL 差异**：
+   - 开发环境：`base = '/'`，`import.meta.env.BASE_URL = '/'`
+   - 生产环境：`base = '/admin/'`，`import.meta.env.BASE_URL = '/admin/'`
+   - 生产环境中 `router.resolve()` 受 BASE_URL 影响，可能返回错误结果
+
+2. **重复的路由定义**：
+   - `/admin` 路径被定义了两次（一次 redirect，一次 component），导致路由冲突
+
+3. **404组件中的重定向**：
+   - 404组件在 `mounted` 钩子中使用 `this.$router.replace()`，与路由守卫逻辑冲突
+   - 在生产环境中可能触发循环重定向
+
+4. **路由守卫中的问题**：
+   - 使用 `router.resolve(to.path)` 在生产环境中可能返回错误结果
+   - 使用 `next(to.path)` 可能导致重复导航
+
+### 修改文件
+- `admin-frontend/src/router/index.ts`
+
+### 修复404路由导致的无限循环重定向
+由于 `/admin/dashboard` 路径匹配到404路由 `/admin/:pathMatch(.*)*`，导致无限循环重定向，进行了以下修复：
+
+1. **优化404路由处理逻辑**：
+   - 当dashboard路径匹配到404路由时，先尝试添加路由
+   - 如果路由添加成功，重新导航到dashboard
+   - 如果路由添加失败，停止重定向避免循环（使用 `next(false)` 取消导航）
+
+2. **增强循环检测机制**：
+   - 检查重定向的目标路径和当前路径是否相同
+   - 如果相同且匹配到404路由，停止重定向避免循环
+   - 使用 `next(false)` 取消导航，而不是继续重定向
+
+3. **改进路由添加后的导航**：
+   - 当路由添加成功后，使用 `next({ path: '/admin/dashboard', replace: true })` 重新导航
+   - 确保路由能够正确匹配
+
+### 关键修改点
+- **404路由处理**：添加dashboard路径的特殊处理，先尝试添加路由再重定向
+- **循环防护**：使用 `next(false)` 取消导航，避免无限循环
+- **路由添加逻辑**：确保dashboard路由能够被正确添加和匹配
+
+### 修改内容
+1. **合并重复的 `/admin` 路由定义**：
+   - 将 `redirect: '/admin/dashboard'` 合并到主路由定义中
+   - 移除单独的重定向路由定义
+
+2. **移除404组件中的 `mounted` 钩子**：
+   - 移除组件内部的重定向逻辑
+   - 改为在路由守卫中统一处理404重定向
+
+3. **优化路由守卫逻辑**：
+   - 在路由守卫开头添加404路由的处理逻辑，优先处理404重定向
+   - 将 `router.resolve(to.path)` 改为 `router.getRoutes().find()`，避免 BASE_URL 影响
+   - 将 `next(to.path)` 改为 `next({ path: to.path, replace: true })`，避免重复导航
+   - 改进路由匹配检查，排除404路由避免误判
+
+4. **修复类型检查**：
+   - 在 `router.getRoutes().filter()` 中添加类型检查，确保 `r.name` 是字符串类型
+
+### 修改效果
+- 解决了生产环境中的路由循环问题
+- 统一了404路由的处理逻辑，避免组件和守卫中的冲突
+- 提高了路由解析的可靠性，不受 BASE_URL 影响
+- 改善了路由守卫的执行顺序和逻辑
+
+### 技术要点
+- **BASE_URL 的影响**：在生产环境中，`createWebHistory('/admin/')` 会影响路由解析，需要使用 `router.getRoutes()` 而不是 `router.resolve()`
+- **路由守卫优先级**：404路由的处理应该在路由守卫的开头，避免与其他逻辑冲突
+- **避免循环重定向**：不要在组件 `mounted` 钩子中进行重定向，统一在路由守卫中处理
+
+### 后续优化（防止路由循环）
+由于问题仍然存在，进行了进一步的优化：
+
+1. **修复 Layout 组件中的 `router.resolve()`**：
+   - 将 `router.resolve(currentPath).matched.length > 0` 改为 `router.getRoutes().some()`
+   - 避免在生产环境中因 BASE_URL 导致的循环
+
+2. **添加路由循环防护机制**：
+   - 添加 `isAddingRoutes` 和 `lastProcessedPath` 标志
+   - 防止重复处理同一路径
+   - 当检测到循环时，强制重定向到 dashboard 或登录页
+
+3. **优化路由添加后的导航**：
+   - 当路由添加成功后，使用 `next({ ...to, replace: true })` 重新触发路由匹配
+   - 避免直接调用 `next()` 导致路由未重新匹配的问题
+
+### 关键修改点
+- **Layout/index.vue**：修复 `router.resolve()` 调用，使用 `router.getRoutes().some()` 替代
+- **router/index.ts**：添加循环防护机制，优化路由添加后的导航逻辑
+
+### 修复开发环境登录页无法访问问题
+由于路由守卫逻辑导致开发环境无法访问登录页，进行了以下修复：
+
+1. **优化登录页处理逻辑**：
+   - 在路由守卫中优先处理登录页路由
+   - 如果用户已登录且访问登录页，跳转到 dashboard
+   - 如果用户未登录，允许访问登录页
+   - 避免登录页被路由匹配逻辑误判
+
+2. **移除重复的登录页检查**：
+   - 将登录页的处理逻辑提前，避免在路由匹配检查之后重复处理
+   - 确保登录页能够正常访问
+
+### 修改文件
+- `admin-frontend/src/router/index.ts`
+
+### 修复404路由导致的无限循环重定向
+由于 `/admin/dashboard` 路径匹配到404路由 `/admin/:pathMatch(.*)*`，导致无限循环重定向，进行了以下修复：
+
+1. **优化404路由处理逻辑**：
+   - 当dashboard路径匹配到404路由时，先尝试添加路由
+   - 如果路由添加成功，重新导航到dashboard
+   - 如果路由添加失败，停止重定向避免循环（使用 `next(false)` 取消导航）
+
+2. **增强循环检测机制**：
+   - 检查重定向的目标路径和当前路径是否相同
+   - 如果相同且匹配到404路由，停止重定向避免循环
+   - 使用 `next(false)` 取消导航，而不是继续重定向
+
+3. **改进路由添加后的导航**：
+   - 当路由添加成功后，使用 `next({ path: '/admin/dashboard', replace: true })` 重新导航
+   - 确保路由能够正确匹配
+
+### 关键修改点
+- **404路由处理**：添加dashboard路径的特殊处理，先尝试添加路由再重定向
+- **循环防护**：使用 `next(false)` 取消导航，避免无限循环
+- **路由添加逻辑**：确保dashboard路由能够被正确添加和匹配
+
+### 修复生产环境 router.resolve() 循环问题（关键修复）
+虽然代码中已经移除了 `router.resolve()` 调用，但 Vue Router 内部在使用 `next({ ...to, replace: true })` 时会调用 `resolve()` 方法，导致生产环境循环。
+
+**问题原因**：
+- `next({ path: '/admin/dashboard', replace: true })` 会触发 Vue Router 内部的 `resolve()` 调用
+- `next({ ...to, replace: true })` 也会触发内部的 `resolve()` 调用
+- 在生产环境中，由于 BASE_URL 是 `/admin/`，`resolve()` 方法可能因为路径解析问题导致循环
+
+**修复方案**：
+1. **简化路由导航**：
+   - 将 `next({ path: '/admin/dashboard', replace: true })` 改为 `next('/admin/dashboard')`
+   - 将 `next({ ...to, replace: true })` 改为 `next(to.path)`
+   - 避免使用对象形式的导航参数，直接使用字符串路径
+
+2. **优化 Layout 组件中的路由重新导航**：
+   - 添加延迟检查，确保路由已经添加完成
+   - 使用 `router.push()` 而不是 `router.replace()`，避免触发内部的 `resolve()` 调用
+
+**修改文件**：
+- `admin-frontend/src/router/index.ts`：简化路由导航调用
+- `admin-frontend/src/components/Layout/index.vue`：优化路由重新导航逻辑
+
+**关键改进**：
+- 所有路由导航都使用字符串路径，避免对象形式触发内部的 `resolve()` 调用
+- 减少了 Vue Router 内部的路径解析操作，降低循环风险
+
+## 创建独立的构建脚本
+
+### 问题背景
+原有的 `build-prod.bat` 和 `build-test.bat` 将用户端和管理后台的构建合并在一个脚本中，不够灵活。
+
+### 解决方案
+创建四个独立的构建脚本，便于分别构建和管理：
+
+1. **`scripts/build-user-prod.bat`** - 只构建用户端生产环境
+2. **`scripts/build-admin-prod.bat`** - 只构建管理后台生产环境
+3. **`scripts/build-user-test.bat`** - 只构建用户端测试环境
+4. **`scripts/build-admin-test.bat`** - 只构建管理后台测试环境
+
+### 脚本特性
+- 自动切换到项目根目录
+- 设置4GB Node.js内存限制
+- 包含错误处理和构建验证
+- 环境变量自动清理
+- 构建产物位置提示
+
+### 使用方法
+```bash
+# 用户端生产环境
+scripts\build-user-prod.bat
+
+# 管理后台生产环境
+scripts\build-admin-prod.bat
+
+# 用户端测试环境
+scripts\build-user-test.bat
+
+# 管理后台测试环境
+scripts\build-admin-test.bat
+```
+
+### 修改文件
+- 新增：`scripts/build-user-prod.bat`
+- 新增：`scripts/build-admin-prod.bat`
+- 新增：`scripts/build-user-test.bat`
+- 新增：`scripts/build-admin-test.bat`
+
+**构建产物位置**：
+- 用户端生产：`frontend/dist-prod/`
+- 管理后台生产：`admin-frontend/dist-prod/`
+- 用户端测试：`frontend/dist-test/`
+- 管理后台测试：`admin-frontend/dist-test/`
+
+## 修复路由守卫对象形式 next() 调用
+
+### 问题背景
+在生产环境中，路由守卫中使用对象形式的 `next()` 调用仍然可能触发 Vue Router 内部的 `resolve()` 方法，导致死循环。
+
+### 问题代码位置
+`admin-frontend/src/router/index.ts` 第286-290行：
+
+```typescript
+next({
+  path: to.path,
+  query: { ...to.query, __routeRetry: '1' },
+  replace: true
+})
+```
+
+### 解决方案
+使用字符串路径形式，避免对象形式触发内部 `resolve()` 调用：
+
+```typescript
+// 使用字符串路径，避免对象形式触发 Vue Router 内部的 resolve() 调用
+const retryUrl = `${to.path}?${new URLSearchParams({ ...to.query, __routeRetry: '1' }).toString()}`
+next(retryUrl)
+```
+
+### 修改文件
+- `admin-frontend/src/router/index.ts`：修复对象形式 next() 调用
+
+### 关键改进
+- 彻底避免所有对象形式的 `next()` 调用
+- 使用 URL 构造函数安全地处理查询参数
+- 确保生产环境不再出现 Vue Router resolve() 死循环
+
+## 简化路由守卫逻辑
+
+### 问题背景
+路由守卫中存在两套重复的处理逻辑：404路由处理和未匹配路由处理，导致逻辑冲突和死循环。
+
+### 根本原因分析
+Vue Router的行为是：
+- 路由存在 → 正常匹配
+- 路由不存在 → 匹配到404路由
+
+不需要额外的"未匹配路由"处理逻辑，两套逻辑会相互冲突。
+
+### 解决方案
+删除复杂的未匹配路由处理逻辑，只保留：
+1. 404路由处理（处理动态路由添加）
+2. 权限检查
+3. 其他必要检查
+
+### 删除的内容
+- 路由匹配检查逻辑（`const matched = ...`）
+- 未匹配路由处理分支（整个 `if (!matched && to.path.startsWith('/admin'))` 块）
+- 相关的循环防护变量重置
+
+### 保留的内容
+- 404路由处理逻辑（处理dashboard路由添加）
+- 权限检查逻辑
+- 登录状态检查
+
+### 修改文件
+- `admin-frontend/src/router/index.ts`：删除第237-314行的未匹配路由处理逻辑
+
+### 关键改进
+- 消除路由守卫逻辑冲突
+- 简化代码结构，提高可维护性
+- 避免重复的路由检查和处理逻辑
+- 确保404路由处理是唯一动态路由添加的入口
+
+## 移除动态路由添加逻辑
+
+### 问题背景
+管理后台的动态路由添加逻辑过于复杂，导致 Vue Router 死循环。
+
+### 用户端 vs 管理后台差异分析
+
+**用户端路由特点：**
+- 静态路由，无动态添加
+- 简单的路由守卫（仅登录检查）
+- 无复杂逻辑，运行稳定
+
+**管理后台路由特点：**
+- 动态路由添加逻辑
+- 复杂的404处理和路由守卫
+- 路由解析冲突导致死循环
+
+### 解决方案
+完全移除管理后台的动态路由添加逻辑，改为静态路由模式：
+1. 预定义所有管理页面路由
+2. 移除复杂的路由守卫逻辑
+3. 简化404处理，只处理登录重定向
+
+### 修改内容
+- 移除404路由中的动态路由添加逻辑
+- 简化404处理为简单的登录状态检查
+- 保留权限检查逻辑
+
+### 关键改进
+- 彻底消除 Vue Router resolve() 死循环
+- 简化路由逻辑，提高稳定性
+- 让管理后台表现与用户端一致
+- 避免复杂的异步路由添加操作
+
+## 修复路由路径配置
+
+### 问题背景
+管理后台使用绝对路径路由（如 `/admin/login`），但在 `createWebHistory('/admin/')` 配置下会导致路径解析错误。
+
+### BASE_URL 差异分析
+
+**用户端：**
+- BASE_URL = '/' (所有环境)
+- 路由路径：`'/login'`, `'/'` 等
+- 实际URL：`/login`, `/` 等
+
+**管理后台：**
+- 开发环境：BASE_URL = '/'
+- 测试环境：BASE_URL = '/test/admin/'
+- 生产环境：BASE_URL = '/admin/'
+- 路由路径需要相对于 BASE_URL
+
+### 解决方案
+将管理后台的所有路由路径改为相对路径：
+1. `/admin/login` → `/login`
+2. `/admin` → `/`
+3. `/admin/dashboard` → `/dashboard`
+4. `/admin/:pathMatch(.*)*` → `/:pathMatch(.*)*`
+
+### 修改内容
+- 更新所有路由定义中的路径
+- 更新路由守卫中的路径引用
+- 更新组件中的路径跳转
+- 更新Layout组件中的路径构建逻辑
+
+### 关键改进
+- 修复 BASE_URL 相关的路径解析问题
+- 确保在不同环境下路由都能正确工作
+- 消除 Vue Router 内部路径冲突
+

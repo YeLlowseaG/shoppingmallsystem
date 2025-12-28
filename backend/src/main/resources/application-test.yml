@@ -61,9 +61,9 @@ mybatis-plus:
       logic-not-delete-value: 0
   mapper-locations: classpath*:/mapper/**/*.xml
 
-# 服务器配置
+# 服务器配置 - 测试环境使用8082端口
 server:
-  port: ${SERVER_PORT:8081}  # 支持环境变量配置端口
+  port: 8082  # 测试环境端口（与正式环境8081不同）
   servlet:
     context-path: /
 
@@ -81,14 +81,14 @@ logging:
     max-size: 10MB
     max-history: 30
 
-# 文件存储配置 - 测试服务器路径
+# 文件存储配置 - 测试环境独立目录
 file:
   upload:
-    path: /www/wwwroot/shoppingmall/test/shopping-mall-backend/uploads
+    path: /www/wwwroot/shopping-mall-backend-test/uploads
     max-size: 10485760  # 10MB（字节）
     allowed-types: jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx
-    image-path: /www/wwwroot/shoppingmall/test/shopping-mall-backend/uploads/images
-    document-path: /www/wwwroot/shoppingmall/test/shopping-mall-backend/uploads/documents
+    image-path: /www/wwwroot/shopping-mall-backend-test/uploads/images
+    document-path: /www/wwwroot/shopping-mall-backend-test/uploads/documents
 
 # JWT配置
 jwt:
@@ -113,8 +113,8 @@ order:
 # 应用配置
 app:
   frontend:
-    # 前端地址，用于生成重置密码链接等，请修改为实际的测试环境前端地址
-    url: ${FRONTEND_URL:http://test.yourdomain.com}
+    # 前端地址，用于生成重置密码链接等
+    url: ${FRONTEND_URL:http://www.shop.quaichao.com/test}
   password:
     reset:
       token-expire-minutes: 30  # 密码重置令牌有效期（分钟）

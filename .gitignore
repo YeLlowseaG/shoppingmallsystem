@@ -30,6 +30,8 @@ build/
 nbproject/private/
 nbbuild/
 dist/
+dist-prod/
+dist-test
 nbdist/
 .nb-gradle/
 

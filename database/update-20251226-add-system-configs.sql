@@ -42,7 +42,7 @@ ON DUPLICATE KEY UPDATE
 -- 订单支付超时时间
 INSERT INTO `system_config` (`config_key`, `config_value`, `config_name`, `config_desc`, `config_type`, `sort_order`, `status`)
 VALUES 
-('order.payment-timeout-hours', '4', '订单支付超时时间', '待付款订单自动取消时间（小时），默认4小时。B2B平台建议4-6小时，给企业用户充足的决策和审批时间。', 'number', 20, 1)
+('order.payment-timeout-hours', '6', '订单支付超时时间', '待付款订单自动取消时间（小时），默认4小时。B2B平台建议4-6小时，给企业用户充足的决策和审批时间。', 'number', 20, 1)
 ON DUPLICATE KEY UPDATE 
     `config_value` = VALUES(`config_value`),
     `config_name` = VALUES(`config_name`),
