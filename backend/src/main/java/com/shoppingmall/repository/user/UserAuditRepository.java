@@ -67,3 +67,5 @@ public interface UserAuditRepository extends BaseMapper<com.shoppingmall.entity.
 
 
 
+
+

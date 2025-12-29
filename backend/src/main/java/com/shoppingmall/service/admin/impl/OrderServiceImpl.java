@@ -338,6 +338,9 @@ public class OrderServiceImpl implements OrderService {
         order.setOrderStatus(OrderStatus.CANCELLED);
         orderRepository.updateById(order);
 
+        // 联动取消支付记录状态
+        cancelPaymentRecords(order.getId());
+
         log.info("管理员取消订单成功: orderNo={}", orderNo);
     }
 
@@ -461,7 +464,7 @@ public class OrderServiceImpl implements OrderService {
         if (PaymentMethod.WECHAT.equals(paymentMethod) || PaymentMethod.ALIPAY.equals(paymentMethod)) {
             // 微信/支付宝退款（调用真实退款接口）
             // 重要：支付宝退款API需要的是订单号（out_trade_no），而不是支付流水号
-            // 支付流水号格式：PAY_timestamp_orderNo，需要提取订单号
+            // 支付流水号格式：PAY_orderNo，直接使用订单号作为支付流水号后缀
             String orderNoForRefund = order.getOrderNo();
             
             try {
@@ -1233,6 +1236,41 @@ public class OrderServiceImpl implements OrderService {
                 return "已退货";
             default:
                 return "未知";
+        }
+    }
+
+    /**
+     * 取消订单时联动取消相关的支付记录状态
+     *
+     * @param orderId 订单ID
+     */
+    private void cancelPaymentRecords(Long orderId) {
+        // 查询该订单的所有支付记录
+        LambdaQueryWrapper<PaymentRecord> paymentWrapper = new LambdaQueryWrapper<>();
+        paymentWrapper.eq(PaymentRecord::getOrderId, orderId);
+
+        List<PaymentRecord> paymentRecords = paymentRecordRepository.selectList(paymentWrapper);
+
+        if (paymentRecords.isEmpty()) {
+            log.info("订单 {} 没有关联的支付记录，无需取消", orderId);
+            return;
+        }
+
+        // 更新支付记录状态为已关闭（3）
+        for (PaymentRecord paymentRecord : paymentRecords) {
+            // 只有待支付和支付中的记录才需要取消
+            if (PaymentStatus.PENDING_PAYMENT.equals(paymentRecord.getPaymentStatus()) ||
+                PaymentStatus.PAYING.equals(paymentRecord.getPaymentStatus())) {
+
+                paymentRecord.setPaymentStatus(PaymentStatus.CLOSED);
+                paymentRecordRepository.updateById(paymentRecord);
+
+                log.info("订单取消联动取消支付记录：orderId={}, paymentRecordId={}, paymentNo={}",
+                        orderId, paymentRecord.getId(), paymentRecord.getPaymentNo());
+            } else {
+                log.info("支付记录状态无需取消：orderId={}, paymentRecordId={}, paymentStatus={}",
+                        orderId, paymentRecord.getId(), paymentRecord.getPaymentStatus());
+            }
         }
     }
 }

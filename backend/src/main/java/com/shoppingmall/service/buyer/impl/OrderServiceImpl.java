@@ -428,7 +428,10 @@ public class OrderServiceImpl implements OrderService {
         
         order.setOrderStatus(OrderStatus.CANCELLED);
         orderRepository.updateById(order);
-        
+
+        // 联动取消支付记录状态
+        cancelPaymentRecords(order.getId());
+
         log.info("取消订单成功: orderNo={}, userId={}", orderNo, userId);
     }
 
@@ -606,6 +609,7 @@ public class OrderServiceImpl implements OrderService {
         List<OrderDetailVO.OrderItemVO> itemVOs = items.stream().map(item -> {
             OrderDetailVO.OrderItemVO itemVO = new OrderDetailVO.OrderItemVO();
             itemVO.setId(item.getId());
+            itemVO.setProductId(item.getProductId());
             itemVO.setProductCode(item.getProductCode());
             itemVO.setName(item.getProductName());
             itemVO.setImage(item.getProductImage());
@@ -944,7 +948,7 @@ public class OrderServiceImpl implements OrderService {
             // 2.4 创建支付记录
             PaymentRecord paymentRecord = new PaymentRecord();
             paymentRecord.setOrderId(order.getId());
-            paymentRecord.setPaymentNo("DEPOSIT_" + System.currentTimeMillis() + "_" + orderNo);
+            paymentRecord.setPaymentNo("DEPOSIT_" + orderNo);
             paymentRecord.setPaymentMethod("PRE_DEPOSIT");
             paymentRecord.setAmount(order.getActualAmount());
             paymentRecord.setPaymentStatus(PaymentStatus.PAID); // 已支付
@@ -976,7 +980,7 @@ public class OrderServiceImpl implements OrderService {
             // 2.2 创建支付记录（支付中状态）
             PaymentRecord paymentRecord = new PaymentRecord();
             paymentRecord.setOrderId(order.getId());
-            paymentRecord.setPaymentNo("PAY_" + System.currentTimeMillis() + "_" + orderNo);
+            paymentRecord.setPaymentNo("PAY_" + orderNo);
             paymentRecord.setPaymentMethod(paymentMethod);
             paymentRecord.setAmount(order.getActualAmount());
             paymentRecord.setPaymentStatus(PaymentStatus.PAYING); // 支付中（用户已发起支付）
@@ -1234,6 +1238,41 @@ public class OrderServiceImpl implements OrderService {
         } catch (Exception e) {
             log.error("计算运费失败，使用默认运费0", e);
             return BigDecimal.ZERO;
+        }
+    }
+
+    /**
+     * 取消订单时联动取消相关的支付记录状态
+     *
+     * @param orderId 订单ID
+     */
+    private void cancelPaymentRecords(Long orderId) {
+        // 查询该订单的所有支付记录
+        LambdaQueryWrapper<PaymentRecord> paymentWrapper = new LambdaQueryWrapper<>();
+        paymentWrapper.eq(PaymentRecord::getOrderId, orderId);
+
+        List<PaymentRecord> paymentRecords = paymentRecordRepository.selectList(paymentWrapper);
+
+        if (paymentRecords.isEmpty()) {
+            log.info("订单 {} 没有关联的支付记录，无需取消", orderId);
+            return;
+        }
+
+        // 更新支付记录状态为已关闭（3）
+        for (PaymentRecord paymentRecord : paymentRecords) {
+            // 只有待支付和支付中的记录才需要取消
+            if (PaymentStatus.PENDING_PAYMENT.equals(paymentRecord.getPaymentStatus()) ||
+                PaymentStatus.PAYING.equals(paymentRecord.getPaymentStatus())) {
+
+                paymentRecord.setPaymentStatus(PaymentStatus.CLOSED);
+                paymentRecordRepository.updateById(paymentRecord);
+
+                log.info("订单取消联动取消支付记录：orderId={}, paymentRecordId={}, paymentNo={}",
+                        orderId, paymentRecord.getId(), paymentRecord.getPaymentNo());
+            } else {
+                log.info("支付记录状态无需取消：orderId={}, paymentRecordId={}, paymentStatus={}",
+                        orderId, paymentRecord.getId(), paymentRecord.getPaymentStatus());
+            }
         }
     }
 }
