@@ -60,5 +60,3 @@ echo 构建产物位置：
 echo   用户端: frontend\dist-test\
 echo.
 pause
-
-
