@@ -28,6 +28,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.Map;
 
 /**
@@ -383,26 +385,25 @@ public class PaymentNotifyController {
             xml = xml.replace("<?xml version=\"1.0\" encoding=\"UTF-8\"?>", "");
             xml = xml.replace("<xml>", "").replace("</xml>", "");
 
-            // 解析每个字段
-            String[] fields = xml.split("><");
-            for (String field : fields) {
-                field = field.replace("<", "").replace(">", "");
-                if (field.contains("CDATA")) {
-                    int start = field.indexOf("CDATA[") + 6;
-                    int end = field.indexOf("]]");
-                    if (start > 5 && end > start) {
-                        String key = field.substring(0, field.indexOf("<"));
-                        String value = field.substring(start, end);
-                        map.put(key, value);
-                    }
-                } else if (field.contains("</")) {
-                    String[] parts = field.split("</");
-                    if (parts.length == 2) {
-                        String key = parts[0];
-                        String value = parts[1];
-                        map.put(key, value);
+            // 使用正则表达式匹配XML标签和值
+            // 匹配格式：<tag><![CDATA[value]]></tag> 或 <tag>value</tag>
+            Pattern pattern = Pattern.compile("<([^>]+)>(.*?)</\\1>");
+            Matcher matcher = pattern.matcher(xml);
+            
+            while (matcher.find()) {
+                String key = matcher.group(1);
+                String value = matcher.group(2);
+                
+                // 如果值包含CDATA，提取CDATA中的内容
+                if (value.contains("<![CDATA[")) {
+                    int cdataStart = value.indexOf("<![CDATA[") + 9;
+                    int cdataEnd = value.indexOf("]]>");
+                    if (cdataEnd > cdataStart) {
+                        value = value.substring(cdataStart, cdataEnd);
                     }
                 }
+                
+                map.put(key, value);
             }
         } catch (Exception e) {
             log.error("解析XML失败: {}", xml, e);

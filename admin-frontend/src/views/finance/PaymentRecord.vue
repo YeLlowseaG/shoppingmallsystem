@@ -146,19 +146,19 @@
     </el-card>
 
     <!-- 详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="支付记录详情" width="900px">
-      <el-descriptions :column="3" border v-if="currentRecord" class="payment-record-detail">
+    <el-dialog v-model="detailDialogVisible" title="支付记录详情" width="1000px">
+      <el-descriptions :column="2" border v-if="currentRecord" class="payment-record-detail">
         <el-descriptions-item label="记录ID">{{ currentRecord.id }}</el-descriptions-item>
-        <el-descriptions-item label="订单号">
-          <span class="no-wrap-text">{{ currentRecord.orderNo }}</span>
+        <el-descriptions-item label="订单号" :span="2">
+          <span class="wrap-text">{{ currentRecord.orderNo }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="用户名">{{ currentRecord.username }}</el-descriptions-item>
         <el-descriptions-item label="用户ID">{{ currentRecord.userId }}</el-descriptions-item>
-        <el-descriptions-item label="支付流水号">
-          <span class="no-wrap-text">{{ currentRecord.paymentNo }}</span>
+        <el-descriptions-item label="支付流水号" :span="2">
+          <span class="wrap-text">{{ currentRecord.paymentNo }}</span>
         </el-descriptions-item>
-        <el-descriptions-item label="外部交易号">
-          <span v-if="currentRecord.externalTradeNo" class="no-wrap-text">{{ currentRecord.externalTradeNo }}</span>
+        <el-descriptions-item label="外部交易号" :span="2">
+          <span v-if="currentRecord.externalTradeNo" class="wrap-text">{{ currentRecord.externalTradeNo }}</span>
           <span v-else style="color: #909399">-</span>
         </el-descriptions-item>
         <el-descriptions-item label="支付方式">{{ currentRecord.paymentMethodName }}</el-descriptions-item>
@@ -180,7 +180,7 @@
         <el-descriptions-item label="退款时间" v-if="currentRecord.refundTime">
           <span class="no-wrap-text">{{ formatDateTime(currentRecord.refundTime) }}</span>
         </el-descriptions-item>
-        <el-descriptions-item label="退款原因" v-if="currentRecord.refundReason" :span="3">
+        <el-descriptions-item label="退款原因" v-if="currentRecord.refundReason" :span="2">
           {{ currentRecord.refundReason }}
         </el-descriptions-item>
         <el-descriptions-item label="退款操作人" v-if="currentRecord.refundOperatorName">
@@ -421,6 +421,14 @@ onMounted(() => {
     }
 
     .no-wrap-text {
+      display: inline-block;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .wrap-text {
       display: inline-block;
       max-width: 100%;
       white-space: nowrap;

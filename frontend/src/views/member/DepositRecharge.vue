@@ -144,7 +144,15 @@
         <div v-if="paymentStatus === 'paying'" class="status-paying">
           <el-icon class="status-icon paying-icon"><Loading /></el-icon>
           <div class="status-title">正在处理支付...</div>
-          <div class="status-desc">请在新打开的支付页面完成支付，完成后请点击下方按钮</div>
+          
+          <!-- 显示二维码（如果是微信支付） -->
+          <div v-if="qrCodeImageUrl" class="qrcode-container">
+            <div class="qrcode-title">请使用微信扫描二维码完成支付</div>
+            <img :src="qrCodeImageUrl" alt="支付二维码" class="qrcode-image" />
+            <div class="qrcode-tip">请使用手机微信扫描上方二维码</div>
+          </div>
+          
+          <div v-else class="status-desc">请在新打开的支付页面完成支付，完成后请点击下方按钮</div>
           <div class="status-actions">
             <el-button type="primary" @click="handleMarkAsPaid">我已付款</el-button>
             <el-button @click="handlePaymentProblem">付款有问题</el-button>
@@ -180,6 +188,7 @@ import { useRoute } from 'vue-router'
 import { useRouter } from 'vue-router'
 import { ElMessage, FormInstance, FormRules } from 'element-plus'
 import { Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue'
+import QRCode from 'qrcode'
 import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
@@ -198,6 +207,7 @@ const unreadMessageCount = ref(0)
 const showPaymentStatusDialog = ref(false)
 const paymentStatus = ref<'paying' | 'paid' | 'problem' | ''>('')
 const currentPaymentOrderNo = ref<string>('')
+const qrCodeImageUrl = ref<string>('')
 
 // 表单数据
 const rechargeForm = reactive({
@@ -306,13 +316,29 @@ const handlePayNow = async () => {
               ElMessage.error('打开支付页面失败，请重试')
               paymentStatus.value = 'problem'
             }
-          } else if (paymentResponse.paymentUrl) {
-            // 跳转到支付URL
-            window.location.href = paymentResponse.paymentUrl
           } else if (paymentResponse.qrCodeUrl) {
-            // 显示二维码支付
-            ElMessage.info('请使用手机扫描二维码完成支付')
-            // TODO: 可以打开二维码弹窗显示二维码
+            // 优先显示二维码支付（微信支付使用）
+            try {
+              // 将二维码URL转换为二维码图片
+              const qrCodeDataUrl = await QRCode.toDataURL(paymentResponse.qrCodeUrl, {
+                width: 300,
+                margin: 2,
+                color: {
+                  dark: '#000000',
+                  light: '#FFFFFF'
+                }
+              })
+              qrCodeImageUrl.value = qrCodeDataUrl
+              paymentStatus.value = 'paying'
+              showPaymentStatusDialog.value = true
+            } catch (error) {
+              console.error('生成二维码失败:', error)
+              ElMessage.error('生成二维码失败，请重试')
+              paymentStatus.value = 'problem'
+            }
+          } else if (paymentResponse.paymentUrl) {
+            // 跳转到支付URL（其他支付方式）
+            window.location.href = paymentResponse.paymentUrl
           } else {
             ElMessage.warning('支付订单创建成功，但未返回支付URL')
             paymentStatus.value = 'problem'
@@ -630,6 +656,35 @@ onMounted(() => {
     gap: 10px;
     margin-top: 20px;
     flex-wrap: wrap;
+  }
+
+  .qrcode-container {
+    margin: 20px 0;
+    text-align: center;
+  }
+
+  .qrcode-title {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 15px;
+    color: #333;
+  }
+
+  .qrcode-image {
+    width: 300px;
+    height: 300px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 10px;
+    background: #fff;
+    margin: 0 auto;
+    display: block;
+  }
+
+  .qrcode-tip {
+    margin-top: 10px;
+    font-size: 14px;
+    color: #666;
   }
 
   .status-paying,

@@ -126,7 +126,10 @@ public class DepositServiceImpl implements DepositService {
             paymentRequest.setUserId(userId);
             // 使用统一的支付回调接口（支持订单支付和预存款充值）
             // 回调处理会根据订单号前缀（DEPOSIT_）自动判断是预存款充值还是订单支付
-            paymentRequest.setNotifyUrl("/api/buyer/payment/alipay/notify");
+            // 根据支付方式设置对应的回调地址
+            // 注意：回调地址设置为null，让支付策略从配置中获取完整的回调地址
+            // 这样可以使用配置中的HTTPS地址，而不是相对路径
+            paymentRequest.setNotifyUrl(null);
 
             // 调用支付网关服务创建支付订单
             paymentResponse = paymentGatewayService.pay(paymentRequest);

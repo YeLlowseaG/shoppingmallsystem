@@ -64,6 +64,20 @@ public class WeChatPayStrategy implements PaymentStrategy {
             if (notifyUrl == null || notifyUrl.isEmpty()) {
                 notifyUrl = request.getNotifyUrl();
             }
+            
+            // 验证回调地址
+            if (notifyUrl == null || notifyUrl.isEmpty()) {
+                log.error("微信支付回调地址未配置，订单号：{}", request.getInternalOrderNo());
+                throw new PaymentException(400, "微信支付回调地址未配置，请在管理后台配置支付回调地址");
+            }
+            
+            // 确保回调地址是完整的URL（不能是相对路径）
+            if (!notifyUrl.startsWith("http://") && !notifyUrl.startsWith("https://")) {
+                log.error("微信支付回调地址格式错误，必须是完整的URL（以http://或https://开头），当前值：{}", notifyUrl);
+                throw new PaymentException(400, "微信支付回调地址格式错误，必须是完整的URL");
+            }
+            
+            log.info("使用微信支付回调地址：{}", notifyUrl);
 
             // 调用微信支付工具类创建订单
             String qrCodeUrl = WeChatPayUtil.createNativePayment(

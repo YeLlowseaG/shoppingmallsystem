@@ -1,5 +1,34 @@
 # 修改日志
 
+## 2025-12-30 - 修复微信支付回调XML解析失败问题
+
+### 问题描述
+微信支付回调时，解析XML数据失败，抛出 `StringIndexOutOfBoundsException`。错误发生在 `parseXmlToMap` 方法的第394行，原因是解析逻辑有缺陷：
+1. 代码先移除了所有的 `<` 和 `>` 字符
+2. 然后又尝试查找 `<` 字符来提取key，导致 `indexOf("<")` 返回 -1
+3. 调用 `substring(0, -1)` 时抛出异常
+
+微信支付回调的XML中，有些字段使用 `<![CDATA[]]>` 包裹（如 `<appid><![CDATA[wx1fbc28b7b7627ccf]]></appid>`），有些字段直接是普通文本（如 `<total_fee>1</total_fee>`），原有的解析逻辑无法正确处理这两种情况。
+
+### 解决方案
+重写 `parseXmlToMap` 方法，使用正则表达式来解析XML：
+1. 使用正则表达式 `<([^>]+)>(.*?)</\\1>` 匹配XML标签和值
+2. 如果值包含CDATA，提取CDATA中的内容
+3. 如果值不包含CDATA，直接使用原始值
+
+### 修改文件清单
+1. `backend/src/main/java/com/shoppingmall/payment/controller/PaymentNotifyController.java` - 修复XML解析逻辑
+2. `log.md` (本文件)
+
+### 具体修改内容
+- **XML解析方法重写**：
+  - 使用正则表达式 `Pattern.compile("<([^>]+)>(.*?)</\\1>")` 匹配XML标签和值
+  - 正确处理CDATA格式：`<tag><![CDATA[value]]></tag>`
+  - 正确处理普通格式：`<tag>value</tag>`
+  - 添加必要的导入语句：`java.util.regex.Pattern` 和 `java.util.regex.Matcher`
+
+---
+
 ## 2025-12-27 - 修复测试环境 API 路径重复问题
 
 ### 问题描述

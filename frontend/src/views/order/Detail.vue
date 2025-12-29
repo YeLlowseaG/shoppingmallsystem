@@ -101,7 +101,15 @@
                         </td>
                         <td class="col-code">{{ item.productCode }}</td>
                         <td class="col-name">
-                          <div class="product-name">{{ item.name }}</div>
+                          <div class="product-name">
+                            <router-link
+                              :to="`/products/${item.productId}`"
+                              class="product-name-link"
+                              title="点击查看商品详情"
+                            >
+                              {{ item.name }}
+                            </router-link>
+                          </div>
                           <div v-if="formatSpecText(item.specCombination)" class="sku-spec-text">
                             规格：{{ formatSpecText(item.specCombination) }}
                           </div>
@@ -1217,6 +1225,18 @@ onMounted(() => {
 
                 .product-name {
                   line-height: 20px;
+
+                  .product-name-link {
+                    color: #e4393c;
+                    text-decoration: none;
+                    font-weight: 500;
+                    transition: color 0.3s ease;
+
+                    &:hover {
+                      color: #c9302c;
+                      text-decoration: underline;
+                    }
+                  }
                 }
 
                 .sku-spec-text {

@@ -102,9 +102,14 @@ public class OrderDetailVO {
     @Data
     public static class OrderItemVO {
         /**
-         * 商品ID
+         * 订单商品项ID
          */
         private Long id;
+
+        /**
+         * 商品ID
+         */
+        private Long productId;
 
         /**
          * 商品编码
@@ -229,6 +234,8 @@ public class OrderDetailVO {
         private String action;
     }
 }
+
+
 
 
 

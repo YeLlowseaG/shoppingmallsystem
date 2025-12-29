@@ -79,6 +79,7 @@ export interface OrderDetailVO {
   statusText: string
   items: Array<{
     id: number
+    productId: number
     productCode: string
     name: string
     specCombination?: string

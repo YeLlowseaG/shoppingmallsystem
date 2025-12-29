@@ -108,7 +108,26 @@ public class PaymentConfigServiceImpl implements PaymentConfigService {
         WeChatPayConfig.WeChatPayEnvConfig production = new WeChatPayConfig.WeChatPayEnvConfig();
         production.setAppid(configMap.getOrDefault("payment.wechat.production.appid", ""));
         production.setMchid(configMap.getOrDefault("payment.wechat.production.mchid", ""));
-        production.setKey(configMap.getOrDefault("payment.wechat.production.key", ""));
+        
+        // 添加调试日志：查看从数据库读取的key值
+        String productionKey = configMap.getOrDefault("payment.wechat.production.key", "");
+        log.info("=== PaymentConfigServiceImpl 调试信息 ===");
+        log.info("从configMap获取的production.key原始值: [{}]", productionKey);
+        log.info("production.key的字符长度: {}", productionKey != null ? productionKey.length() : 0);
+        log.info("production.key的字节长度: {}", productionKey != null ? productionKey.getBytes(java.nio.charset.StandardCharsets.UTF_8).length : 0);
+        if (productionKey != null && productionKey.length() > 0) {
+            // 检查每个字符
+            StringBuilder charInfo = new StringBuilder();
+            for (int i = 0; i < productionKey.length(); i++) {
+                char c = productionKey.charAt(i);
+                if (i > 0) charInfo.append(", ");
+                charInfo.append(String.format("%d:'%c'(%d)", i, c, (int)c));
+            }
+            log.info("production.key每个字符详情: {}", charInfo.toString());
+        }
+        log.info("================================");
+        
+        production.setKey(productionKey);
         production.setCertPath(configMap.getOrDefault("payment.wechat.production.cert_path", ""));
         config.setProduction(production);
 
