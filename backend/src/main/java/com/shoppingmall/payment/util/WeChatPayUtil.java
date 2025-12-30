@@ -9,8 +9,15 @@ import org.springframework.web.client.RestTemplate;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
+import javax.net.ssl.*;
 import java.util.*;
 
 /**
@@ -260,13 +267,30 @@ public class WeChatPayUtil {
             // 转换为XML
             String xmlData = mapToXml(params);
 
+            // 检查证书路径
+            String certPath = config.getCertPath();
+            if (certPath == null || certPath.isEmpty()) {
+                log.error("微信支付退款失败：证书路径未配置，orderNo={}, refundNo={}", orderNo, refundNo);
+                throw new PaymentException(400, "微信支付证书路径未配置，无法进行退款操作");
+            }
+
             // 发送请求（需要证书）
-            // TODO: 实现证书认证的HTTP请求
-            // 这里先返回占位结果
-            log.warn("微信支付退款需要证书认证，当前为占位实现");
-            Map<String, String> result = new HashMap<>();
-            result.put("return_code", "SUCCESS");
-            result.put("result_code", "SUCCESS");
+            log.info("开始调用微信退款API，订单号：{}，退款单号：{}，退款金额：{}分，证书路径：{}", 
+                    orderNo, refundNo, refundAmount, certPath);
+            
+            String responseBody = sendHttpsRequestWithCert(apiUrl, xmlData, certPath, config.getMchid());
+            
+            log.info("微信退款API响应，订单号：{}，退款单号：{}，响应内容：{}", orderNo, refundNo, responseBody);
+
+            // 解析响应
+            Map<String, String> result = xmlToMap(responseBody);
+            
+            // 验证响应签名
+            if (!verifySign(result, config.getKey())) {
+                log.error("微信退款响应签名验证失败，订单号：{}，退款单号：{}", orderNo, refundNo);
+                throw new PaymentException(500, "微信退款响应签名验证失败");
+            }
+            
             return result;
 
         } catch (Exception e) {
@@ -631,6 +655,119 @@ public class WeChatPayUtil {
             }
         }
         return map;
+    }
+
+    /**
+     * 使用证书发送HTTPS请求（用于微信退款API）
+     *
+     * @param url 请求URL
+     * @param xmlData XML请求数据
+     * @param certPath 证书路径（PKCS12格式）
+     * @param mchId 商户号（作为证书密码）
+     * @return 响应内容
+     */
+    private static String sendHttpsRequestWithCert(String url, String xmlData, String certPath, String mchId) {
+        InputStream certInputStream = null;
+        HttpsURLConnection connection = null;
+        
+        try {
+            // 加载证书
+            KeyStore keyStore = KeyStore.getInstance("PKCS12");
+            
+            // 支持文件路径和classpath路径
+            if (certPath.startsWith("classpath:")) {
+                // 从classpath加载
+                String resourcePath = certPath.substring("classpath:".length());
+                certInputStream = WeChatPayUtil.class.getClassLoader().getResourceAsStream(resourcePath);
+                if (certInputStream == null) {
+                    throw new PaymentException(400, "证书文件不存在：" + certPath);
+                }
+            } else {
+                // 从文件系统加载
+                certInputStream = new FileInputStream(certPath);
+            }
+            
+            // 加载证书，密码为商户号
+            keyStore.load(certInputStream, mchId.toCharArray());
+            
+            // 创建KeyManagerFactory
+            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            keyManagerFactory.init(keyStore, mchId.toCharArray());
+            
+            // 创建SSLContext
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(keyManagerFactory.getKeyManagers(), null, new SecureRandom());
+            
+            // 创建URL连接
+            URL requestUrl = new URL(url);
+            connection = (HttpsURLConnection) requestUrl.openConnection();
+            connection.setSSLSocketFactory(sslContext.getSocketFactory());
+            connection.setRequestMethod("POST");
+            connection.setDoOutput(true);
+            connection.setDoInput(true);
+            connection.setConnectTimeout(30000); // 30秒连接超时
+            connection.setReadTimeout(30000); // 30秒读取超时
+            
+            // 设置请求头
+            connection.setRequestProperty("Content-Type", "application/xml;charset=UTF-8");
+            connection.setRequestProperty("Content-Length", String.valueOf(xmlData.getBytes(StandardCharsets.UTF_8).length));
+            
+            // 发送请求数据
+            try (java.io.OutputStream os = connection.getOutputStream()) {
+                os.write(xmlData.getBytes(StandardCharsets.UTF_8));
+                os.flush();
+            }
+            
+            // 读取响应
+            int responseCode = connection.getResponseCode();
+            log.info("微信退款API响应码：{}", responseCode);
+            
+            InputStream inputStream;
+            if (responseCode >= 200 && responseCode < 300) {
+                inputStream = connection.getInputStream();
+            } else {
+                inputStream = connection.getErrorStream();
+            }
+            
+            if (inputStream == null) {
+                throw new PaymentException(500, "微信退款API响应为空，响应码：" + responseCode);
+            }
+            
+            // 读取响应内容
+            StringBuilder response = new StringBuilder();
+            byte[] buffer = new byte[1024];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                response.append(new String(buffer, 0, bytesRead, StandardCharsets.UTF_8));
+            }
+            
+            String responseBody = response.toString();
+            
+            if (responseCode != 200) {
+                log.error("微信退款API请求失败，响应码：{}，响应内容：{}", responseCode, responseBody);
+                throw new PaymentException(500, "微信退款API请求失败，响应码：" + responseCode + "，响应内容：" + responseBody);
+            }
+            
+            return responseBody;
+            
+        } catch (PaymentException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("发送微信退款HTTPS请求异常，证书路径：{}", certPath, e);
+            throw new PaymentException(500, "发送微信退款HTTPS请求异常：" + e.getMessage(), e);
+        } finally {
+            // 关闭资源
+            if (certInputStream != null) {
+                try {
+                    certInputStream.close();
+                } catch (Exception e) {
+                    log.warn("关闭证书输入流异常", e);
+                }
+            }
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
     }
 }
 
