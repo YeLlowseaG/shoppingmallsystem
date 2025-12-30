@@ -87,6 +87,63 @@ export const testPaymentConnection = (
   return request.post('/api/admin/payment/config/test', data)
 }
 
+// ==================== 支付接口日志查询 ====================
+
+/**
+ * 支付接口日志查询DTO
+ */
+export interface PaymentApiLogQueryDTO {
+  pageNum?: number
+  pageSize?: number
+  paymentMethod?: string
+  apiType?: string
+  businessType?: string
+  orderNo?: string
+  paymentNo?: string
+  apiStatus?: number
+  startTime?: string
+  endTime?: string
+}
+
+/**
+ * 支付接口日志VO
+ */
+export interface PaymentApiLogVO {
+  id: number
+  paymentMethod: string
+  apiType: string
+  apiTypeDesc?: string
+  businessType: string
+  businessTypeDesc?: string
+  orderNo?: string
+  paymentNo?: string
+  externalTradeNo?: string
+  apiUrl?: string
+  requestMethod?: string
+  requestData?: string
+  responseData?: string
+  httpStatusCode?: number
+  apiStatus: number
+  apiStatusDesc?: string
+  errorCode?: string
+  errorMessage?: string
+  executionTime?: number
+  retryCount?: number
+  createTime: string
+}
+
+/**
+ * 分页查询支付接口日志
+ */
+export function getPaymentApiLogs(params: PaymentApiLogQueryDTO) {
+  return request({
+    url: '/api/admin/system/payment-api-log',
+    method: 'get',
+    params
+  })
+}
+
+
 
 
 

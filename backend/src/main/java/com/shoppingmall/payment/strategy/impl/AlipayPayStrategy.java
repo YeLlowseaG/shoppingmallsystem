@@ -1,11 +1,14 @@
 package com.shoppingmall.payment.strategy.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shoppingmall.common.constant.PaymentStatus;
 import com.shoppingmall.dto.PaymentRequestDTO;
 import com.shoppingmall.dto.PaymentResponseDTO;
+import com.shoppingmall.entity.PaymentApiLog;
 import com.shoppingmall.payment.config.AlipayConfig;
 import com.shoppingmall.payment.exception.PaymentException;
 import com.shoppingmall.payment.service.PaymentConfigService;
+import com.shoppingmall.service.payment.PaymentLogService;
 import com.shoppingmall.payment.strategy.PaymentStrategy;
 import com.shoppingmall.payment.util.AlipayUtil;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +31,8 @@ import java.util.HashMap;
 public class AlipayPayStrategy implements PaymentStrategy {
 
     private final PaymentConfigService paymentConfigService;
+    private final PaymentLogService paymentLogService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public PaymentResponseDTO createPayment(PaymentRequestDTO request) {
@@ -105,8 +110,71 @@ public class AlipayPayStrategy implements PaymentStrategy {
             response.setPaymentUrl(null); // 页面支付不需要单独的支付URL，表单会自动提交跳转
 
             log.info("支付宝支付订单创建成功，订单号：{}", request.getInternalOrderNo());
+            
+            // 记录支付接口日志
+            try {
+                PaymentApiLog apiLog = new PaymentApiLog();
+                apiLog.setPaymentMethod("ALIPAY");
+                apiLog.setApiType("CREATE_PAYMENT");
+                // 根据订单号判断业务类型
+                String businessType = "ORDER";
+                if (request.getInternalOrderNo() != null && request.getInternalOrderNo().startsWith("DEPOSIT_")) {
+                    businessType = "DEPOSIT";
+                }
+                apiLog.setBusinessType(businessType);
+                apiLog.setOrderNo(request.getInternalOrderNo());
+                apiLog.setPaymentNo("PAY_" + request.getInternalOrderNo());
+                apiLog.setApiUrl(envConfig.getGateway() != null ? envConfig.getGateway() : 
+                    ("sandbox".equals(config.getEnv()) ? "https://openapi.alipaydev.com/gateway.do" : "https://openapi.alipay.com/gateway.do"));
+                apiLog.setRequestMethod("POST");
+                try {
+                    Map<String, Object> requestData = new HashMap<>();
+                    requestData.put("internalOrderNo", request.getInternalOrderNo());
+                    requestData.put("amount", request.getAmount());
+                    requestData.put("description", request.getDescription());
+                    requestData.put("notifyUrl", notifyUrl);
+                    requestData.put("returnUrl", returnUrl);
+                    apiLog.setRequestData(objectMapper.writeValueAsString(requestData));
+                } catch (Exception e) {
+                    log.warn("序列化请求数据失败", e);
+                }
+                apiLog.setApiStatus(1); // 成功
+                paymentLogService.savePaymentLog(apiLog);
+            } catch (Exception e) {
+                log.warn("记录支付接口日志失败", e);
+            }
         } catch (Exception e) {
             log.error("创建支付宝支付订单失败，订单号：{}", request.getInternalOrderNo(), e);
+            
+            // 记录失败的支付接口日志
+            try {
+                PaymentApiLog apiLog = new PaymentApiLog();
+                apiLog.setPaymentMethod("ALIPAY");
+                apiLog.setApiType("CREATE_PAYMENT");
+                // 根据订单号判断业务类型
+                String businessType = "ORDER";
+                if (request.getInternalOrderNo() != null && request.getInternalOrderNo().startsWith("DEPOSIT_")) {
+                    businessType = "DEPOSIT";
+                }
+                apiLog.setBusinessType(businessType);
+                apiLog.setOrderNo(request.getInternalOrderNo());
+                apiLog.setPaymentNo("PAY_" + request.getInternalOrderNo());
+                apiLog.setApiStatus(0); // 失败
+                apiLog.setErrorMessage(e.getMessage());
+                try {
+                    Map<String, Object> requestData = new HashMap<>();
+                    requestData.put("internalOrderNo", request.getInternalOrderNo());
+                    requestData.put("amount", request.getAmount());
+                    requestData.put("description", request.getDescription());
+                    apiLog.setRequestData(objectMapper.writeValueAsString(requestData));
+                } catch (Exception ex) {
+                    log.warn("序列化请求数据失败", ex);
+                }
+                paymentLogService.savePaymentLog(apiLog);
+            } catch (Exception ex) {
+                log.warn("记录支付接口日志失败", ex);
+            }
+            
             throw new PaymentException(500, "创建支付宝支付订单失败：" + e.getMessage(), e);
         }
 
@@ -183,8 +251,43 @@ public class AlipayPayStrategy implements PaymentStrategy {
             }
 
             // 查询订单状态
+            long startTime = System.currentTimeMillis();
             Map<String, String> result = AlipayUtil.queryOrder(envConfig, paymentNo);
+            long executionTime = System.currentTimeMillis() - startTime;
             String tradeStatus = result.get("trade_status");
+            String tradeNo = result.get("trade_no");
+
+            // 记录查询订单日志
+            try {
+                PaymentApiLog apiLog = new PaymentApiLog();
+                apiLog.setPaymentMethod("ALIPAY");
+                apiLog.setApiType("QUERY_ORDER");
+                apiLog.setBusinessType(paymentNo.startsWith("DEPOSIT_") ? "DEPOSIT" : "ORDER");
+                apiLog.setOrderNo(paymentNo);
+                apiLog.setPaymentNo(paymentNo);
+                apiLog.setExternalTradeNo(tradeNo);
+                apiLog.setApiUrl(envConfig.getGateway() != null ? envConfig.getGateway() : 
+                    ("sandbox".equals(config.getEnv()) ? "https://openapi.alipaydev.com/gateway.do" : "https://openapi.alipay.com/gateway.do"));
+                apiLog.setRequestMethod("POST");
+                apiLog.setExecutionTime((int) executionTime);
+                if ("UNKNOWN".equals(tradeStatus)) {
+                    apiLog.setApiStatus(0); // 失败
+                    apiLog.setErrorMessage("订单不存在或查询失败");
+                } else {
+                    apiLog.setApiStatus(1); // 成功
+                }
+                try {
+                    Map<String, Object> requestData = new HashMap<>();
+                    requestData.put("paymentNo", paymentNo);
+                    apiLog.setRequestData(objectMapper.writeValueAsString(requestData));
+                    apiLog.setResponseData(objectMapper.writeValueAsString(result));
+                } catch (Exception e) {
+                    log.warn("序列化查询数据失败", e);
+                }
+                paymentLogService.savePaymentLog(apiLog);
+            } catch (Exception e) {
+                log.warn("记录查询订单日志失败", e);
+            }
 
             // 转换状态
             if ("TRADE_SUCCESS".equals(tradeStatus) || "TRADE_FINISHED".equals(tradeStatus)) {
@@ -199,6 +302,29 @@ public class AlipayPayStrategy implements PaymentStrategy {
 
         } catch (Exception e) {
             log.error("查询支付宝支付状态失败，支付流水号：{}", paymentNo, e);
+            
+            // 记录查询失败的日志
+            try {
+                PaymentApiLog apiLog = new PaymentApiLog();
+                apiLog.setPaymentMethod("ALIPAY");
+                apiLog.setApiType("QUERY_ORDER");
+                apiLog.setBusinessType(paymentNo.startsWith("DEPOSIT_") ? "DEPOSIT" : "ORDER");
+                apiLog.setOrderNo(paymentNo);
+                apiLog.setPaymentNo(paymentNo);
+                apiLog.setApiStatus(0); // 失败
+                apiLog.setErrorMessage(e.getMessage());
+                try {
+                    Map<String, Object> requestData = new HashMap<>();
+                    requestData.put("paymentNo", paymentNo);
+                    apiLog.setRequestData(objectMapper.writeValueAsString(requestData));
+                } catch (Exception ex) {
+                    log.warn("序列化查询数据失败", ex);
+                }
+                paymentLogService.savePaymentLog(apiLog);
+            } catch (Exception ex) {
+                log.warn("记录查询订单日志失败", ex);
+            }
+            
             return PaymentStatus.FAILED;
         }
     }
@@ -256,14 +382,46 @@ public class AlipayPayStrategy implements PaymentStrategy {
             String refundAmountStr = String.format("%.2f", refundAmount.doubleValue());
 
             // 调用退款接口
+            long startTime = System.currentTimeMillis();
             Map<String, String> result = AlipayUtil.refund(
                     envConfig,
                     paymentNo,
                     refundNo,
                     refundAmountStr);
+            long executionTime = System.currentTimeMillis() - startTime;
 
             String code = result.get("code");
             if (!"10000".equals(code)) {
+                // 记录失败的退款日志
+                try {
+                    PaymentApiLog apiLog = new PaymentApiLog();
+                    apiLog.setPaymentMethod("ALIPAY");
+                    apiLog.setApiType("REFUND");
+                    apiLog.setBusinessType("ORDER");
+                    apiLog.setOrderNo(paymentNo);
+                    apiLog.setPaymentNo(paymentNo);
+                    apiLog.setApiUrl(envConfig.getGateway() != null ? envConfig.getGateway() : 
+                        ("sandbox".equals(config.getEnv()) ? "https://openapi.alipaydev.com/gateway.do" : "https://openapi.alipay.com/gateway.do"));
+                    apiLog.setRequestMethod("POST");
+                    apiLog.setApiStatus(0); // 失败
+                    apiLog.setErrorCode(code);
+                    apiLog.setErrorMessage(result.get("sub_msg") != null ? result.get("sub_msg") : result.get("msg"));
+                    apiLog.setExecutionTime((int) executionTime);
+                    try {
+                        Map<String, Object> requestData = new HashMap<>();
+                        requestData.put("paymentNo", paymentNo);
+                        requestData.put("refundNo", refundNo);
+                        requestData.put("refundAmount", refundAmountStr);
+                        requestData.put("refundReason", refundReason);
+                        apiLog.setRequestData(objectMapper.writeValueAsString(requestData));
+                        apiLog.setResponseData(objectMapper.writeValueAsString(result));
+                    } catch (Exception e) {
+                        log.warn("序列化退款数据失败", e);
+                    }
+                    paymentLogService.savePaymentLog(apiLog);
+                } catch (Exception e) {
+                    log.warn("记录退款接口日志失败", e);
+                }
                 String msg = result.get("msg");
                 String subMsg = result.get("sub_msg");
                 String subCode = result.get("sub_code");
@@ -286,6 +444,35 @@ public class AlipayPayStrategy implements PaymentStrategy {
                 }
                 
                 throw new PaymentException(500, errorMsg.toString());
+            }
+
+            // 记录成功的退款日志
+            try {
+                PaymentApiLog apiLog = new PaymentApiLog();
+                apiLog.setPaymentMethod("ALIPAY");
+                apiLog.setApiType("REFUND");
+                apiLog.setBusinessType("ORDER");
+                apiLog.setOrderNo(paymentNo);
+                apiLog.setPaymentNo(paymentNo);
+                apiLog.setApiUrl(envConfig.getGateway() != null ? envConfig.getGateway() : 
+                    ("sandbox".equals(config.getEnv()) ? "https://openapi.alipaydev.com/gateway.do" : "https://openapi.alipay.com/gateway.do"));
+                apiLog.setRequestMethod("POST");
+                apiLog.setApiStatus(1); // 成功
+                apiLog.setExecutionTime((int) executionTime);
+                try {
+                    Map<String, Object> requestData = new HashMap<>();
+                    requestData.put("paymentNo", paymentNo);
+                    requestData.put("refundNo", refundNo);
+                    requestData.put("refundAmount", refundAmountStr);
+                    requestData.put("refundReason", refundReason);
+                    apiLog.setRequestData(objectMapper.writeValueAsString(requestData));
+                    apiLog.setResponseData(objectMapper.writeValueAsString(result));
+                } catch (Exception e) {
+                    log.warn("序列化退款数据失败", e);
+                }
+                paymentLogService.savePaymentLog(apiLog);
+            } catch (Exception e) {
+                log.warn("记录退款接口日志失败", e);
             }
 
             return refundNo;

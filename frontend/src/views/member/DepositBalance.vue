@@ -33,9 +33,10 @@
               </div>
 
               <!-- 操作按钮 -->
-              <div class="action-buttons">
+              <!-- 已屏蔽下载交易记录入口 -->
+              <!-- <div class="action-buttons">
                 <el-button type="primary" @click="handleDownloadRecord">下载交易记录</el-button>
-              </div>
+              </div> -->
 
               <!-- 筛选区域 -->
               <div class="filter-section">
@@ -101,14 +102,13 @@
                       <th width="50">
                         <el-checkbox v-model="selectAll" @change="handleSelectAll" />
                       </th>
+                      <th width="80">ID</th>
                       <th width="150">事件</th>
                       <th width="100">支付状态</th>
+                      <th width="100">支付方式</th>
                       <th width="120">存入金额</th>
                       <th width="120">支出金额</th>
-                      <th width="120">冻结金额</th>
-                      <th width="120">解冻金额</th>
                       <th width="120">当前余额</th>
-                      <th width="120">可用余额</th>
                       <th width="150">时间</th>
                       <th>备注</th>
                     </tr>
@@ -121,6 +121,7 @@
                           @change="(val: boolean) => handleSelectRecord(record.id, val)"
                         />
                       </td>
+                      <td>{{ record.id }}</td>
                       <td>
                         <span
                           v-if="isClickableEvent(record.event)"
@@ -141,41 +142,38 @@
                         </el-tag>
                         <span v-else>-</span>
                       </td>
+                      <td>
+                        <span :style="getPaymentMethodStyle(record.paymentMethod)">
+                          {{ getPaymentMethodName(record.paymentMethod) }}
+                        </span>
+                      </td>
                       <td class="amount-cell deposit-amount">
                         {{ (record.depositAmount && record.depositAmount > 0) ? `¥${Number(record.depositAmount).toFixed(2)}` : '-' }}
                       </td>
                       <td class="amount-cell expense-amount">
                         {{ (record.expenseAmount && record.expenseAmount > 0) ? `¥${Number(record.expenseAmount).toFixed(2)}` : '-' }}
                       </td>
-                      <td class="amount-cell frozen-amount">
-                        {{ (record.frozenAmount && record.frozenAmount > 0) ? `¥${Number(record.frozenAmount).toFixed(2)}` : '-' }}
-                      </td>
-                      <td class="amount-cell unfrozen-amount">
-                        {{ (record.unfrozenAmount && record.unfrozenAmount > 0) ? `¥${Number(record.unfrozenAmount).toFixed(2)}` : '-' }}
-                      </td>
                       <td class="amount-cell current-balance">
                         ¥{{ Number(record.currentBalance || 0).toFixed(2) }}
-                      </td>
-                      <td class="amount-cell available-balance">
-                        ¥{{ Number(record.availableBalance || 0).toFixed(2) }}
                       </td>
                       <td>{{ formatDateTime(record.createTime) }}</td>
                       <td class="remark-cell">{{ record.remark || '-' }}</td>
                     </tr>
                     <tr v-if="displayedRecords.length === 0">
-                      <td colspan="11" class="empty-data">暂无交易记录</td>
+                      <td colspan="10" class="empty-data">暂无交易记录</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
               <!-- 底部操作栏 -->
-              <div class="bottom-actions">
+              <!-- 已屏蔽导出选中记录入口 -->
+              <!-- <div class="bottom-actions">
                 <el-checkbox v-model="selectAll" @change="handleSelectAll">全选</el-checkbox>
                 <el-button @click="handleExportSelected" :disabled="selectedRecords.length === 0">
                   导出选中记录
                 </el-button>
-              </div>
+              </div> -->
 
               <!-- 分页 -->
               <div class="pagination-wrapper">
@@ -326,21 +324,21 @@ const handleSelectRecord = (recordId: number, selected: boolean) => {
   selectAll.value = selectedRecords.value.length === displayedRecords.value.length && displayedRecords.value.length > 0
 }
 
-// 下载交易记录
-const handleDownloadRecord = () => {
-  // TODO: 实现下载交易记录功能
-  ElMessage.info('下载交易记录功能待实现')
-}
+// 下载交易记录（已屏蔽，保留代码）
+// const handleDownloadRecord = () => {
+//   // TODO: 实现下载交易记录功能
+//   ElMessage.info('下载交易记录功能待实现')
+// }
 
-// 导出选中记录
-const handleExportSelected = () => {
-  if (selectedRecords.value.length === 0) {
-    ElMessage.warning('请选择要导出的记录')
-    return
-  }
-  // TODO: 实现导出选中记录功能
-  ElMessage.info('导出选中记录功能待实现')
-}
+// 导出选中记录（已屏蔽，保留代码）
+// const handleExportSelected = () => {
+//   if (selectedRecords.value.length === 0) {
+//     ElMessage.warning('请选择要导出的记录')
+//     return
+//   }
+//   // TODO: 实现导出选中记录功能
+//   ElMessage.info('导出选中记录功能待实现')
+// }
 
 // 分页变化
 const handlePageChange = (page: number) => {
@@ -399,7 +397,7 @@ const handleEventClick = (record: DepositRecordVO) => {
   // 优先使用 orderNo 字段，如果没有则从备注中提取
   let orderNumber = record.orderNo
   if (!orderNumber && record.remark) {
-    orderNumber = extractOrderNumber(record.remark)
+    orderNumber = extractOrderNumber(record.remark) || undefined
   }
   
   if (!orderNumber) {
@@ -415,8 +413,6 @@ const handleEventClick = (record: DepositRecordVO) => {
     }
   })
 }
-
-import { formatDateTime } from '@/utils'
 
 // 获取状态标签类型
 const getStatusTagType = (status?: number) => {
@@ -435,6 +431,45 @@ const getStatusTagType = (status?: number) => {
     default:
       return ''
   }
+}
+
+// 获取支付方式中文名称
+const getPaymentMethodName = (paymentMethod?: string) => {
+  if (!paymentMethod) {
+    return '-'
+  }
+  switch (paymentMethod.toLowerCase()) {
+    case 'alipay':
+      return '支付宝'
+    case 'wechat':
+      return '微信'
+    case 'wechatpay':
+      return '微信'
+    default:
+      return paymentMethod
+  }
+}
+
+// 获取支付方式样式（颜色）
+const getPaymentMethodStyle = (paymentMethod?: string) => {
+  if (!paymentMethod) {
+    return {}
+  }
+  const methodLower = paymentMethod.toLowerCase()
+  if (methodLower === 'alipay') {
+    // 支付宝：蓝色
+    return {
+      color: '#409EFF',
+      fontWeight: 'bold'
+    }
+  } else if (methodLower === 'wechat' || methodLower === 'wechatpay') {
+    // 微信：绿色
+    return {
+      color: '#67C23A',
+      fontWeight: 'bold'
+    }
+  }
+  return {}
 }
 
 // 初始化

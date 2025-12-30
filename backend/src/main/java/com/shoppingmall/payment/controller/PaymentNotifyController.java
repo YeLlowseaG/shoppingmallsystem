@@ -13,8 +13,10 @@ import com.shoppingmall.payment.util.AlipayUtil;
 import com.shoppingmall.payment.util.WeChatPayUtil;
 import com.shoppingmall.repository.order.OrderRepository;
 import com.shoppingmall.repository.payment.PaymentRecordRepository;
+import com.shoppingmall.entity.PaymentApiLog;
 import com.shoppingmall.service.erp.JushuitanConfigService;
 import com.shoppingmall.service.erp.JushuitanOrderService;
+import com.shoppingmall.service.payment.PaymentLogService;
 import com.shoppingmall.vo.JushuitanConfigVO;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +50,7 @@ public class PaymentNotifyController {
     private final OrderRepository orderRepository;
     private final PaymentRecordRepository paymentRecordRepository;
     private final ObjectMapper objectMapper;
+    private final PaymentLogService paymentLogService;
     private final JushuitanOrderService jushuitanOrderService;
     private final JushuitanConfigService jushuitanConfigService;
     private final com.shoppingmall.service.buyer.DepositService depositService;
@@ -97,6 +100,25 @@ public class PaymentNotifyController {
 
             // 读取回调数据（支付宝回调是表单参数格式）
             Map<String, Object> notifyData = parseAlipayNotifyData(request);
+            
+            // 记录回调日志（在处理前记录，包含原始回调数据）
+            try {
+                PaymentApiLog apiLog = new PaymentApiLog();
+                apiLog.setPaymentMethod("ALIPAY");
+                apiLog.setApiType("CALLBACK");
+                String orderNo = extractOrderNo(notifyData);
+                apiLog.setBusinessType(orderNo != null && orderNo.startsWith("DEPOSIT_") ? "DEPOSIT" : "ORDER");
+                apiLog.setOrderNo(orderNo);
+                apiLog.setApiStatus(2); // 处理中
+                try {
+                    apiLog.setRequestData(objectMapper.writeValueAsString(notifyData));
+                } catch (Exception e) {
+                    log.warn("序列化回调数据失败", e);
+                }
+                paymentLogService.savePaymentLog(apiLog);
+            } catch (Exception e) {
+                log.warn("记录支付回调日志失败", e);
+            }
 
             // 验证回调
             paymentGatewayService.handlePaymentNotify(PaymentMethod.ALIPAY, notifyData);
@@ -265,7 +287,31 @@ public class PaymentNotifyController {
         if (orderNo.startsWith("DEPOSIT_")) {
             // 预存款充值回调处理
             log.info("处理预存款充值回调，订单号：{}，外部交易号：{}，支付结果：{}", orderNo, externalTradeNo, success);
-            depositService.handlePaymentCallback(orderNo, externalTradeNo, success, notifyData);
+            
+            boolean callbackSuccess = false;
+            try {
+                depositService.handlePaymentCallback(orderNo, externalTradeNo, success, notifyData);
+                callbackSuccess = success; // 只有success为true且没有抛出异常才算成功
+            } catch (Exception e) {
+                log.error("预存款充值回调处理失败，订单号：{}，外部交易号：{}，错误：{}", orderNo, externalTradeNo, e.getMessage(), e);
+                callbackSuccess = false; // 处理失败
+            }
+            
+            // 更新支付回调日志状态（根据实际处理结果）
+            try {
+                String responseData = "{\"status\":\"" + (callbackSuccess ? "success" : "failed") + "\"}";
+                paymentLogService.updatePaymentLogStatus(
+                    orderNo,
+                    "CALLBACK",
+                    paymentMethod.toUpperCase(),
+                    callbackSuccess ? 1 : 0, // 1-成功，0-失败
+                    externalTradeNo,
+                    responseData
+                );
+            } catch (Exception e) {
+                log.warn("更新支付回调日志状态失败", e);
+            }
+            
             return;
         }
 
@@ -293,55 +339,95 @@ public class PaymentNotifyController {
             throw new RuntimeException("支付记录不存在：" + orderNo);
         }
 
-        // 如果已经处理过，直接返回
+        // 如果已经处理过，更新日志状态后返回
         if (PaymentStatus.PAID.equals(paymentRecord.getPaymentStatus())
                 || PaymentStatus.REFUNDED.equals(paymentRecord.getPaymentStatus())) {
             log.info("支付回调：订单已处理，忽略重复回调，orderNo={}, status={}", orderNo, paymentRecord.getPaymentStatus());
+            
+            // 更新支付回调日志状态为成功（重复回调也视为成功）
+            try {
+                String responseData = "{\"status\":\"success\",\"message\":\"重复回调，订单已处理\"}";
+                paymentLogService.updatePaymentLogStatus(
+                    orderNo,
+                    "CALLBACK",
+                    paymentMethod.toUpperCase(),
+                    1, // 成功
+                    externalTradeNo != null ? externalTradeNo : paymentRecord.getExternalTradeNo(),
+                    responseData
+                );
+            } catch (Exception e) {
+                log.warn("更新支付回调日志状态失败", e);
+            }
+            
             return;
         }
 
-        if (success) {
-            // 支付成功
-            paymentRecord.setPaymentStatus(PaymentStatus.PAID);
-            paymentRecord.setPaymentTime(LocalDateTime.now());
-            // 保存外部交易号（支付宝返回的trade_no或微信返回的transaction_id）
-            paymentRecord.setExternalTradeNo(externalTradeNo);
-            try {
-                paymentRecord.setCallbackData(objectMapper.writeValueAsString(notifyData));
-            } catch (Exception e) {
-                log.warn("保存回调数据失败", e);
-            }
-            paymentRecordRepository.updateById(paymentRecord);
-
-            // 更新订单状态
-            order.setPaymentStatus(PaymentStatus.PAID);
-            order.setOrderStatus(OrderStatus.PAID_UNSHIPPED);
-            order.setPayTime(LocalDateTime.now());
-            orderRepository.updateById(order);
-
-            // 自动推送订单到聚水潭ERP
-            try {
-                JushuitanConfigVO config = jushuitanConfigService.getEnabledConfig();
-                if (config != null && config.getAutoPushOrder() == 1) {
-                    log.info("自动推送订单到聚水潭ERP: orderId={}, orderNo={}", order.getId(), orderNo);
-                    jushuitanOrderService.pushOrder(order.getId());
+        boolean callbackSuccess = false;
+        try {
+            if (success) {
+                // 支付成功
+                paymentRecord.setPaymentStatus(PaymentStatus.PAID);
+                paymentRecord.setPaymentTime(LocalDateTime.now());
+                // 保存外部交易号（支付宝返回的trade_no或微信返回的transaction_id）
+                paymentRecord.setExternalTradeNo(externalTradeNo);
+                try {
+                    paymentRecord.setCallbackData(objectMapper.writeValueAsString(notifyData));
+                } catch (Exception e) {
+                    log.warn("保存回调数据失败", e);
                 }
-            } catch (Exception e) {
-                log.error("自动推送订单到ERP失败: orderId={}, orderNo={}", order.getId(), orderNo, e);
-            }
+                paymentRecordRepository.updateById(paymentRecord);
 
-            log.info("支付回调处理成功: orderNo={}", orderNo);
-        } else {
-            // 支付失败或关闭
-            boolean isClosed = isPaymentClosed(tradeStatus);
-            if (isClosed) {
-                paymentRecord.setPaymentStatus(PaymentStatus.CLOSED);
-                log.info("支付回调：订单已关闭，orderNo={}, tradeStatus={}", orderNo, tradeStatus);
+                // 更新订单状态
+                order.setPaymentStatus(PaymentStatus.PAID);
+                order.setOrderStatus(OrderStatus.PAID_UNSHIPPED);
+                order.setPayTime(LocalDateTime.now());
+                orderRepository.updateById(order);
+                
+                callbackSuccess = true;
+
+                // 自动推送订单到聚水潭ERP
+                try {
+                    JushuitanConfigVO config = jushuitanConfigService.getEnabledConfig();
+                    if (config != null && config.getAutoPushOrder() == 1) {
+                        log.info("自动推送订单到聚水潭ERP: orderId={}, orderNo={}", order.getId(), orderNo);
+                        jushuitanOrderService.pushOrder(order.getId());
+                    }
+                } catch (Exception e) {
+                    log.error("自动推送订单到ERP失败: orderId={}, orderNo={}", order.getId(), orderNo, e);
+                }
+
+                log.info("支付回调处理成功: orderNo={}", orderNo);
             } else {
-                paymentRecord.setPaymentStatus(PaymentStatus.FAILED);
-                log.warn("支付回调：支付失败，orderNo={}, tradeStatus={}", orderNo, tradeStatus);
+                // 支付失败或关闭
+                boolean isClosed = isPaymentClosed(tradeStatus);
+                if (isClosed) {
+                    paymentRecord.setPaymentStatus(PaymentStatus.CLOSED);
+                    log.info("支付回调：订单已关闭，orderNo={}, tradeStatus={}", orderNo, tradeStatus);
+                } else {
+                    paymentRecord.setPaymentStatus(PaymentStatus.FAILED);
+                    log.warn("支付回调：支付失败，orderNo={}, tradeStatus={}", orderNo, tradeStatus);
+                }
+                paymentRecordRepository.updateById(paymentRecord);
+                callbackSuccess = false;
             }
-            paymentRecordRepository.updateById(paymentRecord);
+        } catch (Exception e) {
+            log.error("订单支付回调处理失败，订单号：{}，错误：{}", orderNo, e.getMessage(), e);
+            callbackSuccess = false;
+        }
+
+        // 更新支付回调日志状态（根据实际处理结果）
+        try {
+            String responseData = "{\"status\":\"" + (callbackSuccess ? "success" : "failed") + "\"}";
+            paymentLogService.updatePaymentLogStatus(
+                orderNo,
+                "CALLBACK",
+                paymentMethod.toUpperCase(),
+                callbackSuccess ? 1 : 0, // 1-成功，0-失败
+                externalTradeNo,
+                responseData
+            );
+        } catch (Exception e) {
+            log.warn("更新支付回调日志状态失败", e);
         }
     }
 

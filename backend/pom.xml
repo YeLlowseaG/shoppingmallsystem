@@ -51,7 +51,7 @@
         
         <!-- 支付SDK -->
         <wechatpay.version>0.2.12</wechatpay.version>
-        <alipay.version>4.40.604.ALL</alipay.version>
+        <alipay.version>4.38.195.ALL</alipay.version>
     </properties>
 
     <repositories>
@@ -218,8 +218,7 @@
 
         <!-- 支付宝 SDK -->
         <!-- 注意：支付宝SDK不在公共Maven仓库中，需要手动下载jar包并安装到本地仓库 -->
-        <!-- 安装命令（使用绝对路径）：mvn install:install-file -Dfile="D:\my project\java-project\shangdan\ShoppingMallSystem\alipay-sdk-java-4.40.604.ALL.jar" -DgroupId=com.alipay.sdk -DartifactId=alipay-sdk-java -Dversion=4.40.604.ALL -Dpackaging=jar -->
-        <!-- 或者在backend目录执行：cd backend && mvn install:install-file -Dfile=../alipay-sdk-java-4.40.604.ALL.jar -DgroupId=com.alipay.sdk -DartifactId=alipay-sdk-java -Dversion=4.40.604.ALL -Dpackaging=jar -->
+        <!-- 安装命令：mvn install:install-file -Dfile=alipay-sdk-java-4.38.195.ALL.jar -DgroupId=com.alipay.sdk -DartifactId=alipay-sdk-java -Dversion=4.38.195.ALL -Dpackaging=jar -->
         <!-- 下载地址：https://opendocs.alipay.com/common/02kkv7 -->
         <!--
         <dependency>

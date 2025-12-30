@@ -99,26 +99,9 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="冻结金额" width="120" align="right">
-          <template #default="{ row }">
-            <span v-if="row.frozenAmount > 0" style="color: #e6a23c">¥{{ row.frozenAmount.toFixed(2) }}</span>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="解冻金额" width="120" align="right">
-          <template #default="{ row }">
-            <span v-if="row.unfrozenAmount > 0" style="color: #409eff">¥{{ row.unfrozenAmount.toFixed(2) }}</span>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
         <el-table-column label="当前余额" width="120" align="right">
           <template #default="{ row }">
             ¥{{ row.currentBalance.toFixed(2) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="可用余额" width="120" align="right">
-          <template #default="{ row }">
-            ¥{{ row.availableBalance.toFixed(2) }}
           </template>
         </el-table-column>
         <el-table-column prop="paymentMethod" label="支付方式" width="100">
@@ -143,7 +126,7 @@
             {{ formatDateTime(row.createTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleView(row)">查看详情</el-button>
             <el-button
@@ -295,7 +278,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
-import { getDepositRecordList, getDepositRecordById, refundDepositRecharge, type DepositRecordVO, type DepositQueryDTO, type RefundRequestDTO } from '@/api/admin/deposit'
+import { getDepositRecordList, getDepositRecordById, refundDepositRecharge, type DepositRecordVO, type DepositQueryDTO } from '@/api/admin/deposit'
 import { formatDateTime } from '@/utils'
 
 const router = useRouter()
@@ -337,7 +320,7 @@ const refundRules = {
   refundAmount: [
     { required: true, message: '请输入退款金额', trigger: 'blur' },
     {
-      validator: (rule: any, value: number, callback: any) => {
+      validator: (_rule: any, value: number, callback: any) => {
         if (value <= 0) {
           callback(new Error('退款金额必须大于0'))
         } else if (!currentRecord.value) {

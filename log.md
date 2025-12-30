@@ -1,5 +1,489 @@
 # 修改日志
 
+## 2025-12-30 - 完善支付宝回调状态更新逻辑
+
+### 功能说明
+完善支付宝回调状态更新逻辑，修复预存款充值和订单支付回调状态更新问题，确保日志状态与实际处理结果一致。
+
+### 修改原因
+1. **预存款充值回调问题**：支付宝支付成功，但回调日志状态显示为"失败"（api_status=0）
+   - 原因：`handlePaymentCallback`方法抛出异常（如充值记录状态不是PAYING），但日志更新时仍使用`success=true`，导致状态不一致
+2. **订单支付回调问题**：订单支付回调状态一直是"处理中"（api_status=2），没有更新为"成功"
+   - 原因1：订单支付回调时创建了新日志记录，而不是更新已存在的"处理中"日志
+   - 原因2：重复回调时直接返回，没有更新日志状态
+
+### 修改内容
+
+#### 1. 修复预存款充值回调状态更新
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/controller/PaymentNotifyController.java`
+
+**修改点：**
+- 在`processPaymentNotify`方法中，预存款充值回调处理部分：
+  - 添加异常捕获，捕获`handlePaymentCallback`可能抛出的异常
+  - 根据实际处理结果（`callbackSuccess`）更新日志状态
+  - 如果`handlePaymentCallback`抛出异常，将日志状态更新为失败（0）
+  - 确保日志状态与实际处理结果一致
+
+#### 2. 修复订单支付回调状态更新
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/controller/PaymentNotifyController.java`
+
+**修改点：**
+- **重复回调处理**：
+  - 订单已处理时（PAID或REFUNDED状态），不再直接返回
+  - 调用`updatePaymentLogStatus`更新日志状态为成功（1）
+  - 确保重复回调也能正确更新日志状态
+- **正常回调处理**：
+  - 使用`updatePaymentLogStatus`更新已存在的日志记录，而不是创建新记录
+  - 添加异常捕获，确保即使处理失败也能更新日志状态
+  - 根据实际处理结果（`callbackSuccess`）更新日志状态
+
+### 修复的问题
+
+1. ✅ **预存款充值回调**：即使`handlePaymentCallback`抛出异常，也能正确更新日志状态为失败
+2. ✅ **订单支付回调**：更新已存在的日志记录，不会创建重复记录
+3. ✅ **重复回调**：重复回调时也会更新日志状态为成功
+4. ✅ **异常处理**：处理失败时也会更新日志状态为失败
+
+### 影响范围
+
+- ✅ 预存款充值回调：日志状态与实际处理结果一致
+- ✅ 订单支付回调：日志状态正确更新，不会产生重复记录
+- ✅ 重复回调：日志状态正确更新为成功
+
+### 注意事项
+
+1. **状态一致性**：日志状态现在完全反映实际处理结果
+2. **异常处理**：所有异常都会被捕获并记录到日志状态中
+3. **重复回调**：重复回调被视为成功，并更新日志状态
+4. **日志更新**：统一使用`updatePaymentLogStatus`方法更新日志，而不是创建新记录
+
+## 2025-12-30 - 修复支付宝回调状态更新和预存款退款日志记录问题
+
+### 功能说明
+修复两个问题：
+1. 支付宝回调状态一直是"处理中"的问题：预存款充值回调成功后，更新payment_api_log的状态为"成功"
+2. 支付宝预存款退款没有日志记录的问题：为预存款退款添加payment_api_log日志记录
+
+### 修改原因
+1. 用户反馈支付宝回调的payment_api_log表中状态都是"处理中"（api_status=2），没有更新为"成功"（api_status=1）
+2. 用户反馈支付宝退款没有日志更新到payment_api_log表，但微信退款有更新
+
+### 修改内容
+
+#### 1. 添加更新日志状态的方法
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/payment/PaymentLogService.java`
+- 添加`updatePaymentLogStatus`方法，用于更新已存在的日志记录状态
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/payment/impl/PaymentLogServiceImpl.java`
+- 实现`updatePaymentLogStatus`方法
+- 查询最新的日志记录（根据订单号、接口类型、支付方式）
+- 更新日志状态、外部交易号、响应数据等
+- 使用`@Async`异步执行，避免影响支付性能
+
+#### 2. 修复预存款充值回调状态更新
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/controller/PaymentNotifyController.java`
+
+**修改点：**
+- 在`processPaymentNotify`方法中，处理预存款充值回调成功后，调用`paymentLogService.updatePaymentLogStatus`更新日志状态
+- 将状态从"处理中"（2）更新为"成功"（1）或"失败"（0）
+- 同时更新外部交易号和响应数据
+
+#### 3. 为预存款退款添加日志记录
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/admin/impl/DepositServiceImpl.java`
+
+**修改点：**
+- 注入`PaymentLogService`和`ObjectMapper`
+- **使用商户订单号退款时**：记录退款日志（成功/失败）
+  - 记录支付方式（ALIPAY）、接口类型（REFUND）、业务类型（DEPOSIT）
+  - 记录订单号、支付流水号、外部交易号、请求数据、响应数据、执行耗时等
+- **使用支付宝交易号退款时**：记录退款日志（重试场景）
+  - 同样记录完整的退款信息
+  - 标记`useTradeNo=true`，区分使用哪种方式退款
+
+### 记录的日志类型
+
+1. **CALLBACK**（回调通知）：预存款充值回调状态更新
+2. **REFUND**（退款）：预存款退款日志记录
+
+### 日志字段
+
+- `paymentMethod`：支付方式（ALIPAY）
+- `apiType`：接口类型（CALLBACK/REFUND）
+- `businessType`：业务类型（DEPOSIT）
+- `orderNo`：订单号（内部订单号）
+- `paymentNo`：支付流水号
+- `externalTradeNo`：外部交易号
+- `apiUrl`：接口URL
+- `requestMethod`：HTTP请求方法（POST）
+- `requestData`：请求数据（JSON格式）
+- `responseData`：响应数据（JSON格式）
+- `apiStatus`：接口调用状态（0-失败，1-成功，2-处理中）
+- `errorCode`：错误代码
+- `errorMessage`：错误信息
+- `executionTime`：执行耗时（毫秒）
+
+### 影响范围
+
+- ✅ 预存款充值回调：支付宝回调成功后，payment_api_log状态会更新为"成功"
+- ✅ 预存款退款：支付宝预存款退款会记录日志到payment_api_log表
+- ✅ 退款重试：使用支付宝交易号退款时也会记录日志
+
+### 注意事项
+
+1. **状态更新**：更新已存在的日志记录，而不是创建新记录
+2. **异步执行**：日志记录和更新都使用`@Async`异步执行，不会影响支付性能
+3. **错误处理**：日志记录失败不会影响支付流程，只记录错误日志
+4. **退款日志**：支持两种退款方式（使用商户订单号和支付宝交易号）的日志记录
+
+## 2025-12-30 - 优化预存款充值页面支付弹窗样式
+
+### 功能说明
+优化预存款充值页面的支付状态弹窗样式，使弹窗居中显示，并减少字段内容之间的间距，让界面更紧凑美观。
+
+### 修改原因
+用户反馈支付弹窗需要居中显示，且字段内容上下距离可以更紧凑一些。
+
+### 修改内容
+
+#### 预存款充值页面支付弹窗样式优化
+
+**文件：** `frontend/src/views/member/DepositRecharge.vue`
+
+**修改点：**
+- **弹窗居中显示**：在`el-dialog`组件上添加`align-center`属性，确保弹窗居中显示
+- **减少间距**：
+  - `.payment-status-content`的`padding`从`20px`减少到`10px`
+  - `.status-icon`的`margin-bottom`从`20px`减少到`8px`
+  - `.status-title`的`margin-bottom`从`10px`减少到`6px`
+  - `.status-desc`的`margin-bottom`从`20px`减少到`12px`
+  - `.status-actions`的`margin-top`从`20px`减少到`12px`
+  - `.qrcode-container`的`margin`从`20px 0`减少到`12px 0`
+  - `.qrcode-title`的`margin-bottom`从`15px`减少到`8px`
+  - `.qrcode-tip`的`margin-top`从`10px`减少到`6px`
+
+### 影响范围
+
+- ✅ 预存款充值页面（`http://localhost:3002/member/deposit/recharge`）：支付状态弹窗样式优化
+  - 弹窗居中显示
+  - 字段内容间距更紧凑
+  - 提升用户体验
+
+## 2025-12-30 - 修复预存款微信支付未同步到payment_api_log表的问题
+
+### 功能说明
+修复预存款微信支付没有记录到payment_api_log表的问题。之前已经为支付宝支付添加了日志记录功能，但微信支付策略中还没有添加日志记录功能。
+
+### 修改原因
+用户反馈预存款微信支付没有同步到payment_api_log表，需要为微信支付添加日志记录功能。
+
+### 修改内容
+
+#### 在WeChatPayStrategy中添加日志记录
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/strategy/impl/WeChatPayStrategy.java`
+
+**修改点：**
+- 注入`PaymentLogService`和`ObjectMapper`
+- **createPayment方法**：在创建支付订单成功/失败时记录日志
+  - 记录支付方式（WECHAT）、接口类型（CREATE_PAYMENT）、业务类型（ORDER或DEPOSIT）
+  - 根据订单号前缀（DEPOSIT_）判断业务类型
+  - 记录订单号、支付流水号、请求数据、响应数据等
+  - 记录API URL（区分沙箱和生产环境）
+- **queryPaymentStatus方法**：在查询订单状态时记录日志
+  - 记录查询请求和响应数据、执行耗时等
+  - 记录外部交易号（transaction_id）
+  - 根据订单号前缀判断业务类型
+- **refund方法**：在退款成功/失败时记录日志
+  - 记录退款请求参数、响应数据、执行耗时等
+  - 记录错误代码和错误信息（失败时）
+  - 根据订单号前缀判断业务类型（支持预存款退款和订单退款）
+
+### 记录的日志类型
+
+1. **CREATE_PAYMENT**（创建支付）：记录创建微信支付订单的请求和响应
+2. **QUERY_ORDER**（查询订单）：记录查询微信支付订单状态的请求和响应
+3. **REFUND**（退款）：记录微信支付退款请求和响应
+
+### 日志字段
+
+- `paymentMethod`：支付方式（WECHAT）
+- `apiType`：接口类型（CREATE_PAYMENT/REFUND/QUERY_ORDER）
+- `businessType`：业务类型（ORDER/DEPOSIT）- 根据订单号前缀自动判断
+- `orderNo`：订单号（内部订单号）
+- `paymentNo`：支付流水号
+- `externalTradeNo`：外部交易号（微信交易号）
+- `apiUrl`：接口URL（区分沙箱和生产环境）
+- `requestMethod`：HTTP请求方法（POST）
+- `requestData`：请求数据（JSON格式）
+- `responseData`：响应数据（JSON格式）
+- `apiStatus`：接口调用状态（0-失败，1-成功）
+- `errorCode`：错误代码
+- `errorMessage`：错误信息
+- `executionTime`：执行耗时（毫秒）
+
+### 影响范围
+
+- ✅ 预存款微信支付：预存款充值使用微信支付时会记录日志
+- ✅ 订单微信支付：订单支付使用微信支付时会记录日志
+- ✅ 微信支付查询：查询微信支付订单状态时会记录日志
+- ✅ 微信支付退款：微信支付退款时会记录日志（支持预存款退款和订单退款）
+
+### 注意事项
+
+1. **业务类型自动判断**：根据订单号前缀（DEPOSIT_）自动判断是订单支付还是预存款充值
+2. **环境区分**：API URL会根据配置自动区分沙箱环境和生产环境
+3. **异步执行**：日志记录使用`@Async`异步执行，不会影响支付性能
+4. **错误处理**：日志记录失败不会影响支付流程，只记录错误日志
+
+## 2025-12-30 - 修复支付操作后未记录payment_api_log的问题
+
+### 功能说明
+修复支付操作后没有更新数据到payment_api_log表的问题。之前虽然创建了payment_api_log表和实体类，但在支付操作时没有调用日志记录功能。
+
+### 修改原因
+用户反馈支付操作后，payment_api_log表中没有记录，需要添加日志记录功能。
+
+### 修改内容
+
+#### 1. 创建支付日志服务类
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/payment/PaymentLogService.java`
+- 创建支付接口日志服务接口
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/payment/impl/PaymentLogServiceImpl.java`
+- 实现支付接口日志服务
+- 使用`@Async`异步执行，避免影响支付性能
+- 日志记录失败不影响支付流程
+
+#### 2. 在AlipayPayStrategy中添加日志记录
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/strategy/impl/AlipayPayStrategy.java`
+
+**修改点：**
+- 注入`PaymentLogService`和`ObjectMapper`
+- **createPayment方法**：在创建支付订单成功/失败时记录日志
+  - 记录支付方式、接口类型、业务类型、订单号、支付流水号、请求数据等
+  - 根据订单号判断业务类型（ORDER或DEPOSIT）
+- **refund方法**：在退款成功/失败时记录日志
+  - 记录退款请求参数、响应数据、执行耗时等
+- **queryPaymentStatus方法**：在查询订单状态时记录日志
+  - 记录查询请求和响应数据、执行耗时等
+
+#### 3. 在PaymentNotifyController中添加日志记录
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/controller/PaymentNotifyController.java`
+
+**修改点：**
+- 注入`PaymentLogService`
+- **alipayNotify方法**：在收到支付宝回调时记录日志（处理中状态）
+- **processPaymentNotify方法**：在支付回调处理成功时记录日志（成功状态）
+
+#### 4. 在PaymentSyncScheduledServiceImpl中添加日志记录
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/payment/impl/PaymentSyncScheduledServiceImpl.java`
+
+**修改点：**
+- 注入`PaymentLogService`
+- 在定时任务查询订单状态时记录日志
+  - 记录查询请求和响应数据、执行耗时等
+
+#### 5. 在OrderServiceImpl中添加日志记录
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java`
+
+**修改点：**
+- 注入`PaymentLogService`
+- 在订单退款操作时记录日志
+  - 记录使用商户订单号（out_trade_no）退款的日志
+  - 记录使用支付宝交易号（trade_no）退款的日志
+  - 记录退款请求参数、响应数据、执行耗时等
+
+### 记录的日志类型
+
+1. **CREATE_PAYMENT**（创建支付）：记录创建支付订单的请求和响应
+2. **REFUND**（退款）：记录退款请求和响应
+3. **QUERY_ORDER**（查询订单）：记录查询订单状态的请求和响应
+4. **CALLBACK**（回调通知）：记录支付回调的请求数据
+
+### 日志字段
+
+- `paymentMethod`：支付方式（ALIPAY/WECHAT）
+- `apiType`：接口类型（CREATE_PAYMENT/REFUND/QUERY_ORDER/CALLBACK）
+- `businessType`：业务类型（ORDER/DEPOSIT）
+- `orderNo`：订单号
+- `paymentNo`：支付流水号
+- `externalTradeNo`：外部交易号
+- `apiUrl`：接口URL
+- `requestMethod`：HTTP请求方法
+- `requestData`：请求数据（JSON格式）
+- `responseData`：响应数据（JSON格式）
+- `apiStatus`：接口调用状态（0-失败，1-成功，2-处理中）
+- `errorCode`：错误代码
+- `errorMessage`：错误信息
+- `executionTime`：执行耗时（毫秒）
+
+### 影响范围
+
+- ✅ 支付创建：支付宝支付订单创建时会记录日志
+- ✅ 支付回调：支付宝支付回调时会记录日志
+- ✅ 订单查询：查询订单状态时会记录日志
+- ✅ 订单退款：订单退款时会记录日志
+- ✅ 定时任务：支付补单定时任务查询订单时会记录日志
+
+### 注意事项
+
+1. **异步执行**：日志记录使用`@Async`异步执行，不会影响支付性能
+2. **错误处理**：日志记录失败不会影响支付流程，只记录错误日志
+3. **业务类型判断**：根据订单号前缀（DEPOSIT_）判断是订单支付还是预存款充值
+
+## 2025-12-30 - 预存款交易记录页面字段和功能调整
+
+### 功能说明
+调整前端会员预存款余额页面和管理后台预存款管理页面的列表字段显示，屏蔽部分字段，增加新字段，并屏蔽部分功能入口。
+
+### 修改原因
+- 简化列表显示，屏蔽不必要的字段（冻结金额、解冻金额、可用余额）
+- 增加ID字段和支付方式字段，方便查看和识别
+- 屏蔽下载和导出功能入口，简化操作
+
+### 修改内容
+
+#### 1. 前端会员预存款余额页面
+
+**文件：** `frontend/src/views/member/DepositBalance.vue`
+
+**修改点：**
+- **屏蔽字段**：
+  - 屏蔽"冻结金额"列
+  - 屏蔽"解冻金额"列
+  - 屏蔽"可用余额"列
+- **增加字段**：
+  - 增加"ID"列（显示记录ID）
+  - 增加"支付方式"列（显示支付方式，支持支付宝、微信等）
+- **屏蔽功能入口**：
+  - 屏蔽"下载交易记录"按钮
+  - 屏蔽"导出选中记录"按钮和底部操作栏
+- **添加支付方式显示函数**：
+  - `getPaymentMethodName()`: 获取支付方式中文名称
+  - `getPaymentMethodStyle()`: 获取支付方式样式（支付宝蓝色，微信绿色）
+
+#### 2. 管理后台预存款管理页面
+
+**文件：** `admin-frontend/src/views/deposit/Record.vue`
+
+**修改点：**
+- **屏蔽字段**：
+  - 屏蔽"冻结金额"列
+  - 屏蔽"解冻金额"列
+  - 屏蔽"可用余额"列
+- **调整操作列宽度**：
+  - 操作列宽度从280px调整为180px
+
+### 影响范围
+- 前端会员预存款余额页面（`http://localhost:3002/member/deposit/balance`）：列表字段简化，增加ID和支付方式字段
+- 管理后台预存款管理页面（`http://localhost:3003/admin/finance/deposit`）：列表字段简化，操作列宽度调整
+
+### 注意事项
+1. 前端页面的支付方式字段会根据支付方式显示不同颜色（支付宝蓝色，微信绿色）
+2. 前端页面已屏蔽下载和导出功能，但相关代码保留在注释中，便于后续恢复
+3. 管理后台页面的操作列宽度已优化，节省页面空间
+
+### 修改文件清单
+1. `frontend/src/views/member/DepositBalance.vue`
+2. `admin-frontend/src/views/deposit/Record.vue`
+
+---
+
+## 2025-12-30 - 定时任务管理页面增加初始化数据
+
+### 功能说明
+为定时任务管理页面（`http://localhost:3003/admin/system/scheduled-task`）创建定时任务表并初始化定时任务数据，使页面能够显示系统中的所有定时任务。
+
+### 修改原因
+- 定时任务管理页面需要从数据库读取定时任务数据
+- 需要将系统中现有的定时任务信息初始化到数据库中
+- 方便管理员在后台查看和管理系统中的定时任务
+
+### 修改内容
+
+#### 数据库脚本
+
+**文件：** `database/update-20251230-add-scheduled-task-table-and-init-data.sql`
+
+**修改点：**
+- 创建 `scheduled_task` 表，包含以下字段：
+  - `id`: 主键ID
+  - `task_name`: 任务名称
+  - `task_group`: 任务组
+  - `cron_expression`: Cron表达式（固定频率任务可为空）
+  - `bean_name`: Bean名称（Spring Bean名称）
+  - `method_name`: 方法名称
+  - `status`: 状态（0-已停止，1-运行中）
+  - `description`: 任务描述
+  - `last_execute_time`: 上次执行时间
+  - `next_execute_time`: 下次执行时间
+  - `create_time`: 创建时间
+  - `update_time`: 更新时间
+- 创建唯一索引 `uk_task_name_group`，确保同一组内任务名称唯一
+- 创建索引 `idx_status` 和 `idx_bean_name`，提升查询性能
+
+**初始化的定时任务数据：**
+1. **订单自动取消超时订单**（订单管理组）
+   - Bean名称: `orderScheduledServiceImpl`
+   - 方法名称: `cancelTimeoutOrders`
+   - 执行频率: 每分钟执行一次（fixedRate = 60000）
+   - 描述: 每分钟执行一次，自动取消超过指定时间未支付的待付款订单，并恢复库存
+
+2. **预存款自动取消超时记录**（预存款管理组）
+   - Bean名称: `depositPayingScheduledService`
+   - 方法名称: `cancelTimeoutDepositRecords`
+   - 执行频率: 每小时执行一次（fixedRate = 3600000）
+   - 描述: 每小时执行一次，自动将超过指定时间仍处于支付中状态的预存款记录更新为已超时
+
+3. **支付记录自动关闭超时记录**（支付管理组）
+   - Bean名称: `paymentRecordScheduledServiceImpl`
+   - 方法名称: `cancelTimeoutPaymentRecords`
+   - 执行频率: 每小时执行一次（fixedRate = 3600000）
+   - 描述: 每小时执行一次，自动将超过指定时间仍处于支付中状态的支付记录更新为已关闭
+
+4. **订单补单查询**（支付管理组）
+   - Bean名称: `paymentSyncScheduledService`
+   - 方法名称: `syncPaymentStatus`
+   - 执行频率: 每5分钟执行一次（fixedRate = 300000）
+   - 描述: 每5分钟执行一次，查询支付中状态的支付记录，如果支付宝已支付则自动补单并更新订单状态
+
+5. **聚水潭物流拉取**（ERP同步组）
+   - Bean名称: `jushuitanSyncTask`
+   - 方法名称: `pullLogisticsTask`
+   - Cron表达式: `0 */30 * * * ?`（每30分钟执行一次）
+   - 描述: 每30分钟执行一次，拉取聚水潭ERP中待发货订单的物流信息（需配置启用）
+
+6. **聚水潭全量同步**（ERP同步组）
+   - Bean名称: `jushuitanSyncTask`
+   - 方法名称: `fullSyncTask`
+   - Cron表达式: `0 0 3 * * ?`（每天凌晨3点执行一次）
+   - 描述: 每天凌晨3点执行一次，执行聚水潭ERP全量同步任务（需配置启用）
+
+### 影响范围
+- 定时任务管理页面：页面可以显示系统中的所有定时任务
+- 数据库：新增 `scheduled_task` 表，包含6条初始化的定时任务数据
+
+### 注意事项
+1. 执行SQL脚本后，定时任务数据会被初始化到数据库中
+2. 如果任务已存在（根据任务名称和任务组唯一索引），会更新任务信息，不会重复插入
+3. 所有初始化的任务默认状态为"运行中"（status = 1）
+4. 固定频率任务（fixedRate）的 `cron_expression` 字段为 NULL，Cron表达式任务需要填写对应的Cron表达式
+
+### 修改文件清单
+1. `database/update-20251230-add-scheduled-task-table-and-init-data.sql`（新建）
+
+---
+
 ## 2025-12-27 - 订单退款按钮增加loading状态
 
 ### 功能说明

@@ -14,12 +14,15 @@ import com.shoppingmall.entity.User;
 import com.shoppingmall.repository.deposit.PreDepositDetailRepository;
 import com.shoppingmall.repository.deposit.PreDepositRepository;
 import com.shoppingmall.repository.user.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.shoppingmall.entity.PaymentApiLog;
 import com.shoppingmall.payment.config.AlipayConfig;
 import com.shoppingmall.payment.exception.PaymentException;
 import com.shoppingmall.payment.service.PaymentConfigService;
 import com.shoppingmall.payment.service.PaymentGatewayService;
 import com.shoppingmall.payment.util.AlipayUtil;
 import com.shoppingmall.service.admin.DepositService;
+import com.shoppingmall.service.payment.PaymentLogService;
 import com.shoppingmall.vo.AdminDepositRecordVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +36,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -53,6 +57,8 @@ public class DepositServiceImpl implements DepositService {
     private final UserRepository userRepository;
     private final PaymentGatewayService paymentGatewayService;
     private final PaymentConfigService paymentConfigService;
+    private final PaymentLogService paymentLogService;
+    private final ObjectMapper objectMapper;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
@@ -435,6 +441,7 @@ public class DepositServiceImpl implements DepositService {
                         log.info("尝试使用商户订单号进行预存款退款，充值记录ID：{}，内部订单号：{}，外部交易号：{}，退款金额：{}，退款单号：{}",
                                 detail.getId(), internalOrderNo, externalTradeNo, refundAmountStr, refundNo);
                         
+                        long startTime = System.currentTimeMillis();
                         Map<String, String> result = AlipayUtil.refund(
                                 envConfig,
                                 internalOrderNo, // 使用内部订单号（out_trade_no）
@@ -442,6 +449,7 @@ public class DepositServiceImpl implements DepositService {
                                 refundAmountStr,
                                 false // 使用out_trade_no
                         );
+                        long executionTime = System.currentTimeMillis() - startTime;
                         
                         String code = result.get("code");
                         String subCode = result.get("sub_code");
@@ -450,6 +458,47 @@ public class DepositServiceImpl implements DepositService {
                         
                         log.info("支付宝预存款退款响应，充值记录ID：{}，内部订单号：{}，响应码：{}，子错误码：{}，错误信息：{}",
                                 detail.getId(), internalOrderNo, code, subCode, subMsg != null ? subMsg : msg);
+                        
+                        // 记录退款日志
+                        try {
+                            PaymentApiLog apiLog = new PaymentApiLog();
+                            apiLog.setPaymentMethod("ALIPAY");
+                            apiLog.setApiType("REFUND");
+                            apiLog.setBusinessType("DEPOSIT"); // 预存款退款
+                            apiLog.setOrderNo(internalOrderNo);
+                            apiLog.setPaymentNo(internalOrderNo);
+                            apiLog.setExternalTradeNo(externalTradeNo);
+                            String apiUrl = envConfig.getGateway() != null ? envConfig.getGateway() : 
+                                ("sandbox".equals(alipayConfig.getEnv()) ? "https://openapi.alipaydev.com/gateway.do" : "https://openapi.alipay.com/gateway.do");
+                            apiLog.setApiUrl(apiUrl);
+                            apiLog.setRequestMethod("POST");
+                            apiLog.setExecutionTime((int) executionTime);
+                            
+                            if ("10000".equals(code)) {
+                                apiLog.setApiStatus(1); // 成功
+                            } else {
+                                apiLog.setApiStatus(0); // 失败
+                                apiLog.setErrorCode(code);
+                                apiLog.setErrorMessage(subMsg != null && !subMsg.isEmpty() ? subMsg : (msg != null ? msg : "退款失败"));
+                            }
+                            
+                            try {
+                                Map<String, Object> requestData = new HashMap<>();
+                                requestData.put("paymentNo", internalOrderNo);
+                                requestData.put("refundNo", refundNo);
+                                requestData.put("refundAmount", refundAmountStr);
+                                requestData.put("refundReason", refundDTO.getRefundReason());
+                                requestData.put("useTradeNo", false);
+                                apiLog.setRequestData(objectMapper.writeValueAsString(requestData));
+                                apiLog.setResponseData(objectMapper.writeValueAsString(result));
+                            } catch (Exception ex) {
+                                log.warn("序列化退款数据失败", ex);
+                            }
+                            
+                            paymentLogService.savePaymentLog(apiLog);
+                        } catch (Exception ex) {
+                            log.warn("记录退款接口日志失败", ex);
+                        }
                         
                         if ("10000".equals(code)) {
                             refundExternalTradeNo = refundNo;
@@ -490,6 +539,7 @@ public class DepositServiceImpl implements DepositService {
                                     log.info("准备使用支付宝交易号进行预存款退款，充值记录ID：{}，内部订单号：{}，外部交易号：{}，退款金额：{}，退款单号：{}",
                                             detail.getId(), internalOrderNo, externalTradeNo, refundAmountStr, retryRefundNo);
                                     
+                                    long retryStartTime = System.currentTimeMillis();
                                     Map<String, String> result = AlipayUtil.refund(
                                             envConfig,
                                             externalTradeNo, // 使用外部交易号（trade_no）
@@ -497,6 +547,7 @@ public class DepositServiceImpl implements DepositService {
                                             refundAmountStr,
                                             true // 使用trade_no
                                     );
+                                    long retryExecutionTime = System.currentTimeMillis() - retryStartTime;
                                     
                                     String code = result.get("code");
                                     String subCode = result.get("sub_code");
@@ -505,6 +556,47 @@ public class DepositServiceImpl implements DepositService {
                                     
                                     log.info("支付宝预存款退款响应（使用trade_no），充值记录ID：{}，外部交易号：{}，响应码：{}，子错误码：{}，错误信息：{}",
                                             detail.getId(), externalTradeNo, code, subCode, subMsg != null ? subMsg : msg);
+                                    
+                                    // 记录退款日志（使用trade_no重试）
+                                    try {
+                                        PaymentApiLog apiLog = new PaymentApiLog();
+                                        apiLog.setPaymentMethod("ALIPAY");
+                                        apiLog.setApiType("REFUND");
+                                        apiLog.setBusinessType("DEPOSIT"); // 预存款退款
+                                        apiLog.setOrderNo(internalOrderNo);
+                                        apiLog.setPaymentNo(internalOrderNo);
+                                        apiLog.setExternalTradeNo(externalTradeNo);
+                                        String apiUrl = envConfig.getGateway() != null ? envConfig.getGateway() : 
+                                            ("sandbox".equals(alipayConfig.getEnv()) ? "https://openapi.alipaydev.com/gateway.do" : "https://openapi.alipay.com/gateway.do");
+                                        apiLog.setApiUrl(apiUrl);
+                                        apiLog.setRequestMethod("POST");
+                                        apiLog.setExecutionTime((int) retryExecutionTime);
+                                        
+                                        if ("10000".equals(code)) {
+                                            apiLog.setApiStatus(1); // 成功
+                                        } else {
+                                            apiLog.setApiStatus(0); // 失败
+                                            apiLog.setErrorCode(code);
+                                            apiLog.setErrorMessage(subMsg != null && !subMsg.isEmpty() ? subMsg : (msg != null ? msg : "退款失败"));
+                                        }
+                                        
+                                        try {
+                                            Map<String, Object> requestData = new HashMap<>();
+                                            requestData.put("paymentNo", externalTradeNo);
+                                            requestData.put("refundNo", retryRefundNo);
+                                            requestData.put("refundAmount", refundAmountStr);
+                                            requestData.put("refundReason", refundDTO.getRefundReason());
+                                            requestData.put("useTradeNo", true);
+                                            apiLog.setRequestData(objectMapper.writeValueAsString(requestData));
+                                            apiLog.setResponseData(objectMapper.writeValueAsString(result));
+                                        } catch (Exception ex) {
+                                            log.warn("序列化退款数据失败", ex);
+                                        }
+                                        
+                                        paymentLogService.savePaymentLog(apiLog);
+                                    } catch (Exception ex) {
+                                        log.warn("记录退款接口日志失败", ex);
+                                    }
                                     
                                     if ("10000".equals(code)) {
                                         refundExternalTradeNo = retryRefundNo;

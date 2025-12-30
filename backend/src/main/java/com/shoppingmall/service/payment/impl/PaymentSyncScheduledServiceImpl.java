@@ -8,12 +8,16 @@ import com.shoppingmall.common.constant.PaymentStatus;
 import com.shoppingmall.entity.Order;
 import com.shoppingmall.entity.PaymentRecord;
 import com.shoppingmall.payment.config.AlipayConfig;
+import com.shoppingmall.payment.config.WeChatPayConfig;
 import com.shoppingmall.payment.service.PaymentConfigService;
 import com.shoppingmall.payment.util.AlipayUtil;
+import com.shoppingmall.payment.util.WeChatPayUtil;
 import com.shoppingmall.repository.order.OrderRepository;
 import com.shoppingmall.repository.payment.PaymentRecordRepository;
+import com.shoppingmall.entity.PaymentApiLog;
 import com.shoppingmall.service.erp.JushuitanConfigService;
 import com.shoppingmall.service.erp.JushuitanOrderService;
+import com.shoppingmall.service.payment.PaymentLogService;
 import com.shoppingmall.service.system.SystemConfigService;
 import com.shoppingmall.vo.JushuitanConfigVO;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +33,7 @@ import java.util.Map;
 
 /**
  * 支付结果查询补单定时任务服务实现类
- * 用于自动查询支付中状态的支付记录，如果支付宝已支付则自动补单
+ * 用于自动查询支付中状态的支付记录，如果支付宝或微信已支付则自动补单
  *
  * @author ShoppingMall Team
  * @date 2025-12-27
@@ -46,6 +50,7 @@ public class PaymentSyncScheduledServiceImpl {
     private final JushuitanOrderService jushuitanOrderService;
     private final JushuitanConfigService jushuitanConfigService;
     private final SystemConfigService systemConfigService;
+    private final PaymentLogService paymentLogService;
 
     /**
      * 获取支付结果查询时间窗口（分钟），只查询最近N分钟内的支付记录，默认30分钟
@@ -62,7 +67,7 @@ public class PaymentSyncScheduledServiceImpl {
 
     /**
      * 自动查询支付结果并补单
-     * 每5分钟执行一次，查询支付中状态的支付记录，如果支付宝已支付则自动补单
+     * 每5分钟执行一次，查询支付中状态的支付记录，如果支付宝或微信已支付则自动补单
      */
     @Scheduled(fixedRate = 300000) // 每5分钟执行一次（300000毫秒 = 5分钟）
     @Transactional(rollbackFor = Exception.class)
@@ -94,8 +99,10 @@ public class PaymentSyncScheduledServiceImpl {
             // 批量处理支付记录
             for (PaymentRecord paymentRecord : payingRecords) {
                 try {
-                    // 只处理支付宝支付
-                    if (!PaymentMethod.ALIPAY.equals(paymentRecord.getPaymentMethod())) {
+                    String paymentMethod = paymentRecord.getPaymentMethod();
+                    
+                    // 只处理支付宝和微信支付
+                    if (!PaymentMethod.ALIPAY.equals(paymentMethod) && !PaymentMethod.WECHAT.equals(paymentMethod)) {
                         skipCount++;
                         continue;
                     }
@@ -118,38 +125,139 @@ public class PaymentSyncScheduledServiceImpl {
                         continue;
                     }
 
-                    // 获取支付宝配置
-                    AlipayConfig alipayConfig = paymentConfigService.getAlipayConfig();
-                    if (alipayConfig == null) {
-                        log.warn("支付宝配置不存在，跳过补单: paymentNo={}", paymentRecord.getPaymentNo());
-                        skipCount++;
-                        continue;
-                    }
-
-                    AlipayConfig.AlipayEnvConfig envConfig = "production".equals(alipayConfig.getEnv())
-                            ? alipayConfig.getProduction()
-                            : alipayConfig.getSandbox();
-
-                    if (envConfig == null) {
-                        log.warn("支付宝环境配置不存在，跳过补单: paymentNo={}", paymentRecord.getPaymentNo());
-                        skipCount++;
-                        continue;
-                    }
-
-                    // 查询支付宝订单状态（使用订单号）
                     String orderNo = order.getOrderNo();
-                    Map<String, String> orderStatus = AlipayUtil.queryOrder(envConfig, orderNo);
-                    String tradeStatus = orderStatus.get("trade_status");
-                    String tradeNo = orderStatus.get("trade_no");
+                    Map<String, String> orderStatus = null;
+                    String tradeStatus = null;
+                    String tradeNo = null;
+                    long startTime = System.currentTimeMillis();
+                    String apiUrl = null;
 
-                    if ("UNKNOWN".equals(tradeStatus)) {
-                        // 无法查询到订单状态，可能是订单不存在或查询失败
-                        log.debug("无法查询到订单状态，跳过补单: orderNo={}, paymentNo={}", orderNo, paymentRecord.getPaymentNo());
-                        continue;
+                    // 根据支付方式查询订单状态
+                    if (PaymentMethod.ALIPAY.equals(paymentMethod)) {
+                        // 获取支付宝配置
+                        AlipayConfig alipayConfig = paymentConfigService.getAlipayConfig();
+                        if (alipayConfig == null || !alipayConfig.getEnabled()) {
+                            log.warn("支付宝配置不存在或未启用，跳过补单: paymentNo={}", paymentRecord.getPaymentNo());
+                            skipCount++;
+                            continue;
+                        }
+
+                        AlipayConfig.AlipayEnvConfig envConfig = "production".equals(alipayConfig.getEnv())
+                                ? alipayConfig.getProduction()
+                                : alipayConfig.getSandbox();
+
+                        if (envConfig == null) {
+                            log.warn("支付宝环境配置不存在，跳过补单: paymentNo={}", paymentRecord.getPaymentNo());
+                            skipCount++;
+                            continue;
+                        }
+
+                        // 查询支付宝订单状态
+                        orderStatus = AlipayUtil.queryOrder(envConfig, orderNo);
+                        tradeStatus = orderStatus.get("trade_status");
+                        tradeNo = orderStatus.get("trade_no");
+                        apiUrl = envConfig.getGateway() != null ? envConfig.getGateway() : 
+                            ("sandbox".equals(alipayConfig.getEnv()) ? "https://openapi.alipaydev.com/gateway.do" : "https://openapi.alipay.com/gateway.do");
+
+                    } else if (PaymentMethod.WECHAT.equals(paymentMethod)) {
+                        // 获取微信支付配置
+                        WeChatPayConfig wechatConfig = paymentConfigService.getWeChatPayConfig();
+                        if (wechatConfig == null || !wechatConfig.getEnabled()) {
+                            log.warn("微信支付配置不存在或未启用，跳过补单: paymentNo={}", paymentRecord.getPaymentNo());
+                            skipCount++;
+                            continue;
+                        }
+
+                        WeChatPayConfig.WeChatPayEnvConfig envConfig = "production".equals(wechatConfig.getEnv())
+                                ? wechatConfig.getProduction()
+                                : wechatConfig.getSandbox();
+
+                        if (envConfig == null) {
+                            log.warn("微信支付环境配置不存在，跳过补单: paymentNo={}", paymentRecord.getPaymentNo());
+                            skipCount++;
+                            continue;
+                        }
+
+                        // 查询微信支付订单状态
+                        orderStatus = WeChatPayUtil.queryOrder(envConfig, orderNo);
+                        tradeStatus = orderStatus.get("trade_state"); // 微信使用 trade_state
+                        tradeNo = orderStatus.get("transaction_id"); // 微信使用 transaction_id
+                        apiUrl = "sandbox".equals(wechatConfig.getEnv()) 
+                            ? "https://api.mch.weixin.qq.com/sandboxnew/pay/orderquery" 
+                            : "https://api.mch.weixin.qq.com/pay/orderquery";
+                    }
+
+                    long executionTime = System.currentTimeMillis() - startTime;
+
+                    // 记录查询订单日志
+                    try {
+                        PaymentApiLog apiLog = new PaymentApiLog();
+                        apiLog.setPaymentMethod(paymentMethod);
+                        apiLog.setApiType("QUERY_ORDER");
+                        apiLog.setBusinessType("ORDER");
+                        apiLog.setOrderNo(orderNo);
+                        apiLog.setPaymentNo(paymentRecord.getPaymentNo());
+                        apiLog.setExternalTradeNo(tradeNo);
+                        apiLog.setApiUrl(apiUrl);
+                        apiLog.setRequestMethod("POST");
+                        apiLog.setExecutionTime((int) executionTime);
+                        
+                        // 判断查询结果
+                        boolean querySuccess = false;
+                        if (PaymentMethod.ALIPAY.equals(paymentMethod)) {
+                            if ("UNKNOWN".equals(tradeStatus)) {
+                                apiLog.setApiStatus(0); // 失败
+                                apiLog.setErrorMessage("订单不存在或查询失败");
+                            } else {
+                                apiLog.setApiStatus(1); // 成功
+                                querySuccess = true;
+                            }
+                        } else {
+                            // 微信支付状态判断
+                            String returnCode = orderStatus.get("return_code");
+                            String resultCode = orderStatus.get("result_code");
+                            if ("SUCCESS".equals(returnCode) && "SUCCESS".equals(resultCode)) {
+                                apiLog.setApiStatus(1); // 成功
+                                querySuccess = true;
+                            } else {
+                                apiLog.setApiStatus(0); // 失败
+                                apiLog.setErrorMessage(orderStatus.get("err_code_des") != null ? orderStatus.get("err_code_des") : "查询失败");
+                            }
+                        }
+                        
+                        try {
+                            Map<String, Object> requestData = new HashMap<>();
+                            requestData.put("orderNo", orderNo);
+                            apiLog.setRequestData(objectMapper.writeValueAsString(requestData));
+                            apiLog.setResponseData(objectMapper.writeValueAsString(orderStatus));
+                        } catch (Exception e) {
+                            log.warn("序列化查询数据失败", e);
+                        }
+                        paymentLogService.savePaymentLog(apiLog);
+                    } catch (Exception e) {
+                        log.warn("记录查询订单日志失败", e);
                     }
 
                     // 判断订单是否已支付
-                    boolean isPaid = "TRADE_SUCCESS".equals(tradeStatus) || "TRADE_FINISHED".equals(tradeStatus);
+                    boolean isPaid = false;
+                    if (PaymentMethod.ALIPAY.equals(paymentMethod)) {
+                        if ("UNKNOWN".equals(tradeStatus)) {
+                            // 无法查询到订单状态，可能是订单不存在或查询失败
+                            log.debug("无法查询到订单状态，跳过补单: orderNo={}, paymentNo={}", orderNo, paymentRecord.getPaymentNo());
+                            continue;
+                        }
+                        isPaid = "TRADE_SUCCESS".equals(tradeStatus) || "TRADE_FINISHED".equals(tradeStatus);
+                    } else {
+                        // 微信支付状态判断
+                        String returnCode = orderStatus.get("return_code");
+                        String resultCode = orderStatus.get("result_code");
+                        if (!"SUCCESS".equals(returnCode) || !"SUCCESS".equals(resultCode)) {
+                            log.debug("微信支付查询失败，跳过补单: orderNo={}, paymentNo={}", orderNo, paymentRecord.getPaymentNo());
+                            continue;
+                        }
+                        // 微信支付：SUCCESS 表示支付成功
+                        isPaid = "SUCCESS".equals(tradeStatus);
+                    }
 
                     if (isPaid) {
                         // 补单：更新支付记录和订单状态
@@ -162,8 +270,13 @@ public class PaymentSyncScheduledServiceImpl {
                         // 构建回调数据（模拟回调数据）
                         Map<String, Object> notifyData = new HashMap<>();
                         notifyData.put("out_trade_no", orderNo);
-                        notifyData.put("trade_status", tradeStatus);
-                        notifyData.put("trade_no", tradeNo);
+                        if (PaymentMethod.ALIPAY.equals(paymentMethod)) {
+                            notifyData.put("trade_status", tradeStatus);
+                            notifyData.put("trade_no", tradeNo);
+                        } else {
+                            notifyData.put("trade_state", tradeStatus);
+                            notifyData.put("transaction_id", tradeNo);
+                        }
 
                         try {
                             paymentRecord.setCallbackData(objectMapper.writeValueAsString(notifyData));
