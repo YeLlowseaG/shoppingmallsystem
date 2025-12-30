@@ -259,6 +259,9 @@ public class OrderServiceImpl implements OrderService {
         order.setShippingFee(shippingFee);
         order.setTax(tax);
         order.setActualAmount(totalAmount.add(shippingFee).add(tax));
+        
+        log.info("订单金额计算: 商品总金额={}, 运费={}, 税金={}, 实付金额={}", 
+            totalAmount, shippingFee, tax, order.getActualAmount());
 
         orderRepository.insert(order);
 
@@ -960,6 +963,9 @@ public class OrderServiceImpl implements OrderService {
         } else if ("ALIPAY".equals(paymentMethod) || "WECHAT".equals(paymentMethod)) {
             // 支付宝/微信支付
             // 2.1 创建支付订单
+            log.info("创建支付订单: orderNo={}, 商品总金额={}, 运费={}, 税金={}, 实付金额={}", 
+                orderNo, order.getTotalAmount(), order.getShippingFee(), order.getTax(), order.getActualAmount());
+            
             PaymentRequestDTO paymentRequest = new PaymentRequestDTO();
             paymentRequest.setInternalOrderNo(orderNo);
             paymentRequest.setAmount(order.getActualAmount());
@@ -967,6 +973,8 @@ public class OrderServiceImpl implements OrderService {
             paymentRequest.setCurrency("CNY");
             paymentRequest.setDescription("订单支付：" + orderNo);
             paymentRequest.setUserId(userId);
+            
+            log.info("推送给第三方支付的金额: {}", paymentRequest.getAmount());
             
             // 设置前端地址（用于构建return_url）
             // 如果PaymentRequestDTO中有frontendUrl字段，可以从paymentDTO中获取
@@ -1214,7 +1222,6 @@ public class OrderServiceImpl implements OrderService {
 
                 // 构建运费计算参数
                 ShippingFeeCalculateDTO calculateDTO = new ShippingFeeCalculateDTO();
-                calculateDTO.setShippingMethodId(templateId);
                 calculateDTO.setProvince(address.getProvince());
                 calculateDTO.setCity(address.getCity());
                 calculateDTO.setDistrict(address.getDistrict());
@@ -1223,8 +1230,8 @@ public class OrderServiceImpl implements OrderService {
                 calculateDTO.setTotalAmount(totalAmount);
                 calculateDTO.setTotalQuantity(totalQuantity);
 
-                // 调用运费计算服务
-                BigDecimal fee = shippingService.calculateShippingFee(calculateDTO);
+                // 调用运费计算服务（直接使用运费模板ID）
+                BigDecimal fee = shippingService.calculateShippingFeeByTemplate(templateId, calculateDTO);
                 totalShippingFee = totalShippingFee.add(fee);
 
                 log.info("模板ID={} 运费={}, 商品数={}, 总重量={}g, 总金额={}",

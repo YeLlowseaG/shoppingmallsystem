@@ -125,6 +125,7 @@
       :close-on-click-modal="false"
       :close-on-press-escape="false"
       :show-close="paymentStatus !== 'paying'"
+      align-center
     >
       <div class="payment-status-content">
         <!-- 付款中 -->
@@ -864,11 +865,11 @@ onMounted(() => {
 // 支付状态弹窗样式
 .payment-status-content {
   text-align: center;
-  padding: 20px;
+  padding: 10px;
 
   .status-icon {
     font-size: 64px;
-    margin-bottom: 20px;
+    margin-bottom: 8px;
 
     &.paying-icon {
       color: #409eff;
@@ -885,16 +886,16 @@ onMounted(() => {
   }
 
   .status-title {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: bold;
+    margin-bottom: 6px;
     color: #333;
-    margin-bottom: 10px;
   }
 
   .status-desc {
     font-size: 14px;
     color: #666;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     line-height: 1.6;
   }
 
@@ -902,19 +903,19 @@ onMounted(() => {
     display: flex;
     justify-content: center;
     gap: 10px;
-    margin-top: 20px;
+    margin-top: 12px;
     flex-wrap: wrap;
   }
 
   .qrcode-container {
-    margin: 20px 0;
+    margin: 12px 0;
     text-align: center;
   }
 
   .qrcode-title {
     font-size: 16px;
     font-weight: bold;
-    margin-bottom: 15px;
+    margin-bottom: 8px;
     color: #333;
   }
 
@@ -930,33 +931,19 @@ onMounted(() => {
   }
 
   .qrcode-tip {
-    margin-top: 10px;
+    margin-top: 6px;
     font-size: 14px;
     color: #666;
   }
 
-  .status-paying {
+  .status-paying,
+  .status-paid,
+  .status-problem {
     min-height: 200px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-
-    .status-desc {
-      margin-bottom: 30px;
-    }
-  }
-
-  .status-paid {
-    .status-desc {
-      color: #67c23a;
-    }
-  }
-
-  .status-problem {
-    .status-desc {
-      color: #f56c6c;
-    }
   }
 }
 
