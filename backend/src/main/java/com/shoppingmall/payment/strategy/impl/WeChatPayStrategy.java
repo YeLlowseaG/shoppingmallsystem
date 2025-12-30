@@ -1,13 +1,20 @@
 package com.shoppingmall.payment.strategy.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.shoppingmall.common.constant.PaymentStatus;
 import com.shoppingmall.dto.PaymentRequestDTO;
 import com.shoppingmall.dto.PaymentResponseDTO;
+import com.shoppingmall.entity.Order;
+import com.shoppingmall.entity.PaymentRecord;
+import com.shoppingmall.entity.PreDepositDetail;
 import com.shoppingmall.payment.config.WeChatPayConfig;
 import com.shoppingmall.payment.exception.PaymentException;
 import com.shoppingmall.payment.service.PaymentConfigService;
 import com.shoppingmall.payment.strategy.PaymentStrategy;
 import com.shoppingmall.payment.util.WeChatPayUtil;
+import com.shoppingmall.repository.deposit.PreDepositDetailRepository;
+import com.shoppingmall.repository.order.OrderRepository;
+import com.shoppingmall.repository.payment.PaymentRecordRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -28,6 +35,9 @@ import java.util.Map;
 public class WeChatPayStrategy implements PaymentStrategy {
 
     private final PaymentConfigService paymentConfigService;
+    private final OrderRepository orderRepository;
+    private final PaymentRecordRepository paymentRecordRepository;
+    private final PreDepositDetailRepository preDepositDetailRepository;
 
     @Override
     public PaymentResponseDTO createPayment(PaymentRequestDTO request) {
@@ -209,9 +219,81 @@ public class WeChatPayStrategy implements PaymentStrategy {
             // 生成退款单号
             String refundNo = "WX_REFUND_" + System.currentTimeMillis();
 
-            // 查询原订单金额（这里需要从数据库获取，暂时使用退款金额作为总金额）
-            // TODO: 从PaymentRecord获取原订单金额
-            int totalAmount = refundAmountInCents;
+            // 查询原订单金额（通过paymentNo查询）
+            // 注意：paymentNo可能是订单号（订单退款）或internalOrderNo（预存款退款，格式：DEPOSIT_xxx）
+            int totalAmount = refundAmountInCents; // 默认值
+            try {
+                // 判断是否是预存款充值退款（internalOrderNo以DEPOSIT_开头）
+                if (paymentNo != null && paymentNo.startsWith("DEPOSIT_")) {
+                    // 预存款充值退款：通过internalOrderNo查询PreDepositDetail
+                    log.debug("检测到预存款充值退款，通过internalOrderNo查询PreDepositDetail（paymentNo：{}）", paymentNo);
+                    LambdaQueryWrapper<PreDepositDetail> depositWrapper = new LambdaQueryWrapper<>();
+                    depositWrapper.eq(PreDepositDetail::getInternalOrderNo, paymentNo);
+                    depositWrapper.orderByDesc(PreDepositDetail::getCreateTime);
+                    depositWrapper.last("LIMIT 1");
+                    PreDepositDetail depositDetail = preDepositDetailRepository.selectOne(depositWrapper);
+                    
+                    if (depositDetail != null && depositDetail.getAmount() != null) {
+                        // 将原充值金额转换为分
+                        totalAmount = depositDetail.getAmount()
+                                .multiply(new BigDecimal("100"))
+                                .setScale(0, RoundingMode.HALF_UP)
+                                .intValue();
+                        log.info("从PreDepositDetail获取原充值金额：{}分（internalOrderNo：{}）", totalAmount, paymentNo);
+                    } else {
+                        log.warn("未找到预存款充值记录，使用退款金额作为总金额（internalOrderNo：{}）", paymentNo);
+                    }
+                } else {
+                    // 订单退款：先尝试直接通过paymentNo查询PaymentRecord
+                    log.debug("检测到订单退款，通过paymentNo查询PaymentRecord（paymentNo：{}）", paymentNo);
+                    LambdaQueryWrapper<PaymentRecord> paymentWrapper = new LambdaQueryWrapper<>();
+                    paymentWrapper.eq(PaymentRecord::getPaymentNo, paymentNo);
+                    paymentWrapper.eq(PaymentRecord::getPaymentStatus, PaymentStatus.PAID);
+                    paymentWrapper.orderByDesc(PaymentRecord::getCreateTime);
+                    paymentWrapper.last("LIMIT 1");
+                    PaymentRecord paymentRecord = paymentRecordRepository.selectOne(paymentWrapper);
+                    
+                    if (paymentRecord != null && paymentRecord.getAmount() != null) {
+                        // 将原订单金额转换为分
+                        totalAmount = paymentRecord.getAmount()
+                                .multiply(new BigDecimal("100"))
+                                .setScale(0, RoundingMode.HALF_UP)
+                                .intValue();
+                        log.info("从PaymentRecord获取原订单金额：{}分（paymentNo：{}）", totalAmount, paymentNo);
+                    } else {
+                        // 如果直接查询失败，尝试通过订单号查询
+                        log.debug("直接查询PaymentRecord失败，尝试通过订单号查询（paymentNo：{}）", paymentNo);
+                        LambdaQueryWrapper<Order> orderWrapper = new LambdaQueryWrapper<>();
+                        orderWrapper.eq(Order::getOrderNo, paymentNo);
+                        Order order = orderRepository.selectOne(orderWrapper);
+                        
+                        if (order != null) {
+                            // 通过OrderId查询PaymentRecord
+                            LambdaQueryWrapper<PaymentRecord> orderPaymentWrapper = new LambdaQueryWrapper<>();
+                            orderPaymentWrapper.eq(PaymentRecord::getOrderId, order.getId());
+                            orderPaymentWrapper.eq(PaymentRecord::getPaymentStatus, PaymentStatus.PAID);
+                            orderPaymentWrapper.orderByDesc(PaymentRecord::getCreateTime);
+                            orderPaymentWrapper.last("LIMIT 1");
+                            PaymentRecord orderPaymentRecord = paymentRecordRepository.selectOne(orderPaymentWrapper);
+                            
+                            if (orderPaymentRecord != null && orderPaymentRecord.getAmount() != null) {
+                                // 将原订单金额转换为分
+                                totalAmount = orderPaymentRecord.getAmount()
+                                        .multiply(new BigDecimal("100"))
+                                        .setScale(0, RoundingMode.HALF_UP)
+                                        .intValue();
+                                log.info("从PaymentRecord获取原订单金额：{}分（订单号：{}）", totalAmount, paymentNo);
+                            } else {
+                                log.warn("未找到支付记录，使用退款金额作为总金额（订单号：{}）", paymentNo);
+                            }
+                        } else {
+                            log.warn("未找到订单或支付记录，使用退款金额作为总金额（paymentNo：{}）", paymentNo);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("查询原订单金额失败，使用退款金额作为总金额（paymentNo：{}），错误：{}", paymentNo, e.getMessage());
+            }
 
             // 调用退款接口
             Map<String, String> result = WeChatPayUtil.refund(
