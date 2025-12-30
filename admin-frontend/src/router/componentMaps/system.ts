@@ -9,6 +9,12 @@ export const systemComponentMap: Record<string, () => Promise<any>> = {
   'system/Payment': () => import('@/views/system/Payment.vue'), 
   'system/Notification': () => import('@/views/system/Notification.vue'),
   
+  // 支付接口日志查询
+  'system/PaymentApiLog': () => import('@/views/system/PaymentApiLog.vue'),
+  
+  // 定时任务管理
+  'system/ScheduledTask': () => import('@/views/system/ScheduledTask.vue'),
+  
   // 营销管理组件
   'marketing/Promotion': () => import('@/views/marketing/Promotion.vue'),
   'marketing/Price': () => import('@/views/marketing/Price.vue'),

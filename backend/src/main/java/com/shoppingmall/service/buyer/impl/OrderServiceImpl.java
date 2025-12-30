@@ -1261,7 +1261,7 @@ public class OrderServiceImpl implements OrderService {
         // 更新支付记录状态为已关闭（3）
         for (PaymentRecord paymentRecord : paymentRecords) {
             // 只有待支付和支付中的记录才需要取消
-            if (PaymentStatus.PENDING_PAYMENT.equals(paymentRecord.getPaymentStatus()) ||
+            if (PaymentStatus.UNPAID.equals(paymentRecord.getPaymentStatus()) ||
                 PaymentStatus.PAYING.equals(paymentRecord.getPaymentStatus())) {
 
                 paymentRecord.setPaymentStatus(PaymentStatus.CLOSED);

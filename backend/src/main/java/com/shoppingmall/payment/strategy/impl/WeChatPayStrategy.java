@@ -1,10 +1,12 @@
 package com.shoppingmall.payment.strategy.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shoppingmall.common.constant.PaymentStatus;
 import com.shoppingmall.dto.PaymentRequestDTO;
 import com.shoppingmall.dto.PaymentResponseDTO;
 import com.shoppingmall.entity.Order;
+import com.shoppingmall.entity.PaymentApiLog;
 import com.shoppingmall.entity.PaymentRecord;
 import com.shoppingmall.entity.PreDepositDetail;
 import com.shoppingmall.payment.config.WeChatPayConfig;
@@ -15,12 +17,14 @@ import com.shoppingmall.payment.util.WeChatPayUtil;
 import com.shoppingmall.repository.deposit.PreDepositDetailRepository;
 import com.shoppingmall.repository.order.OrderRepository;
 import com.shoppingmall.repository.payment.PaymentRecordRepository;
+import com.shoppingmall.service.payment.PaymentLogService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -38,6 +42,8 @@ public class WeChatPayStrategy implements PaymentStrategy {
     private final OrderRepository orderRepository;
     private final PaymentRecordRepository paymentRecordRepository;
     private final PreDepositDetailRepository preDepositDetailRepository;
+    private final PaymentLogService paymentLogService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public PaymentResponseDTO createPayment(PaymentRequestDTO request) {
@@ -102,8 +108,81 @@ public class WeChatPayStrategy implements PaymentStrategy {
             response.setPaymentUrl(qrCodeUrl); // 扫码支付，二维码URL就是支付URL
 
             log.info("微信支付订单创建成功，订单号：{}，二维码URL：{}", request.getInternalOrderNo(), qrCodeUrl);
+            
+            // 记录支付接口日志
+            try {
+                PaymentApiLog apiLog = new PaymentApiLog();
+                apiLog.setPaymentMethod("WECHAT");
+                apiLog.setApiType("CREATE_PAYMENT");
+                // 根据订单号判断业务类型
+                String businessType = "ORDER";
+                if (request.getInternalOrderNo() != null && request.getInternalOrderNo().startsWith("DEPOSIT_")) {
+                    businessType = "DEPOSIT";
+                }
+                apiLog.setBusinessType(businessType);
+                apiLog.setOrderNo(request.getInternalOrderNo());
+                apiLog.setPaymentNo("PAY_" + request.getInternalOrderNo());
+                String apiUrl = (envConfig.getAppid().contains("sandbox") || envConfig.getMchid().contains("sandbox"))
+                        ? "https://api.mch.weixin.qq.com/sandboxnew/pay/unifiedorder"
+                        : "https://api.mch.weixin.qq.com/pay/unifiedorder";
+                apiLog.setApiUrl(apiUrl);
+                apiLog.setRequestMethod("POST");
+                try {
+                    Map<String, Object> requestData = new HashMap<>();
+                    requestData.put("internalOrderNo", request.getInternalOrderNo());
+                    requestData.put("amount", request.getAmount());
+                    requestData.put("amountInCents", amountInCents);
+                    requestData.put("description", request.getDescription());
+                    requestData.put("notifyUrl", notifyUrl);
+                    apiLog.setRequestData(objectMapper.writeValueAsString(requestData));
+                    Map<String, Object> responseData = new HashMap<>();
+                    responseData.put("qrCodeUrl", qrCodeUrl);
+                    apiLog.setResponseData(objectMapper.writeValueAsString(responseData));
+                } catch (Exception ex) {
+                    log.warn("序列化请求数据失败", ex);
+                }
+                apiLog.setApiStatus(1); // 成功
+                paymentLogService.savePaymentLog(apiLog);
+            } catch (Exception ex) {
+                log.warn("记录支付接口日志失败", ex);
+            }
         } catch (Exception e) {
             log.error("创建微信支付订单失败，订单号：{}", request.getInternalOrderNo(), e);
+            
+            // 记录失败的支付接口日志
+            try {
+                PaymentApiLog apiLog = new PaymentApiLog();
+                apiLog.setPaymentMethod("WECHAT");
+                apiLog.setApiType("CREATE_PAYMENT");
+                // 根据订单号判断业务类型
+                String businessType = "ORDER";
+                if (request.getInternalOrderNo() != null && request.getInternalOrderNo().startsWith("DEPOSIT_")) {
+                    businessType = "DEPOSIT";
+                }
+                apiLog.setBusinessType(businessType);
+                apiLog.setOrderNo(request.getInternalOrderNo());
+                apiLog.setPaymentNo("PAY_" + request.getInternalOrderNo());
+                String apiUrl = (envConfig.getAppid().contains("sandbox") || envConfig.getMchid().contains("sandbox"))
+                        ? "https://api.mch.weixin.qq.com/sandboxnew/pay/unifiedorder"
+                        : "https://api.mch.weixin.qq.com/pay/unifiedorder";
+                apiLog.setApiUrl(apiUrl);
+                apiLog.setRequestMethod("POST");
+                apiLog.setApiStatus(0); // 失败
+                apiLog.setErrorMessage(e.getMessage());
+                try {
+                    Map<String, Object> requestData = new HashMap<>();
+                    requestData.put("internalOrderNo", request.getInternalOrderNo());
+                    requestData.put("amount", request.getAmount());
+                    requestData.put("description", request.getDescription());
+                    apiLog.setRequestData(objectMapper.writeValueAsString(requestData));
+                } catch (Exception ex) {
+                    log.warn("序列化请求数据失败", ex);
+                }
+                paymentLogService.savePaymentLog(apiLog);
+            } catch (Exception ex) {
+                log.warn("记录支付接口日志失败", ex);
+            }
+            
             throw new PaymentException(500, "创建微信支付订单失败：" + e.getMessage(), e);
         }
 
@@ -171,8 +250,45 @@ public class WeChatPayStrategy implements PaymentStrategy {
             }
 
             // 查询订单状态
+            long startTime = System.currentTimeMillis();
             Map<String, String> result = WeChatPayUtil.queryOrder(envConfig, paymentNo);
+            long executionTime = System.currentTimeMillis() - startTime;
             String tradeState = result.get("trade_state");
+            String transactionId = result.get("transaction_id");
+
+            // 记录查询订单日志
+            try {
+                PaymentApiLog apiLog = new PaymentApiLog();
+                apiLog.setPaymentMethod("WECHAT");
+                apiLog.setApiType("QUERY_ORDER");
+                apiLog.setBusinessType(paymentNo.startsWith("DEPOSIT_") ? "DEPOSIT" : "ORDER");
+                apiLog.setOrderNo(paymentNo);
+                apiLog.setPaymentNo(paymentNo);
+                apiLog.setExternalTradeNo(transactionId);
+                String apiUrl = (envConfig.getAppid().contains("sandbox") || envConfig.getMchid().contains("sandbox"))
+                        ? "https://api.mch.weixin.qq.com/sandboxnew/pay/orderquery"
+                        : "https://api.mch.weixin.qq.com/pay/orderquery";
+                apiLog.setApiUrl(apiUrl);
+                apiLog.setRequestMethod("POST");
+                apiLog.setExecutionTime((int) executionTime);
+                if (tradeState == null || "UNKNOWN".equals(tradeState)) {
+                    apiLog.setApiStatus(0); // 失败
+                    apiLog.setErrorMessage("订单不存在或查询失败");
+                } else {
+                    apiLog.setApiStatus(1); // 成功
+                }
+                try {
+                    Map<String, Object> requestData = new HashMap<>();
+                    requestData.put("paymentNo", paymentNo);
+                    apiLog.setRequestData(objectMapper.writeValueAsString(requestData));
+                    apiLog.setResponseData(objectMapper.writeValueAsString(result));
+                } catch (Exception ex) {
+                    log.warn("序列化查询数据失败", ex);
+                }
+                paymentLogService.savePaymentLog(apiLog);
+            } catch (Exception ex) {
+                log.warn("记录查询订单日志失败", ex);
+            }
 
             // 转换状态
             if ("SUCCESS".equals(tradeState)) {
@@ -187,6 +303,29 @@ public class WeChatPayStrategy implements PaymentStrategy {
 
         } catch (Exception e) {
             log.error("查询微信支付状态失败，支付流水号：{}", paymentNo, e);
+            
+            // 记录查询失败的日志
+            try {
+                PaymentApiLog apiLog = new PaymentApiLog();
+                apiLog.setPaymentMethod("WECHAT");
+                apiLog.setApiType("QUERY_ORDER");
+                apiLog.setBusinessType(paymentNo.startsWith("DEPOSIT_") ? "DEPOSIT" : "ORDER");
+                apiLog.setOrderNo(paymentNo);
+                apiLog.setPaymentNo(paymentNo);
+                apiLog.setApiStatus(0); // 失败
+                apiLog.setErrorMessage(e.getMessage());
+                try {
+                    Map<String, Object> requestData = new HashMap<>();
+                    requestData.put("paymentNo", paymentNo);
+                    apiLog.setRequestData(objectMapper.writeValueAsString(requestData));
+                } catch (Exception ex) {
+                    log.warn("序列化查询数据失败", ex);
+                }
+                paymentLogService.savePaymentLog(apiLog);
+            } catch (Exception ex) {
+                log.warn("记录查询订单日志失败", ex);
+            }
+            
             return PaymentStatus.FAILED;
         }
     }
@@ -296,6 +435,7 @@ public class WeChatPayStrategy implements PaymentStrategy {
             }
 
             // 调用退款接口
+            long startTime = System.currentTimeMillis();
             Map<String, String> result = WeChatPayUtil.refund(
                     envConfig,
                     paymentNo,
@@ -303,6 +443,7 @@ public class WeChatPayStrategy implements PaymentStrategy {
                     totalAmount,
                     refundAmountInCents
             );
+            long executionTime = System.currentTimeMillis() - startTime;
 
             String returnCode = result.get("return_code");
             String resultCode = result.get("result_code");
@@ -311,7 +452,74 @@ public class WeChatPayStrategy implements PaymentStrategy {
                 String errMsg = result.get("err_code_des") != null
                         ? result.get("err_code_des")
                         : result.get("return_msg");
+                
+                // 记录失败的退款日志
+                try {
+                    PaymentApiLog apiLog = new PaymentApiLog();
+                    apiLog.setPaymentMethod("WECHAT");
+                    apiLog.setApiType("REFUND");
+                    apiLog.setBusinessType(paymentNo.startsWith("DEPOSIT_") ? "DEPOSIT" : "ORDER");
+                    apiLog.setOrderNo(paymentNo);
+                    apiLog.setPaymentNo(paymentNo);
+                    String apiUrl = (envConfig.getAppid().contains("sandbox") || envConfig.getMchid().contains("sandbox"))
+                            ? "https://api.mch.weixin.qq.com/sandboxnew/secapi/pay/refund"
+                            : "https://api.mch.weixin.qq.com/secapi/pay/refund";
+                    apiLog.setApiUrl(apiUrl);
+                    apiLog.setRequestMethod("POST");
+                    apiLog.setApiStatus(0); // 失败
+                    apiLog.setErrorCode(result.get("err_code"));
+                    apiLog.setErrorMessage(errMsg);
+                    apiLog.setExecutionTime((int) executionTime);
+                    try {
+                        Map<String, Object> requestData = new HashMap<>();
+                        requestData.put("paymentNo", paymentNo);
+                        requestData.put("refundNo", refundNo);
+                        requestData.put("totalAmount", totalAmount);
+                        requestData.put("refundAmount", refundAmountInCents);
+                        requestData.put("refundReason", refundReason);
+                        apiLog.setRequestData(objectMapper.writeValueAsString(requestData));
+                        apiLog.setResponseData(objectMapper.writeValueAsString(result));
+                    } catch (Exception ex) {
+                        log.warn("序列化退款数据失败", ex);
+                    }
+                    paymentLogService.savePaymentLog(apiLog);
+                } catch (Exception ex) {
+                    log.warn("记录退款接口日志失败", ex);
+                }
+                
                 throw new PaymentException(500, "微信支付退款失败: " + errMsg);
+            }
+
+            // 记录成功的退款日志
+            try {
+                PaymentApiLog apiLog = new PaymentApiLog();
+                apiLog.setPaymentMethod("WECHAT");
+                apiLog.setApiType("REFUND");
+                apiLog.setBusinessType(paymentNo.startsWith("DEPOSIT_") ? "DEPOSIT" : "ORDER");
+                apiLog.setOrderNo(paymentNo);
+                apiLog.setPaymentNo(paymentNo);
+                String apiUrl = (envConfig.getAppid().contains("sandbox") || envConfig.getMchid().contains("sandbox"))
+                        ? "https://api.mch.weixin.qq.com/sandboxnew/secapi/pay/refund"
+                        : "https://api.mch.weixin.qq.com/secapi/pay/refund";
+                apiLog.setApiUrl(apiUrl);
+                apiLog.setRequestMethod("POST");
+                apiLog.setApiStatus(1); // 成功
+                apiLog.setExecutionTime((int) executionTime);
+                try {
+                    Map<String, Object> requestData = new HashMap<>();
+                    requestData.put("paymentNo", paymentNo);
+                    requestData.put("refundNo", refundNo);
+                    requestData.put("totalAmount", totalAmount);
+                    requestData.put("refundAmount", refundAmountInCents);
+                    requestData.put("refundReason", refundReason);
+                    apiLog.setRequestData(objectMapper.writeValueAsString(requestData));
+                    apiLog.setResponseData(objectMapper.writeValueAsString(result));
+                } catch (Exception ex) {
+                    log.warn("序列化退款数据失败", ex);
+                }
+                paymentLogService.savePaymentLog(apiLog);
+            } catch (Exception ex) {
+                log.warn("记录退款接口日志失败", ex);
             }
 
             return refundNo;

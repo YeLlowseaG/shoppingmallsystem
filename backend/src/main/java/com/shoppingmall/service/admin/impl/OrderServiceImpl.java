@@ -34,8 +34,10 @@ import com.shoppingmall.repository.product.ProductStockRepository;
 import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.payment.config.AlipayConfig;
 import com.shoppingmall.payment.exception.PaymentException;
+import com.shoppingmall.entity.PaymentApiLog;
 import com.shoppingmall.payment.service.PaymentConfigService;
 import com.shoppingmall.payment.service.PaymentGatewayService;
+import com.shoppingmall.service.payment.PaymentLogService;
 import com.shoppingmall.payment.util.AlipayUtil;
 import com.shoppingmall.service.admin.OrderService;
 import com.shoppingmall.service.buyer.DepositService;
@@ -78,6 +80,7 @@ public class OrderServiceImpl implements OrderService {
     private final DepositService depositService;
     private final PaymentGatewayService paymentGatewayService;
     private final PaymentConfigService paymentConfigService;
+    private final PaymentLogService paymentLogService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -499,6 +502,7 @@ public class OrderServiceImpl implements OrderService {
                             log.info("尝试使用商户订单号进行订单退款，订单号：{}，退款金额：{}，退款单号：{}",
                                     orderNoForRefund, refundAmountStr, alipayRefundNo);
                             
+                            long startTime = System.currentTimeMillis();
                             Map<String, String> result = AlipayUtil.refund(
                                     envConfig,
                                     orderNoForRefund, // 使用订单号（out_trade_no）
@@ -506,6 +510,7 @@ public class OrderServiceImpl implements OrderService {
                                     refundAmountStr,
                                     false // 使用out_trade_no
                             );
+                            long executionTime = System.currentTimeMillis() - startTime;
                             
                             String code = result.get("code");
                             String subCode = result.get("sub_code");
@@ -514,6 +519,41 @@ public class OrderServiceImpl implements OrderService {
                             
                             log.info("支付宝订单退款响应（使用out_trade_no），订单号：{}，响应码：{}，子错误码：{}，错误信息：{}",
                                     orderNoForRefund, code, subCode, subMsg != null ? subMsg : msg);
+                            
+                            // 记录退款接口日志
+                            try {
+                                PaymentApiLog apiLog = new PaymentApiLog();
+                                apiLog.setPaymentMethod("ALIPAY");
+                                apiLog.setApiType("REFUND");
+                                apiLog.setBusinessType("ORDER");
+                                apiLog.setOrderNo(orderNoForRefund);
+                                apiLog.setPaymentNo(paymentRecord.getPaymentNo());
+                                apiLog.setApiUrl(envConfig.getGateway() != null ? envConfig.getGateway() : 
+                                    ("sandbox".equals(alipayConfig.getEnv()) ? "https://openapi.alipaydev.com/gateway.do" : "https://openapi.alipay.com/gateway.do"));
+                                apiLog.setRequestMethod("POST");
+                                apiLog.setExecutionTime((int) executionTime);
+                                if ("10000".equals(code)) {
+                                    apiLog.setApiStatus(1); // 成功
+                                } else {
+                                    apiLog.setApiStatus(0); // 失败
+                                    apiLog.setErrorCode(code);
+                                    apiLog.setErrorMessage(subMsg != null ? subMsg : msg);
+                                }
+                                try {
+                                    Map<String, Object> requestData = new java.util.HashMap<>();
+                                    requestData.put("orderNo", orderNoForRefund);
+                                    requestData.put("refundNo", alipayRefundNo);
+                                    requestData.put("refundAmount", refundAmountStr);
+                                    requestData.put("refundReason", refundDTO.getRefundReason());
+                                    apiLog.setRequestData(objectMapper.writeValueAsString(requestData));
+                                    apiLog.setResponseData(objectMapper.writeValueAsString(result));
+                                } catch (Exception e) {
+                                    log.warn("序列化退款数据失败", e);
+                                }
+                                paymentLogService.savePaymentLog(apiLog);
+                            } catch (Exception e) {
+                                log.warn("记录退款接口日志失败", e);
+                            }
                             
                             if ("10000".equals(code)) {
                                 refundPaymentNo = alipayRefundNo;
@@ -1259,7 +1299,7 @@ public class OrderServiceImpl implements OrderService {
         // 更新支付记录状态为已关闭（3）
         for (PaymentRecord paymentRecord : paymentRecords) {
             // 只有待支付和支付中的记录才需要取消
-            if (PaymentStatus.PENDING_PAYMENT.equals(paymentRecord.getPaymentStatus()) ||
+            if (PaymentStatus.UNPAID.equals(paymentRecord.getPaymentStatus()) ||
                 PaymentStatus.PAYING.equals(paymentRecord.getPaymentStatus())) {
 
                 paymentRecord.setPaymentStatus(PaymentStatus.CLOSED);
