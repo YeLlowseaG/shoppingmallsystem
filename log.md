@@ -1,5 +1,245 @@
 # 修改日志
 
+## 2025-12-30 - 添加运费计算详细日志用于问题排查
+
+### 功能说明
+在运费计算逻辑中添加详细的日志输出，用于排查运费计算为0的问题。
+
+### 修改原因
+用户反馈订单结算页面运费显示为¥0.00，但运费模板配置不包邮，需要添加详细日志排查问题。
+
+### 修改内容
+
+#### 1. 后端运费计算日志
+
+**文件：** `backend/src/main/java/com/shoppingmall/controller/buyer/ShippingController.java`
+- 添加 `@Slf4j` 注解
+- 在 `calculateShippingFeeByTemplate` 方法中添加请求和响应日志
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/logistics/impl/ShippingServiceImpl.java`
+- 在 `calculateShippingFeeByTemplate` 方法中添加模板ID为null的日志
+- 在 `calculateByTemplate` 方法中添加详细日志：
+  - 计算参数日志（省份、城市、区县、重量、金额、件数）
+  - 运费模板信息日志（名称、计算方式、包邮条件、默认规则）
+  - 包邮条件检查日志（金额、重量、件数）
+  - 地区规则匹配日志
+  - 使用的运费规则日志（首重、首重价格、续重、续重价格）
+  - 计算过程日志（按重量/件数/金额计算）
+  - 计算结果日志
+
+#### 2. 后端地区匹配日志
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/logistics/impl/ShippingServiceImpl.java`
+- 在 `findMatchedRule` 方法中添加日志：
+  - 查找参数日志
+  - 找到的规则列表日志
+  - 匹配优先级日志（区县 > 城市 > 省份 > 默认）
+  - 匹配结果日志
+
+- 在 `findRuleByRegion` 方法中添加日志：
+  - 规则列表和地区信息日志
+  - 省份匹配过程日志
+  - 城市匹配过程日志
+  - 区县匹配过程日志
+  - 字符串匹配（向后兼容）日志
+
+#### 3. 前端日志（已存在）
+
+**文件：** `frontend/src/views/cart/Checkout.vue`
+- 已有详细的前端日志：
+  - 地址选择日志
+  - 商品列表日志
+  - 运费模板分组日志
+  - API调用参数日志
+  - API响应结果日志
+  - 错误日志
+
+### 日志输出位置
+
+1. **后端日志**：查看应用日志文件（如 `logs/application.log`）或控制台输出
+2. **前端日志**：打开浏览器开发者工具（F12），查看 Console 标签页
+
+### 排查步骤
+
+1. **查看前端日志**：
+   - 打开浏览器控制台（F12）
+   - 查看是否有"开始计算运费"的日志
+   - 检查地址信息、商品信息、运费模板ID是否正确
+   - 检查API调用参数是否正确
+
+2. **查看后端日志**：
+   - 查看应用日志文件
+   - 搜索"========== 开始计算运费 =========="
+   - 检查：
+     - 运费模板是否存在且启用
+     - 包邮条件是否满足
+     - 地区规则是否匹配
+     - 使用的运费规则是否正确
+     - 计算过程是否正确
+
+3. **常见问题排查**：
+   - **运费为0的可能原因**：
+     - 包邮条件满足（金额/重量/件数）
+     - 首重价格为0或null
+     - 订单重量为0或null
+     - 地区规则匹配失败，且默认规则的首重价格为0
+     - 计算方式不匹配
+
+### 影响范围
+
+- ✅ 后端运费计算：添加详细日志，便于排查问题
+- ✅ 后端地区匹配：添加详细日志，便于排查地区匹配问题
+- ✅ 前端运费计算：已有日志，无需修改
+
+### 注意事项
+
+1. **日志级别**：使用 `log.info` 和 `log.warn`，不会影响生产环境性能
+2. **日志格式**：使用分隔线（==========）便于查找
+3. **敏感信息**：日志中不包含敏感信息，只记录必要的业务数据
+
+## 2025-12-30 - 修复商品详情页计量单位显示错误
+
+### 功能说明
+修复商品ID为49的计量单位显示错误，将"喝"改为"盒"。
+
+### 修改原因
+用户反馈商品详情页面（http://localhost:3002/products/49）显示的计量单位为"喝"，但应该是"盒"。
+
+### 修改内容
+
+#### 创建数据库修复脚本
+
+**文件：** `database/update-20251230-fix-product-unit.sql`
+
+**修改点：**
+- 创建SQL脚本修复商品ID为49的计量单位
+- 将`unit`字段从"喝"更新为"盒"
+- 添加查询语句验证更新结果
+
+### 使用方法
+
+执行SQL脚本：
+```sql
+USE `chengren_shopping_mall`;
+
+UPDATE `product`
+SET `unit` = '盒'
+WHERE `id` = 49 AND `unit` = '喝';
+```
+
+### 影响范围
+
+- ✅ 商品ID为49的计量单位显示：从"喝"改为"盒"
+- ✅ 商品详情页面：正确显示计量单位
+- ✅ 其他页面：使用该商品unit字段的地方都会显示正确的单位
+
+### 注意事项
+
+1. **数据修复**：这是数据修复脚本，只修复商品ID为49的计量单位
+2. **其他商品**：如果其他商品也有类似的单位错误，需要单独修复
+3. **执行前备份**：建议在执行SQL脚本前备份数据库
+
+## 2025-12-30 - 订单结算模块增加运费结算功能
+
+### 功能说明
+在订单结算模块增加运费结算功能，根据商品配置的运费模板和收货地址自动计算运费。支持按重量、按件数、按金额三种计算方式，并考虑特殊地区的运费规则。
+
+### 修改原因
+用户反馈商品已经增加了配置运费模板功能，但订单结算模块还没有实现运费结算，需要根据配置的运费模板来计算运费，如果是有特殊地区，需要考虑这种情况。
+
+### 修改内容
+
+#### 1. 在CartVO中添加运费模板ID字段
+
+**文件：** `backend/src/main/java/com/shoppingmall/vo/CartVO.java`
+- 添加`shippingTemplateId`字段，用于标识商品使用的运费模板（为空表示包邮）
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/buyer/impl/CartServiceImpl.java`
+- 在`convertToVO`方法中，从商品信息中获取`shippingTemplateId`并设置到CartVO中
+
+**文件：** `frontend/src/api/buyer/cart.ts`
+- 在`CartVO`接口中添加`shippingTemplateId`字段
+
+#### 2. 创建直接使用运费模板ID计算运费的API接口
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/logistics/ShippingService.java`
+- 添加`calculateShippingFeeByTemplate`方法，直接使用运费模板ID计算运费
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/logistics/impl/ShippingServiceImpl.java`
+- 实现`calculateShippingFeeByTemplate`方法
+- 如果模板ID为空，返回0（包邮）
+- 调用`calculateByTemplate`方法计算运费，支持按重量、按件数、按金额三种计算方式
+- 支持特殊地区的运费规则匹配（优先级：区县 > 城市 > 省份 > 默认规则）
+- 支持包邮条件检查（包邮金额、包邮重量、包邮件数）
+
+**文件：** `backend/src/main/java/com/shoppingmall/controller/buyer/ShippingController.java`
+- 添加`calculateShippingFeeByTemplate`接口：`POST /api/buyer/shipping/calculate-by-template/{templateId}`
+- 接收运费模板ID和计算参数（省份、城市、区县、总重量、总金额、总件数）
+- 返回计算后的运费金额
+
+#### 3. 在前端订单结算页面实现运费计算逻辑
+
+**文件：** `frontend/src/api/buyer/shipping.ts`（新建）
+- 创建运费计算API文件
+- 定义`ShippingFeeCalculateDTO`接口
+- 实现`calculateShippingFeeByTemplate`函数，调用后端API计算运费
+
+**文件：** `frontend/src/views/cart/Checkout.vue`
+- **导入运费计算API**：导入`calculateShippingFeeByTemplate`
+- **修改运费计算逻辑**：
+  - 将`shippingFee`从computed改为ref，支持异步计算
+  - 添加`calculatingShippingFee`状态，显示计算中提示
+  - 实现`calculateShippingFee`函数：
+    - 按运费模板分组商品
+    - 对每个运费模板组，计算总重量（转换为kg）、总金额、总件数
+    - 调用API计算每个模板组的运费
+    - 累加所有模板组的运费
+    - 没有运费模板的商品（包邮）不计算运费
+- **监听地址变化**：
+  - 监听`selectedAddressId`变化，地址变化时重新计算运费
+  - 监听地区选择器变化（省份、城市、区县），地址信息完整时计算运费
+- **监听商品变化**：
+  - 监听`orderItems`变化，商品变化时重新计算运费
+- **加载时计算运费**：
+  - 在`loadAddressList`中，加载地址后计算运费
+  - 在`loadCartItems`中，加载商品后计算运费
+- **UI显示**：
+  - 在配送费用显示区域，显示"计算中..."状态
+  - 计算完成后显示运费金额
+
+### 运费计算规则
+
+1. **按运费模板分组**：订单中的商品按运费模板ID分组，每个模板组独立计算运费
+2. **包邮商品**：没有运费模板的商品（`shippingTemplateId`为空）不计算运费
+3. **包邮条件检查**：
+   - 如果订单金额达到包邮金额，运费为0
+   - 如果订单重量达到包邮重量，运费为0
+   - 如果订单件数达到包邮件数，运费为0
+4. **特殊地区匹配**：
+   - 优先匹配区县规则
+   - 其次匹配城市规则
+   - 再次匹配省份规则
+   - 最后使用默认规则
+5. **计算方式**：
+   - **按重量**：首重价格 + (超出重量 / 续重) * 续重价格
+   - **按件数**：首件价格 + (件数 - 1) * 续件价格
+   - **按金额**：固定运费
+
+### 影响范围
+
+- ✅ 订单结算页面：根据商品运费模板和收货地址自动计算运费
+- ✅ 购物车商品：返回运费模板ID信息
+- ✅ 运费计算API：支持直接使用运费模板ID计算运费
+- ✅ 特殊地区：支持不同地区的运费规则
+
+### 注意事项
+
+1. **重量单位**：商品重量单位是克（g），计算运费时需要转换为千克（kg）
+2. **异步计算**：运费计算是异步的，需要显示"计算中..."状态
+3. **地址完整性**：只有地址信息完整（省份、城市、区县）时才能计算运费
+4. **错误处理**：计算运费失败时，显示错误提示，运费默认为0
+5. **包邮商品**：没有运费模板的商品不计算运费，运费为0
+
 ## 2025-12-30 - 完善支付宝回调状态更新逻辑
 
 ### 功能说明

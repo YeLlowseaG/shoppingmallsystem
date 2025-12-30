@@ -17,6 +17,7 @@ export interface CartVO {
   specText?: string
   selected?: boolean
   isMember?: number // 用户是否是会员（0-普通用户，1-会员）
+  shippingTemplateId?: number // 运费模板ID（为空表示包邮）
 }
 
 /**

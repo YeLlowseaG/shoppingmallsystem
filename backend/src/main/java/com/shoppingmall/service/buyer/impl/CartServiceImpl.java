@@ -275,6 +275,9 @@ public class CartServiceImpl implements CartService {
         } else {
             vo.setWeight(BigDecimal.ZERO);
         }
+        
+        // 设置运费模板ID
+        vo.setShippingTemplateId(product.getShippingTemplateId());
 
         // 2. 查询价格信息
         // 判断是否有SKU

@@ -83,6 +83,15 @@ public interface ShippingService {
     BigDecimal calculateShippingFee(ShippingFeeCalculateDTO calculateDTO);
 
     /**
+     * 根据运费模板ID计算运费（用于订单结算）
+     *
+     * @param templateId 运费模板ID
+     * @param calculateDTO 运费计算参数（包含地址、重量、金额、件数）
+     * @return 运费金额
+     */
+    BigDecimal calculateShippingFeeByTemplate(Long templateId, ShippingFeeCalculateDTO calculateDTO);
+
+    /**
      * 获取运费模板列表（分页）
      *
      * @param page     页码

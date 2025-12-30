@@ -72,6 +72,11 @@ public class CartVO {
      * 用户是否是会员（0-普通用户，1-会员）
      */
     private Integer isMember;
+
+    /**
+     * 运费模板ID（关联shipping_template表，为空表示包邮）
+     */
+    private Long shippingTemplateId;
 }
 
 

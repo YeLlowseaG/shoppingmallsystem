@@ -370,7 +370,10 @@
             </div>
             <div class="summary-row">
               <span class="summary-label">配送费用：</span>
-              <span class="summary-value">¥{{ shippingFee.toFixed(2) }}</span>
+              <span class="summary-value">
+                <span v-if="calculatingShippingFee">计算中...</span>
+                <span v-else>¥{{ shippingFee.toFixed(2) }}</span>
+              </span>
             </div>
             <!-- 税金和发票抬头（已屏蔽） -->
             <!-- <div class="summary-row">
@@ -413,6 +416,7 @@ import { getCartList } from '@/api/buyer/cart'
 import { getAddressList, addAddress, updateAddress } from '@/api/buyer/address'
 import { createOrder } from '@/api/buyer/order'
 import { getDepositBalance } from '@/api/buyer/deposit'
+import { calculateShippingFeeByTemplate } from '@/api/buyer/shipping'
 import { useUserStore } from '@/stores/user'
 import { getProvinces, getChildrenByParentId } from '@/api/common/region'
 import type { CartVO } from '@/api/buyer/cart'
@@ -488,7 +492,7 @@ const handleRegionChange = (value: {
 }
 
 // 监听地址选择变化，选择"其他收货地址"时清空表单
-watch(selectedAddressId, (newVal, oldVal) => {
+watch(selectedAddressId, async (newVal, oldVal) => {
   // 只有当从非'other'变为'other'时才清空表单
   // 避免编辑地址时触发清空
   if (newVal === 'other' && oldVal !== 'other') {
@@ -510,6 +514,19 @@ watch(selectedAddressId, (newVal, oldVal) => {
     editingAddressId.value = null
     // 显示地址表单
     showAddressForm.value = true
+    // 清空运费
+    shippingFee.value = 0
+  } else if (newVal !== 'other' && newVal !== oldVal) {
+    // 地址变化时，重新计算运费
+    await calculateShippingFee()
+  }
+})
+
+// 监听地区选择变化，重新计算运费
+watch([() => addressForm.value.province, () => addressForm.value.city, () => addressForm.value.district], async () => {
+  if (selectedAddressId.value === 'other' && addressForm.value.province && addressForm.value.city && addressForm.value.district) {
+    // 如果选择了其他收货地址，且已填写完整地址信息，计算运费
+    await calculateShippingFee()
   }
 })
 
@@ -668,10 +685,147 @@ const totalWeight = computed(() => {
   return orderItems.value.reduce((sum, item) => sum + (item.weight || 0) * item.quantity, 0)
 })
 
-// 配送费用（根据选中的配送方式计算）
-const shippingFee = computed(() => {
-  return selectedShippingMethod.value.price
-})
+// 配送费用（根据运费模板计算）
+const shippingFee = ref(0)
+const calculatingShippingFee = ref(false)
+
+// 计算运费（必须在orderItems定义之后）
+const calculateShippingFee = async () => {
+  // 如果没有商品，运费为0
+  if (orderItems.value.length === 0) {
+    console.log('计算运费：商品列表为空')
+    shippingFee.value = 0
+    return
+  }
+
+  // 获取地址信息
+  let addressInfo: { province: string; city: string; district: string } | null = null
+  
+  if (selectedAddressId.value === 'other') {
+    // 如果选择了"其他地址"，使用表单中的地址信息
+    if (addressForm.value.province && addressForm.value.city && addressForm.value.district) {
+      addressInfo = {
+        province: addressForm.value.province,
+        city: addressForm.value.city,
+        district: addressForm.value.district
+      }
+      console.log('计算运费：使用表单地址', addressInfo)
+    } else {
+      console.log('计算运费：表单地址信息不完整', addressForm.value)
+      shippingFee.value = 0
+      return
+    }
+  } else if (selectedAddressId.value) {
+    // 如果选择了已保存的地址，使用地址列表中的地址信息
+    const selectedAddress = addressList.value.find(addr => addr.id === selectedAddressId.value)
+    if (!selectedAddress) {
+      console.log('计算运费：未找到选中的地址', selectedAddressId.value, addressList.value)
+      shippingFee.value = 0
+      return
+    }
+    addressInfo = {
+      province: selectedAddress.province,
+      city: selectedAddress.city,
+      district: selectedAddress.district
+    }
+    console.log('计算运费：使用已保存地址', addressInfo)
+  } else {
+    // 没有选中地址
+    console.log('计算运费：未选中地址', selectedAddressId.value)
+    shippingFee.value = 0
+    return
+  }
+
+  if (!addressInfo) {
+    shippingFee.value = 0
+    return
+  }
+
+  console.log('开始计算运费：', {
+    addressId: selectedAddressId.value,
+    address: `${addressInfo.province} ${addressInfo.city} ${addressInfo.district}`,
+    itemsCount: orderItems.value.length,
+    items: orderItems.value.map(item => ({
+      id: item.id,
+      name: item.name,
+      shippingTemplateId: item.shippingTemplateId,
+      weight: item.weight,
+      quantity: item.quantity,
+      memberPrice: item.memberPrice
+    }))
+  })
+
+  // 按运费模板分组商品
+  const templateGroups = new Map<number | null, CartVO[]>()
+  orderItems.value.forEach(item => {
+    const templateId = item.shippingTemplateId || null
+    if (!templateGroups.has(templateId)) {
+      templateGroups.set(templateId, [])
+    }
+    templateGroups.get(templateId)!.push(item)
+  })
+
+  // 如果没有运费模板的商品（包邮），只计算有运费模板的商品
+  let totalFee = 0
+  calculatingShippingFee.value = true
+
+  try {
+    // 遍历每个运费模板组，计算运费
+    for (const [templateId, items] of templateGroups.entries()) {
+      if (templateId === null) {
+        // 包邮商品，跳过
+        continue
+      }
+
+      // 计算该模板组的总重量（转换为kg）、总金额、总件数
+      const totalWeight = items.reduce((sum, item) => sum + (item.weight || 0) * item.quantity, 0) / 1000 // 转换为kg
+      const totalAmount = items.reduce((sum, item) => sum + (item.memberPrice || 0) * item.quantity, 0)
+      const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0)
+
+      // 调用API计算运费
+      console.log(`计算模板ID=${templateId}的运费：`, {
+        province: addressInfo.province || '',
+        city: addressInfo.city || '',
+        district: addressInfo.district || '',
+        totalWeight: totalWeight,
+        totalAmount: totalAmount,
+        totalQuantity: totalQuantity
+      })
+
+      const response = await calculateShippingFeeByTemplate(templateId, {
+        province: addressInfo.province || '',
+        city: addressInfo.city || '',
+        district: addressInfo.district || '',
+        totalWeight: totalWeight,
+        totalAmount: totalAmount,
+        totalQuantity: totalQuantity
+      })
+
+      console.log(`模板ID=${templateId}的运费计算结果：`, response)
+
+      // 注意：request.ts的响应拦截器已经提取了data字段，所以response就是data的值（数字）
+      if (response !== undefined && response !== null) {
+        totalFee += Number(response)
+      }
+    }
+  } catch (error: any) {
+    console.error('计算运费失败:', error)
+    ElMessage.warning(error.message || '计算运费失败，请稍后重试')
+    totalFee = 0
+  } finally {
+    calculatingShippingFee.value = false
+  }
+
+  console.log('运费计算完成，总运费：', totalFee)
+  shippingFee.value = totalFee
+}
+
+// 监听商品变化，重新计算运费（必须在orderItems和calculateShippingFee定义之后）
+watch(orderItems, async () => {
+  if (selectedAddressId.value && selectedAddressId.value !== 'other') {
+    await calculateShippingFee()
+  }
+}, { deep: true })
 
 // 税金
 const tax = ref(0)
@@ -913,6 +1067,7 @@ const loadAddressList = async () => {
         saveAddress: false
       }
       regionData.value = {}
+      shippingFee.value = 0
     }
   } catch (error: any) {
     ElMessage.error(error.message || '加载收货地址失败')
@@ -929,6 +1084,7 @@ const loadAddressList = async () => {
       saveAddress: false
     }
     regionData.value = {}
+    shippingFee.value = 0
   }
 }
 
@@ -948,6 +1104,7 @@ const loadCartItems = async () => {
     if (orderItems.value.length === 0) {
       ElMessage.warning('购物车商品不存在')
       router.push('/cart')
+      return
     }
   } catch (error: any) {
     ElMessage.error(error.message || '加载购物车商品失败')
@@ -971,9 +1128,18 @@ const loadDepositBalance = async () => {
   }
 }
 
-onMounted(() => {
-  loadAddressList()
-  loadCartItems()
+onMounted(async () => {
+  // 并行加载地址和商品，等待两者都完成后再计算运费
+  await Promise.all([
+    loadAddressList(),
+    loadCartItems()
+  ])
+  
+  // 如果地址和商品都加载完成，计算运费
+  if (selectedAddressId.value && selectedAddressId.value !== 'other' && orderItems.value.length > 0) {
+    await calculateShippingFee()
+  }
+  
   // 如果用户已登录，加载预存款余额
   if (userStore.isLoggedIn()) {
     loadDepositBalance()
