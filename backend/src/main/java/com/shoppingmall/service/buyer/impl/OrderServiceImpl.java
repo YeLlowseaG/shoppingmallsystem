@@ -86,6 +86,7 @@ public class OrderServiceImpl implements OrderService {
     private final MemberLevelService memberLevelService;
     private final ObjectMapper objectMapper;
     private final com.shoppingmall.service.logistics.ShippingService shippingService;
+    private final com.shoppingmall.notification.service.NotificationService notificationService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -319,6 +320,10 @@ public class OrderServiceImpl implements OrderService {
         }
 
         log.info("创建订单成功: orderNo={}, userId={}", orderNo, userId);
+
+        // 10. 发送订单创建通知到企业微信
+        notificationService.sendOrderCreatedNotification(orderNo);
+
         return orderNo;
     }
 

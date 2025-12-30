@@ -55,7 +55,8 @@ public class PaymentNotifyController {
     private final JushuitanConfigService jushuitanConfigService;
     private final com.shoppingmall.service.buyer.DepositService depositService;
     private final com.shoppingmall.service.system.SystemConfigService systemConfigService;
-    
+    private final com.shoppingmall.notification.service.NotificationService notificationService;
+
     @Value("${app.frontend.url:http://localhost:3002}")
     private String defaultFrontendUrl;
 
@@ -382,7 +383,7 @@ public class PaymentNotifyController {
                 order.setOrderStatus(OrderStatus.PAID_UNSHIPPED);
                 order.setPayTime(LocalDateTime.now());
                 orderRepository.updateById(order);
-                
+
                 callbackSuccess = true;
 
                 // 自动推送订单到聚水潭ERP
@@ -395,6 +396,9 @@ public class PaymentNotifyController {
                 } catch (Exception e) {
                     log.error("自动推送订单到ERP失败: orderId={}, orderNo={}", order.getId(), orderNo, e);
                 }
+
+                // 发送支付成功通知到企业微信
+                notificationService.sendPaymentSuccessNotification(orderNo);
 
                 log.info("支付回调处理成功: orderNo={}", orderNo);
             } else {
