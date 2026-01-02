@@ -1,0 +1,136 @@
+注：签名规则的请求参数以具体接口说明中请求参数为准，授权接口签名拼装与业务接口签名拼装规则通用
+
+1.签名计算
+签名计算可以直接使用下方【代码示例】中的签名计算代码，目前开放平台提供了 Java,Php,Node JS, C#， Python语言的签名代码。
+
+如果您使用其他语言，可以参考代码自行实现。
+
+签名算法：
+
+（授权接口使用自有商城获取token接口作为示例参考）
+
+以执行自有商城应用获取授权https://openapi.jushuitan.com/openWeb/auth/getInitToken为例，假如开发者的app_secret是e9c5ca33fecb404b8e6cdbd0ef4a6d25，请求的参数如下：
+
+app_key:5b53060f23d84ddf9703056e84fa5a2d
+timestamp:1639128407
+grant_type:authorization_code
+charset:utf-8
+code:123456
+sign:05e3a51e19e0883afd1882ccd309e0b9
+(sign的拼接需要按照字典排序,本次接口请求的sign拼接顺序为： app_secret,app_key,charset,code,grant_type,timestamp)
+
+拼接后待签名的字符串：e9c5ca33fecb404b8e6cdbd0ef4a6d25app_key5b53060f23d84ddf9703056e84fa5a2dcharsetutf-8code123456grant_typeauthorization_codetimestamp1639128407
+
+MD5加密后：05e3a51e19e0883afd1882ccd309e0b9，详细步骤参见下方“步骤”说明
+
+（业务接口使用店铺查询接口作为示例参考）
+
+以执行店铺查询https://openapi.jushuitan.com/open/shops/query 为例，假如开发者的app_secret是e9c5ca33fecb404b8e6cdbd0ef4a6d25，请求的参数如下：
+
+app_key:5b53060f23d84ddf9703056e84fa5a2d
+access_token:d7b01bf0842a4742a9450e21ffd95f60
+timestamp:1639128407
+version:2
+charset:utf-8
+sign:395f5a78b446be465ac03a02491296c7
+biz:{"page_index":"1","page_size":"100","nicks":["老板"]}
+步骤：
+
+将请求参数中除 sign 外的多个键值对，根据键按照字典序排序，并按照 "key1value1key2value2..." 的格式拼成一个字符串。请求参数拼接后的结果为：access_tokend7b01bf0842a4742a9450e21ffd95f60app_key5b53060f23d84ddf9703056e84fa5a2dbiz{"page_index":"1","page_size":"100","nicks":["老板"]}charsetutf-8timestamp1639128407version2
+将 app_secret 拼接在 1 中排序后的字符串前面得到待签名字符串：e9c5ca33fecb404b8e6cdbd0ef4a6d25access_tokend7b01bf0842a4742a9450e21ffd95f60app_key5b53060f23d84ddf9703056e84fa5a2dbiz{"page_index":"1","page_size":"100","nicks":["老板"]}charsetutf-8timestamp1639128407version2
+使用 MD5 算法加密待加密字符串并转为32位小写即为 sign： 395f5a78b446be465ac03a02491296c7
+将 sign 添加到请求参数中
+注意：
+
+对于biz这类复杂参数，不论value内部是否包含多个字段，均把value看作一个完整字符串来处理，不需要对内部字段进行拆分和排序。
+请求参数中有中文时，中文需要经过 url 编码，但计算签名时不需要。
+计算 MD5 签名时，需要以 utf-8 的编码转换 byte 流，否则可能导致含中文参数的签名计算不正确。
+请求示例：
+POST /open/shops/query HTTP/1.1
+Host: https://openapi.jushuitan.com
+Content-Type: application/x-www-form-urlencoded;charset=utf-8
+
+app_key:b0b7d1db226d4216a3d58df9ffa2dde5
+access_token:b7e3b1e24e174593af8ca5c397e53dad
+timestamp:1639128407
+version:2
+charset:utf-8
+sign:395f5a78b446be465ac03a02491296c7
+biz:{"page_index":"1","page_size":"100","nicks":["老板"]}
+代码示例:
+Java
+
+public class SignUtil {
+    private SignUtil() {}
+
+    public static String getSign(String app_secret, Map<String, String> params) {
+        try {
+            String sortedStr = getSortedParamStr(params);
+            String paraStr = app_secret + sortedStr;
+
+            return createSign(paraStr);
+        } catch (UnsupportedEncodingException e) {
+            log.warn("getSign UnsupportedEncodingException ", e);
+        }
+
+        return StringUtils.EMPTY;
+    }
+
+    /**
+     * 构造自然排序请求参数
+     *
+     * @param params 请求
+     * @return 字符串
+     */
+    private static String getSortedParamStr(Map<String, String> params) throws UnsupportedEncodingException {
+        Set<String> sortedParams = new TreeSet<>(params.keySet());
+
+        StringBuilder strB = new StringBuilder();
+        // 排除sign和空值参数
+        for (String key : sortedParams) {
+            if ("sign".equalsIgnoreCase(key)) {
+                continue;
+            }
+
+            String value = params.get(key);
+
+            if (StringUtils.isNotEmpty(value)) {
+                strB.append(key).append(value);
+            }
+        }
+        return strB.toString();
+    }
+
+    /**
+     * 生成新sign
+     *
+     * @param str 字符串
+     * @return String
+     */
+    private static String createSign(String str) {
+        if (str == null || str.length() == 0) {
+            return null;
+        }
+        char[] hexDigits = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+        try {
+            MessageDigest mdTemp = MessageDigest.getInstance("MD5");
+            mdTemp.update(str.getBytes("UTF-8"));
+
+            byte[] md = mdTemp.digest();
+            int j = md.length;
+            char[] buf = new char[j * 2];
+            int k = 0;
+            int i = 0;
+            while (i < j) {
+                byte byte0 = md[i];
+                buf[k++] = hexDigits[byte0 >>> 4 & 0xf];
+                buf[k++] = hexDigits[byte0 & 0xf];
+                i++;
+            }
+            return new String(buf);
+        } catch (Exception e) {
+            log.warn("create sign was failed", e);
+            return null;
+        }
+    }
+}

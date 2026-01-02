@@ -16,17 +16,19 @@ public class JushuitanSignUtil {
 
     /**
      * 生成聚水潭API签名
-     * 算法：MD5(appSecret + key1 + value1 + key2 + value2 + ... + appSecret).toUpperCase()
+     * 算法：MD5(appSecret + key1 + value1 + key2 + value2 + ...) - 小写
+     * 注意：appSecret只拼接在前面，不在后面；MD5结果是小写，不是大写
      *
      * @param appSecret 应用密钥
      * @param params 请求参数
-     * @return 签名字符串
+     * @return 签名字符串（小写）
      */
     public static String generateSign(String appSecret, Map<String, String> params) {
         // 1. 参数按key排序
         TreeMap<String, String> sortedParams = new TreeMap<>(params);
 
-        // 2. 拼接字符串：appSecret + key1 + value1 + key2 + value2 + ... + appSecret
+        // 2. 拼接字符串：appSecret + key1 + value1 + key2 + value2 + ...
+        // 注意：appSecret只拼接在前面，不在后面
         StringBuilder sb = new StringBuilder(appSecret);
         for (Map.Entry<String, String> entry : sortedParams.entrySet()) {
             String key = entry.getKey();
@@ -36,16 +38,17 @@ public class JushuitanSignUtil {
                 sb.append(key).append(value);
             }
         }
-        sb.append(appSecret);
+        // 注意：不在后面追加appSecret
 
         // 调试日志
         String signString = sb.toString();
         System.out.println("===== 签名计算 =====");
         System.out.println("签名原始字符串: " + signString);
 
-        // 3. MD5加密并转大写 - 显式指定UTF-8编码
-        String sign = DigestUtils.md5Hex(sb.toString().getBytes(StandardCharsets.UTF_8)).toUpperCase();
-        System.out.println("签名结果: " + sign);
+        // 3. MD5加密并保持小写 - 显式指定UTF-8编码
+        // 注意：根据聚水潭签名规则，MD5结果应该是小写，不是大写
+        String sign = DigestUtils.md5Hex(sb.toString().getBytes(StandardCharsets.UTF_8));
+        System.out.println("签名结果（小写）: " + sign);
         System.out.println("====================");
 
         return sign;

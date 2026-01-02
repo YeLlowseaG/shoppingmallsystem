@@ -1,0 +1,213 @@
+{
+	"info": {
+		"_postman_id": "jushuitan-itemsku-upload",
+		"name": "聚水潭商品上传接口",
+		"description": "聚水潭商品上传接口测试集合，包含自动签名计算功能\n\n**重要说明：**\n- 使用专用接口路径，参数名为 `biz`（不是 `items`）\n- 不需要 `method` 参数\n- 签名自动计算，时间戳自动生成",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "商品上传接口（专用路径）",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							"// 设置参数",
+							"const appSecret = \"a804ba835d0a4c849336f4e2e7695ddf\";",
+							"const accessToken = \"f804693efc49416a84dcf0ca901e8622\";",
+							"const appKey = \"fb5302ac42e8496d9e764db70a3c5c24\";",
+							"",
+							"// 生成时间戳（秒）",
+							"const timestamp = Math.floor(Date.now() / 1000);",
+							"const timestampStr = timestamp.toString();",
+							"",
+							"// 构建biz参数 - 注意：参数名是biz，不是items",
+							"const itemsData = {",
+							"    \"items\": [",
+							"        {",
+							"            \"sku_id\": \"56\",",
+							"            \"i_id\": \"BM00001\",",
+							"            \"name\": \"erp测试商品01-一个sku\"",
+							"        }",
+							"    ]",
+							"};",
+							"// 使用JSON.stringify，确保格式正确",
+							"const biz = JSON.stringify(itemsData);",
+							"",
+							"// 构建参数Map（按key排序）",
+							"const params = {};",
+							"params[\"access_token\"] = accessToken;",
+							"params[\"app_key\"] = appKey;",
+							"params[\"biz\"] = biz;  // 重要：参数名是biz",
+							"params[\"charset\"] = \"utf-8\";",
+							"params[\"timestamp\"] = timestampStr;",
+							"params[\"version\"] = \"2\";",
+							"",
+							"// 拼接签名字符串 - 按key字母顺序排序",
+							"let signString = appSecret;",
+							"const sortedKeys = Object.keys(params).sort();",
+							"for (let i = 0; i < sortedKeys.length; i++) {",
+							"    const key = sortedKeys[i];",
+							"    const value = params[key];",
+							"    signString += key + value;",
+							"}",
+							"signString += appSecret;",
+							"",
+							"// 计算MD5并转大写",
+							"const sign = CryptoJS.MD5(signString).toString().toUpperCase();",
+							"",
+							"// 设置环境变量",
+							"pm.environment.set(\"timestamp\", timestampStr);",
+							"pm.environment.set(\"sign\", sign);",
+							"pm.environment.set(\"access_token\", accessToken);",
+							"pm.environment.set(\"app_key\", appKey);",
+							"pm.environment.set(\"biz\", biz);",
+							"",
+							"// 输出调试信息",
+							"console.log(\"========================================\");",
+							"console.log(\"商品上传接口（专用路径）\");",
+							"console.log(\"时间戳:\", timestampStr);",
+							"console.log(\"biz值:\", biz);",
+							"console.log(\"biz长度:\", biz.length);",
+							"console.log(\"参数列表:\", sortedKeys);",
+							"console.log(\"参数详情:\");",
+							"for (let i = 0; i < sortedKeys.length; i++) {",
+							"    const key = sortedKeys[i];",
+							"    console.log(\"  \" + key + \": \" + params[key]);",
+							"}",
+							"console.log(\"签名字符串:\", signString);",
+							"console.log(\"签名字符串长度:\", signString.length);",
+							"console.log(\"签名结果:\", sign);",
+							"console.log(\"========================================\");"
+						],
+						"type": "text/javascript"
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// 检查响应状态",
+							"pm.test(\"状态码为200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"// 解析响应",
+							"const responseJson = pm.response.json();",
+							"",
+							"// 检查响应格式",
+							"pm.test(\"响应包含code字段\", function () {",
+							"    pm.expect(responseJson).to.have.property(\"code\");",
+							"});",
+							"",
+							"// 输出响应信息",
+							"console.log(\"========================================\");",
+							"console.log(\"响应code:\", responseJson.code);",
+							"console.log(\"响应msg:\", responseJson.msg);",
+							"",
+							"// 如果成功，输出data",
+							"if (responseJson.code === 0) {",
+							"    console.log(\"✅ 上传成功！\");",
+							"    if (responseJson.data) {",
+							"        console.log(\"响应data:\", JSON.stringify(responseJson.data, null, 2));",
+							"    }",
+							"} else {",
+							"    console.log(\"❌ 上传失败，错误信息:\", responseJson.msg);",
+							"    if (responseJson.requestId) {",
+							"        console.log(\"请求ID:\", responseJson.requestId);",
+							"    }",
+							"}",
+							"console.log(\"========================================\");"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/x-www-form-urlencoded;charset=UTF-8",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "access_token",
+							"value": "{{access_token}}",
+							"type": "text"
+						},
+						{
+							"key": "app_key",
+							"value": "{{app_key}}",
+							"type": "text"
+						},
+						{
+							"key": "timestamp",
+							"value": "{{timestamp}}",
+							"type": "text"
+						},
+						{
+							"key": "charset",
+							"value": "utf-8",
+							"type": "text"
+						},
+						{
+							"key": "version",
+							"value": "2",
+							"type": "text"
+						},
+						{
+							"key": "biz",
+							"value": "{{biz}}",
+							"type": "text"
+						},
+						{
+							"key": "sign",
+							"value": "{{sign}}",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://dev-api.jushuitan.com/open/jushuitan/itemsku/upload",
+					"protocol": "https",
+					"host": [
+						"dev-api",
+						"jushuitan",
+						"com"
+					],
+					"path": [
+						"open",
+						"jushuitan",
+						"itemsku",
+						"upload"
+					]
+				},
+				"description": "聚水潭商品上传接口（专用路径）\n\n**接口说明：**\n- URL: https://dev-api.jushuitan.com/open/jushuitan/itemsku/upload\n- 使用专用接口路径，不需要method参数\n- **重要：参数名是 `biz`，不是 `items`**\n- biz参数格式：{\"items\":[{...}]}\n- 签名自动计算，时间戳自动生成\n\n**修改商品数据：**\n在Pre-request Script中修改以下字段：\n- sku_id: 商品编码\n- i_id: 款式编码\n- name: 商品名称\n\n**成功示例：**\n```\n{\n  \"msg\": \"执行成功\",\n  \"code\": 0,\n  \"data\": {\n    \"datas\": [{\n      \"msg\": \"上传/更新成功\",\n      \"sku_id\": \"56\",\n      \"is_success\": true\n    }]\n  }\n}\n```"
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "appSecret",
+			"value": "a804ba835d0a4c849336f4e2e7695ddf",
+			"type": "string"
+		},
+		{
+			"key": "accessToken",
+			"value": "f804693efc49416a84dcf0ca901e8622",
+			"type": "string"
+		},
+		{
+			"key": "appKey",
+			"value": "fb5302ac42e8496d9e764db70a3c5c24",
+			"type": "string"
+		}
+	]
+}
