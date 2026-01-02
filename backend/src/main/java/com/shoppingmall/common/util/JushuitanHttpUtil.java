@@ -81,7 +81,8 @@ public class JushuitanHttpUtil {
             }
             params.put("app_key", appKey);
             // method参数可选（使用具体路径接口时不需要）
-            if (method != null && !method.isEmpty()) {
+            // 注意：只有当method不为null且不为空时才添加到params中，这样签名计算时就不会包含method
+            if (method != null && !method.trim().isEmpty()) {
                 params.put("method", method);
             }
             // 时间戳：UNIX时间戳（秒）
@@ -96,7 +97,7 @@ public class JushuitanHttpUtil {
                 params.put(bizParamName, bizParams);
             }
 
-            // 2. 生成签名
+            // 2. 生成签名（签名计算时会自动排除sign字段，并按字典序排序）
             String sign = JushuitanSignUtil.generateSign(appSecret, params);
             params.put("sign", sign);
 

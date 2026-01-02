@@ -5865,3 +5865,388 @@ URL: https://dev-api.jushuitan.com/open/jushuitan/itemsku/upload
 ### 问题原因
 
 在之前的修改中，不小心添加了多余的闭合大括号，导致编译错误。
+
+## 2026-01-02 - 创建聚水潭订单上传接口Postman测试脚本
+
+### 功能说明
+创建订单上传接口的Postman测试脚本，用于测试和调试订单推送功能。
+
+### 修改原因
+订单推送返回错误140"参数传递错误"，需要创建Postman测试脚本来排查问题。
+
+### 修改内容
+
+#### 1. Postman Collection创建
+
+**文件：** `聚水潭订单上传接口.postman_collection.json` (新建)
+- **接口信息**：
+  - URL: `https://dev-api.jushuitan.com/api/open/query.aspx`
+  - 使用通用接口路径，需要method参数：`orders.upload`
+  - 参数名：`biz`
+- **Pre-request Script功能**：
+  - 自动生成时间戳（秒）
+  - 自动计算签名（小写，appSecret只在前面）
+  - 构建订单数据（orders数组）
+  - 输出详细的调试信息
+- **Test Script功能**：
+  - 验证响应状态码
+  - 检查响应格式
+  - 输出响应信息
+
+### 订单数据结构
+
+根据代码中的订单数据格式：
+```json
+{
+  "orders": [{
+    "pay": [{
+      "outer_pay_id": "订单号",
+      "pay_date": "支付时间",
+      "payment": "支付方式",
+      "amount": 金额
+    }],
+    "items": [{
+      "sku_id": "商品编码",
+      "item_name": "商品名称",
+      "qty": 数量,
+      "price": 单价
+    }],
+    "so_id": "订单号",
+    "order_date": "订单日期",
+    "pay_date": "支付日期",
+    "receiver_name": "收货人姓名",
+    "receiver_mobile": "收货人手机",
+    "receiver_province": "省份",
+    "receiver_city": "城市",
+    "receiver_district": "区县",
+    "receiver_address": "详细地址",
+    "freight": 运费,
+    "pay_amount": 支付金额
+  }]
+}
+```
+
+### 使用方式
+
+1. **导入Collection**：
+   - 打开Postman
+   - 点击 Import 按钮
+   - 选择 `聚水潭订单上传接口.postman_collection.json` 文件
+
+2. **运行测试**：
+   - 选择 "订单上传接口（通用接口+method）" 请求
+   - 点击 Send 按钮
+   - 打开 Console 查看调试信息（View → Show Postman Console）
+
+3. **修改订单数据**：
+   - 在Pre-request Script中修改订单信息：
+     - so_id: 订单号
+     - order_date: 订单日期
+     - pay_date: 支付日期
+     - receiver_*: 收货人信息
+     - items: 订单商品列表
+     - pay: 支付信息
+
+### 关键配置
+
+1. **签名计算**：
+   - app_secret只拼接在前面，不在后面
+   - MD5结果是小写，不是大写
+   - 参数按key字母顺序排序
+   - 包含method参数
+
+2. **接口路径**：
+   - 使用通用接口：`https://dev-api.jushuitan.com/api/open/query.aspx`
+   - 需要method参数：`orders.upload`
+   - 参数名：`biz`
+
+### 注意事项
+
+- 订单接口使用通用接口+method方式（与商品上传不同）
+- 参数名必须是`biz`
+- 签名计算包含method参数
+- 订单数据格式必须正确
+
+## 2026-01-03 - 更新订单上传Postman脚本：添加shop_id字段
+
+### 功能说明
+根据最新的接口日志，更新订单上传Postman脚本，添加必填的`shop_id`字段。
+
+### 修改原因
+从日志中发现订单数据中包含了`shop_id`字段（值为"10409060"），这是必填字段，之前的Postman脚本中缺少此字段。
+
+### 修改内容
+
+**文件：** `聚水潭订单上传接口.postman_collection.json`
+- **添加shop_id字段**：
+  - 在订单数据中添加`"shop_id": "10409060"`
+  - 更新接口说明，明确shop_id是必填字段
+  - 更新订单数据结构说明，包含shop_id字段
+
+### 订单数据结构（更新后）
+
+```json
+{
+  "orders": [{
+    "pay": [...],
+    "items": [...],
+    "so_id": "订单号",
+    "shop_id": "店铺ID（必填）",  // 新增必填字段
+    "order_date": "订单日期",
+    "pay_date": "支付日期",
+    "receiver_name": "收货人姓名",
+    "receiver_mobile": "收货人手机",
+    "receiver_province": "省份",
+    "receiver_city": "城市",
+    "receiver_district": "区县",
+    "receiver_address": "详细地址",
+    "freight": 运费,
+    "pay_amount": 支付金额
+  }]
+}
+```
+
+### 注意事项
+
+1. **shop_id字段**：
+   - 这是必填字段，需要从聚水潭配置中获取
+   - 在代码中，shop_id从`JushuitanConfigVO.getShopId()`获取
+   - 如果shop_id为空或null，可能导致接口返回错误140
+
+2. **签名计算**：
+   - 签名计算使用小写MD5
+   - appSecret只在前面拼接，不在后面
+   - 参数按key字母顺序排序
+
+3. **字段顺序**：
+   - shop_id字段位置在so_id之后，order_date之前
+   - 这个顺序与代码中的字段顺序一致
+
+### 排查建议
+
+如果仍然返回错误140，可能的原因：
+1. shop_id值不正确或无效
+2. 订单数据中其他字段格式不正确
+3. 某些必填字段缺失
+4. 字段值不符合聚水潭的要求
+
+建议：
+- 使用Postman脚本测试，查看Console中的详细日志
+- 对比签名和参数是否正确
+- 确认shop_id值是否正确
+- 检查订单数据格式是否完全符合聚水潭API要求
+
+## 2026-01-03 - 对标成功示例修复订单上传接口和Postman脚本
+
+### 功能说明
+根据成功的curl请求示例，修复订单上传接口代码和Postman脚本，确保URL、参数格式和签名计算完全正确。
+
+### 修改原因
+对比成功的curl请求示例，发现以下问题：
+1. Postman脚本使用了错误的URL（`query.aspx`），应该使用专用路径（`orders/upload`）
+2. Postman脚本包含了method参数，但使用专用路径时不应该包含method参数
+3. 需要确保签名计算逻辑与成功示例完全一致
+
+### 修改内容
+
+#### 1. 修复Postman脚本
+
+**文件：** `聚水潭订单上传接口.postman_collection.json`
+
+**修改内容：**
+- **URL修改**：
+  - 修改前：`https://dev-api.jushuitan.com/api/open/query.aspx`
+  - 修改后：`https://dev-api.jushuitan.com/open/jushuitan/orders/upload`
+- **移除method参数**：
+  - 从Pre-request Script中移除`method`变量定义
+  - 从params中移除`method`参数
+  - 从请求body中移除`method`字段
+  - 从环境变量设置中移除`method`
+- **更新接口说明**：
+  - 更新description，明确使用专用路径，不需要method参数
+  - 添加成功示例的curl命令
+  - 添加MD5源串格式说明
+
+**关键修改点：**
+```javascript
+// 修改前：包含method参数
+const method = "orders.upload";
+params["method"] = method;
+
+// 修改后：移除method参数
+// 使用专用路径时，不需要method参数
+```
+
+**签名计算验证：**
+- 参数顺序（按字典序）：`access_token`, `app_key`, `biz`, `charset`, `timestamp`, `version`
+- MD5源串格式：`appSecret + access_token + app_key + biz + charset + timestamp + version`
+- MD5结果：小写（`toString()`不转大写）
+
+#### 2. 验证代码实现
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/erp/impl/JushuitanApiServiceImpl.java`
+- **验证内容**：
+  - ✅ URL配置正确：`https://dev-api.jushuitan.com/open/jushuitan/orders/upload`
+  - ✅ method参数传入null（使用专用路径时不需要method）
+  - ✅ biz参数格式正确：JSON数组字符串 `[{...}]`
+  - ✅ ObjectMapper配置正确：排除null值
+
+**文件：** `backend/src/main/java/com/shoppingmall/common/util/JushuitanHttpUtil.java`
+- **验证内容**：
+  - ✅ method参数判断逻辑正确：`if (method != null && !method.trim().isEmpty())`
+  - ✅ 当method为null时，不会添加到params中
+  - ✅ 签名计算时不会包含method参数
+
+**文件：** `backend/src/main/java/com/shoppingmall/common/util/JushuitanSignUtil.java`
+- **验证内容**：
+  - ✅ 签名算法正确：`appSecret + key1 + value1 + key2 + value2 + ...`
+  - ✅ appSecret只拼接在前面，不在后面
+  - ✅ 参数按字典序排序（TreeMap自动排序）
+  - ✅ MD5结果保持小写
+  - ✅ 正确排除sign字段和空值
+
+### 成功的请求示例
+
+**curl命令：**
+```bash
+curl --location --request POST 'https://dev-api.jushuitan.com/open/jushuitan/orders/upload' \
+--header 'Content-Type: application/x-www-form-urlencoded;charset=UTF-8' \
+--data-urlencode 'app_key=fb5302ac42e8496d9e764db70a3c5c24' \
+--data-urlencode 'access_token=f804693efc49416a84dcf0ca901e8622' \
+--data-urlencode 'timestamp=1767375484' \
+--data-urlencode 'version=2' \
+--data-urlencode 'charset=utf-8' \
+--data-urlencode 'sign=86576f2f9541143ae82de57806d36f44' \
+--data-urlencode 'biz=[{...}]'
+```
+
+**MD5源串格式：**
+```
+appSecret + access_token + app_key + biz + charset + timestamp + version
+```
+
+**参数顺序（按字典序）：**
+1. `access_token`
+2. `app_key`
+3. `biz`
+4. `charset`
+5. `timestamp`
+6. `version`
+
+**注意：**
+- **不需要method参数**（使用专用路径时）
+- 签名计算时，参数按字典序排序
+- appSecret只拼接在前面，不在后面
+- MD5结果是小写，不是大写
+
+### 测试建议
+
+1. **使用Postman脚本测试**：
+   - 导入更新后的`聚水潭订单上传接口.postman_collection.json`
+   - 运行"订单上传接口（专用路径）"请求
+   - 查看Console中的详细日志，确认：
+     - URL是`orders/upload`而不是`query.aspx`
+     - 参数中不包含`method`
+     - 签名计算正确
+
+2. **验证签名**：
+   - 对比Postman Console中的签名字符串和签名结果
+   - 确认签名原始字符串格式正确
+   - 确认签名结果是小写格式
+
+3. **代码测试**：
+   - 重新编译代码
+   - 测试订单推送功能
+   - 查看日志确认请求URL和参数格式正确
+
+### 相关文件
+
+- `聚水潭订单上传接口.postman_collection.json`
+- `backend/src/main/java/com/shoppingmall/service/erp/impl/JushuitanApiServiceImpl.java`
+- `backend/src/main/java/com/shoppingmall/common/util/JushuitanHttpUtil.java`
+- `backend/src/main/java/com/shoppingmall/common/util/JushuitanSignUtil.java`
+
+## 2026-01-03 - 修复聚水潭订单推送Error 140问题
+
+### 功能说明
+修复聚水潭订单推送接口返回Error 140（参数传递错误）的问题，确保使用正确的API URL和参数格式。
+
+### 修改原因
+订单推送时返回Error 140，对比正确的curl请求发现：
+1. 日志显示使用了错误的URL（`query.aspx`），应该使用专用路径（`orders/upload`）
+2. 签名计算中包含了method参数，但使用专用路径时不应该包含method参数
+
+### 修改内容
+
+#### 1. 修复HTTP工具类method参数处理
+
+**文件：** `backend/src/main/java/com/shoppingmall/common/util/JushuitanHttpUtil.java`
+- **修改内容**：
+  - 增强method参数的判断逻辑，确保当method为null或空字符串时，不会被添加到请求参数中
+  - 添加注释说明：只有当method不为null且不为空时才添加到params中，这样签名计算时就不会包含method
+- **关键修改**：
+  ```java
+  // 修改前：简单的null判断
+  if (method != null && !method.isEmpty()) {
+      params.put("method", method);
+  }
+  
+  // 修改后：增加trim()处理，确保空字符串也不会被添加
+  if (method != null && !method.trim().isEmpty()) {
+      params.put("method", method);
+  }
+  ```
+
+#### 2. 验证订单上传URL配置
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/erp/impl/JushuitanApiServiceImpl.java`
+- **验证内容**：
+  - 确认测试环境URL：`https://dev-api.jushuitan.com/open/jushuitan/orders/upload`
+  - 确认生产环境URL：`https://api.jushuitan.com/open/jushuitan/orders/upload`
+  - 确认method参数传入null，使用专用路径时不需要method参数
+  - 确认biz参数名正确
+
+#### 3. 签名计算逻辑验证
+
+**文件：** `backend/src/main/java/com/shoppingmall/common/util/JushuitanSignUtil.java`
+- **验证内容**：
+  - 签名算法正确：`appSecret + key1 + value1 + key2 + value2 + ...`（appSecret只在前面）
+  - 参数按字典序排序（TreeMap自动排序）
+  - MD5结果保持小写
+  - 正确排除sign字段和空值
+
+### 正确的请求格式
+
+根据聚水潭API文档和成功的curl请求，订单上传接口的正确格式：
+
+**URL：**
+- 测试环境：`https://dev-api.jushuitan.com/open/jushuitan/orders/upload`
+- 生产环境：`https://api.jushuitan.com/open/jushuitan/orders/upload`
+
+**请求参数（按字典序）：**
+- `access_token`: 访问令牌（测试环境必填）
+- `app_key`: 应用Key
+- `biz`: 订单数据（JSON数组字符串）
+- `charset`: utf-8
+- `sign`: MD5签名（小写）
+- `timestamp`: UNIX时间戳（秒）
+- `version`: 2
+
+**注意：**
+- 使用专用路径时，**不需要**`method`参数
+- 签名计算时，参数按字典序排序：`access_token`, `app_key`, `biz`, `charset`, `timestamp`, `version`
+- 签名原始字符串：`appSecret + access_token + app_key + biz + charset + timestamp + version`
+- MD5结果必须是小写
+
+### 测试建议
+
+1. **重新编译代码**：确保修改生效
+2. **检查日志**：确认请求URL是`orders/upload`而不是`query.aspx`
+3. **验证签名**：确认签名原始字符串中不包含`method`参数
+4. **对比参数**：与成功的curl请求对比，确保参数格式完全一致
+
+### 相关文件
+
+- `backend/src/main/java/com/shoppingmall/common/util/JushuitanHttpUtil.java`
+- `backend/src/main/java/com/shoppingmall/service/erp/impl/JushuitanApiServiceImpl.java`
+- `backend/src/main/java/com/shoppingmall/common/util/JushuitanSignUtil.java`

@@ -1,0 +1,249 @@
+{
+	"info": {
+		"_postman_id": "jushuitan-orders-upload",
+		"name": "聚水潭订单上传接口",
+		"description": "聚水潭订单上传接口测试集合，包含自动签名计算功能\n\n**重要说明：**\n- 使用专用接口路径，不需要method参数\n- 参数名为 `biz`\n- 签名自动计算，时间戳自动生成",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "订单上传接口（专用路径）",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							"// 设置参数",
+							"const appSecret = \"a804ba835d0a4c849336f4e2e7695ddf\";",
+							"const accessToken = \"f804693efc49416a84dcf0ca901e8622\";",
+							"const appKey = \"fb5302ac42e8496d9e764db70a3c5c24\";",
+							"",
+							"// 生成时间戳（秒）",
+							"const timestamp = Math.floor(Date.now() / 1000);",
+							"const timestampStr = timestamp.toString();",
+							"",
+							"// 构建biz参数 - 订单数据（根据API示例格式）",
+							"// 注意：biz参数的值直接是数组 [{...}]，不是对象 {\"orders\": [{...}]}",
+							"// 注意：shop_id是Integer类型，不是String",
+							"// 注意：pay是对象，不是数组",
+							"const orderData = [",
+							"    {",
+							"        \"pay\": {",
+							"            \"outer_pay_id\": \"20260102231549329341\",",
+							"            \"pay_date\": \"2026-01-02 23:15:52\",",
+							"            \"payment\": \"ALIPAY\",",
+							"            \"seller_account\": \"memall\",",
+							"            \"buyer_account\": \"15666666600\",",
+							"            \"amount\": 9.00",
+							"        },",
+							"        \"items\": [",
+							"            {",
+							"                \"sku_id\": \"BM00001\",",
+							"                \"shop_sku_id\": \"BM00001\",",
+							"                \"name\": \"erp测试商品01-一个sku\",",
+							"                \"qty\": 1,",
+							"                \"price\": 9.00,",
+							"                \"base_price\": 9.00,",
+							"                \"amount\": 9.00,",
+							"                \"outer_oi_id\": \"1\"",
+							"            }",
+							"        ],",
+							"        \"so_id\": \"20260102231549329341\",",
+							"        \"shop_id\": 10409060,",
+							"        \"shop_buyer_id\": \"5\",",
+							"        \"order_date\": \"2026-01-02 23:15:50\",",
+							"        \"pay_date\": \"2026-01-02 23:15:52\",",
+							"        \"receiver_name\": \"张大大修改\",",
+							"        \"receiver_mobile\": \"15666666600\",",
+							"        \"receiver_province\": \"北京\",",
+							"        \"receiver_city\": \"北京市\",",
+							"        \"receiver_district\": \"丰台区\",",
+							"        \"receiver_address\": \"丰台区测试地址修改\",",
+							"        \"freight\": 0.00,",
+							"        \"pay_amount\": 9.00",
+							"    }",
+							"];",
+							"",
+							"// 使用JSON.stringify，确保格式正确",
+							"// 注意：签名计算时使用原始的JSON字符串（不管是否包含换行和空格）",
+							"const biz = JSON.stringify(orderData);",
+							"",
+							"// 构建参数Map（按key排序）",
+							"// 注意：使用专用路径时，不需要method参数",
+							"const params = {};",
+							"params[\"access_token\"] = accessToken;",
+							"params[\"app_key\"] = appKey;",
+							"params[\"biz\"] = biz;",
+							"params[\"charset\"] = \"utf-8\";",
+							"params[\"timestamp\"] = timestampStr;",
+							"params[\"version\"] = \"2\";",
+							"",
+							"// 拼接签名字符串 - 按key字母顺序排序",
+							"// 重要：app_secret只拼接在前面，不在后面",
+							"let signString = appSecret;",
+							"const sortedKeys = Object.keys(params).sort();",
+							"for (let i = 0; i < sortedKeys.length; i++) {",
+							"    const key = sortedKeys[i];",
+							"    const value = params[key];",
+							"    signString += key + value;",
+							"}",
+							"// 注意：不在后面追加appSecret",
+							"",
+							"// 计算MD5并保持小写（不转大写）",
+							"const sign = CryptoJS.MD5(signString).toString();",
+							"",
+							"// 设置环境变量",
+							"pm.environment.set(\"timestamp\", timestampStr);",
+							"pm.environment.set(\"sign\", sign);",
+							"pm.environment.set(\"access_token\", accessToken);",
+							"pm.environment.set(\"app_key\", appKey);",
+							"pm.environment.set(\"biz\", biz);",
+							"",
+							"// 输出调试信息",
+							"console.log(\"========================================\");",
+							"console.log(\"订单上传接口（专用路径）\");",
+							"console.log(\"时间戳:\", timestampStr);",
+							"console.log(\"biz值:\", biz);",
+							"console.log(\"biz长度:\", biz.length);",
+							"console.log(\"参数列表:\", sortedKeys);",
+							"console.log(\"参数详情:\");",
+							"for (let i = 0; i < sortedKeys.length; i++) {",
+							"    const key = sortedKeys[i];",
+							"    console.log(\"  \" + key + \": \" + params[key]);",
+							"}",
+							"console.log(\"签名字符串:\", signString);",
+							"console.log(\"签名字符串长度:\", signString.length);",
+							"console.log(\"签名结果（小写）:\", sign);",
+							"console.log(\"========================================\");"
+						],
+						"type": "text/javascript"
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// 检查响应状态",
+							"pm.test(\"状态码为200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"// 解析响应",
+							"const responseJson = pm.response.json();",
+							"",
+							"// 检查响应格式",
+							"pm.test(\"响应包含code字段\", function () {",
+							"    pm.expect(responseJson).to.have.property(\"code\");",
+							"});",
+							"",
+							"// 输出响应信息",
+							"console.log(\"========================================\");",
+							"console.log(\"响应code:\", responseJson.code);",
+							"console.log(\"响应msg:\", responseJson.msg);",
+							"",
+							"// 如果成功，输出data",
+							"if (responseJson.code === 0) {",
+							"    console.log(\"✅ 订单上传成功！\");",
+							"    if (responseJson.data) {",
+							"        console.log(\"响应data:\", JSON.stringify(responseJson.data, null, 2));",
+							"    }",
+							"} else {",
+							"    console.log(\"❌ 订单上传失败，错误信息:\", responseJson.msg);",
+							"    if (responseJson.requestId) {",
+							"        console.log(\"请求ID:\", responseJson.requestId);",
+							"    }",
+							"}",
+							"console.log(\"========================================\");"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/x-www-form-urlencoded;charset=UTF-8",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "access_token",
+							"value": "{{access_token}}",
+							"type": "text"
+						},
+						{
+							"key": "app_key",
+							"value": "{{app_key}}",
+							"type": "text"
+						},
+						{
+							"key": "timestamp",
+							"value": "{{timestamp}}",
+							"type": "text"
+						},
+						{
+							"key": "charset",
+							"value": "utf-8",
+							"type": "text"
+						},
+						{
+							"key": "version",
+							"value": "2",
+							"type": "text"
+						},
+						{
+							"key": "biz",
+							"value": "{{biz}}",
+							"type": "text"
+						},
+						{
+							"key": "sign",
+							"value": "{{sign}}",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://dev-api.jushuitan.com/open/jushuitan/orders/upload",
+					"protocol": "https",
+					"host": [
+						"dev-api",
+						"jushuitan",
+						"com"
+					],
+					"path": [
+						"open",
+						"jushuitan",
+						"orders",
+						"upload"
+					]
+				},
+				"description": "聚水潭订单上传接口（专用路径）\n\n**接口说明：**\n- URL: https://dev-api.jushuitan.com/open/jushuitan/orders/upload\n- 使用专用接口路径，**不需要method参数**\n- **重要：参数名是 `biz`**\n- biz参数格式：数组 [{...}]，不是对象\n- 签名自动计算，时间戳自动生成\n\n**成功示例（参考）：**\n```\ncurl --location --request POST 'https://dev-api.jushuitan.com/open/jushuitan/orders/upload' \\\n--header 'Content-Type: application/x-www-form-urlencoded;charset=UTF-8' \\\n--data-urlencode 'app_key=fb5302ac42e8496d9e764db70a3c5c24' \\\n--data-urlencode 'access_token=f804693efc49416a84dcf0ca901e8622' \\\n--data-urlencode 'timestamp=1767375484' \\\n--data-urlencode 'version=2' \\\n--data-urlencode 'charset=utf-8' \\\n--data-urlencode 'sign=86576f2f9541143ae82de57806d36f44' \\\n--data-urlencode 'biz=[{...}]'\n```\n\n**MD5源串格式：**\n```\nappSecret + access_token + app_key + biz + charset + timestamp + version\n```\n\n**注意：**\n- 签名计算时，参数按字典序排序\n- appSecret只拼接在前面，不在后面\n- MD5结果是小写，不是大写\n- **不需要method参数**（使用专用路径时）\n\n**订单数据结构（根据API示例）：**\n```json\n{\n  \"orders\": [{\n    \"pay\": {  // 注意：pay是对象，不是数组！\n      \"outer_pay_id\": \"订单号\",\n      \"pay_date\": \"支付时间\",\n      \"payment\": \"支付方式\",\n      \"amount\": 金额\n    },\n    \"items\": [{\n      \"sku_id\": \"商品编码\",\n      \"item_name\": \"商品名称\",\n      \"qty\": 数量,\n      \"price\": 单价\n    }],\n    \"so_id\": \"订单号\",\n    \"shop_id\": \"店铺ID（必填）\",\n    \"order_date\": \"订单日期\",\n    \"pay_date\": \"支付日期\",\n    \"receiver_name\": \"收货人姓名\",\n    \"receiver_mobile\": \"收货人手机\",\n    \"receiver_province\": \"省份\",\n    \"receiver_city\": \"城市\",\n    \"receiver_district\": \"区县\",\n    \"receiver_address\": \"详细地址\",\n    \"freight\": 运费,\n    \"pay_amount\": 支付金额\n  }]\n}\n```\n\n**修改订单数据：**\n在Pre-request Script中修改以下字段：\n- so_id: 订单号\n- shop_id: 店铺ID（必填）\n- order_date: 订单日期\n- pay_date: 支付日期\n- receiver_name: 收货人姓名\n- receiver_mobile: 收货人手机\n- receiver_province: 省份\n- receiver_city: 城市\n- receiver_district: 区县\n- receiver_address: 详细地址\n- items: 订单商品列表\n- pay: 支付信息（对象，不是数组）\n\n**成功示例：**\n```\n{\n  \"msg\": \"执行成功\",\n  \"code\": 0,\n  \"data\": {\n    \"so_id\": \"订单号\"\n  }\n}\n```\n\n**注意事项：**\n- **重要**：`pay`字段是对象，不是数组！这是导致错误140的主要原因\n- shop_id字段是必填的，需要从聚水潭配置中获取\n- 签名计算使用小写MD5，appSecret只在前面拼接\n- 参数按key字母顺序排序"
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "appSecret",
+			"value": "a804ba835d0a4c849336f4e2e7695ddf",
+			"type": "string"
+		},
+		{
+			"key": "accessToken",
+			"value": "f804693efc49416a84dcf0ca901e8622",
+			"type": "string"
+		},
+		{
+			"key": "appKey",
+			"value": "fb5302ac42e8496d9e764db70a3c5c24",
+			"type": "string"
+		}
+	]
+}
+

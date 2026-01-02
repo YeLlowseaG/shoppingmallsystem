@@ -22,10 +22,16 @@ public class JushuitanOrderDTO {
     private String soId;
 
     /**
-     * 店铺编号
+     * 店铺编号（必填，Integer类型）
      */
     @JsonProperty("shop_id")
-    private String shopId;
+    private Integer shopId;
+
+    /**
+     * 店铺买家ID（必填）
+     */
+    @JsonProperty("shop_buyer_id")
+    private String shopBuyerId;
 
     /**
      * 下单时间（yyyy-MM-dd HH:mm:ss）
@@ -100,9 +106,9 @@ public class JushuitanOrderDTO {
     private BigDecimal payAmount;
 
     /**
-     * 支付信息（必填）
+     * 支付信息（必填）- 注意：是对象，不是数组
      */
-    private List<Pay> pay;
+    private Pay pay;
 
     /**
      * 商品明细
@@ -121,7 +127,19 @@ public class JushuitanOrderDTO {
         private String skuId;
 
         /**
-         * 商品名称
+         * 店铺SKU ID（必填）
+         */
+        @JsonProperty("shop_sku_id")
+        private String shopSkuId;
+
+        /**
+         * 商品名称（必填）
+         */
+        @JsonProperty("name")
+        private String name;
+
+        /**
+         * 商品名称（别名，兼容item_name）
          */
         @JsonProperty("item_name")
         private String itemName;
@@ -137,6 +155,24 @@ public class JushuitanOrderDTO {
          */
         @JsonProperty("price")
         private BigDecimal price;
+
+        /**
+         * 基础价格
+         */
+        @JsonProperty("base_price")
+        private BigDecimal basePrice;
+
+        /**
+         * 金额（必填）
+         */
+        @JsonProperty("amount")
+        private BigDecimal amount;
+
+        /**
+         * 外部订单项ID（必填）
+         */
+        @JsonProperty("outer_oi_id")
+        private String outerOiId;
     }
 
     /**
