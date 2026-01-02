@@ -953,15 +953,32 @@ public class OrderServiceImpl implements OrderService {
             order.setPayTime(LocalDateTime.now());
             orderRepository.updateById(order);
             
-            // 2.4 创建支付记录
-            PaymentRecord paymentRecord = new PaymentRecord();
-            paymentRecord.setOrderId(order.getId());
-            paymentRecord.setPaymentNo("DEPOSIT_" + orderNo);
-            paymentRecord.setPaymentMethod("PRE_DEPOSIT");
-            paymentRecord.setAmount(order.getActualAmount());
-            paymentRecord.setPaymentStatus(PaymentStatus.PAID); // 已支付
-            paymentRecord.setPaymentTime(LocalDateTime.now());
-            paymentRecordRepository.insert(paymentRecord);
+            // 2.4 创建或更新支付记录（防止重复插入）
+            String paymentNo = "DEPOSIT_" + orderNo;
+            LambdaQueryWrapper<PaymentRecord> existingRecordWrapper = new LambdaQueryWrapper<>();
+            existingRecordWrapper.eq(PaymentRecord::getPaymentNo, paymentNo);
+            PaymentRecord existingRecord = paymentRecordRepository.selectOne(existingRecordWrapper);
+            
+            PaymentRecord paymentRecord;
+            if (existingRecord != null) {
+                // 如果已存在，更新记录
+                paymentRecord = existingRecord;
+                paymentRecord.setPaymentStatus(PaymentStatus.PAID); // 已支付
+                paymentRecord.setPaymentTime(LocalDateTime.now());
+                paymentRecordRepository.updateById(paymentRecord);
+                log.info("更新支付记录: orderNo={}, paymentNo={}", orderNo, paymentNo);
+            } else {
+                // 如果不存在，创建新记录
+                paymentRecord = new PaymentRecord();
+                paymentRecord.setOrderId(order.getId());
+                paymentRecord.setPaymentNo(paymentNo);
+                paymentRecord.setPaymentMethod("PRE_DEPOSIT");
+                paymentRecord.setAmount(order.getActualAmount());
+                paymentRecord.setPaymentStatus(PaymentStatus.PAID); // 已支付
+                paymentRecord.setPaymentTime(LocalDateTime.now());
+                paymentRecordRepository.insert(paymentRecord);
+                log.info("创建支付记录: orderNo={}, paymentNo={}", orderNo, paymentNo);
+            }
             
             log.info("预存款支付成功: orderNo={}, userId={}, amount={}", orderNo, userId, order.getActualAmount());
             
@@ -990,14 +1007,34 @@ public class OrderServiceImpl implements OrderService {
             
             PaymentResponseDTO paymentResponse = paymentGatewayService.pay(paymentRequest);
             
-            // 2.2 创建支付记录（支付中状态）
-            PaymentRecord paymentRecord = new PaymentRecord();
-            paymentRecord.setOrderId(order.getId());
-            paymentRecord.setPaymentNo("PAY_" + orderNo);
-            paymentRecord.setPaymentMethod(paymentMethod);
-            paymentRecord.setAmount(order.getActualAmount());
-            paymentRecord.setPaymentStatus(PaymentStatus.PAYING); // 支付中（用户已发起支付）
-            paymentRecordRepository.insert(paymentRecord);
+            // 2.2 创建或更新支付记录（支付中状态，防止重复插入）
+            String paymentNo = "PAY_" + orderNo;
+            LambdaQueryWrapper<PaymentRecord> existingRecordWrapper = new LambdaQueryWrapper<>();
+            existingRecordWrapper.eq(PaymentRecord::getPaymentNo, paymentNo);
+            PaymentRecord existingRecord = paymentRecordRepository.selectOne(existingRecordWrapper);
+            
+            PaymentRecord paymentRecord;
+            if (existingRecord != null) {
+                // 如果已存在，更新记录（保持支付中状态）
+                paymentRecord = existingRecord;
+                paymentRecord.setPaymentMethod(paymentMethod);
+                paymentRecord.setAmount(order.getActualAmount());
+                paymentRecord.setPaymentStatus(PaymentStatus.PAYING); // 支付中（用户已发起支付）
+                paymentRecordRepository.updateById(paymentRecord);
+                log.info("更新支付记录: orderNo={}, paymentMethod={}, paymentNo={}", 
+                        orderNo, paymentMethod, paymentNo);
+            } else {
+                // 如果不存在，创建新记录
+                paymentRecord = new PaymentRecord();
+                paymentRecord.setOrderId(order.getId());
+                paymentRecord.setPaymentNo(paymentNo);
+                paymentRecord.setPaymentMethod(paymentMethod);
+                paymentRecord.setAmount(order.getActualAmount());
+                paymentRecord.setPaymentStatus(PaymentStatus.PAYING); // 支付中（用户已发起支付）
+                paymentRecordRepository.insert(paymentRecord);
+                log.info("创建支付记录: orderNo={}, paymentMethod={}, paymentNo={}", 
+                        orderNo, paymentMethod, paymentNo);
+            }
             
             log.info("创建支付订单成功: orderNo={}, paymentMethod={}, paymentNo={}", 
                     orderNo, paymentMethod, paymentRecord.getPaymentNo());

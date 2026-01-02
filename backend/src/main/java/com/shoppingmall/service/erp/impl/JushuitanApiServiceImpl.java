@@ -40,28 +40,36 @@ public class JushuitanApiServiceImpl implements JushuitanApiService {
         JushuitanConfigVO config = getEnabledConfigOrThrow();
 
         try {
-            // 将订单DTO包装到orders数组中
-            Map<String, Object> bizData = new HashMap<>();
+            // 将订单DTO直接放入数组中（biz参数的值直接是数组，不是对象）
             List<JushuitanOrderDTO> orders = new ArrayList<>();
             orders.add(orderDTO);
-            bizData.put("orders", orders);
+            
+            // 直接序列化为数组，不要包装在对象中
+            String bizContent = objectMapper.writeValueAsString(orders);
 
-            String bizContent = objectMapper.writeValueAsString(bizData);
+            // 使用专用接口路径（与商品上传接口类似）
+            String apiUrl;
+            if ("test".equals(config.getEnvType())) {
+                apiUrl = "https://dev-api.jushuitan.com/open/jushuitan/orders/upload";
+            } else {
+                apiUrl = "https://api.jushuitan.com/open/jushuitan/orders/upload";
+            }
 
             log.info("===== 聚水潭订单推送开始 =====");
             log.info("订单号: {}", orderDTO.getSoId());
-            log.info("API URL: {}", config.getApiUrl());
+            log.info("API URL: {}", apiUrl);
             log.info("App Key: {}", config.getAppKey());
             log.info("Access Token: {}", config.getAccessToken() != null ? config.getAccessToken().substring(0, 8) + "****" : "null");
             log.info("业务数据(biz): {}", bizContent);
 
-            // 调用聚水潭订单上传接口
+            // 调用聚水潭订单上传接口（使用专用路径，不需要method参数）
             String response = JushuitanHttpUtil.post(
-                config.getApiUrl(),
+                apiUrl,
                 config.getAppKey(),
                 config.getAppSecret(),
                 config.getAccessToken(),
-                "orders.upload",
+                null,  // 使用专用路径时，method参数传null
+                "biz",  // 参数名是biz
                 bizContent
             );
 
