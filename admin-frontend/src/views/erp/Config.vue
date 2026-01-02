@@ -56,8 +56,14 @@
           <el-input v-model="form.accessToken" type="password" placeholder="请输入生产环境Access Token（可选）" show-password />
         </el-form-item>
 
-        <el-form-item label="店铺ID" prop="shopId">
-          <el-input v-model="form.shopId" placeholder="请输入店铺ID（选填）" />
+        <el-form-item v-if="form.envType === 'test'" label="店铺ID" prop="testShopId">
+          <el-input v-model="form.testShopId" placeholder="请输入测试环境店铺ID（必填）" />
+          <div class="form-tip">测试环境的店铺ID，用于测试环境调试</div>
+        </el-form-item>
+
+        <el-form-item v-if="form.envType === 'production'" label="店铺ID" prop="shopId">
+          <el-input v-model="form.shopId" placeholder="请输入生产环境店铺ID（必填）" />
+          <div class="form-tip">生产环境的店铺ID，正式业务使用</div>
         </el-form-item>
 
         <el-form-item label="启用状态">
@@ -148,6 +154,7 @@ const form = reactive({
   testAppKey: 'b0b7d1db226d4216a3d58df9ffa2dde5',
   testAppSecret: '99c4cef262f34ca882975a7064de0b87',
   testAccessToken: 'b7e3b1e24e174593af8ca5c397e53dad',
+  testShopId: '',
   shopId: '',
   enabled: 0,
   autoPushOrder: 1,
@@ -164,6 +171,12 @@ const rules: FormRules = {
   ],
   appSecret: [
     { required: true, message: '请输入App Secret', trigger: 'blur' }
+  ],
+  testShopId: [
+    { required: true, message: '请输入测试环境店铺ID', trigger: 'blur' }
+  ],
+  shopId: [
+    { required: true, message: '请输入生产环境店铺ID', trigger: 'blur' }
   ],
   pullInterval: [
     { required: true, message: '请输入拉取间隔', trigger: 'blur' },

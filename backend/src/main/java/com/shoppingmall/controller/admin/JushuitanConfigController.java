@@ -4,6 +4,7 @@ import com.shoppingmall.common.util.Result;
 import com.shoppingmall.dto.JushuitanConfigDTO;
 import com.shoppingmall.service.erp.JushuitanConfigService;
 import com.shoppingmall.vo.JushuitanConfigVO;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
@@ -36,7 +37,7 @@ public class JushuitanConfigController {
      * 保存或更新聚水潭配置
      */
     @PostMapping
-    public Result<JushuitanConfigVO> saveConfig(@RequestBody JushuitanConfigDTO dto) {
+    public Result<JushuitanConfigVO> saveConfig(@Valid @RequestBody JushuitanConfigDTO dto) {
         JushuitanConfigVO config = jushuitanConfigService.saveOrUpdateConfig(dto);
         return Result.success("配置保存成功", config);
     }

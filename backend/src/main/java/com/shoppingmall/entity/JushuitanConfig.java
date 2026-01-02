@@ -67,7 +67,12 @@ public class JushuitanConfig {
     private String testAccessToken;
 
     /**
-     * 店铺编号（多店铺时使用）
+     * 测试环境店铺ID
+     */
+    private String testShopId;
+
+    /**
+     * 生产环境店铺ID
      */
     private String shopId;
 

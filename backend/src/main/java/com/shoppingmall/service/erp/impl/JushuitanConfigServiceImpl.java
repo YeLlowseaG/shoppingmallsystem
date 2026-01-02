@@ -78,6 +78,11 @@ public class JushuitanConfigServiceImpl implements JushuitanConfigService {
             if (dto.getTestAccessToken() != null && !dto.getTestAccessToken().isEmpty()) {
                 config.setTestAccessToken(dto.getTestAccessToken());
             }
+            // 测试环境店铺ID
+            if (dto.getTestShopId() != null) {
+                config.setTestShopId(dto.getTestShopId());
+            }
+            // 生产环境店铺ID
             if (dto.getShopId() != null) {
                 config.setShopId(dto.getShopId());
             }
@@ -185,6 +190,7 @@ public class JushuitanConfigServiceImpl implements JushuitanConfigService {
             vo.setAppKey(config.getTestAppKey());
             vo.setAppSecret(config.getTestAppSecret());
             vo.setAccessToken(config.getTestAccessToken());
+            vo.setShopId(config.getTestShopId());
         } else {
             // 生产环境：使用原有字段（默认）
             // 已经通过BeanUtils.copyProperties复制了
