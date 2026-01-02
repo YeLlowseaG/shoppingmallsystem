@@ -83,13 +83,18 @@ public class JushuitanItemServiceImpl implements JushuitanItemService {
             // 3. 转换为聚水潭格式
             JushuitanItemDTO itemDTO = convertToJushuitanItem(productVO);
 
-            // 4. 构建请求参数 - items参数的值是包含items数组的JSON对象
+            // 4. 构建请求参数 - biz参数的值是包含items数组的JSON对象
             Map<String, Object> itemsData = new HashMap<>();
             itemsData.put("items", Collections.singletonList(itemDTO));
-            String itemsJson = objectMapper.writeValueAsString(itemsData);
+            String bizJson = objectMapper.writeValueAsString(itemsData);
 
-            // 5. 调用聚水潭API - 使用通用接口 + method参数
-            String apiUrl = "test".equals(config.getEnvType()) ? config.getTestApiUrl() : config.getApiUrl();
+            // 5. 调用聚水潭API - 使用专用接口路径，不需要method参数
+            String apiUrl;
+            if ("test".equals(config.getEnvType())) {
+                apiUrl = "https://dev-api.jushuitan.com/open/jushuitan/itemsku/upload";
+            } else {
+                apiUrl = "https://api.jushuitan.com/open/jushuitan/itemsku/upload";
+            }
 
             String appKey = getAppKey(config);
             String appSecret = getAppSecret(config);
@@ -97,16 +102,16 @@ public class JushuitanItemServiceImpl implements JushuitanItemService {
 
             log.info("API地址: {}", apiUrl);
             log.info("App Key: {}", appKey);
-            log.info("商品数据: {}", itemsJson);
+            log.info("商品数据(biz): {}", bizJson);
 
             String response = JushuitanHttpUtil.post(
                 apiUrl,
                 appKey,
                 appSecret,
                 accessToken,
-                "jushuitan.itemsku.upload",  // method参数
-                "items",  // 参数名
-                itemsJson  // items参数值: {"items":[...]}
+                null,  // 使用专用路径时，method参数传null
+                "biz",  // 参数名改为biz（不是items）
+                bizJson  // biz参数值: {"items":[...]}
             );
 
             log.info("聚水潭API响应: {}", response);
@@ -117,26 +122,45 @@ public class JushuitanItemServiceImpl implements JushuitanItemService {
 
             if (code != null && code == 0) {
                 // 检查是否有错误数据
-                List<Map<String, Object>> dataList = (List<Map<String, Object>>) responseMap.get("data");
-                if (dataList == null || dataList.isEmpty()) {
-                    log.info("商品上传成功: productId={}, skuId={}", productId, itemDTO.getSkuId());
-                    saveSyncLog(syncLog, itemsJson, response, null, null, 1);
-                    return true;
-                } else {
-                    // 有错误信息
-                    String errorMsg = "";
-                    for (Map<String, Object> errorData : dataList) {
-                        String msg = (String) errorData.get("message");
-                        errorMsg += msg + ";";
-                        log.error("商品上传部分失败: skuId={}, error={}", errorData.get("sku_id"), msg);
+                Map<String, Object> dataObj = (Map<String, Object>) responseMap.get("data");
+                if (dataObj != null && dataObj.containsKey("datas")) {
+                    List<Map<String, Object>> dataList = (List<Map<String, Object>>) dataObj.get("datas");
+                    if (dataList == null || dataList.isEmpty()) {
+                        log.info("商品上传成功: productId={}, skuId={}", productId, itemDTO.getSkuId());
+                        saveSyncLog(syncLog, bizJson, response, null, null, 1);
+                        return true;
+                    } else {
+                        // 检查是否有失败的数据
+                        boolean hasError = false;
+                        String errorMsg = "";
+                        for (Map<String, Object> errorData : dataList) {
+                            Boolean isSuccess = (Boolean) errorData.get("is_success");
+                            if (isSuccess == null || !isSuccess) {
+                                hasError = true;
+                                String msg = (String) errorData.get("msg");
+                                errorMsg += msg + ";";
+                                log.error("商品上传部分失败: skuId={}, error={}", errorData.get("sku_id"), msg);
+                            }
+                        }
+                        if (hasError) {
+                            saveSyncLog(syncLog, bizJson, response, String.valueOf(code), errorMsg, 0);
+                            return false;
+                        } else {
+                            log.info("商品上传成功: productId={}, skuId={}", productId, itemDTO.getSkuId());
+                            saveSyncLog(syncLog, bizJson, response, null, null, 1);
+                            return true;
+                        }
                     }
-                    saveSyncLog(syncLog, itemsJson, response, String.valueOf(code), errorMsg, 0);
-                    return false;
+                } else {
+                    // 没有data或datas字段，认为成功
+                    log.info("商品上传成功: productId={}, skuId={}", productId, itemDTO.getSkuId());
+                    saveSyncLog(syncLog, bizJson, response, null, null, 1);
+                    return true;
                 }
             } else {
                 String msg = (String) responseMap.get("msg");
                 log.error("商品上传失败: code={}, msg={}", code, msg);
-                saveSyncLog(syncLog, itemsJson, response, String.valueOf(code), msg, 0);
+                saveSyncLog(syncLog, bizJson, response, String.valueOf(code), msg, 0);
                 return false;
             }
 

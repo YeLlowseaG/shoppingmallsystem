@@ -1,0 +1,200 @@
+{
+	"info": {
+		"_postman_id": "jushuitan-basic-test",
+		"name": "聚水潭基础接口测试",
+		"description": "用于测试聚水潭基础接口，验证签名和基础参数是否正确",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "shops.query - 查询店铺列表",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							"// 设置参数",
+							"const appSecret = \"a804ba835d0a4c849336f4e2e7695ddf\";",
+							"const accessToken = \"f804693efc49416a84dcf0ca901e8622\";",
+							"const appKey = \"fb5302ac42e8496d9e764db70a3c5c24\";",
+							"const method = \"shops.query\";",
+							"",
+							"// 生成时间戳（秒）",
+							"const timestamp = Math.floor(Date.now() / 1000);",
+							"const timestampStr = timestamp.toString();",
+							"",
+							"// 构建参数Map（按key排序）",
+							"const params = {};",
+							"params[\"access_token\"] = accessToken;",
+							"params[\"app_key\"] = appKey;",
+							"params[\"charset\"] = \"utf-8\";",
+							"params[\"method\"] = method;",
+							"params[\"timestamp\"] = timestampStr;",
+							"params[\"version\"] = \"2\";",
+							"",
+							"// 拼接签名字符串 - 按key字母顺序排序",
+							"let signString = appSecret;",
+							"const sortedKeys = Object.keys(params).sort();",
+							"for (let i = 0; i < sortedKeys.length; i++) {",
+							"    const key = sortedKeys[i];",
+							"    const value = params[key];",
+							"    signString += key + value;",
+							"}",
+							"signString += appSecret;",
+							"",
+							"// 计算MD5并转大写",
+							"const sign = CryptoJS.MD5(signString).toString().toUpperCase();",
+							"",
+							"// 设置环境变量",
+							"pm.environment.set(\"timestamp\", timestampStr);",
+							"pm.environment.set(\"sign\", sign);",
+							"pm.environment.set(\"access_token\", accessToken);",
+							"pm.environment.set(\"app_key\", appKey);",
+							"pm.environment.set(\"method\", method);",
+							"",
+							"// 输出调试信息",
+							"console.log(\"========================================\");",
+							"console.log(\"测试接口: shops.query\");",
+							"console.log(\"时间戳:\", timestampStr);",
+							"console.log(\"参数列表:\", sortedKeys);",
+							"console.log(\"参数详情:\");",
+							"for (let i = 0; i < sortedKeys.length; i++) {",
+							"    const key = sortedKeys[i];",
+							"    console.log(\"  \" + key + \": \" + params[key]);",
+							"}",
+							"console.log(\"签名字符串:\", signString);",
+							"console.log(\"签名字符串长度:\", signString.length);",
+							"console.log(\"签名结果:\", sign);",
+							"console.log(\"========================================\");"
+						],
+						"type": "text/javascript"
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// 检查响应状态",
+							"pm.test(\"状态码为200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"// 解析响应",
+							"const responseJson = pm.response.json();",
+							"",
+							"// 检查响应格式",
+							"pm.test(\"响应包含code字段\", function () {",
+							"    pm.expect(responseJson).to.have.property(\"code\");",
+							"});",
+							"",
+							"// 输出响应信息",
+							"console.log(\"========================================\");",
+							"console.log(\"响应code:\", responseJson.code);",
+							"console.log(\"响应msg:\", responseJson.msg);",
+							"",
+							"// 如果成功，输出data",
+							"if (responseJson.code === 0) {",
+							"    console.log(\"✅ 接口调用成功！\");",
+							"    if (responseJson.data) {",
+							"        console.log(\"响应data:\", JSON.stringify(responseJson.data, null, 2));",
+							"    }",
+							"} else {",
+							"    console.log(\"❌ 接口调用失败\");",
+							"    console.log(\"错误信息:\", responseJson.msg);",
+							"    if (responseJson.requestId) {",
+							"        console.log(\"请求ID:\", responseJson.requestId);",
+							"    }",
+							"}",
+							"console.log(\"========================================\");"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/x-www-form-urlencoded;charset=UTF-8",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "access_token",
+							"value": "{{access_token}}",
+							"type": "text"
+						},
+						{
+							"key": "app_key",
+							"value": "{{app_key}}",
+							"type": "text"
+						},
+						{
+							"key": "method",
+							"value": "{{method}}",
+							"type": "text"
+						},
+						{
+							"key": "timestamp",
+							"value": "{{timestamp}}",
+							"type": "text"
+						},
+						{
+							"key": "charset",
+							"value": "utf-8",
+							"type": "text"
+						},
+						{
+							"key": "version",
+							"value": "2",
+							"type": "text"
+						},
+						{
+							"key": "sign",
+							"value": "{{sign}}",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://dev-api.jushuitan.com/api/open/query.aspx",
+					"protocol": "https",
+					"host": [
+						"dev-api",
+						"jushuitan",
+						"com"
+					],
+					"path": [
+						"api",
+						"open",
+						"query.aspx"
+					]
+				},
+				"description": "聚水潭基础接口测试 - shops.query\n\n**接口说明：**\n- 这是最简单的查询接口，不需要业务参数\n- 用于验证基础参数和签名是否正确\n- 如果这个接口成功，说明基础配置正确\n- 如果这个接口失败，说明问题在基础参数或签名计算\n\n**参数说明：**\n- access_token: 访问令牌\n- app_key: 应用Key\n- method: shops.query\n- timestamp: 时间戳（秒）\n- charset: utf-8\n- version: 2\n- sign: MD5签名"
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "appSecret",
+			"value": "a804ba835d0a4c849336f4e2e7695ddf",
+			"type": "string"
+		},
+		{
+			"key": "accessToken",
+			"value": "f804693efc49416a84dcf0ca901e8622",
+			"type": "string"
+		},
+		{
+			"key": "appKey",
+			"value": "fb5302ac42e8496d9e764db70a3c5c24",
+			"type": "string"
+		}
+	]
+}
+

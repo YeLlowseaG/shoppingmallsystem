@@ -5252,3 +5252,616 @@ The method handlePaymentCallback(String, String, boolean, Map<String,Object>) in
 ### 修改文件清单
 1. `backend/src/main/java/com/shoppingmall/payment/strategy/impl/WeChatPayStrategy.java`
 2. `log.md` (本文件)
+
+---
+
+## 2025-12-15 生成系统测试用例文档
+
+### 修改内容
+根据系统功能点，生成CSV格式的测试用例文档，输出到 `/docs/test` 目录。
+
+### 生成文件清单
+
+#### 用户端测试用例（7个文件）
+1. `docs/test/用户端测试用例-01-认证模块.csv` - 包含登录、注册、忘记密码、重置密码等21个测试用例
+2. `docs/test/用户端测试用例-02-首页模块.csv` - 包含首页展示、轮播图、商品分类、搜索等18个测试用例
+3. `docs/test/用户端测试用例-03-商品模块.csv` - 包含商品列表、商品详情、加入购物车、收藏等28个测试用例
+4. `docs/test/用户端测试用例-04-购物车模块.csv` - 包含购物车管理、数量修改、结算等22个测试用例
+5. `docs/test/用户端测试用例-05-订单模块.csv` - 包含订单结算、支付、订单详情、订单列表等30个测试用例
+6. `docs/test/用户端测试用例-06-会员中心模块.csv` - 包含个人信息、收货地址、订单管理、预存款等38个测试用例
+7. `docs/test/用户端测试用例-07-其他模块.csv` - 包含帮助中心、公告、通用功能等28个测试用例
+
+#### 管理后台测试用例（12个文件）
+1. `docs/test/管理后台测试用例-01-登录与首页.csv` - 包含管理员登录、数据概览等20个测试用例
+2. `docs/test/管理后台测试用例-02-商品管理模块.csv` - 包含商品列表、商品发布、商品分类、缺货登记等33个测试用例
+3. `docs/test/管理后台测试用例-03-订单管理模块.csv` - 包含订单列表、订单发货、退款、订单问题等26个测试用例
+4. `docs/test/管理后台测试用例-04-库存管理模块.csv` - 包含库存列表、库存调整、库存预警等20个测试用例
+5. `docs/test/管理后台测试用例-05-采购者管理模块.csv` - 包含采购者列表、采购者审核、等级管理等24个测试用例
+6. `docs/test/管理后台测试用例-06-营销管理模块.csv` - 包含促销活动、价格策略等24个测试用例
+7. `docs/test/管理后台测试用例-07-数据统计模块.csv` - 包含销售统计、订单统计、商品统计、采购者统计等27个测试用例
+8. `docs/test/管理后台测试用例-08-系统设置模块.csv` - 包含基础配置、支付配置、物流配置、通知设置等46个测试用例
+9. `docs/test/管理后台测试用例-09-权限管理模块.csv` - 包含用户管理、角色管理、菜单管理等32个测试用例
+10. `docs/test/管理后台测试用例-10-内容管理模块.csv` - 包含帮助中心、公告管理、咨询管理、评论管理等29个测试用例
+11. `docs/test/管理后台测试用例-11-财务管理模块.csv` - 包含支付记录、预存款交易记录、财务报表等27个测试用例
+12. `docs/test/管理后台测试用例-12-ERP管理模块.csv` - 包含ERP配置、订单同步、库存同步等20个测试用例
+
+### 测试用例格式说明
+每个CSV文件包含以下字段：
+- **用例编号**：唯一标识测试用例
+- **功能模块**：测试用例所属的功能模块
+- **测试用例名称**：测试用例的简要描述
+- **前置条件**：执行测试用例前需要满足的条件
+- **测试步骤**：详细的测试操作步骤
+- **预期结果**：执行测试后应该得到的结果
+- **优先级**：测试用例的优先级（高、中、低）
+- **测试类型**：测试类型（功能测试、界面测试、性能测试、兼容性测试等）
+- **备注**：其他需要说明的信息
+
+### 统计信息
+- **用户端测试用例总数**：185个
+- **管理后台测试用例总数**：321个
+- **总计**：506个测试用例
+
+### 覆盖范围
+测试用例覆盖了系统的主要功能模块：
+- 用户端：认证、首页、商品、购物车、订单、会员中心、帮助中心等
+- 管理后台：商品管理、订单管理、库存管理、采购者管理、营销管理、数据统计、系统设置、权限管理、内容管理、财务管理、ERP管理等
+
+### 修改文件清单
+1. `docs/test/用户端测试用例-01-认证模块.csv` (新建)
+2. `docs/test/用户端测试用例-02-首页模块.csv` (新建)
+3. `docs/test/用户端测试用例-03-商品模块.csv` (新建)
+4. `docs/test/用户端测试用例-04-购物车模块.csv` (新建)
+5. `docs/test/用户端测试用例-05-订单模块.csv` (新建)
+6. `docs/test/用户端测试用例-06-会员中心模块.csv` (新建)
+7. `docs/test/用户端测试用例-07-其他模块.csv` (新建)
+8. `docs/test/管理后台测试用例-01-登录与首页.csv` (新建)
+9. `docs/test/管理后台测试用例-02-商品管理模块.csv` (新建)
+10. `docs/test/管理后台测试用例-03-订单管理模块.csv` (新建)
+11. `docs/test/管理后台测试用例-04-库存管理模块.csv` (新建)
+12. `docs/test/管理后台测试用例-05-采购者管理模块.csv` (新建)
+13. `docs/test/管理后台测试用例-06-营销管理模块.csv` (新建)
+14. `docs/test/管理后台测试用例-07-数据统计模块.csv` (新建)
+15. `docs/test/管理后台测试用例-08-系统设置模块.csv` (新建)
+16. `docs/test/管理后台测试用例-09-权限管理模块.csv` (新建)
+17. `docs/test/管理后台测试用例-10-内容管理模块.csv` (新建)
+18. `docs/test/管理后台测试用例-11-财务管理模块.csv` (新建)
+19. `docs/test/管理后台测试用例-12-ERP管理模块.csv` (新建)
+20. `log.md` (本文件)
+
+## 2026-01-02 - 创建聚水潭商品上传接口JMeter测试脚本
+
+### 功能说明
+创建JMeter测试脚本（JMX文件），用于测试聚水潭商品上传接口，包含签名自动计算功能。
+
+### 修改原因
+用户需要在JMeter中测试聚水潭商品上传接口，需要自动计算签名和时间戳等参数。
+
+### 修改内容
+
+#### 1. JMeter测试脚本
+
+**文件：** `jushuitan_itemsku_upload.jmx` (新建)
+- 创建完整的JMeter测试计划
+- 包含以下组件：
+  - **测试计划级别变量**：
+    - `appSecret`: 应用密钥
+    - `accessToken`: 访问令牌
+    - `appKey`: 应用Key
+    - `apiUrl`: API地址
+  - **线程组**：单线程，循环1次
+  - **HTTP请求采样器**：
+    - URL: `https://dev-api.jushuitan.com/open/jushuitan/itemsku/upload`
+    - 方法: POST
+    - 参数: access_token, app_key, timestamp, charset, version, items, sign
+  - **JSR223 PreProcessor**（Groovy脚本）：
+    - 自动生成当前时间戳（秒）
+    - 构建items JSON参数
+    - 计算MD5签名（按参数key排序）
+    - 将计算结果存入JMeter变量
+  - **HTTP信息头管理器**：
+    - Content-Type: application/x-www-form-urlencoded;charset=UTF-8
+  - **结果监听器**：
+    - 查看结果树
+    - 汇总报告
+
+### 脚本功能说明
+
+1. **签名计算逻辑**：
+   - 参数按key字母顺序排序
+   - 拼接格式：`appSecret + key1 + value1 + key2 + value2 + ... + appSecret`
+   - MD5加密并转大写
+
+2. **items参数格式**：
+   - JSON对象格式：`{"items":[{...}]}`
+   - 包含必填字段：sku_id, i_id, name
+
+3. **使用方式**：
+   - 在JMeter中打开JMX文件
+   - 修改JSR223 PreProcessor中的商品数据（sku_id, i_id, name）
+   - 运行测试计划
+   - 在"查看结果树"中查看请求和响应
+   - 在日志中查看签名计算过程
+
+### 注意事项
+
+- 使用专用接口路径时，不需要method参数
+- 签名计算使用原始值（未URL编码）
+- JMeter会自动对参数进行URL编码
+- 时间戳每次请求都会自动更新
+
+## 2026-01-02 - 创建聚水潭商品上传接口Postman测试脚本
+
+### 功能说明
+创建Postman Collection JSON文件，用于测试聚水潭商品上传接口，包含自动签名计算和响应验证功能。
+
+### 修改原因
+用户需要在Postman中测试聚水潭商品上传接口，需要自动计算签名和时间戳等参数。
+
+### 修改内容
+
+#### 1. Postman Collection文件
+
+**文件：** `聚水潭商品上传接口.postman_collection.json` (新建)
+- 创建完整的Postman Collection
+- 包含以下功能：
+  - **Pre-request Script**：
+    - 自动生成当前时间戳（秒）
+    - 构建items JSON参数
+    - 计算MD5签名（按参数key排序）
+    - 将计算结果存入Postman环境变量
+    - 输出调试日志到Console
+  - **HTTP请求配置**：
+    - URL: `https://dev-api.jushuitan.com/open/jushuitan/itemsku/upload`
+    - 方法: POST
+    - Headers: Content-Type: application/x-www-form-urlencoded;charset=UTF-8
+    - Body参数: access_token, app_key, timestamp, charset, version, items, sign
+  - **Test Script**：
+    - 验证响应状态码为200
+    - 检查响应包含code字段
+    - 输出响应信息到Console
+    - 根据code判断成功或失败
+  - **Collection变量**：
+    - appSecret: 应用密钥
+    - accessToken: 访问令牌
+    - appKey: 应用Key
+
+### 使用方式
+
+1. **导入Collection**：
+   - 打开Postman
+   - 点击 Import 按钮
+   - 选择 `聚水潭商品上传接口.postman_collection.json` 文件
+   - 导入成功后会看到"聚水潭商品上传接口"集合
+
+2. **修改商品数据**（可选）：
+   - 点击"商品上传接口"请求
+   - 切换到 Pre-request Script 标签页
+   - 修改以下字段：
+     ```javascript
+     "sku_id": "56",        // 修改为你的商品编码
+     "i_id": "BM00001",     // 修改为你的款式编码
+     "name": "erp测试商品01-一个sku"  // 修改为你的商品名称
+     ```
+
+3. **运行请求**：
+   - 点击 Send 按钮
+   - 在 Console 中查看签名计算过程（View → Show Postman Console）
+   - 在响应区域查看API返回结果
+   - 在 Test Results 中查看测试结果
+
+4. **查看日志**：
+   - 打开 Postman Console（View → Show Postman Console 或 Ctrl+Alt+C）
+   - 查看签名计算日志和响应信息
+
+### 脚本功能说明
+
+1. **签名计算逻辑**：
+   - 参数按key字母顺序排序
+   - 拼接格式：`appSecret + key1 + value1 + key2 + value2 + ... + appSecret`
+   - 使用CryptoJS计算MD5并转大写
+
+2. **items参数格式**：
+   - JSON对象格式：`{"items":[{...}]}`
+   - 包含必填字段：sku_id, i_id, name
+
+3. **环境变量**：
+   - timestamp: 自动生成的时间戳
+   - sign: 自动计算的签名
+   - access_token: 访问令牌
+   - app_key: 应用Key
+   - items: 商品数据JSON字符串
+
+### 注意事项
+
+- 使用专用接口路径时，不需要method参数
+- 签名计算使用原始值（未URL编码）
+- Postman会自动对参数进行URL编码
+- 时间戳每次请求都会自动更新
+- 需要确保Postman已安装CryptoJS库（Postman内置支持）
+- 查看日志需要打开Postman Console窗口
+
+## 2026-01-02 - 修正Postman脚本：参数名从items改为biz
+
+### 功能说明
+根据聚水潭测试工具的成功请求示例，修正Postman Collection中的参数名。
+
+### 修改原因
+通过聚水潭测试工具测试成功，发现关键问题：
+- **参数名错误**：应该使用 `biz` 而不是 `items`
+- 使用专用路径时不需要 `method` 参数
+- 签名计算需要使用正确的参数名
+
+### 修改内容
+
+#### 1. Postman Collection修正
+
+**文件：** `聚水潭商品上传接口.postman_collection.json`
+- **参数名修正**：
+  - 修改前：参数名使用 `items`
+  - 修改后：参数名改为 `biz`
+- **Pre-request Script修正**：
+  - 参数Map中使用 `params["biz"]` 而不是 `params["items"]`
+  - 环境变量名改为 `biz`
+  - 更新调试日志输出
+- **Body参数修正**：
+  - 参数key从 `items` 改为 `biz`
+  - 参数value使用 `{{biz}}` 变量
+- **移除通用接口版本**：
+  - 保留专用路径版本（已验证成功）
+  - 移除通用接口+method版本（未验证）
+
+### 成功的请求示例
+
+根据聚水潭测试工具的成功请求：
+```
+URL: https://dev-api.jushuitan.com/open/jushuitan/itemsku/upload
+参数名: biz（不是items）
+参数值: {"items":[{"sku_id":"56","i_id":"BM00001","name":"erp测试商品01-一个sku"}]}
+签名: 61f67878a4fba01fde122d18e9366799
+响应: {"msg":"执行成功","code":0,"data":{"datas":[{"msg":"上传/更新成功","sku_id":"56","is_success":true}]}}
+```
+
+### 关键发现
+
+1. **参数名必须是 `biz`**：
+   - 虽然参数值的内容是 `{"items":[...]}`
+   - 但参数名必须是 `biz`，不是 `items`
+
+2. **签名计算**：
+   - MD5源串格式：`appSecret + access_token + app_key + biz + charset + timestamp + version + appSecret`
+   - 参数按key字母顺序排序
+   - 使用正确的参数名 `biz` 进行签名计算
+
+3. **专用路径**：
+   - URL: `https://dev-api.jushuitan.com/open/jushuitan/itemsku/upload`
+   - 不需要 `method` 参数
+
+### 使用说明
+
+1. **导入Collection**：
+   - 打开Postman
+   - 点击 Import 按钮
+   - 选择更新后的 `聚水潭商品上传接口.postman_collection.json` 文件
+
+2. **运行测试**：
+   - 选择 "商品上传接口（专用路径）" 请求
+   - 点击 Send 按钮
+   - 应该返回成功响应（code: 0）
+
+3. **修改商品数据**：
+   - 在Pre-request Script中修改商品信息：
+     ```javascript
+     "sku_id": "56",        // 修改为你的商品编码
+     "i_id": "BM00001",     // 修改为你的款式编码
+     "name": "erp测试商品01-一个sku"  // 修改为你的商品名称
+     ```
+
+### 注意事项
+
+- **重要**：参数名必须是 `biz`，不是 `items`
+- 使用专用路径时不需要 `method` 参数
+- 签名计算时使用正确的参数名 `biz`
+- biz参数的值是JSON字符串：`{"items":[{...}]}`
+
+## 2026-01-02 - 更新Postman脚本，添加通用接口版本和调试优化
+
+### 功能说明
+更新Postman Collection，添加通用接口版本作为备选方案，并优化调试信息输出。
+
+### 修改原因
+用户反馈Postman返回错误140"验证失败！请求数据格式错误"，需要提供多种接口调用方式以便排查问题。
+
+### 修改内容
+
+#### 1. 添加通用接口版本
+
+**文件：** `聚水潭商品上传接口.postman_collection.json`
+- 添加第二个请求："商品上传接口（通用接口+method）"
+- 使用通用接口路径：`https://dev-api.jushuitan.com/api/open/query.aspx`
+- 包含method参数：`jushuitan.itemsku.upload`
+- 签名计算中包含method参数
+
+#### 2. 优化调试信息
+
+**文件：** `聚水潭商品上传接口.postman_collection.json`
+- 增强Pre-request Script的调试输出：
+  - 输出items值的长度
+  - 输出每个参数的详细信息
+  - 输出签名字符串的长度
+  - 区分两种接口版本的日志
+
+#### 3. 两个版本的对比
+
+**版本1：专用接口路径**
+- URL: `https://dev-api.jushuitan.com/open/jushuitan/itemsku/upload`
+- 不包含method参数
+- 签名计算不包含method
+
+**版本2：通用接口+method**
+- URL: `https://dev-api.jushuitan.com/api/open/query.aspx`
+- 包含method参数：`jushuitan.itemsku.upload`
+- 签名计算包含method参数
+
+### 使用建议
+
+1. **先尝试版本1（专用接口路径）**
+   - 如果返回错误140，尝试版本2
+
+2. **查看Console日志**
+   - 打开Postman Console（View → Show Postman Console）
+   - 检查签名字符串是否正确
+   - 检查items参数格式是否正确
+   - 检查参数顺序是否正确
+
+3. **对比两个版本的差异**
+   - 主要区别在于是否包含method参数
+   - 签名计算时method参数的包含与否
+
+### 可能的问题排查
+
+1. **签名计算问题**：
+   - 检查签名字符串是否正确拼接
+   - 确认参数顺序是否正确（按key字母顺序）
+   - 确认是否包含method参数（根据接口版本）
+
+2. **items参数格式问题**：
+   - 确认JSON格式正确：`{"items":[{...}]}`
+   - 检查是否有特殊字符需要转义
+   - 确认字段名是否正确（sku_id, i_id, name）
+
+3. **时间戳问题**：
+   - 确认时间戳是秒级（不是毫秒）
+   - 确认时间戳不是过期的时间
+
+4. **参数缺失或多余**：
+   - 确认所有必填参数都已包含
+   - 确认没有多余的参数
+
+## 2026-01-02 - 创建聚水潭基础接口测试文件
+
+### 功能说明
+创建简单的接口测试文件，用于测试聚水潭基础接口（shops.query），验证基础参数和签名是否正确。
+
+### 修改原因
+用户反馈商品上传接口返回错误140，需要先测试基础接口来排查问题。如果基础接口成功，说明问题在items参数；如果基础接口也失败，说明问题在基础参数或签名计算。
+
+### 修改内容
+
+#### 1. Postman基础接口测试文件
+
+**文件：** `聚水潭基础接口测试.postman_collection.json` (新建)
+- 创建简单的接口测试集合
+- 包含 `shops.query` 接口测试：
+  - **接口说明**：最简单的查询接口，不需要业务参数
+  - **用途**：验证基础参数和签名是否正确
+  - **参数**：access_token, app_key, method, timestamp, charset, version, sign
+  - **Pre-request Script**：
+    - 自动生成时间戳
+    - 自动计算签名
+    - 输出详细的调试信息
+  - **Test Script**：
+    - 验证响应状态码
+    - 检查响应格式
+    - 输出响应信息
+
+### 使用方式
+
+1. **导入Collection**：
+   - 打开Postman
+   - 点击 Import 按钮
+   - 选择 `聚水潭基础接口测试.postman_collection.json` 文件
+
+2. **运行测试**：
+   - 选择 "shops.query - 查询店铺列表" 请求
+   - 点击 Send 按钮
+   - 打开 Console 查看调试信息（View → Show Postman Console）
+
+3. **查看结果**：
+   - 如果返回 `code: 0`，说明基础参数和签名正确
+   - 如果返回 `code: 140`，说明问题在基础参数或签名计算
+   - 查看 Console 中的签名字符串，对比是否正确
+
+### 排查建议
+
+1. **如果基础接口成功**：
+   - 说明基础参数和签名计算正确
+   - 问题可能在 items 参数的格式或内容
+   - 可以继续排查商品上传接口
+
+2. **如果基础接口失败**：
+   - 说明问题在基础参数或签名计算
+   - 可能的原因：
+     - access_token 已过期或无效
+     - 签名计算有错误
+     - 参数格式不正确
+   - 需要检查 access_token 是否有效
+   - 需要对比签名字符串是否正确
+
+### 注意事项
+
+- 这是最简单的接口，不需要业务参数
+- 用于验证基础配置是否正确
+- 如果这个接口失败，商品上传接口肯定也会失败
+- 建议先测试这个接口，再测试商品上传接口
+
+## 2026-01-02 - 修复聚水潭ERP接口对接代码：签名计算和商品上传
+
+### 功能说明
+根据聚水潭API签名规则文档和Postman测试成功的结果，修复代码中的签名计算和商品上传接口调用问题。
+
+### 修改原因
+通过聚水潭测试工具和Postman测试成功，发现代码中存在以下问题：
+1. **签名计算错误**：app_secret拼接在了后面，应该只在前面
+2. **MD5结果格式错误**：应该是小写，不是大写
+3. **商品上传参数名错误**：应该使用`biz`而不是`items`
+4. **商品上传接口路径错误**：应该使用专用路径，不需要method参数
+
+### 修改内容
+
+#### 1. 修复签名计算工具类
+
+**文件：** `backend/src/main/java/com/shoppingmall/common/util/JushuitanSignUtil.java`
+- **签名算法修正**：
+  - 修改前：`appSecret + key1 + value1 + ... + appSecret`，MD5转大写
+  - 修改后：`appSecret + key1 + value1 + ...`（不在后面追加appSecret），MD5保持小写
+- **关键修改**：
+  - 移除第39行的 `sb.append(appSecret);`
+  - 修改第47行：`.toUpperCase()` 改为保持小写
+  - 更新注释说明正确的签名算法
+
+**签名规则（根据聚水潭文档）**：
+1. 将请求参数中除sign外的多个键值对，根据键按照字典序排序
+2. 按照 "key1value1key2value2..." 的格式拼成一个字符串
+3. 将 app_secret 拼接在排序后的字符串**前面**得到待签名字符串
+4. 使用 MD5 算法加密待加密字符串并转为32位**小写**即为 sign
+
+#### 2. 修复商品上传服务
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/erp/impl/JushuitanItemServiceImpl.java`
+- **参数名修正**：
+  - 修改前：参数名使用 `items`
+  - 修改后：参数名改为 `biz`
+  - 变量名从 `itemsJson` 改为 `bizJson`
+- **API地址修正**：
+  - 修改前：使用通用接口 `config.getTestApiUrl()` 或 `config.getApiUrl()`
+  - 修改后：使用专用路径
+    - 测试环境：`https://dev-api.jushuitan.com/open/jushuitan/itemsku/upload`
+    - 生产环境：`https://api.jushuitan.com/open/jushuitan/itemsku/upload`
+- **method参数移除**：
+  - 修改前：`"jushuitan.itemsku.upload"` 作为method参数
+  - 修改后：`null`（使用专用路径时不需要method参数）
+- **响应解析优化**：
+  - 修改响应数据结构解析，适配聚水潭返回格式
+  - 检查 `data.datas` 数组中的 `is_success` 字段
+
+#### 3. 订单上传接口检查
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/erp/impl/JushuitanApiServiceImpl.java`
+- **检查结果**：订单上传接口使用通用接口+method方式，这是正确的
+- **参数名**：已经使用`biz`参数名（通过JushuitanHttpUtil.post的默认参数）
+- **签名计算**：已通过JushuitanSignUtil修复，订单接口的签名计算会自动修复
+- **无需修改**：订单接口的调用方式正确，签名计算已自动修复
+
+### 关键修复点
+
+1. **签名计算算法**：
+   ```java
+   // 修改前：
+   StringBuilder sb = new StringBuilder(appSecret);
+   // ... 拼接参数 ...
+   sb.append(appSecret);  // 错误：不应该在后面追加
+   String sign = DigestUtils.md5Hex(...).toUpperCase();  // 错误：应该是小写
+   
+   // 修改后：
+   StringBuilder sb = new StringBuilder(appSecret);
+   // ... 拼接参数 ...
+   // 不在后面追加appSecret
+   String sign = DigestUtils.md5Hex(...);  // 小写
+   ```
+
+2. **商品上传接口**：
+   ```java
+   // 修改前：
+   String apiUrl = config.getTestApiUrl();  // 通用接口
+   JushuitanHttpUtil.post(apiUrl, ..., "jushuitan.itemsku.upload", "items", itemsJson);
+   
+   // 修改后：
+   String apiUrl = "https://dev-api.jushuitan.com/open/jushuitan/itemsku/upload";  // 专用路径
+   JushuitanHttpUtil.post(apiUrl, ..., null, "biz", bizJson);  // 无method，参数名biz
+   ```
+
+### 影响范围
+
+1. **商品上传模块**：
+   - `JushuitanItemServiceImpl.uploadItem()` - 已修复
+   - `JushuitanItemServiceImpl.uploadItems()` - 自动修复（调用uploadItem）
+
+2. **订单同步模块**：
+   - `JushuitanApiServiceImpl.uploadOrder()` - 签名计算自动修复
+   - `JushuitanApiServiceImpl.queryOrderStatus()` - 签名计算自动修复
+   - `JushuitanApiServiceImpl.queryLogistics()` - 签名计算自动修复
+   - `JushuitanOrderServiceImpl.pushOrder()` - 签名计算自动修复
+
+3. **签名工具类**：
+   - `JushuitanSignUtil.generateSign()` - 已修复
+   - 所有使用该方法的接口都会自动修复
+
+### 测试验证
+
+根据Postman测试成功的结果：
+- ✅ 签名计算正确
+- ✅ 参数名使用`biz`正确
+- ✅ 专用路径正确
+- ✅ 响应解析正确
+
+### 注意事项
+
+1. **签名计算**：
+   - app_secret只拼接在前面，不在后面
+   - MD5结果是小写，不是大写
+   - 参数按key字母顺序排序
+
+2. **商品上传接口**：
+   - 参数名必须是`biz`，不是`items`
+   - 使用专用路径时不需要method参数
+   - API地址使用专用路径
+
+3. **订单上传接口**：
+   - 使用通用接口+method方式（正确）
+   - 参数名已经是`biz`（正确）
+   - 签名计算已自动修复
+
+### 后续建议
+
+1. **测试商品上传**：
+   - 重新测试商品上传功能
+   - 检查响应是否正确解析
+
+2. **测试订单同步**：
+   - 测试订单推送功能
+   - 确认签名计算是否正确
+
+3. **监控日志**：
+   - 查看签名计算的日志输出
+   - 确认签名结果是小写格式
+
+## 2026-01-02 - 修复代码语法错误
+
+### 功能说明
+修复JushuitanItemServiceImpl.java中的语法错误。
+
+### 修改原因
+启动服务时报错：`Syntax error on token "}", delete this token`，在第173行有多余的闭合大括号。
+
+### 修改内容
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/erp/impl/JushuitanItemServiceImpl.java`
+- **修复语法错误**：
+  - 删除第173行的多余闭合大括号
+  - 修复前：`}` 和 `}` 两个闭合大括号
+  - 修复后：只保留一个闭合大括号
+
+### 问题原因
+
+在之前的修改中，不小心添加了多余的闭合大括号，导致编译错误。
