@@ -58,9 +58,15 @@ public class JushuitanConfigDTO {
     private String testAccessToken;
 
     /**
-     * 店铺编号（必填）
+     * 测试环境店铺ID（必填）
      */
-    @NotBlank(message = "店铺ID不能为空")
+    @NotBlank(message = "测试环境店铺ID不能为空")
+    private String testShopId;
+
+    /**
+     * 生产环境店铺ID（必填）
+     */
+    @NotBlank(message = "生产环境店铺ID不能为空")
     private String shopId;
 
     /**

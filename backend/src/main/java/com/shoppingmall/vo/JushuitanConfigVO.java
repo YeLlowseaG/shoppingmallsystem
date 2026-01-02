@@ -64,7 +64,12 @@ public class JushuitanConfigVO {
     private String testAccessToken;
 
     /**
-     * 店铺编号
+     * 测试环境店铺ID
+     */
+    private String testShopId;
+
+    /**
+     * 生产环境店铺ID
      */
     private String shopId;
 
