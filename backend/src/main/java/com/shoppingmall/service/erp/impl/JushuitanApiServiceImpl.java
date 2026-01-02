@@ -1,5 +1,6 @@
 package com.shoppingmall.service.erp.impl;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,24 +32,40 @@ public class JushuitanApiServiceImpl implements JushuitanApiService {
     @Resource
     private JushuitanConfigService jushuitanConfigService;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
     @Override
     public String uploadOrder(JushuitanOrderDTO orderDTO) {
         JushuitanConfigVO config = getEnabledConfigOrThrow();
 
         try {
-            // 将订单DTO转换为JSON字符串
-            String bizContent = objectMapper.writeValueAsString(orderDTO);
+            // 将订单DTO包装到orders数组中
+            Map<String, Object> bizData = new HashMap<>();
+            List<JushuitanOrderDTO> orders = new ArrayList<>();
+            orders.add(orderDTO);
+            bizData.put("orders", orders);
+
+            String bizContent = objectMapper.writeValueAsString(bizData);
+
+            log.info("===== 聚水潭订单推送开始 =====");
+            log.info("订单号: {}", orderDTO.getSoId());
+            log.info("API URL: {}", config.getApiUrl());
+            log.info("App Key: {}", config.getAppKey());
+            log.info("Access Token: {}", config.getAccessToken() != null ? config.getAccessToken().substring(0, 8) + "****" : "null");
+            log.info("业务数据(biz): {}", bizContent);
 
             // 调用聚水潭订单上传接口
             String response = JushuitanHttpUtil.post(
                 config.getApiUrl(),
                 config.getAppKey(),
                 config.getAppSecret(),
+                config.getAccessToken(),
                 "orders.upload",
                 bizContent
             );
+
+            log.info("聚水潭API响应: {}", response);
 
             // 解析响应
             JsonNode jsonNode = objectMapper.readTree(response);
@@ -56,6 +73,7 @@ public class JushuitanApiServiceImpl implements JushuitanApiService {
 
             if (code != 0) {
                 String msg = jsonNode.has("msg") ? jsonNode.get("msg").asText() : "未知错误";
+                log.error("订单推送失败 - code: {}, msg: {}, response: {}", code, msg, response);
                 throw new RuntimeException("订单上传失败: " + msg);
             }
 
@@ -87,6 +105,7 @@ public class JushuitanApiServiceImpl implements JushuitanApiService {
                 config.getApiUrl(),
                 config.getAppKey(),
                 config.getAppSecret(),
+                config.getAccessToken(),
                 "orders.single.query",
                 bizContent
             );
@@ -135,6 +154,7 @@ public class JushuitanApiServiceImpl implements JushuitanApiService {
                 config.getApiUrl(),
                 config.getAppKey(),
                 config.getAppSecret(),
+                config.getAccessToken(),
                 "logistic.query",
                 bizContent
             );

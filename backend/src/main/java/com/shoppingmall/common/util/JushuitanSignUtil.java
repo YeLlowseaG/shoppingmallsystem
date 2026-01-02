@@ -2,6 +2,7 @@ package com.shoppingmall.common.util;
 
 import org.apache.commons.codec.digest.DigestUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -37,8 +38,17 @@ public class JushuitanSignUtil {
         }
         sb.append(appSecret);
 
-        // 3. MD5加密并转大写
-        return DigestUtils.md5Hex(sb.toString()).toUpperCase();
+        // 调试日志
+        String signString = sb.toString();
+        System.out.println("===== 签名计算 =====");
+        System.out.println("签名原始字符串: " + signString);
+
+        // 3. MD5加密并转大写 - 显式指定UTF-8编码
+        String sign = DigestUtils.md5Hex(sb.toString().getBytes(StandardCharsets.UTF_8)).toUpperCase();
+        System.out.println("签名结果: " + sign);
+        System.out.println("====================");
+
+        return sign;
     }
 
     /**

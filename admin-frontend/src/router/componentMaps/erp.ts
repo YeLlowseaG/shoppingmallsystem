@@ -4,5 +4,8 @@ export const erpComponentMap = {
   'erp/Config': () => import('@/views/erp/Config.vue'),
 
   // 订单同步日志
-  'erp/OrderSync': () => import('@/views/erp/OrderSync.vue')
+  'erp/OrderSync': () => import('@/views/erp/OrderSync.vue'),
+
+  // 商品同步日志
+  'erp/ProductSync': () => import('@/views/erp/ProductSync.vue')
 }

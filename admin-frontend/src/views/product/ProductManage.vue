@@ -149,7 +149,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="360" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleEdit(row)">编辑</el-button>
             <el-button
@@ -158,6 +158,14 @@
               @click="handleToggleStatus(row)"
             >
               {{ row.status === '上架' ? '下架' : '上架' }}
+            </el-button>
+            <el-button
+              type="info"
+              size="small"
+              @click="handleSyncToErp(row)"
+              :loading="row.syncing"
+            >
+              同步到ERP
             </el-button>
             <el-button type="danger" size="small" @click="handleDelete(row)">删除</el-button>
           </template>
@@ -989,6 +997,7 @@ import {
   type ProductSkuDTO,
   type ProductSpecKeyVO
 } from '@/api/admin/sku'
+import { syncProductToErp } from '@/api/admin/erp'
 import RichTextEditor from '@/components/common/RichTextEditor.vue'
 import request from '@/utils/request'
 
@@ -1609,6 +1618,23 @@ const handleDelete = async (row: ProductVO) => {
     if (error !== 'cancel') {
       ElMessage.error('删除失败')
     }
+  }
+}
+
+// 同步商品到ERP
+const handleSyncToErp = async (row: any) => {
+  try {
+    // 设置同步状态为加载中
+    row.syncing = true
+
+    await syncProductToErp(row.id)
+    ElMessage.success('商品同步成功')
+  } catch (error: any) {
+    console.error('同步失败:', error)
+    ElMessage.error(error.message || '商品同步失败，请查看日志')
+  } finally {
+    // 恢复同步状态
+    row.syncing = false
   }
 }
 

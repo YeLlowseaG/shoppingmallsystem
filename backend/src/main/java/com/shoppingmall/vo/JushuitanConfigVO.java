@@ -29,9 +29,39 @@ public class JushuitanConfigVO {
     private String appSecret;
 
     /**
+     * 生产环境AccessToken（脱敏显示）
+     */
+    private String accessToken;
+
+    /**
      * API地址
      */
     private String apiUrl;
+
+    /**
+     * 环境类型（test=测试环境，production=生产环境）
+     */
+    private String envType;
+
+    /**
+     * 测试环境API地址
+     */
+    private String testApiUrl;
+
+    /**
+     * 测试环境AppKey
+     */
+    private String testAppKey;
+
+    /**
+     * 测试环境AppSecret（脱敏显示）
+     */
+    private String testAppSecret;
+
+    /**
+     * 测试环境AccessToken（脱敏显示）
+     */
+    private String testAccessToken;
 
     /**
      * 店铺编号

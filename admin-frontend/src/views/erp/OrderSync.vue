@@ -30,6 +30,13 @@
           </el-select>
         </el-form-item>
 
+        <el-form-item label="环境类型">
+          <el-select v-model="queryForm.envType" placeholder="请选择" clearable style="width: 120px">
+            <el-option label="测试环境" value="test" />
+            <el-option label="生产环境" value="production" />
+          </el-select>
+        </el-form-item>
+
         <el-form-item>
           <el-button type="primary" @click="handleSearch">查询</el-button>
           <el-button @click="handleReset">重置</el-button>
@@ -40,7 +47,14 @@
       <el-table :data="tableData" v-loading="loading" border stripe>
         <el-table-column prop="id" label="日志ID" width="80" />
         <el-table-column prop="orderId" label="订单ID" width="100" />
-        <el-table-column prop="orderNo" label="订单号" width="180" />
+        <el-table-column prop="orderNo" label="订单号" width="210" />
+        <el-table-column prop="envType" label="环境" width="100">
+          <template #default="{ row }">
+            <el-tag v-if="row.envType === 'test'" type="info">测试</el-tag>
+            <el-tag v-else-if="row.envType === 'production'" type="success">生产</el-tag>
+            <el-tag v-else type="warning">未知</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="syncTypeDesc" label="同步类型" width="120">
           <template #default="{ row }">
             <el-tag :type="getSyncTypeTagType(row.syncType)">
@@ -92,6 +106,11 @@
         <el-descriptions-item label="日志ID">{{ currentRow.id }}</el-descriptions-item>
         <el-descriptions-item label="订单ID">{{ currentRow.orderId }}</el-descriptions-item>
         <el-descriptions-item label="订单号">{{ currentRow.orderNo }}</el-descriptions-item>
+        <el-descriptions-item label="环境类型">
+          <el-tag v-if="currentRow.envType === 'test'" type="info">测试环境</el-tag>
+          <el-tag v-else-if="currentRow.envType === 'production'" type="success">生产环境</el-tag>
+          <el-tag v-else type="warning">未知</el-tag>
+        </el-descriptions-item>
         <el-descriptions-item label="同步类型">{{ currentRow.syncTypeDesc }}</el-descriptions-item>
         <el-descriptions-item label="同步状态">
           <el-tag :type="getSyncStatusTagType(currentRow.syncStatus)">
@@ -127,7 +146,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getSyncLogs, retryPushOrder, pullPendingLogistics } from '@/api/admin/erp'
+import { getSyncLogs, retryPushOrderWithDetail, pullPendingLogistics } from '@/api/admin/erp'
 
 const loading = ref(false)
 const pulling = ref(false)
@@ -139,7 +158,8 @@ const queryForm = reactive({
   pageSize: 20,
   orderId: undefined,
   syncType: undefined,
-  syncStatus: undefined
+  syncStatus: undefined,
+  envType: undefined
 })
 
 const tableData = ref([])
@@ -193,8 +213,30 @@ const handleRetry = async (row: any) => {
       }
     )
 
-    await retryPushOrder(row.orderId)
-    ElMessage.success('重试成功')
+    // 调用带详细日志的接口
+    const result: any = await retryPushOrderWithDetail(row.orderId)
+
+    // 显示详细日志弹框
+    await ElMessageBox.alert(
+      `<pre style="max-height: 500px; overflow: auto; font-family: monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap;">${result.pushLog || '无日志信息'}</pre>`,
+      result.success ? '推送成功' : '推送失败',
+      {
+        dangerouslyUseHTMLString: true,
+        confirmButtonText: '关闭',
+        type: result.success ? 'success' : 'error',
+        customStyle: {
+          width: '70%',
+          maxWidth: '900px'
+        }
+      }
+    )
+
+    if (result.success) {
+      ElMessage.success('订单推送成功')
+    } else {
+      ElMessage.warning('订单推送失败，请查看详细日志')
+    }
+
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {

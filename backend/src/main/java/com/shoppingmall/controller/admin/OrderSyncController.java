@@ -81,6 +81,18 @@ public class OrderSyncController {
     }
 
     /**
+     * 重试失败的订单推送（返回详细日志）
+     */
+    @PostMapping("/push/retry-with-detail/{orderId}")
+    public Result<com.shoppingmall.vo.OrderPushResultVO> retryPushOrderWithDetail(@PathVariable Long orderId) {
+        com.shoppingmall.vo.OrderPushResultVO result = jushuitanOrderService.retryPushOrderWithDetail(orderId);
+        // 无论成功失败都返回200，让前端根据result.success判断
+        // 因为这个接口的目的是返回详细日志，不应该因为推送失败就返回错误码
+        String message = result.getSuccess() ? "重试推送成功" : "重试推送失败";
+        return Result.success(message, result);
+    }
+
+    /**
      * 查询订单推送状态
      */
     @GetMapping("/push/status/{orderId}")
@@ -145,7 +157,8 @@ public class OrderSyncController {
         @RequestParam(defaultValue = "20") Integer pageSize,
         @RequestParam(required = false) Long orderId,
         @RequestParam(required = false) String syncType,
-        @RequestParam(required = false) Integer syncStatus
+        @RequestParam(required = false) Integer syncStatus,
+        @RequestParam(required = false) String envType
     ) {
         Page<OrderSyncLog> page = new Page<>(pageNum, pageSize);
         QueryWrapper<OrderSyncLog> queryWrapper = new QueryWrapper<>();
@@ -158,6 +171,9 @@ public class OrderSyncController {
         }
         if (syncStatus != null) {
             queryWrapper.eq("sync_status", syncStatus);
+        }
+        if (envType != null && !envType.isEmpty()) {
+            queryWrapper.eq("env_type", envType);
         }
 
         queryWrapper.orderByDesc("create_time");

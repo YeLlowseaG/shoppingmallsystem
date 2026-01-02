@@ -1,6 +1,7 @@
 package com.shoppingmall.service.erp.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shoppingmall.dto.JushuitanLogisticsDTO;
 import com.shoppingmall.entity.Order;
@@ -43,7 +44,8 @@ public class JushuitanLogisticsServiceImpl implements JushuitanLogisticsService 
     @Resource
     private JushuitanApiService jushuitanApiService;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .setSerializationInclusion(JsonInclude.Include.NON_NULL);
     private final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Override

@@ -9,17 +9,51 @@
       </template>
 
       <el-form ref="formRef" :model="form" :rules="rules" label-width="150px">
-        <el-form-item label="API地址" prop="apiUrl">
-          <el-input v-model="form.apiUrl" placeholder="请输入聚水潭API地址" />
-          <div class="form-tip">例如：https://api.jushuitan.com/api/open/query.aspx</div>
+        <el-form-item label="当前环境">
+          <el-radio-group v-model="form.envType">
+            <el-radio value="test">测试环境</el-radio>
+            <el-radio value="production">生产环境</el-radio>
+          </el-radio-group>
+          <div class="form-tip">⚠️ 测试环境不会真实发货，生产环境会触发真实订单处理！</div>
         </el-form-item>
 
-        <el-form-item label="App Key" prop="appKey">
-          <el-input v-model="form.appKey" placeholder="请输入App Key" />
+        <el-divider content-position="left">{{ form.envType === 'test' ? '测试环境配置' : '生产环境配置' }}</el-divider>
+
+        <el-form-item v-if="form.envType === 'test'" label="API地址" prop="testApiUrl">
+          <el-input v-model="form.testApiUrl" placeholder="请输入测试环境API地址" />
+          <div class="form-tip">测试环境：https://dev-api.jushuitan.com/api/open/query.aspx</div>
         </el-form-item>
 
-        <el-form-item label="App Secret" prop="appSecret">
-          <el-input v-model="form.appSecret" type="password" placeholder="请输入App Secret" show-password />
+        <el-form-item v-if="form.envType === 'production'" label="API地址" prop="apiUrl">
+          <el-input v-model="form.apiUrl" placeholder="请输入生产环境API地址" />
+          <div class="form-tip">生产环境：https://api.jushuitan.com/api/open/query.aspx</div>
+        </el-form-item>
+
+        <el-form-item v-if="form.envType === 'test'" label="App Key" prop="testAppKey">
+          <el-input v-model="form.testAppKey" placeholder="请输入测试环境App Key" />
+          <div class="form-tip">公共测试Key：b0b7d1db226d4216a3d58df9ffa2dde5</div>
+        </el-form-item>
+
+        <el-form-item v-if="form.envType === 'production'" label="App Key" prop="appKey">
+          <el-input v-model="form.appKey" placeholder="请输入生产环境App Key" />
+        </el-form-item>
+
+        <el-form-item v-if="form.envType === 'test'" label="App Secret" prop="testAppSecret">
+          <el-input v-model="form.testAppSecret" type="password" placeholder="请输入测试环境App Secret" show-password />
+          <div class="form-tip">公共测试Secret：99c4cef262f34ca882975a7064de0b87</div>
+        </el-form-item>
+
+        <el-form-item v-if="form.envType === 'production'" label="App Secret" prop="appSecret">
+          <el-input v-model="form.appSecret" type="password" placeholder="请输入生产环境App Secret" show-password />
+        </el-form-item>
+
+        <el-form-item v-if="form.envType === 'test'" label="Access Token" prop="testAccessToken">
+          <el-input v-model="form.testAccessToken" type="password" placeholder="请输入测试环境Access Token" show-password />
+          <div class="form-tip">公共测试Token：b7e3b1e24e174593af8ca5c397e53dad</div>
+        </el-form-item>
+
+        <el-form-item v-if="form.envType === 'production'" label="Access Token" prop="accessToken">
+          <el-input v-model="form.accessToken" type="password" placeholder="请输入生产环境Access Token（可选）" show-password />
         </el-form-item>
 
         <el-form-item label="店铺ID" prop="shopId">
@@ -58,20 +92,33 @@
         <span>配置说明</span>
       </template>
       <div class="help-content">
-        <h4>1. 获取聚水潭API凭证</h4>
-        <p>登录聚水潭ERP后台，进入「系统设置」-「开放平台」，创建应用获取App Key和App Secret。</p>
+        <h4>1. 环境选择</h4>
+        <ul>
+          <li><strong>测试环境：</strong>用于开发调试，不会触发真实订单发货，使用聚水潭沙箱账号</li>
+          <li><strong>生产环境：</strong>正式业务使用，会触发真实订单处理和发货，请谨慎操作！</li>
+        </ul>
 
-        <h4>2. API地址</h4>
-        <p>聚水潭正式环境API地址：https://api.jushuitan.com/api/open/query.aspx</p>
+        <h4>2. 测试环境配置</h4>
+        <p>API地址：https://dev-api.jushuitan.com/api/open/query.aspx</p>
+        <p>公共测试凭证：</p>
+        <ul>
+          <li>App Key: b0b7d1db226d4216a3d58df9ffa2dde5</li>
+          <li>App Secret: 99c4cef262f34ca882975a7064de0b87</li>
+          <li>Access Token: b7e3b1e24e174593af8ca5c397e53dad</li>
+        </ul>
 
-        <h4>3. 功能说明</h4>
+        <h4>3. 生产环境配置</h4>
+        <p>API地址：https://api.jushuitan.com/api/open/query.aspx</p>
+        <p>需要登录聚水潭ERP后台，进入「系统设置」-「开放平台」，创建应用获取App Key和App Secret。</p>
+
+        <h4>4. 功能说明</h4>
         <ul>
           <li><strong>自动推送订单：</strong>订单支付成功后自动推送到聚水潭，商家可在聚水潭后台处理发货</li>
           <li><strong>自动拉取物流：</strong>定时从聚水潭拉取物流信息，自动更新订单发货状态</li>
           <li><strong>手动操作：</strong>在订单列表页面可以手动推送订单或拉取物流信息</li>
         </ul>
 
-        <h4>4. 注意事项</h4>
+        <h4>5. 注意事项</h4>
         <ul>
           <li>保存配置前请先测试连接，确保配置正确</li>
           <li>App Secret请妥善保管，不要泄露给他人</li>
@@ -92,9 +139,15 @@ const saving = ref(false)
 const testing = ref(false)
 
 const form = reactive({
+  envType: 'test', // 默认测试环境
   apiUrl: 'https://api.jushuitan.com/api/open/query.aspx',
   appKey: '',
   appSecret: '',
+  accessToken: '',
+  testApiUrl: 'https://dev-api.jushuitan.com/api/open/query.aspx',
+  testAppKey: 'b0b7d1db226d4216a3d58df9ffa2dde5',
+  testAppSecret: '99c4cef262f34ca882975a7064de0b87',
+  testAccessToken: 'b7e3b1e24e174593af8ca5c397e53dad',
   shopId: '',
   enabled: 0,
   autoPushOrder: 1,
@@ -171,7 +224,27 @@ const handleSave = async () => {
       )
 
       saving.value = true
-      await saveJushuitanConfig(form)
+
+      // 准备提交数据，处理AppSecret和AccessToken脱敏问题
+      const submitData = { ...form }
+      // 如果生产环境AppSecret包含****，说明是脱敏值，不提交此字段
+      if (submitData.appSecret && submitData.appSecret.includes('****')) {
+        delete submitData.appSecret
+      }
+      // 如果测试环境AppSecret包含****，说明是脱敏值，不提交此字段
+      if (submitData.testAppSecret && submitData.testAppSecret.includes('****')) {
+        delete submitData.testAppSecret
+      }
+      // 如果生产环境AccessToken包含****，说明是脱敏值，不提交此字段
+      if (submitData.accessToken && submitData.accessToken.includes('****')) {
+        delete submitData.accessToken
+      }
+      // 如果测试环境AccessToken包含****，说明是脱敏值，不提交此字段
+      if (submitData.testAccessToken && submitData.testAccessToken.includes('****')) {
+        delete submitData.testAccessToken
+      }
+
+      await saveJushuitanConfig(submitData)
       ElMessage.success('配置保存成功')
       await loadConfig()
     } catch (error: any) {

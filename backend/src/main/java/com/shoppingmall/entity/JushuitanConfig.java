@@ -32,9 +32,39 @@ public class JushuitanConfig {
     private String appSecret;
 
     /**
+     * 生产环境AccessToken
+     */
+    private String accessToken;
+
+    /**
      * API地址
      */
     private String apiUrl;
+
+    /**
+     * 环境类型（test=测试环境，production=生产环境）
+     */
+    private String envType;
+
+    /**
+     * 测试环境API地址
+     */
+    private String testApiUrl;
+
+    /**
+     * 测试环境AppKey
+     */
+    private String testAppKey;
+
+    /**
+     * 测试环境AppSecret
+     */
+    private String testAppSecret;
+
+    /**
+     * 测试环境AccessToken
+     */
+    private String testAccessToken;
 
     /**
      * 店铺编号（多店铺时使用）

@@ -1,5 +1,7 @@
 package com.shoppingmall.service.erp;
 
+import com.shoppingmall.vo.OrderPushResultVO;
+
 /**
  * 聚水潭订单推送服务接口
  *
@@ -17,6 +19,14 @@ public interface JushuitanOrderService {
     boolean pushOrder(Long orderId);
 
     /**
+     * 推送订单到聚水潭（返回详细结果）
+     *
+     * @param orderId 订单ID
+     * @return 推送结果（包含详细日志）
+     */
+    OrderPushResultVO pushOrderWithDetail(Long orderId);
+
+    /**
      * 批量推送订单
      *
      * @param orderIds 订单ID列表
@@ -31,6 +41,14 @@ public interface JushuitanOrderService {
      * @return 是否成功
      */
     boolean retryPushOrder(Long orderId);
+
+    /**
+     * 重试失败的订单推送（返回详细结果）
+     *
+     * @param orderId 订单ID
+     * @return 推送结果（包含详细日志）
+     */
+    OrderPushResultVO retryPushOrderWithDetail(Long orderId);
 
     /**
      * 查询订单推送状态

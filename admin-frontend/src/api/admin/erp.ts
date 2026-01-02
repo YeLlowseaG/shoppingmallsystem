@@ -67,6 +67,16 @@ export function retryPushOrder(orderId: number) {
 }
 
 /**
+ * 重试失败的订单推送（返回详细日志）
+ */
+export function retryPushOrderWithDetail(orderId: number) {
+  return request({
+    url: `/api/admin/erp/order/push/retry-with-detail/${orderId}`,
+    method: 'post'
+  })
+}
+
+/**
  * 查询订单推送状态
  */
 export function queryPushStatus(orderId: number) {
@@ -144,6 +154,57 @@ export function getSyncLogs(params: {
 export function getOrderSyncLogs(orderId: number) {
   return request({
     url: `/api/admin/erp/order/sync-log/${orderId}`,
+    method: 'get'
+  })
+}
+
+// ==================== 商品同步操作 ====================
+
+/**
+ * 同步单个商品到聚水潭
+ */
+export function syncProductToErp(productId: number) {
+  return request({
+    url: `/api/admin/erp/product/sync/${productId}`,
+    method: 'post'
+  })
+}
+
+/**
+ * 批量同步商品到聚水潭
+ */
+export function batchSyncProducts(productIds: number[]) {
+  return request({
+    url: '/api/admin/erp/product/sync/batch',
+    method: 'post',
+    data: productIds
+  })
+}
+
+/**
+ * 分页查询商品同步日志
+ */
+export function getProductSyncLogs(params: {
+  pageNum?: number
+  pageSize?: number
+  productId?: number
+  syncType?: string
+  syncStatus?: number
+  envType?: string
+}) {
+  return request({
+    url: '/api/admin/erp/product/sync-log',
+    method: 'get',
+    params
+  })
+}
+
+/**
+ * 查询指定商品的同步日志
+ */
+export function getProductSyncLogsByProductId(productId: number) {
+  return request({
+    url: `/api/admin/erp/product/sync-log/${productId}`,
     method: 'get'
   })
 }

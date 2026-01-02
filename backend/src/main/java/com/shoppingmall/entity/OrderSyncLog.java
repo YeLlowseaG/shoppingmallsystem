@@ -32,6 +32,11 @@ public class OrderSyncLog {
     private String orderNo;
 
     /**
+     * 环境类型（test=测试环境，production=生产环境）
+     */
+    private String envType;
+
+    /**
      * 同步类型（PUSH_ORDER-推送订单，PULL_LOGISTICS-拉取物流，QUERY_ORDER-查询订单）
      */
     private String syncType;

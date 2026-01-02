@@ -52,7 +52,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/admin/**")
                 .excludePathPatterns(
                         "/api/admin/user/login",
-                        "/api/admin/product/template/**"  // 模板下载不需要登录
+                        "/api/admin/product/template/**",  // 模板下载不需要登录
+                        "/api/admin/erp/**"  // 临时：ERP接口测试用，后续需要加回认证
                 );
 
         // 公共接口不需要拦截

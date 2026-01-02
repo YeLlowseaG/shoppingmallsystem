@@ -5,13 +5,13 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 订单同步日志VO
+ * 商品同步日志VO
  *
  * @author ShoppingMall Team
- * @date 2025-12-24
+ * @date 2026-01-02
  */
 @Data
-public class OrderSyncLogVO {
+public class ProductSyncLogVO {
 
     /**
      * ID
@@ -19,14 +19,19 @@ public class OrderSyncLogVO {
     private Long id;
 
     /**
-     * 订单ID
+     * 商品ID
      */
-    private Long orderId;
+    private Long productId;
 
     /**
-     * 订单号
+     * 商品编码
      */
-    private String orderNo;
+    private String productCode;
+
+    /**
+     * 商品名称
+     */
+    private String productName;
 
     /**
      * 环境类型（test=测试环境，production=生产环境）
@@ -34,7 +39,7 @@ public class OrderSyncLogVO {
     private String envType;
 
     /**
-     * 同步类型（PUSH_ORDER-推送订单，PULL_LOGISTICS-拉取物流）
+     * 同步类型（UPLOAD_ITEM-上传商品，UPDATE_ITEM-更新商品）
      */
     private String syncType;
 
