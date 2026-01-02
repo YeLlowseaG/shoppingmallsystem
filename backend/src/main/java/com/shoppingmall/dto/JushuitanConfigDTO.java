@@ -1,5 +1,6 @@
 package com.shoppingmall.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
@@ -57,8 +58,9 @@ public class JushuitanConfigDTO {
     private String testAccessToken;
 
     /**
-     * 店铺编号
+     * 店铺编号（必填）
      */
+    @NotBlank(message = "店铺ID不能为空")
     private String shopId;
 
     /**

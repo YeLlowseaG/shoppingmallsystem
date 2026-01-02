@@ -57,7 +57,8 @@
         </el-form-item>
 
         <el-form-item label="店铺ID" prop="shopId">
-          <el-input v-model="form.shopId" placeholder="请输入店铺ID（选填）" />
+          <el-input v-model="form.shopId" placeholder="请输入店铺ID（必填）" />
+          <div class="form-tip">店铺ID是聚水潭平台的店铺标识，必须填写</div>
         </el-form-item>
 
         <el-form-item label="启用状态">
@@ -164,6 +165,9 @@ const rules: FormRules = {
   ],
   appSecret: [
     { required: true, message: '请输入App Secret', trigger: 'blur' }
+  ],
+  shopId: [
+    { required: true, message: '请输入店铺ID', trigger: 'blur' }
   ],
   pullInterval: [
     { required: true, message: '请输入拉取间隔', trigger: 'blur' },
