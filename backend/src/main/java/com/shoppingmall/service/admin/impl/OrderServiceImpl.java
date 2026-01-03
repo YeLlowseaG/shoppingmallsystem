@@ -1010,6 +1010,7 @@ public class OrderServiceImpl implements OrderService {
         vo.setTotalAmount(order.getTotalAmount());
         vo.setStatus(order.getOrderStatus());
         vo.setStatusText(getStatusText(order.getOrderStatus()));
+        vo.setErpSyncStatus(order.getErpSyncStatus());
 
         // 查询买家信息（用户信息）
         if (order.getUserId() != null) {

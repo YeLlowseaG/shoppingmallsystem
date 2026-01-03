@@ -70,6 +70,11 @@ public class OrderListVO {
     private String statusText;
 
     /**
+     * ERP同步状态（0-未同步，1-已同步，2-同步失败）
+     */
+    private Integer erpSyncStatus;
+
+    /**
      * 物流信息
      */
     private LogisticsInfo logistics;
