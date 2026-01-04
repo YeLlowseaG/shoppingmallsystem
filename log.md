@@ -6166,6 +6166,75 @@ appSecret + access_token + app_key + biz + charset + timestamp + version
 - `backend/src/main/java/com/shoppingmall/common/util/JushuitanHttpUtil.java`
 - `backend/src/main/java/com/shoppingmall/common/util/JushuitanSignUtil.java`
 
+<<<<<<< HEAD
+=======
+## 2026-01-03 - 修复订单列表ERP状态字段未更新问题
+
+### 功能说明
+修复订单列表查询时ERP状态字段未正确显示的问题，确保订单推送成功后ERP状态能正确同步到订单列表。
+
+### 修改原因
+订单推送成功后，数据库中的`erp_sync_status`字段已更新，但订单列表查询时没有正确映射该字段，导致前端无法显示ERP状态。
+
+### 修改内容
+
+#### 1. 在OrderListVO中添加erpSyncStatus字段
+
+**文件：** `backend/src/main/java/com/shoppingmall/vo/OrderListVO.java`
+- **添加字段**：
+  ```java
+  /**
+   * ERP同步状态（0-未同步，1-已同步，2-同步失败）
+   */
+  private Integer erpSyncStatus;
+  ```
+- **位置**：在`statusText`字段之后，`logistics`字段之前
+
+#### 2. 在convertToListVO方法中映射erpSyncStatus字段
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java`
+- **修改内容**：
+  - 在`convertToListVO`方法中添加ERP状态字段的映射
+  - 修改位置：在设置`statusText`之后添加
+  ```java
+  vo.setErpSyncStatus(order.getErpSyncStatus());
+  ```
+
+### 问题分析
+
+**问题原因：**
+1. `OrderListVO`中缺少`erpSyncStatus`字段
+2. `convertToListVO`方法中没有映射`erpSyncStatus`字段
+3. 虽然订单推送成功后数据库已更新，但VO转换时没有包含该字段
+
+**前端显示：**
+- 前端页面（`admin-frontend/src/views/order/List.vue`）已经正确使用了`row.erpSyncStatus`字段
+- 但由于后端VO中没有该字段，导致前端无法获取到ERP状态值
+
+### 测试建议
+
+1. **验证订单推送**：
+   - 推送一个订单到ERP系统
+   - 确认推送成功（返回code=0）
+
+2. **验证订单列表**：
+   - 访问订单列表页面：`http://localhost:3003/admin/order/list`
+   - 确认ERP状态列正确显示：
+     - 已同步：绿色标签"已同步"
+     - 同步失败：红色标签"同步失败"
+     - 未同步：灰色标签"未同步"
+
+3. **数据库验证**：
+   - 查询订单表，确认`erp_sync_status`字段值正确
+   - 确认`erp_sync_time`和`erp_order_id`字段也已更新
+
+### 相关文件
+
+- `backend/src/main/java/com/shoppingmall/vo/OrderListVO.java`
+- `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java`
+- `admin-frontend/src/views/order/List.vue`（前端页面，已正确实现）
+
+>>>>>>> gitee/dev
 ## 2026-01-03 - 修复聚水潭订单推送Error 140问题
 
 ### 功能说明
@@ -6250,3 +6319,82 @@ appSecret + access_token + app_key + biz + charset + timestamp + version
 - `backend/src/main/java/com/shoppingmall/common/util/JushuitanHttpUtil.java`
 - `backend/src/main/java/com/shoppingmall/service/erp/impl/JushuitanApiServiceImpl.java`
 - `backend/src/main/java/com/shoppingmall/common/util/JushuitanSignUtil.java`
+
+## 2026-01-03 - 修复订单支付支付宝页面空白问题
+
+### 功能说明
+修复订单支付时支付宝支付页面显示空白的问题，将订单支付的支付宝处理方式改为和预存款支付一致的方式。
+
+### 修改原因
+订单支付的支付宝方式打开的是空白页面（`https://openapi-sandbox.dl.alipaydev.com/gateway.do?charset=utf-8`），而预存款的支付宝方式可以正常打开。原因是订单支付使用了复杂的表单解析和重新构建方式，可能导致参数丢失或解析失败。
+
+### 问题分析
+
+**订单支付（有问题的方式）：**
+- 使用 `DOMParser` 解析HTML表单
+- 提取 `form.action` 和所有input参数
+- 创建新的表单元素并提交
+- 这种方式可能导致参数丢失或解析失败，导致只提交了gateway URL而没有参数
+
+**预存款支付（正常的方式）：**
+- 直接使用 `window.open` + `document.write`
+- 将HTML表单直接写入新窗口
+- 让浏览器自动提交表单
+- 这种方式更简单可靠，确保所有参数都正确传递
+
+### 修改内容
+
+**文件：** `frontend/src/views/order/Payment.vue`
+
+**修改内容：**
+- **移除复杂的表单解析逻辑**：
+  - 删除 `DOMParser` 解析HTML表单的代码
+  - 删除提取 `form.action` 和参数的代码
+  - 删除创建新表单元素并提交的代码
+- **改为简单的直接写入方式**：
+  - 直接使用 `window.open` + `document.write`
+  - 将 `response.paymentParams` 直接写入新窗口
+  - 让浏览器自动提交表单（表单中包含自动提交脚本）
+
+**修改前：**
+```javascript
+// 解析表单HTML以获取action和参数
+const parser = new DOMParser();
+const doc = parser.parseFromString(cleanHtml, 'text/html');
+const form = doc.querySelector('form#alipayForm');
+// ... 复杂的表单重建逻辑
+```
+
+**修改后：**
+```javascript
+// 服务端返回HTML表单（auto-submit），在新窗口打开以触发支付宝页面跳转
+const win = window.open('', '_blank')
+if (win) {
+  win.document.open()
+  win.document.write(response.paymentParams)
+  win.document.close()
+}
+```
+
+### 测试建议
+
+1. **测试订单支付**：
+   - 创建一个订单
+   - 选择支付宝支付方式
+   - 点击"立即付款"
+   - 确认支付宝支付页面正常打开，不是空白页面
+
+2. **对比预存款支付**：
+   - 测试预存款充值功能
+   - 选择支付宝支付方式
+   - 确认两种支付方式的处理方式一致
+
+3. **验证支付流程**：
+   - 完成支付流程
+   - 确认支付成功回调正常
+   - 确认订单状态正确更新
+
+### 相关文件
+
+- `frontend/src/views/order/Payment.vue`
+- `frontend/src/views/member/DepositRecharge.vue`（参考实现）

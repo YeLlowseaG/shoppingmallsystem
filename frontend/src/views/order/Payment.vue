@@ -374,64 +374,22 @@ const processPayment = async () => {
         
         // 处理支付表单或支付URL
         if (response.paymentParams) {
-          // 服务端返回HTML表单，使用动态表单方式提交以确保跳转成功
+          // 服务端返回HTML表单（auto-submit），在新窗口打开以触发支付宝页面跳转
+          // 使用和预存款支付相同的方式，直接写入HTML让浏览器自动提交表单
           try {
-            // 移除HTML内容中的反引号
-            const cleanHtml = response.paymentParams.replace(/`/g, '');
-            
-            // 解析表单HTML以获取action和参数
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(cleanHtml, 'text/html');
-            const form = doc.querySelector('form#alipayForm');
-            
-            if (form && form.action) {
-              // 获取表单action和所有input参数
-              const formAction = form.action;
-              const formData = new FormData();
-              
-              // 收集所有隐藏输入字段
-              form.querySelectorAll('input[type="hidden"]').forEach(input => {
-                if (input.name && input.value) {
-                  formData.append(input.name, input.value);
-                }
-              });
-              
-              // 创建form元素并提交
-              const tempForm = document.createElement('form');
-              tempForm.method = 'POST';
-              tempForm.action = formAction;
-              tempForm.target = '_blank';
-              tempForm.style.display = 'none';
-              
-              // 添加所有参数
-              formData.forEach((value, key) => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = key;
-                input.value = value;
-                tempForm.appendChild(input);
-              });
-              
-              document.body.appendChild(tempForm);
-              tempForm.submit();
-              document.body.removeChild(tempForm);
+            const win = window.open('', '_blank')
+            if (win) {
+              win.document.open()
+              win.document.write(response.paymentParams)
+              win.document.close()
               // 保持支付中状态，等待用户完成支付
             } else {
-              // 如果解析失败，回退到原始方法
-              const win = window.open('', '_blank');
-              if (win) {
-                win.document.open();
-                win.document.write(cleanHtml);
-                win.document.close();
-                // 保持支付中状态，等待用户完成支付
-              } else {
-                ElMessage.error('弹窗被拦截，请允许弹窗或改用非弹窗方式支付');
-                paymentStatus.value = 'problem'
-              }
+              ElMessage.error('弹窗被拦截，请允许弹窗或改用非弹窗方式支付')
+              paymentStatus.value = 'problem'
             }
           } catch (e) {
-            console.error('打开支付页面失败', e);
-            ElMessage.error('打开支付页面失败，请重试');
+            console.error('打开支付页面失败', e)
+            ElMessage.error('打开支付页面失败，请重试')
             paymentStatus.value = 'problem'
           }
         } else if (response.qrCodeUrl) {
