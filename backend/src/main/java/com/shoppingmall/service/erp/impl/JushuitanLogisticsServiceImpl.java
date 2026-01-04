@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shoppingmall.dto.JushuitanLogisticsDTO;
+import com.shoppingmall.dto.JushuitanShipCallbackDTO;
 import com.shoppingmall.entity.Order;
 import com.shoppingmall.entity.OrderLogistics;
 import com.shoppingmall.entity.OrderSyncLog;
@@ -225,5 +226,108 @@ public class JushuitanLogisticsServiceImpl implements JushuitanLogisticsService 
             logistics.getLogisticsCompany(),
             logistics.getLogisticsNo()
         );
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean handleShipCallback(JushuitanShipCallbackDTO callbackDTO) {
+        log.info("开始处理ERP发货回调: orderNo={}, logisticsCompany={}, logisticsNo={}",
+                callbackDTO.getOrderNo(), callbackDTO.getLogisticsCompany(), callbackDTO.getLogisticsNo());
+
+        // 根据订单号查询订单
+        Order order = orderRepository.selectOne(
+            new QueryWrapper<Order>().eq("order_no", callbackDTO.getOrderNo())
+        );
+
+        if (order == null) {
+            log.error("ERP发货回调失败：订单不存在, orderNo={}", callbackDTO.getOrderNo());
+            return false;
+        }
+
+        // 记录同步日志
+        OrderSyncLog syncLog = new OrderSyncLog();
+        syncLog.setOrderId(order.getId());
+        syncLog.setOrderNo(order.getOrderNo());
+        syncLog.setSyncType("SHIP_CALLBACK");
+        syncLog.setSyncStatus(2); // 处理中
+        syncLog.setRetryCount(0);
+
+        try {
+            // 记录请求数据
+            syncLog.setRequestData(objectMapper.writeValueAsString(callbackDTO));
+
+            // 检查是否已存在物流记录
+            OrderLogistics existingLogistics = orderLogisticsMapper.selectOne(
+                new QueryWrapper<OrderLogistics>().eq("order_id", order.getId())
+            );
+
+            LocalDateTime shipTime = null;
+            // 解析发货时间
+            if (callbackDTO.getShipTime() != null && !callbackDTO.getShipTime().trim().isEmpty()) {
+                try {
+                    shipTime = LocalDateTime.parse(callbackDTO.getShipTime(), dateTimeFormatter);
+                } catch (Exception e) {
+                    log.warn("解析发货时间失败: {}, 使用当前时间", callbackDTO.getShipTime(), e);
+                    shipTime = LocalDateTime.now();
+                }
+            } else {
+                shipTime = LocalDateTime.now();
+            }
+
+            if (existingLogistics == null) {
+                // 新增物流记录
+                OrderLogistics logistics = new OrderLogistics();
+                logistics.setOrderId(order.getId());
+                logistics.setLogisticsCompany(callbackDTO.getLogisticsCompany());
+                logistics.setLogisticsNo(callbackDTO.getLogisticsNo());
+                logistics.setShippingTime(shipTime);
+                orderLogisticsMapper.insert(logistics);
+
+                log.info("ERP发货回调：新增物流记录成功, orderId={}, logisticsNo={}", order.getId(), callbackDTO.getLogisticsNo());
+            } else {
+                // 更新物流记录
+                existingLogistics.setLogisticsCompany(callbackDTO.getLogisticsCompany());
+                existingLogistics.setLogisticsNo(callbackDTO.getLogisticsNo());
+                existingLogistics.setShippingTime(shipTime);
+                orderLogisticsMapper.updateById(existingLogistics);
+
+                log.info("ERP发货回调：更新物流记录成功, orderId={}, logisticsNo={}", order.getId(), callbackDTO.getLogisticsNo());
+            }
+
+            // 更新订单状态为已发货（如果当前状态是已付款未发货）
+            if (order.getOrderStatus() == 1) { // 已付款未发货
+                order.setOrderStatus(2); // 已发货
+                order.setShipTime(shipTime);
+                orderRepository.updateById(order);
+                log.info("ERP发货回调：订单状态已更新为已发货, orderId={}, orderNo={}", order.getId(), order.getOrderNo());
+            } else if (order.getOrderStatus() == 2) {
+                // 如果已经是已发货状态，只更新发货时间
+                order.setShipTime(shipTime);
+                orderRepository.updateById(order);
+                log.info("ERP发货回调：订单已是已发货状态，仅更新发货时间, orderId={}, orderNo={}", order.getId(), order.getOrderNo());
+            } else {
+                log.warn("ERP发货回调：订单状态不是已付款未发货，跳过状态更新, orderId={}, orderNo={}, orderStatus={}",
+                        order.getId(), order.getOrderNo(), order.getOrderStatus());
+            }
+
+            // 更新同步日志为成功
+            syncLog.setSyncStatus(1); // 成功
+            syncLog.setResponseData("ERP发货回调处理成功");
+            orderSyncLogMapper.insert(syncLog);
+
+            log.info("ERP发货回调处理成功: orderId={}, orderNo={}, logisticsNo={}", order.getId(), order.getOrderNo(), callbackDTO.getLogisticsNo());
+            return true;
+
+        } catch (Exception e) {
+            log.error("ERP发货回调处理失败: orderId={}, orderNo={}", order.getId(), order.getOrderNo(), e);
+
+            // 更新同步日志为失败
+            syncLog.setSyncStatus(0); // 失败
+            syncLog.setErrorCode("CALLBACK_ERROR");
+            syncLog.setResponseData("回调处理失败: " + e.getMessage());
+            orderSyncLogMapper.insert(syncLog);
+
+            return false;
+        }
     }
 }

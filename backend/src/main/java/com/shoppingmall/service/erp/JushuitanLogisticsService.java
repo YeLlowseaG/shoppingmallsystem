@@ -38,4 +38,13 @@ public interface JushuitanLogisticsService {
      * @return 物流状态描述
      */
     String queryLogisticsStatus(Long orderId);
+
+    /**
+     * 处理ERP发货回调
+     * ERP系统发货后通过回调接口通知系统更新订单状态和物流信息
+     *
+     * @param callbackDTO 回调数据
+     * @return 是否处理成功
+     */
+    boolean handleShipCallback(com.shoppingmall.dto.JushuitanShipCallbackDTO callbackDTO);
 }

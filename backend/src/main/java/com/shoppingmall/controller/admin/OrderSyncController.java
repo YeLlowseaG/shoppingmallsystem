@@ -217,6 +217,9 @@ public class OrderSyncController {
                     case "QUERY_ORDER":
                         vo.setSyncTypeDesc("订单查询");
                         break;
+                    case "SHIP_CALLBACK":
+                        vo.setSyncTypeDesc("发货回调");
+                        break;
                     default:
                         vo.setSyncTypeDesc(log.getSyncType());
                 }
@@ -271,6 +274,9 @@ public class OrderSyncController {
                         break;
                     case "QUERY_ORDER":
                         vo.setSyncTypeDesc("订单查询");
+                        break;
+                    case "SHIP_CALLBACK":
+                        vo.setSyncTypeDesc("发货回调");
                         break;
                 }
             }

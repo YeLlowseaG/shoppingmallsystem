@@ -37,7 +37,7 @@ public class OrderSyncLog {
     private String envType;
 
     /**
-     * 同步类型（PUSH_ORDER-推送订单，PULL_LOGISTICS-拉取物流，QUERY_ORDER-查询订单）
+     * 同步类型（PUSH_ORDER-推送订单，PULL_LOGISTICS-拉取物流，QUERY_ORDER-查询订单，SHIP_CALLBACK-发货回调）
      */
     private String syncType;
 

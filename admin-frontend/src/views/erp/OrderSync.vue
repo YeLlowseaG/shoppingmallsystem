@@ -19,6 +19,7 @@
             <el-option label="订单推送" value="PUSH_ORDER" />
             <el-option label="物流拉取" value="PULL_LOGISTICS" />
             <el-option label="订单查询" value="QUERY_ORDER" />
+            <el-option label="发货回调" value="SHIP_CALLBACK" />
           </el-select>
         </el-form-item>
 
@@ -276,7 +277,8 @@ const getSyncTypeTagType = (syncType: string) => {
   const typeMap: Record<string, any> = {
     'PUSH_ORDER': 'primary',
     'PULL_LOGISTICS': 'success',
-    'QUERY_ORDER': 'info'
+    'QUERY_ORDER': 'info',
+    'SHIP_CALLBACK': 'warning'
   }
   return typeMap[syncType] || ''
 }

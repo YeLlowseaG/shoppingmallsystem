@@ -6398,3 +6398,82 @@ if (win) {
 
 - `frontend/src/views/order/Payment.vue`
 - `frontend/src/views/member/DepositRecharge.vue`（参考实现）
+
+## 2025-12-31 - 实现ERP发货回调接口
+
+### 功能说明
+实现ERP发货回调接口，用于接收ERP系统发送的发货物流信息。当ERP系统发货后，会主动调用此接口通知系统更新订单状态和物流信息。
+
+### 业务需求
+- 订单和商品推送到ERP后，需要提供一个回调地址给ERP
+- ERP发货后通过回调接口把发货物流信息发送给系统
+- 系统接收到回调后自动更新订单状态为"已发货"并保存物流信息
+
+### 实现方案
+
+#### 1. 创建回调DTO类
+**文件：** `backend/src/main/java/com/shoppingmall/dto/JushuitanShipCallbackDTO.java`
+
+**字段说明：**
+- `orderNo`: 系统订单号（必填）
+- `erpOrderNo`: ERP订单号（可选）
+- `logisticsCompany`: 物流公司名称（必填）
+- `logisticsNo`: 物流单号（必填）
+- `logisticsCode`: 物流公司编码（可选）
+- `shipTime`: 发货时间，格式：yyyy-MM-dd HH:mm:ss（可选）
+- `sign`: 签名，用于验证（可选）
+
+#### 2. 创建回调Controller
+**文件：** `backend/src/main/java/com/shoppingmall/controller/common/ErpCallbackController.java`
+
+**接口路径：** `POST /api/common/erp/callback/logistics`
+
+**返回格式：** 必须符合ERP平台要求
+```json
+{
+  "code": "0",
+  "msg": "执行成功"
+}
+```
+
+**功能：**
+- 接收ERP发送的发货回调数据
+- 参数验证（订单号、物流公司、物流单号）
+- 调用物流服务处理回调
+- 返回标准格式响应
+
+#### 3. 在物流服务中添加回调处理方法
+**文件：** `backend/src/main/java/com/shoppingmall/service/erp/JushuitanLogisticsService.java`
+**文件：** `backend/src/main/java/com/shoppingmall/service/erp/impl/JushuitanLogisticsServiceImpl.java`
+
+**方法：** `handleShipCallback(JushuitanShipCallbackDTO callbackDTO)`
+
+**处理逻辑：**
+1. 根据订单号查询订单
+2. 创建或更新物流记录（物流公司、物流单号、发货时间）
+3. 更新订单状态为"已发货"（如果当前状态是已付款未发货）
+4. 记录同步日志（类型：SHIP_CALLBACK）
+5. 返回处理结果
+
+### 技术要点
+
+1. **回调接口路径：** 放在 `/api/common/erp/callback/logistics`，因为ERP外部调用，不需要登录验证
+2. **返回格式：** 必须返回 `{"code":"0","msg":"执行成功"}` 格式，符合ERP平台验证要求
+3. **事务处理：** 使用 `@Transactional` 确保数据一致性
+4. **异常处理：** 捕获异常并记录日志，返回错误响应
+5. **日志记录：** 记录同步日志，便于追踪和排查问题
+
+### 使用说明
+
+1. **配置回调地址：** 在ERP平台配置回调地址为：`https://your-domain.com/api/common/erp/callback/logistics`
+2. **ERP发送回调：** ERP发货后会自动调用此接口
+3. **系统处理：** 系统接收到回调后自动更新订单状态和物流信息
+
+### 相关文件
+
+- `backend/src/main/java/com/shoppingmall/dto/JushuitanShipCallbackDTO.java`（新建）
+- `backend/src/main/java/com/shoppingmall/controller/common/ErpCallbackController.java`（新建）
+- `backend/src/main/java/com/shoppingmall/service/erp/JushuitanLogisticsService.java`（修改）
+- `backend/src/main/java/com/shoppingmall/service/erp/impl/JushuitanLogisticsServiceImpl.java`（修改）
+- `admin-frontend/src/views/erp/OrderSync.vue`（修改：添加发货回调类型筛选和标签显示）
+- `database/update-20251231-add-ship-callback-sync-type.sql`（新建：更新表注释）
