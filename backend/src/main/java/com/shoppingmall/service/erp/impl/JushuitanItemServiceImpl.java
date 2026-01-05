@@ -14,12 +14,14 @@ import com.shoppingmall.service.erp.JushuitanItemService;
 import com.shoppingmall.service.product.ProductService;
 import com.shoppingmall.service.sku.ProductSkuService;
 import com.shoppingmall.vo.ProductVO;
+import com.shoppingmall.vo.ProductSkuVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.Resource;
 import java.math.BigDecimal;
 import java.util.*;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 /**
  * 聚水潭商品同步服务实现
@@ -80,20 +82,26 @@ public class JushuitanItemServiceImpl implements JushuitanItemService {
             syncLog.setProductCode(productVO.getProductCode());
             syncLog.setProductName(productVO.getProductName());
 
-            // 3. 转换为聚水潭格式
-            JushuitanItemDTO itemDTO = convertToJushuitanItem(productVO);
+            // 3. 判断是否启用规格，如果启用规格则获取SKU列表，每个SKU单独上传
+            boolean enableSpec = productVO.getEnableSpec() != null && productVO.getEnableSpec() == 1;
+            List<ProductSkuVO> skuList = null;
+            
+            if (enableSpec) {
+                // 获取SKU列表
+                skuList = productSkuService.getSkusByProductId(productId, null);
+                if (skuList == null || skuList.isEmpty()) {
+                    log.warn("商品启用了规格但SKU列表为空: productId={}", productId);
+                    // 如果没有SKU，按普通商品处理
+                    enableSpec = false;
+                }
+            }
 
-            // 4. 构建请求参数 - biz参数的值是包含items数组的JSON对象
-            Map<String, Object> itemsData = new HashMap<>();
-            itemsData.put("items", Collections.singletonList(itemDTO));
-            String bizJson = objectMapper.writeValueAsString(itemsData);
-
-            // 5. 调用聚水潭API - 使用专用接口路径，不需要method参数
+            // 4. 准备API配置
             String apiUrl;
             if ("test".equals(config.getEnvType())) {
                 apiUrl = "https://dev-api.jushuitan.com/open/jushuitan/itemsku/upload";
             } else {
-                apiUrl = "https://api.jushuitan.com/open/jushuitan/itemsku/upload";
+                apiUrl = "https://openapi.jushuitan.com/open/jushuitan/itemsku/upload";
             }
 
             String appKey = getAppKey(config);
@@ -102,66 +110,215 @@ public class JushuitanItemServiceImpl implements JushuitanItemService {
 
             log.info("API地址: {}", apiUrl);
             log.info("App Key: {}", appKey);
-            log.info("商品数据(biz): {}", bizJson);
+            log.info("商品是否启用规格: {}", enableSpec);
 
-            String response = JushuitanHttpUtil.post(
-                apiUrl,
-                appKey,
-                appSecret,
-                accessToken,
-                null,  // 使用专用路径时，method参数传null
-                "biz",  // 参数名改为biz（不是items）
-                bizJson  // biz参数值: {"items":[...]}
-            );
+            // 5. 如果启用规格，每个SKU单独上传
+            if (enableSpec && skuList != null && !skuList.isEmpty()) {
+                int successCount = 0;
+                int totalCount = skuList.size();
+                StringBuilder allErrorMsg = new StringBuilder();
+                
+                // 用于收集所有SKU的请求和响应数据
+                List<Map<String, Object>> allRequestData = new ArrayList<>();
+                List<Map<String, Object>> allResponseData = new ArrayList<>();
 
-            log.info("聚水潭API响应: {}", response);
+                for (ProductSkuVO sku : skuList) {
+                    try {
+                        // 转换为聚水潭格式（带SKU信息）
+                        JushuitanItemDTO itemDTO = convertToJushuitanItemWithSku(productVO, sku);
 
-            // 6. 解析响应
-            Map<String, Object> responseMap = objectMapper.readValue(response, Map.class);
-            Integer code = (Integer) responseMap.get("code");
+                        // 构建请求参数
+                        Map<String, Object> itemsData = new HashMap<>();
+                        itemsData.put("items", Collections.singletonList(itemDTO));
+                        String bizJson = objectMapper.writeValueAsString(itemsData);
 
-            if (code != null && code == 0) {
-                // 检查是否有错误数据
-                Map<String, Object> dataObj = (Map<String, Object>) responseMap.get("data");
-                if (dataObj != null && dataObj.containsKey("datas")) {
-                    List<Map<String, Object>> dataList = (List<Map<String, Object>>) dataObj.get("datas");
-                    if (dataList == null || dataList.isEmpty()) {
-                        log.info("商品上传成功: productId={}, skuId={}", productId, itemDTO.getSkuId());
-                        saveSyncLog(syncLog, bizJson, response, null, null, 1);
-                        return true;
-                    } else {
-                        // 检查是否有失败的数据
-                        boolean hasError = false;
-                        String errorMsg = "";
-                        for (Map<String, Object> errorData : dataList) {
-                            Boolean isSuccess = (Boolean) errorData.get("is_success");
-                            if (isSuccess == null || !isSuccess) {
-                                hasError = true;
-                                String msg = (String) errorData.get("msg");
-                                errorMsg += msg + ";";
-                                log.error("商品上传部分失败: skuId={}, error={}", errorData.get("sku_id"), msg);
-                            }
+                        log.info("上传SKU: skuId={}, skuCode={}, 数据: {}", sku.getId(), sku.getSkuCode(), bizJson);
+
+                        // 记录请求数据
+                        Map<String, Object> requestRecord = new HashMap<>();
+                        requestRecord.put("skuId", sku.getId());
+                        requestRecord.put("skuCode", sku.getSkuCode());
+                        requestRecord.put("request", itemsData);
+                        allRequestData.add(requestRecord);
+
+                        // 调用聚水潭API
+                        String response = JushuitanHttpUtil.post(
+                            apiUrl,
+                            appKey,
+                            appSecret,
+                            accessToken,
+                            null,
+                            "biz",
+                            bizJson
+                        );
+
+                        log.info("聚水潭API响应: {}", response);
+
+                        // 记录响应数据
+                        Map<String, Object> responseRecord = new HashMap<>();
+                        responseRecord.put("skuId", sku.getId());
+                        responseRecord.put("skuCode", sku.getSkuCode());
+                        try {
+                            Map<String, Object> responseMapObj = objectMapper.readValue(response, Map.class);
+                            responseRecord.put("response", responseMapObj);
+                        } catch (Exception e) {
+                            // 如果解析失败，直接保存原始字符串
+                            responseRecord.put("response", response);
                         }
-                        if (hasError) {
-                            saveSyncLog(syncLog, bizJson, response, String.valueOf(code), errorMsg, 0);
-                            return false;
+                        allResponseData.add(responseRecord);
+
+                        // 解析响应
+                        Map<String, Object> responseMap = objectMapper.readValue(response, Map.class);
+                        Integer code = (Integer) responseMap.get("code");
+
+                        if (code != null && code == 0) {
+                            // 检查是否有错误数据
+                            Map<String, Object> dataObj = (Map<String, Object>) responseMap.get("data");
+                            if (dataObj != null && dataObj.containsKey("datas")) {
+                                List<Map<String, Object>> dataList = (List<Map<String, Object>>) dataObj.get("datas");
+                                boolean hasError = false;
+                                for (Map<String, Object> errorData : dataList) {
+                                    Boolean isSuccess = (Boolean) errorData.get("is_success");
+                                    if (isSuccess == null || !isSuccess) {
+                                        hasError = true;
+                                        String msg = (String) errorData.get("msg");
+                                        allErrorMsg.append("SKU ").append(sku.getSkuCode())
+                                                .append(": ").append(msg).append("; ");
+                                        log.error("SKU上传失败: skuId={}, skuCode={}, error={}", 
+                                                sku.getId(), sku.getSkuCode(), msg);
+                                    }
+                                }
+                                if (!hasError) {
+                                    successCount++;
+                                    log.info("SKU上传成功: skuId={}, skuCode={}", sku.getId(), sku.getSkuCode());
+                                }
+                            } else {
+                                successCount++;
+                                log.info("SKU上传成功: skuId={}, skuCode={}", sku.getId(), sku.getSkuCode());
+                            }
                         } else {
+                            String msg = (String) responseMap.get("msg");
+                            allErrorMsg.append("SKU ").append(sku.getSkuCode())
+                                    .append(": ").append(msg).append("; ");
+                            log.error("SKU上传失败: skuId={}, skuCode={}, code={}, msg={}", 
+                                    sku.getId(), sku.getSkuCode(), code, msg);
+                        }
+                    } catch (Exception e) {
+                        log.error("上传SKU到聚水潭失败: skuId={}, skuCode={}", sku.getId(), sku.getSkuCode(), e);
+                        allErrorMsg.append("SKU ").append(sku.getSkuCode())
+                                .append(": ").append(e.getMessage()).append("; ");
+                        
+                        // 即使异常也要记录请求数据
+                        try {
+                            JushuitanItemDTO itemDTO = convertToJushuitanItemWithSku(productVO, sku);
+                            Map<String, Object> itemsData = new HashMap<>();
+                            itemsData.put("items", Collections.singletonList(itemDTO));
+                            Map<String, Object> requestRecord = new HashMap<>();
+                            requestRecord.put("skuId", sku.getId());
+                            requestRecord.put("skuCode", sku.getSkuCode());
+                            requestRecord.put("request", itemsData);
+                            requestRecord.put("error", e.getMessage());
+                            allRequestData.add(requestRecord);
+                        } catch (Exception ex) {
+                            log.warn("记录异常SKU请求数据失败", ex);
+                        }
+                    }
+                }
+
+                // 将所有请求和响应数据合并为JSON字符串
+                String requestDataJson = null;
+                String responseDataJson = null;
+                try {
+                    if (!allRequestData.isEmpty()) {
+                        requestDataJson = objectMapper.writeValueAsString(allRequestData);
+                    }
+                    if (!allResponseData.isEmpty()) {
+                        responseDataJson = objectMapper.writeValueAsString(allResponseData);
+                    }
+                } catch (Exception e) {
+                    log.error("序列化请求/响应数据失败", e);
+                }
+
+                // 保存同步日志
+                String errorMsg = allErrorMsg.length() > 0 ? allErrorMsg.toString() : null;
+                int syncStatus = (successCount == totalCount) ? 1 : 0;
+                saveSyncLog(syncLog, requestDataJson, responseDataJson, 
+                        syncStatus == 1 ? null : "PARTIAL_FAILURE", 
+                        errorMsg, syncStatus);
+
+                log.info("商品SKU批量上传完成: productId={}, total={}, success={}", 
+                        productId, totalCount, successCount);
+                return successCount == totalCount;
+            } else {
+                // 未启用规格，按普通商品上传
+                JushuitanItemDTO itemDTO = convertToJushuitanItem(productVO);
+
+                // 构建请求参数
+                Map<String, Object> itemsData = new HashMap<>();
+                itemsData.put("items", Collections.singletonList(itemDTO));
+                String bizJson = objectMapper.writeValueAsString(itemsData);
+
+                log.info("商品数据(biz): {}", bizJson);
+
+                String response = JushuitanHttpUtil.post(
+                    apiUrl,
+                    appKey,
+                    appSecret,
+                    accessToken,
+                    null,
+                    "biz",
+                    bizJson
+                );
+
+                log.info("聚水潭API响应: {}", response);
+
+                // 解析响应
+                Map<String, Object> responseMap = objectMapper.readValue(response, Map.class);
+                Integer code = (Integer) responseMap.get("code");
+
+                if (code != null && code == 0) {
+                    // 检查是否有错误数据
+                    Map<String, Object> dataObj = (Map<String, Object>) responseMap.get("data");
+                    if (dataObj != null && dataObj.containsKey("datas")) {
+                        List<Map<String, Object>> dataList = (List<Map<String, Object>>) dataObj.get("datas");
+                        if (dataList == null || dataList.isEmpty()) {
                             log.info("商品上传成功: productId={}, skuId={}", productId, itemDTO.getSkuId());
                             saveSyncLog(syncLog, bizJson, response, null, null, 1);
                             return true;
+                        } else {
+                            // 检查是否有失败的数据
+                            boolean hasError = false;
+                            String errorMsg = "";
+                            for (Map<String, Object> errorData : dataList) {
+                                Boolean isSuccess = (Boolean) errorData.get("is_success");
+                                if (isSuccess == null || !isSuccess) {
+                                    hasError = true;
+                                    String msg = (String) errorData.get("msg");
+                                    errorMsg += msg + ";";
+                                    log.error("商品上传部分失败: skuId={}, error={}", errorData.get("sku_id"), msg);
+                                }
+                            }
+                            if (hasError) {
+                                saveSyncLog(syncLog, bizJson, response, String.valueOf(code), errorMsg, 0);
+                                return false;
+                            } else {
+                                log.info("商品上传成功: productId={}, skuId={}", productId, itemDTO.getSkuId());
+                                saveSyncLog(syncLog, bizJson, response, null, null, 1);
+                                return true;
+                            }
                         }
+                    } else {
+                        // 没有data或datas字段，认为成功
+                        log.info("商品上传成功: productId={}, skuId={}", productId, itemDTO.getSkuId());
+                        saveSyncLog(syncLog, bizJson, response, null, null, 1);
+                        return true;
                     }
                 } else {
-                    // 没有data或datas字段，认为成功
-                    log.info("商品上传成功: productId={}, skuId={}", productId, itemDTO.getSkuId());
-                    saveSyncLog(syncLog, bizJson, response, null, null, 1);
-                    return true;
+                    String msg = (String) responseMap.get("msg");
+                    log.error("商品上传失败: code={}, msg={}", code, msg);
+                    saveSyncLog(syncLog, bizJson, response, String.valueOf(code), msg, 0);
+                    return false;
                 }
-            } else {
-                String msg = (String) responseMap.get("msg");
-                log.error("商品上传失败: code={}, msg={}", code, msg);
-                saveSyncLog(syncLog, bizJson, response, String.valueOf(code), msg, 0);
-                return false;
             }
 
         } catch (Exception e) {
@@ -226,15 +383,133 @@ public class JushuitanItemServiceImpl implements JushuitanItemService {
     }
 
     /**
-     * 将商品转换为聚水潭格式
+     * 将商品转换为聚水潭格式（未启用规格的商品）
      */
     private JushuitanItemDTO convertToJushuitanItem(ProductVO product) {
         JushuitanItemDTO dto = new JushuitanItemDTO();
 
         // 三个必填字段
-        dto.setSkuId(String.valueOf(product.getId()));  // 商品编码（必填）
+        dto.setSkuId(product.getProductCode());  // 商品编码（必填）- 使用productCode
         dto.setIId(product.getProductCode());  // 款式编码（必填）
         dto.setName(product.getProductName());  // 商品名称（必填）
+
+        // brand字段：传品牌名称
+        if (product.getBrandName() != null && !product.getBrandName().isEmpty()) {
+            dto.setBrand(product.getBrandName());
+        }
+
+        // s_price字段：传商品的基础价
+        if (product.getBasePrice() != null) {
+            dto.setSPrice(product.getBasePrice());
+        }
+
+        // market_price字段：传商品的市场零售价
+        if (product.getMarketRetailPrice() != null) {
+            dto.setMarketPrice(product.getMarketRetailPrice());
+        }
+
+        // unit字段：传商品的计量单位
+        if (product.getUnit() != null && !product.getUnit().isEmpty()) {
+            dto.setUnit(product.getUnit());
+        }
+
+        // weight字段：未启用规格时，获取商品表(product)的重量字段数据，转换为kg传值
+        if (product.getWeight() != null) {
+            // 将g转换为kg（商品表weight字段单位：g）
+            BigDecimal weightInKg = product.getWeight().divide(new BigDecimal("1000"), 3, BigDecimal.ROUND_HALF_UP);
+            dto.setWeight(weightInKg);
+        }
+
+        // properties_value字段：未启用规格时不传
+
+        return dto;
+    }
+
+    /**
+     * 将商品和SKU转换为聚水潭格式（启用规格的商品）
+     */
+    private JushuitanItemDTO convertToJushuitanItemWithSku(ProductVO product, ProductSkuVO sku) {
+        JushuitanItemDTO dto = new JushuitanItemDTO();
+
+        // 三个必填字段
+        // sku_id使用SKU编码，如果没有则使用商品编码+SKU ID
+        String skuId = sku.getSkuCode();
+        if (skuId == null || skuId.isEmpty()) {
+            skuId = product.getProductCode() + "_" + sku.getId();
+        }
+        dto.setSkuId(skuId);
+        dto.setIId(product.getProductCode());  // 款式编码（必填）
+        dto.setName(product.getProductName());  // 商品名称（必填）
+
+        // brand字段：传品牌名称
+        if (product.getBrandName() != null && !product.getBrandName().isEmpty()) {
+            dto.setBrand(product.getBrandName());
+        }
+
+        // s_price字段：如果启用SKU，优先使用SKU的基础价；否则使用商品的基础价
+        if (sku.getPrice() != null) {
+            dto.setSPrice(sku.getPrice());
+        } else if (product.getBasePrice() != null) {
+            dto.setSPrice(product.getBasePrice());
+        }
+
+        // market_price字段：如果启用SKU，则获取SKU的市场零售价字段值
+        if (sku.getMarketRetailPrice() != null) {
+            dto.setMarketPrice(sku.getMarketRetailPrice());
+        } else if (product.getMarketRetailPrice() != null) {
+            // 如果SKU没有市场零售价，使用商品的市场零售价
+            dto.setMarketPrice(product.getMarketRetailPrice());
+        }
+
+        // unit字段：传商品的计量单位
+        if (product.getUnit() != null && !product.getUnit().isEmpty()) {
+            dto.setUnit(product.getUnit());
+        }
+
+        // weight字段：启用SKU时，优先读取product_sku表的重量字段，如果没有则使用商品表(product)的重量字段，转换为kg传值
+        BigDecimal weightInGrams = null;
+        if (sku.getWeight() != null) {
+            // 优先使用product_sku表的weight字段（单位：g）
+            weightInGrams = sku.getWeight();
+        } else if (product.getWeight() != null) {
+            // 如果SKU没有重量，使用商品表(product)的weight字段（单位：g）
+            weightInGrams = product.getWeight();
+        }
+        if (weightInGrams != null) {
+            // 将g转换为kg
+            BigDecimal weightInKg = weightInGrams.divide(new BigDecimal("1000"), 3, BigDecimal.ROUND_HALF_UP);
+            dto.setWeight(weightInKg);
+        }
+
+        // properties_value字段：如果启用商品规格，则获取"规格属性+规格值"拼接传输
+        // 根据接口文档示例"properties_value": "蓝色;XXL"，格式为：值1;值2（用分号分隔）
+        // 但用户要求"规格属性+规格值"，理解为：属性名:值1;属性名:值2
+        // 按照用户要求，拼接为"属性:值"格式，例如"颜色:蓝色;尺码:XXL"
+        if (sku.getSpecCombination() != null && !sku.getSpecCombination().isEmpty()) {
+            try {
+                // 解析specCombination JSON字符串，格式如：{"颜色":"蓝色","尺码":"XXL"}
+                Map<String, String> specMap = objectMapper.readValue(
+                    sku.getSpecCombination(), 
+                    new TypeReference<Map<String, String>>() {}
+                );
+                
+                // 按照用户要求"规格属性+规格值"，拼接为"属性:值"格式
+                List<String> specParts = new ArrayList<>();
+                for (Map.Entry<String, String> entry : specMap.entrySet()) {
+                    // 格式：属性名:值，例如"颜色:蓝色"
+                    specParts.add(entry.getKey() + ":" + entry.getValue());
+                }
+                
+                if (!specParts.isEmpty()) {
+                    // 用分号连接，例如"颜色:蓝色;尺码:XXL"
+                    String propertiesValue = String.join(";", specParts);
+                    dto.setPropertiesValue(propertiesValue);
+                }
+            } catch (Exception e) {
+                log.warn("解析SKU规格组合失败: skuId={}, specCombination={}", sku.getId(), sku.getSpecCombination(), e);
+                // 如果解析失败，不设置properties_value字段
+            }
+        }
 
         return dto;
     }

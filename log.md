@@ -1,5 +1,57 @@
 # 修改日志
 
+## 2025-12-30 - 修改结算页面运费计算逻辑，根据商品是否启用SKU选择重量来源
+
+### 功能说明
+修改结算页面的运费计算逻辑，根据商品是否启用多个规格SKU来决定使用商品表还是SKU表的重量字段来计算运费。
+
+### 修改原因
+用户反馈结算页面的运费计算逻辑需要优化：
+- 如果商品没有启用多个规格sku，则获取商品表重量字段的数据
+- 如果启用sku，则读取product_sku表的重量字段来计算运费
+
+### 修改内容
+
+#### 1. 购物车服务重量获取逻辑
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/buyer/impl/CartServiceImpl.java`
+- 修改 `convertToVO` 方法中的重量获取逻辑
+- 根据 `product.getEnableSpec()` 判断是否启用多个规格SKU：
+  - 如果 `enableSpec == 0`（未启用规格），使用商品表（`product.weight`）的重量字段
+  - 如果 `enableSpec == 1`（启用规格），使用SKU表（`product_sku.weight`）的重量字段
+  - 如果启用规格但SKU没有重量，则使用商品表的重量作为兜底
+
+#### 2. 订单服务重量获取逻辑
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java`
+- 修改订单创建时的重量获取逻辑
+- 根据 `product.getEnableSpec()` 判断是否启用多个规格SKU：
+  - 如果 `enableSpec == 0`（未启用规格），使用商品表（`product.weight`）的重量字段
+  - 如果 `enableSpec == 1`（启用规格），使用SKU表（`product_sku.weight`）的重量字段
+  - 如果启用规格但SKU没有重量，则使用商品表的重量作为兜底
+
+### 业务逻辑
+
+1. **未启用规格的商品**（`enableSpec == 0`）：
+   - 使用商品表的 `weight` 字段（Integer类型，单位：克）
+   - 转换为 BigDecimal 类型用于计算
+
+2. **启用规格的商品**（`enableSpec == 1`）：
+   - 优先使用SKU表的 `weight` 字段（BigDecimal类型，单位：克）
+   - 如果SKU没有重量，则使用商品表的重量作为兜底
+
+### 影响范围
+
+- ✅ 购物车商品列表：重量字段根据商品是否启用SKU正确获取
+- ✅ 订单结算页面：运费计算时使用的重量数据来源正确
+- ✅ 订单创建：订单商品快照中的重量数据来源正确
+
+### 注意事项
+
+1. **重量单位**：商品表和SKU表的重量单位都是克（g），计算运费时需要转换为千克（kg）
+2. **数据一致性**：确保启用规格的商品，其SKU都有正确的重量数据
+3. **兜底机制**：如果启用规格但SKU没有重量，会使用商品表的重量，确保运费计算的连续性
+
 ## 2025-12-30 - 添加运费计算详细日志用于问题排查
 
 ### 功能说明
@@ -6477,3 +6529,46 @@ if (win) {
 - `backend/src/main/java/com/shoppingmall/service/erp/impl/JushuitanLogisticsServiceImpl.java`（修改）
 - `admin-frontend/src/views/erp/OrderSync.vue`（修改：添加发货回调类型筛选和标签显示）
 - `database/update-20251231-add-ship-callback-sync-type.sql`（新建：更新表注释）
+
+---
+
+## 2025-01-XX - 商品SKU列表增加重量字段
+
+### 修改内容
+
+在商品新增、编辑页面的SKU列表中增加重量字段，支持读取、编辑和保存。
+
+#### 1. 编辑页面（ProductManage.vue）
+
+- **SKU列表表格**：已包含重量字段列（第547-558行），使用`el-input-number`组件，支持输入数字，精度为2位小数
+- **加载SKU数据**：在`loadCurrentSkuData`函数中显式设置`weight`字段，确保从数据库读取的重量值正确显示（第1811行）
+- **保存SKU数据**：在`handleSubmit`和`saveSkuChanges`函数中，确保weight字段被正确保存到数据库（第1530行、第2005行）
+- **生成SKU列表**：在`generateEditSkuList`函数中，从商品基础重量字段复制到SKU重量字段（第1745行）
+
+#### 2. 新增页面（Add.vue）
+
+- **SKU列表表格**：已包含重量字段列（第363-374行），使用`el-input-number`组件，支持输入数字，精度为2位小数
+- **生成SKU列表**：在`generateSkuList`函数中，从商品基础重量字段复制到SKU重量字段（第839行）
+- **保存SKU数据**：在`handleSubmit`和`handleSaveAsDraft`函数中，添加了保存SKU数据的逻辑，确保在创建商品后，如果启用了规格，会保存SKU数据（包括weight字段）
+
+#### 3. SKU管理对话框（ProductManage.vue）
+
+- **SKU管理表格**：已包含重量字段列（第814-824行），使用`el-input-number`组件，支持输入数字，精度为2位小数
+- **保存SKU数据**：在`saveSkuChanges`函数中，确保weight字段被正确保存到数据库（第2005行）
+
+### 技术细节
+
+1. **重量字段类型**：使用`BigDecimal`类型存储，支持小数
+2. **默认值处理**：如果weight为`null`或`undefined`，默认设置为0
+3. **数据验证**：使用`el-input-number`组件的`:min="0"`属性，确保输入值不能小于0
+4. **精度控制**：使用`:precision="2"`属性，限制小数位数为2位
+
+### 相关文件
+
+- `admin-frontend/src/views/product/ProductManage.vue`（修改：确保weight字段在所有位置都被正确处理）
+- `admin-frontend/src/views/product/Add.vue`（修改：添加保存SKU数据的逻辑，确保weight字段被正确保存）
+
+### 后续优化（2025-01-XX）
+
+- **调整重量字段列位置**：将重量字段列从"警戒库存"之后移到"库存"之后、"警戒库存"之前，使其更容易看到
+- **优化输入体验**：为重量字段添加`:step="0.01"`属性，使输入更加方便

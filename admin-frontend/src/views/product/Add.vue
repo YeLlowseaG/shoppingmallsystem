@@ -349,23 +349,24 @@
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="警戒库存" min-width="120">
-                  <template #default="{ row, $index }">
-                    <el-input-number
-                      v-model="row.warningStock"
-                      :min="0"
-                      size="small"
-                      controls-position="right"
-                      style="width: 100%"
-                    />
-                  </template>
-                </el-table-column>
                 <el-table-column label="重量(g)" min-width="120">
                   <template #default="{ row, $index }">
                     <el-input-number
                       v-model="row.weight"
                       :min="0"
                       :precision="2"
+                      :step="0.01"
+                      size="small"
+                      controls-position="right"
+                      style="width: 100%"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column label="警戒库存" min-width="120">
+                  <template #default="{ row, $index }">
+                    <el-input-number
+                      v-model="row.warningStock"
+                      :min="0"
                       size="small"
                       controls-position="right"
                       style="width: 100%"
@@ -490,6 +491,7 @@ import type { FormInstance, FormRules, UploadFile, UploadUserFile } from 'elemen
 import { createProduct } from '@/api/admin/product'
 import { getCategoryTree } from '@/api/admin/productCategory'
 import { getBrandOptions } from '@/api/admin/brand'
+import { batchCreateSkus, type ProductSkuDTO } from '@/api/admin/sku'
 import request from '@/utils/request'
 import RichTextEditor from '@/components/common/RichTextEditor.vue'
 
@@ -678,7 +680,7 @@ const handleSubmit = async () => {
           .map(file => file.url || (file.response as any)?.data?.url)
           .filter(url => url)
 
-        await createProduct({
+        const productId = await createProduct({
           productName: productForm.value.productName,
           categoryId: categoryId,
           productCode: productForm.value.productCode,
@@ -699,6 +701,26 @@ const handleSubmit = async () => {
           status: productForm.value.status,
           enableSpec: productForm.value.enableSpec ? 1 : 0
         })
+        
+        // 如果启用了规格，保存SKU数据
+        if (productForm.value.enableSpec && skuList.value.length > 0) {
+          const skuDTOs: ProductSkuDTO[] = skuList.value.map(sku => ({
+            productId: productId,
+            skuCode: sku.skuCode,
+            specCombination: sku.specCombination,
+            price: sku.price,
+            suggestedRetailPrice: sku.suggestedRetailPrice || 0,
+            marketRetailPrice: sku.marketRetailPrice || 0,
+            memberPrice: sku.memberPrice || 0,
+            enableMemberPrice: sku.enableMemberPrice || 0,
+            stock: sku.stock || 0,
+            warningStock: sku.warningStock || 0,
+            weight: sku.weight || 0,
+            status: sku.status || 1
+          }))
+          await batchCreateSkus(skuDTOs)
+        }
+        
         ElMessage.success('商品发布成功！')
         router.push('/admin/product/list')
       } catch (error) {
@@ -736,7 +758,7 @@ const handleSaveAsDraft = async () => {
       .map(file => file.url || (file.response as any)?.data?.url)
       .filter(url => url)
 
-    await createProduct({
+    const productId = await createProduct({
       productName: productForm.value.productName,
       categoryId: categoryId,
       productCode: productForm.value.productCode,
@@ -757,6 +779,25 @@ const handleSaveAsDraft = async () => {
       status: '草稿',
       enableSpec: productForm.value.enableSpec ? 1 : 0
     })
+
+    // 如果启用了规格，保存SKU数据
+    if (productForm.value.enableSpec && skuList.value.length > 0) {
+      const skuDTOs: ProductSkuDTO[] = skuList.value.map(sku => ({
+        productId: productId,
+        skuCode: sku.skuCode,
+        specCombination: sku.specCombination,
+        price: sku.price,
+        suggestedRetailPrice: sku.suggestedRetailPrice || 0,
+        marketRetailPrice: sku.marketRetailPrice || 0,
+        memberPrice: sku.memberPrice || 0,
+        enableMemberPrice: sku.enableMemberPrice || 0,
+        stock: sku.stock || 0,
+        warningStock: sku.warningStock || 0,
+        weight: sku.weight || 0,
+        status: sku.status || 1
+      }))
+      await batchCreateSkus(skuDTOs)
+    }
 
     ElMessage.success('草稿保存成功！')
     router.push('/admin/product/list')

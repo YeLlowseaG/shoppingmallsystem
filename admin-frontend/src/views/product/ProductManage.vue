@@ -533,23 +533,24 @@
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="警戒库存" min-width="120">
-                  <template #default="{ row, $index }">
-                    <el-input-number
-                      v-model="row.warningStock"
-                      :min="0"
-                      size="small"
-                      controls-position="right"
-                      style="width: 100%"
-                    />
-                  </template>
-                </el-table-column>
                 <el-table-column label="重量(g)" min-width="120">
                   <template #default="{ row, $index }">
                     <el-input-number
                       v-model="row.weight"
                       :min="0"
                       :precision="2"
+                      :step="0.01"
+                      size="small"
+                      controls-position="right"
+                      style="width: 100%"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column label="警戒库存" min-width="120">
+                  <template #default="{ row, $index }">
+                    <el-input-number
+                      v-model="row.warningStock"
+                      :min="0"
                       size="small"
                       controls-position="right"
                       style="width: 100%"
@@ -1808,6 +1809,8 @@ const loadCurrentSkuData = async () => {
         ...sku,
         specCombinationText: specTexts.join(', '),
         stock: sku.stock ?? 0,
+        warningStock: sku.warningStock ?? 0,
+        weight: sku.weight ?? 0,
         status: sku.status || 1
       }
     })

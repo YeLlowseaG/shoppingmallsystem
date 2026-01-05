@@ -170,20 +170,28 @@ public class OrderServiceImpl implements OrderService {
             BigDecimal memberPrice;
             BigDecimal weight;
             
+            // 设置商品重量（根据是否启用多个规格SKU来决定使用哪个表的重量）
+            // 如果商品没有启用多个规格sku（enableSpec == 0），则获取商品表重量字段的数据
+            // 如果启用sku（enableSpec == 1），则读取product_sku表的重量字段来计算运费
+            boolean enableSpec = product.getEnableSpec() != null && product.getEnableSpec() == 1;
+            if (enableSpec && sku != null) {
+                // 启用SKU，使用SKU表的重量
+                if (sku.getWeight() != null) {
+                    weight = sku.getWeight();
+                } else {
+                    // SKU没有重量，使用商品表的重量作为兜底
+                    weight = product.getWeight() != null ? BigDecimal.valueOf(product.getWeight().longValue()) : BigDecimal.ZERO;
+                }
+            } else {
+                // 没有启用SKU，使用商品表的重量
+                weight = product.getWeight() != null ? BigDecimal.valueOf(product.getWeight().longValue()) : BigDecimal.ZERO;
+            }
+            
             if (sku != null) {
                 // 有SKU，使用SKU的价格
                 salesPrice = sku.getPrice();
                 if (salesPrice == null) {
                     throw new BusinessException(400, "SKU价格未设置: productId=" + itemDTO.getProductId() + ", skuId=" + itemDTO.getSkuId());
-                }
-                
-                // 设置SKU重量（如果SKU有重量，优先使用SKU重量）
-                // ProductSku.weight 是 BigDecimal 类型，直接使用
-                if (sku.getWeight() != null) {
-                    weight = sku.getWeight();
-                } else {
-                    // SKU没有重量，使用商品的重量
-                    weight = product.getWeight() != null ? BigDecimal.valueOf(product.getWeight().longValue()) : BigDecimal.ZERO;
                 }
                 
                 // 计算会员价格：优先使用SKU配置的会员价
@@ -194,10 +202,6 @@ public class OrderServiceImpl implements OrderService {
                 if (salesPrice == null) {
                     throw new BusinessException(400, "商品价格未设置: " + product.getProductName());
                 }
-                
-                // 设置商品重量（从商品表获取，单位：克）
-                // Product.weight 是 Integer 类型，需要转换为 BigDecimal
-                weight = product.getWeight() != null ? BigDecimal.valueOf(product.getWeight().longValue()) : BigDecimal.ZERO;
                 
                 // 计算会员价格：优先使用商品配置的会员价
                 memberPrice = calculateMemberPriceForProduct(product, salesPrice, userId);
