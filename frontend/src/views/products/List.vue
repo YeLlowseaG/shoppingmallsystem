@@ -148,8 +148,8 @@ const sortOptions = [
   { label: '综合', value: 'default' },
   { label: '价格', value: 'price_asc' },
   { label: '价格', value: 'price_desc' },
-  { label: '销量', value: 'sales' },
-  { label: '最新', value: 'newest' }
+  { label: '销量', value: 'sales_desc' },
+  { label: '最新', value: 'create_time_desc' }
 ]
 
 const currentSort = ref('default')

@@ -12,6 +12,7 @@ export interface SystemConfig {
   configName: string
   configDesc?: string
   configType: string // text/textarea/image/number
+  category?: string // site-网站基础, payment-支付配置, app-应用配置, mail-邮件配置, order-订单配置, wechat.work-企业微信
   sortOrder: number
   status: number // 0-禁用，1-启用
   createTime?: string
@@ -32,10 +33,11 @@ export interface PageResponse<T> {
 export const getSystemConfigPage = (
   current: number,
   size: number,
-  configKey?: string
+  configKey?: string,
+  category?: string
 ): Promise<PageResponse<SystemConfig>> => {
   return request.get('/api/admin/system/config/page', {
-    params: { current, size, configKey }
+    params: { current, size, configKey, category }
   })
 }
 

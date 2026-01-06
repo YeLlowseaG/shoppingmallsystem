@@ -30,8 +30,9 @@ public class SystemConfigController {
     public Result<Page<SystemConfig>> getSystemConfigPage(
             @RequestParam(defaultValue = "1") Long current,
             @RequestParam(defaultValue = "20") Long size,
-            @RequestParam(required = false) String configKey) {
-        Page<SystemConfig> page = systemConfigService.getSystemConfigPage(current, size, configKey);
+            @RequestParam(required = false) String configKey,
+            @RequestParam(required = false) String category) {
+        Page<SystemConfig> page = systemConfigService.getSystemConfigPage(current, size, configKey, category);
         return Result.success("获取成功", page);
     }
 

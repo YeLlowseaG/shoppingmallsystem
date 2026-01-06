@@ -1,7 +1,7 @@
 <template>
   <footer class="footer">
-    <!-- 服务保障 -->
-    <div class="service-bar">
+    <!-- 服务保障 - 已屏蔽 -->
+    <!-- <div class="service-bar">
       <div class="container">
         <div class="service-item">
           <div class="icon-circle">正</div>
@@ -21,40 +21,31 @@
         </div>
         <el-button type="danger" class="contact-btn">查看详情</el-button>
       </div>
-    </div>
+    </div> -->
 
     <!-- 底部信息 -->
     <div class="footer-info">
       <div class="container">
         <div class="footer-content">
-          <!-- 左侧链接 -->
+          <!-- 动态加载的帮助中心分类 -->
           <div class="links">
-            <div class="link-group">
-              <h4>购物指南</h4>
-              <a href="#">体贴的售后服务</a>
-              <a href="#">网站使用条款</a>
-              <a href="#">网站免责声明</a>
-              <a href="#">简单的购物流程</a>
+            <div 
+              v-for="category in footerCategories" 
+              :key="category.id"
+              class="link-group"
+            >
+              <h4>{{ category.name }}</h4>
+              <a 
+                v-for="article in category.articles" 
+                :key="article.id"
+                href="#"
+                @click.prevent="goToArticle(article.id)"
+              >
+                {{ article.title }}
+              </a>
             </div>
-            <div class="link-group">
-              <h4>新手上路</h4>
-              <a href="#">顾客必读</a>
-              <a href="#">会员等级折扣</a>
-              <a href="#">订单的几种状态</a>
-              <a href="#">积分奖励计划</a>
-            </div>
-            <div class="link-group">
-              <h4>购物条款</h4>
-              <a href="#">会员注册协议</a>
-              <a href="#">隐私保护政策</a>
-            </div>
-            <div class="link-group">
-              <h4>支付/配送方式</h4>
-              <a href="#">支付方式</a>
-              <a href="#">配送方式</a>
-              <a href="#">订单何时出库？</a>
-              <a href="#">网上支付小贴士</a>
-            </div>
+            
+            <!-- 备案号（静态内容） -->
             <div class="link-group">
               <h4>备案号</h4>
               <a href="#">粤ICP备11098444号</a>
@@ -69,8 +60,87 @@
 </template>
 
 <script setup lang="ts">
-// 暂时移除图标导入，如果图标不存在会导致页面空白
-// import { LocationFilled, UserFilled, Wallet } from '@element-plus/icons-vue'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { getHelpCategories, getHelpArticlesByCategory, type HelpCategory, type HelpArticle } from '@/api/common/help'
+
+const router = useRouter()
+
+interface FooterCategory {
+  id: number
+  name: string
+  articles: HelpArticle[]
+}
+
+const footerCategories = ref<FooterCategory[]>([])
+
+// 加载页脚数据
+const loadFooterData = async () => {
+  try {
+    // 获取所有分类
+    const allCategories = await getHelpCategories()
+    
+    // 只取前4个顶级分类（parentId为0或没有parentId的分类）
+    const topCategories = allCategories.slice(0, 4)
+    
+    // 为每个分类加载文章
+    const categoriesWithArticles = await Promise.all(
+      topCategories.map(async (category) => {
+        try {
+          let allArticles: HelpArticle[] = []
+          
+          if (category.children && category.children.length > 0) {
+            // 如果分类有子分类，聚合所有子分类的文章
+            const subCategoryArticles = await Promise.all(
+              category.children.map(subCategory => 
+                getHelpArticlesByCategory(subCategory.id).catch(() => [])
+              )
+            )
+            // 合并所有子分类的文章
+            allArticles = subCategoryArticles.flat()
+          } else {
+            // 如果没有子分类，直接获取分类本身的文章
+            allArticles = await getHelpArticlesByCategory(category.id)
+          }
+          
+          // 按sort排序，然后取前4条
+          allArticles.sort((a, b) => (a.sort || 0) - (b.sort || 0))
+          
+          return {
+            id: category.id,
+            name: category.name,
+            articles: allArticles.slice(0, 4) // 最多显示4条
+          }
+        } catch (error) {
+          console.error(`加载分类 ${category.name} 的文章失败:`, error)
+          return {
+            id: category.id,
+            name: category.name,
+            articles: []
+          }
+        }
+      })
+    )
+    
+    footerCategories.value = categoriesWithArticles
+  } catch (error) {
+    console.error('加载页脚数据失败:', error)
+    // 失败时使用空数组，不显示内容
+    footerCategories.value = []
+  }
+}
+
+// 跳转到文章详情
+const goToArticle = (articleId: number) => {
+  router.push({
+    path: '/help',
+    query: { articleId }
+  })
+}
+
+onMounted(() => {
+  loadFooterData()
+})
 </script>
 
 <style scoped lang="scss">
@@ -141,12 +211,13 @@
 
     .footer-content {
       display: flex;
-      justify-content: space-between;
+      justify-content: center;
       margin-bottom: 30px;
 
       .links {
         display: flex;
         gap: 40px;
+        justify-content: center;
 
         .link-group {
           h4 {

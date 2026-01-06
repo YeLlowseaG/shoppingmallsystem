@@ -20,9 +20,10 @@ public interface SystemConfigService {
      * @param current 当前页
      * @param size 每页大小
      * @param configKey 配置键（可选）
+     * @param category 配置分类（可选）
      * @return 系统配置分页列表
      */
-    Page<SystemConfig> getSystemConfigPage(Long current, Long size, String configKey);
+    Page<SystemConfig> getSystemConfigPage(Long current, Long size, String configKey, String category);
 
     /**
      * 根据配置键获取配置值

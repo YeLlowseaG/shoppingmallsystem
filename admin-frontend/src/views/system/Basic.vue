@@ -19,6 +19,22 @@
             @keyup.enter="handleSearch"
           />
         </el-form-item>
+        <el-form-item label="分类">
+          <el-select
+            v-model="searchForm.category"
+            placeholder="请选择分类"
+            clearable
+            style="width: 150px"
+          >
+            <el-option label="全部" :value="undefined" />
+            <el-option label="网站基础" value="site" />
+            <el-option label="支付配置" value="payment" />
+            <el-option label="应用配置" value="app" />
+            <el-option label="邮件配置" value="mail" />
+            <el-option label="订单配置" value="order" />
+            <el-option label="企业微信" value="wechat.work" />
+          </el-select>
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">搜索</el-button>
           <el-button @click="handleReset">重置</el-button>
@@ -30,6 +46,13 @@
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="configName" label="配置名称" width="150" />
         <el-table-column prop="configKey" label="配置键" width="200" />
+        <el-table-column prop="category" label="分类" width="120">
+          <template #default="{ row }">
+            <el-tag :type="getCategoryTagType(row.category)" size="small">
+              {{ getCategoryText(row.category) }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="configValue" label="配置值" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
             <div v-if="row.configType === 'image'" class="image-preview">
@@ -116,6 +139,16 @@
             <el-option label="多行文本" value="textarea" />
             <el-option label="图片" value="image" />
             <el-option label="数字" value="number" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="配置分类">
+          <el-select v-model="formData.category" placeholder="请选择分类" clearable style="width: 100%">
+            <el-option label="网站基础" value="site" />
+            <el-option label="支付配置" value="payment" />
+            <el-option label="应用配置" value="app" />
+            <el-option label="邮件配置" value="mail" />
+            <el-option label="订单配置" value="order" />
+            <el-option label="企业微信" value="wechat.work" />
           </el-select>
         </el-form-item>
         <el-form-item label="配置值" prop="configValue">
@@ -222,7 +255,8 @@ import {
 
 // 搜索表单
 const searchForm = ref({
-  configKey: ''
+  configKey: '',
+  category: undefined as string | undefined
 })
 
 // 分页
@@ -246,6 +280,7 @@ const formData = ref<SystemConfig>({
   configName: '',
   configDesc: '',
   configType: 'text',
+  category: undefined,
   sortOrder: 0,
   status: 1
 })
@@ -280,13 +315,42 @@ const getTypeText = (type: string) => {
   return typeMap[type] || '未知'
 }
 
+// 获取分类标签类型
+const getCategoryTagType = (category?: string) => {
+  if (!category) return ''
+  const categoryMap: Record<string, string> = {
+    site: 'success',
+    payment: 'warning',
+    app: 'info',
+    mail: '',
+    order: 'danger',
+    'wechat.work': 'success'
+  }
+  return categoryMap[category] || ''
+}
+
+// 获取分类文本
+const getCategoryText = (category?: string) => {
+  if (!category) return '-'
+  const categoryMap: Record<string, string> = {
+    site: '网站基础',
+    payment: '支付配置',
+    app: '应用配置',
+    mail: '邮件配置',
+    order: '订单配置',
+    'wechat.work': '企业微信'
+  }
+  return categoryMap[category] || category
+}
+
 // 加载配置列表
 const loadConfigList = async () => {
   try {
     const res = await getSystemConfigPage(
       pagination.value.current,
       pagination.value.size,
-      searchForm.value.configKey || undefined
+      searchForm.value.configKey || undefined,
+      searchForm.value.category
     )
     configList.value = res.records
     pagination.value.total = res.total
@@ -304,7 +368,8 @@ const handleSearch = () => {
 // 重置
 const handleReset = () => {
   searchForm.value = {
-    configKey: ''
+    configKey: '',
+    category: undefined
   }
   handleSearch()
 }
@@ -317,6 +382,7 @@ const handleAdd = () => {
     configName: '',
     configDesc: '',
     configType: 'text',
+    category: undefined,
     sortOrder: 0,
     status: 1
   }

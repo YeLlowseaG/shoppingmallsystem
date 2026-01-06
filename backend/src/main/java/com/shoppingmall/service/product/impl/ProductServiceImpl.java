@@ -122,11 +122,15 @@ public class ProductServiceImpl implements ProductService {
                     break;
                 case "default":
                 default:
-                    wrapper.orderByDesc(Product::getCreateTime);
+                    // 综合排序：先按销量降序，销量相同时按创建时间降序（新品优先）
+                    wrapper.orderByDesc(Product::getSalesCount)
+                           .orderByDesc(Product::getCreateTime);
                     break;
             }
         } else {
-            wrapper.orderByDesc(Product::getCreateTime);
+            // 默认综合排序：先按销量降序，销量相同时按创建时间降序
+            wrapper.orderByDesc(Product::getSalesCount)
+                   .orderByDesc(Product::getCreateTime);
         }
 
         Page<Product> productPage = productRepository.selectPage(page, wrapper);

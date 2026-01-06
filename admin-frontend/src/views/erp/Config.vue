@@ -61,9 +61,19 @@
           <div class="form-tip">测试环境的店铺ID，用于测试环境调试</div>
         </el-form-item>
 
+        <el-form-item v-if="form.envType === 'test'" label="物流同步回调地址" prop="testCallbackUrl">
+          <el-input v-model="form.testCallbackUrl" placeholder="请输入测试环境物流同步回调地址" />
+          <div class="form-tip">测试环境回调地址，ERP发货后会调用此地址通知系统，例如：https://your-domain.com/api/common/erp/callback/logistics</div>
+        </el-form-item>
+
         <el-form-item v-if="form.envType === 'production'" label="店铺ID" prop="shopId">
           <el-input v-model="form.shopId" placeholder="请输入生产环境店铺ID（必填）" />
           <div class="form-tip">生产环境的店铺ID，正式业务使用</div>
+        </el-form-item>
+
+        <el-form-item v-if="form.envType === 'production'" label="物流同步回调地址" prop="callbackUrl">
+          <el-input v-model="form.callbackUrl" placeholder="请输入生产环境物流同步回调地址" />
+          <div class="form-tip">生产环境回调地址，ERP发货后会调用此地址通知系统，例如：https://your-domain.com/api/common/erp/callback/logistics</div>
         </el-form-item>
 
         <el-form-item label="启用状态">
@@ -124,7 +134,15 @@
           <li><strong>手动操作：</strong>在订单列表页面可以手动推送订单或拉取物流信息</li>
         </ul>
 
-        <h4>5. 注意事项</h4>
+        <h4>5. 物流同步回调地址</h4>
+        <ul>
+          <li><strong>回调地址：</strong>ERP发货后会自动调用此地址，通知系统更新订单状态和物流信息</li>
+          <li><strong>接口路径：</strong>系统固定为 <code>/api/common/erp/callback/logistics</code></li>
+          <li><strong>完整地址：</strong>需要在聚水潭ERP后台配置完整的回调URL，例如：<code>https://your-domain.com/api/common/erp/callback/logistics</code></li>
+          <li><strong>注意事项：</strong>回调地址必须是公网可访问的URL，本地开发需要使用内网穿透工具（如ngrok）</li>
+        </ul>
+
+        <h4>6. 注意事项</h4>
         <ul>
           <li>保存配置前请先测试连接，确保配置正确</li>
           <li>App Secret请妥善保管，不要泄露给他人</li>
@@ -155,7 +173,9 @@ const form = reactive({
   testAppSecret: '99c4cef262f34ca882975a7064de0b87',
   testAccessToken: 'b7e3b1e24e174593af8ca5c397e53dad',
   testShopId: '',
+  testCallbackUrl: '',
   shopId: '',
+  callbackUrl: '',
   enabled: 0,
   autoPushOrder: 1,
   autoPullLogistics: 1,

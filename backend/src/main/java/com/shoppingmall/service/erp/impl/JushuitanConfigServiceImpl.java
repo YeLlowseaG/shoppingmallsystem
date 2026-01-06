@@ -82,9 +82,17 @@ public class JushuitanConfigServiceImpl implements JushuitanConfigService {
             if (dto.getTestShopId() != null) {
                 config.setTestShopId(dto.getTestShopId());
             }
+            // 测试环境回调地址
+            if (dto.getTestCallbackUrl() != null) {
+                config.setTestCallbackUrl(dto.getTestCallbackUrl());
+            }
             // 生产环境店铺ID
             if (dto.getShopId() != null) {
                 config.setShopId(dto.getShopId());
+            }
+            // 生产环境回调地址
+            if (dto.getCallbackUrl() != null) {
+                config.setCallbackUrl(dto.getCallbackUrl());
             }
             if (dto.getPartnerId() != null) {
                 config.setPartnerId(dto.getPartnerId());
@@ -191,6 +199,7 @@ public class JushuitanConfigServiceImpl implements JushuitanConfigService {
             vo.setAppSecret(config.getTestAppSecret());
             vo.setAccessToken(config.getTestAccessToken());
             vo.setShopId(config.getTestShopId());
+            vo.setCallbackUrl(config.getTestCallbackUrl());
         } else {
             // 生产环境：使用原有字段（默认）
             // 已经通过BeanUtils.copyProperties复制了

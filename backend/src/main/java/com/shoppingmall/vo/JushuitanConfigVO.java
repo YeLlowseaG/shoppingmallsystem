@@ -69,9 +69,19 @@ public class JushuitanConfigVO {
     private String testShopId;
 
     /**
+     * 测试环境物流同步回调地址
+     */
+    private String testCallbackUrl;
+
+    /**
      * 生产环境店铺ID
      */
     private String shopId;
+
+    /**
+     * 生产环境物流同步回调地址
+     */
+    private String callbackUrl;
 
     /**
      * 合作伙伴ID

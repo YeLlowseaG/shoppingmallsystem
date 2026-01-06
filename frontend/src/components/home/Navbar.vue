@@ -13,14 +13,25 @@
         <!-- 分类下拉菜单 -->
         <transition name="slide">
           <div v-show="showCategories" class="categories-dropdown">
+            <!-- 加载状态 -->
+            <div v-if="loadingCategories" class="loading-state">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              <span>加载中...</span>
+            </div>
+            <!-- 空状态 -->
+            <div v-else-if="!loadingCategories && categories.length === 0" class="empty-state">
+              <span>暂无分类数据</span>
+            </div>
+            <!-- 分类列表 -->
             <div
               v-for="category in categories"
+              v-else
               :key="category.id"
               class="category-item"
               @mouseenter="handleCategoryHover(category)"
             >
               <div class="category-title" @click="goToCategory(category.id)">
-                {{ category.name }}
+                {{ category.categoryName }}
                 <el-icon class="arrow"><ArrowRight /></el-icon>
               </div>
               <div class="sub-items">
@@ -30,13 +41,13 @@
                   class="sub-name"
                   @click.stop="goToCategory(sub.id)"
                 >
-                  {{ sub.name }}
+                  {{ sub.categoryName }}
                 </span>
               </div>
 
               <!-- 二级和三级分类悬浮展示 -->
               <div
-                v-show="hoveredCategory?.id === category.id && category.children"
+                v-show="hoveredCategory?.id === category.id && category.children && category.children.length > 0"
                 class="sub-categories"
                 @mouseenter="handleCategoryHover(category)"
                 @mouseleave="hoveredCategory = null"
@@ -46,14 +57,34 @@
                   :key="subCategory.id"
                   class="sub-category-group"
                 >
-                  <div class="third-level">
+                  <!-- 二级分类标题（如果有三级分类则显示标题，否则直接可点击） -->
+                  <div 
+                    v-if="subCategory.children && subCategory.children.length > 0"
+                    class="sub-category-title"
+                    @click="goToCategory(subCategory.id)"
+                  >
+                    {{ subCategory.categoryName }}
+                  </div>
+                  <!-- 如果二级分类没有子分类，则直接显示为可点击项 -->
+                  <router-link
+                    v-else
+                    :to="`/products?categoryId=${subCategory.id}`"
+                    class="sub-category-title-link"
+                  >
+                    {{ subCategory.categoryName }}
+                  </router-link>
+                  <!-- 三级分类列表 -->
+                  <div 
+                    v-if="subCategory.children && subCategory.children.length > 0"
+                    class="third-level"
+                  >
                     <router-link
                       v-for="third in subCategory.children"
                       :key="third.id"
                       :to="`/products?categoryId=${third.id}`"
                       class="third-item"
                     >
-                      {{ third.name }}
+                      {{ third.categoryName }}
                     </router-link>
                   </div>
                 </div>
@@ -83,144 +114,40 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Menu, ArrowRight } from '@element-plus/icons-vue'
+import { Menu, ArrowRight, Loading } from '@element-plus/icons-vue'
 import { getNavigationMenus, type NavigationMenu } from '@/api/buyer/navigationMenu'
+import { getCategoryTree, type ProductCategoryVO } from '@/api/buyer/productCategory'
 
 const router = useRouter()
 const route = useRoute()
 const showCategories = ref(false)
-const hoveredCategory = ref<any>(null)
+const hoveredCategory = ref<ProductCategoryVO | null>(null)
 
 // 导航菜单
 const navigationMenus = ref<NavigationMenu[]>([])
 
-// 模拟分类数据（后续从接口获取）
-const categories = ref([
-  {
-    id: 1,
-    name: '男用器具',
-    children: [
-      {
-        id: 11,
-        name: '女用器具',
-        children: [
-          { id: 111, name: '飞机杯' },
-          { id: 112, name: '助勃锻炼' },
-          { id: 113, name: '充气娃娃' }
-        ]
-      },
-      {
-        id: 12,
-        name: '女用器具',
-        children: [
-          { id: 121, name: '震动棒' },
-          { id: 122, name: '跳蛋' },
-          { id: 123, name: '潮吹AV棒' }
-        ]
-      }
-    ]
-  },
-  {
-    id: 2,
-    name: '女用器具',
-    children: [
-      {
-        id: 21,
-        name: '震动跳蛋',
-        children: [
-          { id: 211, name: '情趣跳蛋' },
-          { id: 212, name: '震动棒' },
-          { id: 213, name: '潮吹AV棒' }
-        ]
-      }
-    ]
-  },
-  {
-    id: 3,
-    name: '避孕润滑',
-    children: [
-      {
-        id: 31,
-        name: '润滑液',
-        children: [
-          { id: 311, name: '润滑液' },
-          { id: 312, name: '安全套' },
-          { id: 313, name: '排卵测孕' },
-          { id: 314, name: '口杯液' }
-        ]
-      }
-    ]
-  },
-  {
-    id: 4,
-    name: '情趣内衣',
-    children: [
-      {
-        id: 41,
-        name: '连体衣',
-        children: [
-          { id: 411, name: '连体衣' },
-          { id: 412, name: '激情T裤' },
-          { id: 413, name: '三点式' }
-        ]
-      }
-    ]
-  },
-  {
-    id: 5,
-    name: '护理保健',
-    children: [
-      {
-        id: 51,
-        name: '保健食品',
-        children: [
-          { id: 511, name: '保健食品' },
-          { id: 512, name: '清洗抑菌' },
-          { id: 513, name: '按摩精油' }
-        ]
-      }
-    ]
-  },
-  {
-    id: 6,
-    name: '喷剂助情',
-    children: [
-      {
-        id: 61,
-        name: '男用喷剂',
-        children: [
-          { id: 611, name: '男用喷剂' },
-          { id: 612, name: '情欲提升' },
-          { id: 613, name: '香水诱惑' }
-        ]
-      }
-    ]
-  },
-  {
-    id: 7,
-    name: '其他情趣',
-    children: [
-      {
-        id: 71,
-        name: 'SM系列',
-        children: [
-          { id: 711, name: 'SM系列' },
-          { id: 712, name: '情趣跳逗' },
-          { id: 713, name: '后庭刺激' }
-        ]
-      }
-    ]
-  }
-])
+// 商品分类数据
+const categories = ref<ProductCategoryVO[]>([])
+const loadingCategories = ref(false)
 
-const handleCategoryHover = (category: any) => {
+const handleCategoryHover = (category: ProductCategoryVO) => {
   hoveredCategory.value = category
 }
 
-const handleCategoryLeave = () => {
-  setTimeout(() => {
-    hoveredCategory.value = null
-  }, 100)
+// 加载商品分类数据
+const loadCategories = async () => {
+  loadingCategories.value = true
+  try {
+    const categoryTree = await getCategoryTree()
+    // 只显示一级分类（level=1）作为主分类
+    categories.value = categoryTree.filter(category => category.level === 1)
+  } catch (error) {
+    console.error('加载商品分类失败:', error)
+    // 失败时使用空数组，不显示分类菜单
+    categories.value = []
+  } finally {
+    loadingCategories.value = false
+  }
 }
 
 // 加载导航菜单
@@ -285,9 +212,10 @@ const goToCategory = (categoryId: number) => {
   })
 }
 
-// 组件挂载时加载导航菜单
+// 组件挂载时加载导航菜单和商品分类
 onMounted(() => {
   loadNavigationMenus()
+  loadCategories()
 })
 </script>
 
@@ -322,7 +250,7 @@ onMounted(() => {
       font-size: 18px;
     }
 
-    .categories-dropdown {
+      .categories-dropdown {
       position: absolute;
       top: 50px;
       left: 0;
@@ -330,8 +258,19 @@ onMounted(() => {
       background: rgba(0, 0, 0, 0.8);
       color: #fff;
       z-index: 1000;
-      max-height: 500px;
-      overflow-y: auto;
+      overflow: visible;
+
+      .loading-state,
+      .empty-state {
+        padding: 20px;
+        text-align: center;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
 
       .category-item {
         position: relative;
@@ -377,17 +316,18 @@ onMounted(() => {
         }
 
         .sub-categories {
-          position: fixed;
-          left: 580px;
-          top: 130px;
+          position: absolute;
+          left: 100%;
+          top: 0;
+          margin-left: 0;
           width: 600px;
-          height: 500px;
+          min-height: 100%;
           background: #fff;
           color: #333;
           border: 1px solid #eee;
           box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
           padding: 20px;
-          overflow-y: auto;
+          overflow: visible;
           z-index: 1001;
           display: grid;
           grid-template-columns: 1fr 1fr;
@@ -403,6 +343,22 @@ onMounted(() => {
               color: #333;
               margin-bottom: 10px;
               cursor: pointer;
+              transition: color 0.3s;
+              padding-bottom: 8px;
+              border-bottom: 1px solid #f0f0f0;
+
+              &:hover {
+                color: #e4393c;
+              }
+            }
+
+            .sub-category-title-link {
+              font-size: 14px;
+              font-weight: bold;
+              color: #333;
+              margin-bottom: 10px;
+              text-decoration: none;
+              display: block;
               transition: color 0.3s;
               padding-bottom: 8px;
               border-bottom: 1px solid #f0f0f0;

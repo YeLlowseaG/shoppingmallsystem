@@ -30,7 +30,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
     private final SystemConfigRepository systemConfigRepository;
 
     @Override
-    public Page<SystemConfig> getSystemConfigPage(Long current, Long size, String configKey) {
+    public Page<SystemConfig> getSystemConfigPage(Long current, Long size, String configKey, String category) {
         Page<SystemConfig> page = new Page<>(current, size);
 
         LambdaQueryWrapper<SystemConfig> wrapper = new LambdaQueryWrapper<>();
@@ -42,8 +42,12 @@ public class SystemConfigServiceImpl implements SystemConfigService {
                     .like(SystemConfig::getConfigName, configKey);
         }
 
-        // 按排序号升序
-        wrapper.orderByAsc(SystemConfig::getSortOrder);
+        // 分类筛选
+        if (StringUtil.isNotBlank(category)) {
+            wrapper.eq(SystemConfig::getCategory, category);
+        }
+
+        // 按ID升序排序
         wrapper.orderByAsc(SystemConfig::getId);
 
         return systemConfigRepository.selectPage(page, wrapper);

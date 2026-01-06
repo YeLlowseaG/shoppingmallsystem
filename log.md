@@ -1,5 +1,172 @@
 # 修改日志
 
+## 2026-01-05 - 页脚对接帮助中心模块
+
+### 功能说明
+将页脚内容从静态内容改为动态对接帮助中心模块，页脚分类和文章标题均从帮助中心API获取。
+
+### 修改原因
+用户要求页脚内容直接对接帮助中心模块，例如"购物指南"对应帮助中心的分类，下面的最多显示4条文章标题。帮助中心的分类最多显示4个（购物指南、新手上路、购物条款、支付/配送方式）。
+
+### 修改内容
+
+**文件：** `frontend/src/components/home/Footer.vue`
+- 导入帮助中心API：`getHelpCategories`、`getHelpArticlesByCategory`
+- 添加响应式数据 `footerCategories` 存储页脚分类和文章数据
+- 实现 `loadFooterData` 方法：
+  - 获取帮助中心分类列表，只取前4个顶级分类
+  - 对每个分类，如果有子分类则使用第一个子分类的ID获取文章，否则使用分类本身的ID
+  - 每个分类最多显示4条文章
+- 实现 `goToArticle` 方法，点击文章标题跳转到 `/help?articleId=xxx`
+- 保留"备案号"为静态内容，不依赖帮助中心
+
+### 影响范围
+- ✅ 页脚分类和文章标题现在从帮助中心动态获取
+- ✅ 最多显示4个帮助中心分类，每个分类最多显示4条文章
+- ✅ 点击文章标题可跳转到帮助中心查看详情
+- ✅ "备案号"保留为静态内容
+
+## 2026-01-05 - 修改页脚内容居中显示
+
+### 功能说明
+将页脚内容从左对齐改为居中对齐显示。
+
+### 修改原因
+用户反馈页脚内容（购物指南、新手上路、购物条款、支付/配送方式、备案号等）目前是偏左显示的，需要改为居中显示。
+
+### 修改内容
+
+**文件：** `frontend/src/components/home/Footer.vue`
+- 修改 `.footer-content` 的 `justify-content` 从 `space-between` 改为 `center`
+- 为 `.links` 添加 `justify-content: center` 样式，使链接组居中显示
+
+### 影响范围
+- ✅ 页脚内容现在居中显示，包括所有链接组（购物指南、新手上路、购物条款、支付/配送方式、备案号）
+
+## 2026-01-05 - 修改基础配置列表排序为按ID顺序
+
+### 功能说明
+将基础配置页面的列表排序方式改为按ID升序排序。
+
+### 修改原因
+用户要求基础配置列表按照ID顺序排序。
+
+### 修改内容
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/system/impl/SystemConfigServiceImpl.java`
+- 修改 `getSystemConfigPage` 方法中的排序逻辑
+- 移除按 `sortOrder` 排序，改为只按 `id` 升序排序
+
+### 影响范围
+- ✅ 基础配置页面（`/admin/system/basic`）的列表现在按ID升序显示
+
+## 2026-01-05 - 为系统配置表添加分类字段，支持按分类查询
+
+### 功能说明
+为系统配置表添加分类字段，支持对配置进行分类管理，方便查询和管理。
+
+### 修改原因
+用户反馈基础配置页面数据太多、比较乱，需要增加分类功能，按照数据类型进行分类，方便查询。
+
+### 分类方案
+根据配置键的前缀，将配置分为6个分类：
+1. **网站基础** (site) - 包含网站基本信息、搜索相关配置
+2. **支付配置** (payment) - 包含微信支付、支付宝、预存款等支付相关配置
+3. **应用配置** (app) - 包含前端地址、密码重置、平台名称等应用配置
+4. **邮件配置** (mail) - 包含邮件服务器、邮件模板等配置
+5. **订单配置** (order) - 包含订单相关配置
+6. **企业微信** (wechat.work) - 包含企业微信通知相关配置
+
+### 修改内容
+
+#### 1. 数据库表结构修改
+
+**文件：** `database/update-20260105-add-system-config-category.sql`
+- 添加 `category` 字段到 `system_config` 表
+- 为现有数据设置分类（根据config_key前缀自动分类）
+
+#### 2. 后端实体类修改
+
+**文件：** `backend/src/main/java/com/shoppingmall/entity/SystemConfig.java`
+- 添加 `category` 字段，用于存储配置分类
+
+#### 3. 后端服务层修改
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/system/SystemConfigService.java`
+- 修改 `getSystemConfigPage` 方法签名，添加 `category` 参数
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/system/impl/SystemConfigServiceImpl.java`
+- 实现按分类筛选的逻辑
+
+#### 4. 后端控制器修改
+
+**文件：** `backend/src/main/java/com/shoppingmall/controller/admin/SystemConfigController.java`
+- 修改 `getSystemConfigPage` 接口，添加 `category` 查询参数
+
+#### 5. 前端API接口修改
+
+**文件：** `admin-frontend/src/api/admin/systemConfig.ts`
+- 在 `SystemConfig` 接口中添加 `category` 字段
+- 修改 `getSystemConfigPage` 函数，添加 `category` 参数
+
+#### 6. 前端页面修改
+
+**文件：** `admin-frontend/src/views/system/Basic.vue`
+- 在搜索栏中添加分类筛选下拉框
+- 在配置列表表格中添加分类列显示
+- 在编辑/新增对话框中添加分类选择
+- 添加分类标签类型和文本的辅助函数
+
+### 影响范围
+- ✅ 数据库：新增category字段，现有数据已自动分类
+- ✅ 后端接口：支持按分类查询配置
+- ✅ 前端页面：支持按分类筛选和显示配置分类
+
+### 注意事项
+1. 执行数据库更新脚本后，现有配置数据会根据config_key前缀自动设置分类
+2. 新增配置时可以选择分类，也可以不选择（分类为可选字段）
+3. 分类值：site、payment、app、mail、order、wechat.work
+
+## 2026-01-05 - 修改重置密码功能校验规则和提示文案
+
+### 功能说明
+修改会员列表页面中重置密码功能的校验规则和提示文案。
+
+### 修改原因
+用户要求：
+- 密码可以输入纯数字或纯字母（不需要同时包含字母和数字）
+- 提示文案去掉"包含字母和数字"，只保留"至少6位"
+
+### 修改内容
+
+**文件：** `admin-frontend/src/views/buyer/List.vue`
+- 删除密码校验规则中要求同时包含字母和数字的验证逻辑
+- 简化校验规则，只保留长度至少6位的校验
+- 修改提示文案：将"建议密码长度至少6位，包含字母和数字。"改为"建议密码长度至少6位。"
+
+### 影响范围
+- ✅ 会员列表页面（`/admin/buyer/list`）的重置密码功能：
+  - 密码可以输入纯数字或纯字母
+  - 只需要满足长度至少6位的要求
+  - 提示文案已更新
+
+## 2026-01-05 - 屏蔽会员详情页面中的"审核意见"字段
+
+### 功能说明
+在会员列表页面的会员详情对话框中，屏蔽"审核意见"字段的显示。
+
+### 修改原因
+用户要求在会员详情页面中隐藏"审核意见"字段。
+
+### 修改内容
+
+**文件：** `admin-frontend/src/views/buyer/List.vue`
+- 删除会员详情对话框中的"审核意见"字段显示
+- 移除第165行的 `<el-descriptions-item label="审核意见" :span="2">{{ currentBuyer.auditComment || '-' }}</el-descriptions-item>`
+
+### 影响范围
+- ✅ 会员列表页面（`/admin/buyer/list`）的会员详情对话框不再显示"审核意见"字段
+
 ## 2025-12-30 - 修改结算页面运费计算逻辑，根据商品是否启用SKU选择重量来源
 
 ### 功能说明
@@ -6572,3 +6739,199 @@ if (win) {
 
 - **调整重量字段列位置**：将重量字段列从"警戒库存"之后移到"库存"之后、"警戒库存"之前，使其更容易看到
 - **优化输入体验**：为重量字段添加`:step="0.01"`属性，使输入更加方便
+
+## 2026-01-05 - 修改顶部欢迎文案为配置化，屏蔽底部服务保障模块
+
+### 修改内容
+
+1. **顶部欢迎文案配置化**：
+   - 将顶部欢迎文案"亲，欢迎光临云起分销王商城！"改为从配置表`system_config`的`site.name`读取
+   - 格式为："亲，欢迎光临" + `site.name` + "！"
+   - 如果配置不存在，默认显示"云起分销王商城"
+
+2. **屏蔽底部服务保障模块**：
+   - 屏蔽页面底部的服务保障模块（包含"正品货源"、"海外直邮"、"本土客服"、"全球同价"）
+   - 通过注释的方式屏蔽，保留代码以便后续需要时恢复
+
+### 相关文件
+
+- `frontend/src/components/home/TopBar.vue`（修改：添加配置读取逻辑，将欢迎文案改为动态显示）
+- `frontend/src/components/home/Footer.vue`（修改：注释掉服务保障模块）
+
+## 2026-01-05 - 修复首页商品分类导航二级菜单距离过远的问题
+
+### 修改内容
+
+1. **调整二级菜单定位方式**：
+   - 将二级菜单从 `position: fixed` 改为 `position: absolute`，使其相对于一级菜单项定位
+   - 将固定的 `left: 580px; top: 130px;` 改为 `left: 100%; top: 0;`，使二级菜单紧贴在一级菜单项的右侧
+   - 将固定高度 `height: 500px` 改为 `min-height: 100%; max-height: 500px;`，使菜单高度至少与一级菜单项高度一致
+
+2. **清理未使用的代码**：
+   - 删除未使用的 `handleCategoryLeave` 函数
+
+### 相关文件
+
+- `frontend/src/components/home/Navbar.vue`（修改：调整二级菜单定位样式，删除未使用的函数）
+
+## 2026-01-05 - 实现商品分类数据从后端接口读取，支持多级菜单显示
+
+### 修改内容
+
+1. **从后端接口读取商品分类数据**：
+   - 移除硬编码的模拟分类数据
+   - 引入 `getCategoryTree` API 函数从 `/api/buyer/product-category/tree` 接口获取分类数据
+   - 添加 `loadCategories` 函数在组件挂载时加载分类数据
+   - 只显示一级分类（level=1）作为主分类菜单
+
+2. **支持多级菜单显示**：
+   - 修改字段名从 `name` 改为 `categoryName` 以匹配后端返回的数据结构
+   - 优化二级菜单显示逻辑：
+     - 如果二级分类有三级子分类，显示二级分类标题和三级分类列表
+     - 如果二级分类没有子分类，直接显示为可点击的链接
+   - 支持完整的树形结构展示（一级、二级、三级分类）
+
+3. **添加加载状态和错误处理**：
+   - 添加 `loadingCategories` 状态管理加载状态
+   - 添加加载中的提示界面
+   - 添加空数据状态的提示
+   - 添加错误处理，加载失败时不显示分类菜单
+
+4. **优化用户体验**：
+   - 添加 Loading 图标导入
+   - 优化二级菜单的点击交互
+   - 保持原有的悬浮显示效果
+
+### 相关文件
+
+- `frontend/src/components/home/Navbar.vue`（修改：从接口读取分类数据，支持多级菜单，添加加载状态）
+
+## 2026-01-05 - 移除全部分类导航栏的滚动条，优化菜单显示
+
+### 修改内容
+
+1. **移除左侧一级菜单的滚动条**：
+   - 移除 `.categories-dropdown` 的 `max-height: 500px` 和 `overflow-y: auto` 限制
+   - 改为 `overflow: visible`，让菜单内容完整显示，无需滚动操作
+
+2. **移除右侧二级菜单的滚动条**：
+   - 移除 `.sub-categories` 的 `max-height: 500px` 和 `overflow-y: auto` 限制
+   - 改为 `overflow: visible`，让二级菜单内容完整显示
+
+3. **优化交互体验**：
+   - 鼠标移动到一级菜单后，右侧直接显示完整的下一级菜单内容
+   - 所有菜单内容自然展开，无需滚动条操作
+
+### 相关文件
+
+- `frontend/src/components/home/Navbar.vue`（修改：移除滚动条限制，优化菜单显示）
+
+---
+
+## 2024-12-XX - 修复商品列表排序功能并优化综合排序逻辑
+
+### 问题描述
+
+1. 商品列表页面（`/products?type=new`）的销量排序和最新排序功能没有生效
+2. 综合排序和最新排序逻辑相同，存在冗余
+
+### 修复内容
+
+1. **修复前端排序参数**：
+   - 将销量排序值从 `'sales'` 改为 `'sales_desc'`（销量从高到低）
+   - 将最新排序值从 `'newest'` 改为 `'create_time_desc'`（上架时间从新到旧）
+   - 修复位置：`frontend/src/views/products/List.vue` 第151-152行
+
+2. **优化后端综合排序逻辑**：
+   - 综合排序改为：先按销量降序，销量相同时按创建时间降序（新品优先）
+   - 这样既突出热销商品，又让新品有机会展示，符合标准电商做法
+   - 修复位置：`backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java` 第123-130行
+
+### 排序逻辑说明
+
+- **综合排序**：先按销量降序，销量相同时按创建时间降序
+- **销量排序**：按销量从高到低排序
+- **最新排序**：按上架时间从新到旧排序
+
+### 相关文件
+
+- `frontend/src/views/products/List.vue`（修改：修复排序参数值）
+- `backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java`（修改：优化综合排序逻辑）
+
+---
+
+## 2024-XX-XX - 会员中心我的收藏页面优化
+
+### 修改内容
+
+在会员中心的"我的收藏"页面（`/member/favorites/products`）中，移除了"加入购物车"按钮，仅保留"删除"按钮，并优化了按钮的显示位置。
+
+### 具体修改
+
+1. **移除加入购物车功能**
+   - 删除了"加入购物车"按钮及其相关代码
+   - 移除了 `handleAddToCart` 函数
+   - 移除了 `addingToCart` 状态管理
+   - 移除了相关的导入（`addToCartAPI`, `AddCartDTO`, `useCartStore`）
+
+2. **优化删除按钮样式和位置**
+   - 调整了 `.product-actions` 容器的宽度从 180px 改为 100px
+   - 将删除按钮对齐方式改为右对齐（`justify-content: flex-end`）
+   - 优化了响应式设计中的按钮布局
+
+### 相关文件
+
+- `frontend/src/views/member/Favorites.vue`（修改：移除加入购物车按钮，优化删除按钮位置）
+
+---
+
+## 2024-XX-XX - 修复管理后台咨询时间显示问题
+
+### 修改内容
+
+修复了管理后台咨询管理页面（`/admin/content/consultation`）中咨询时间不显示的问题。列表和详情页面现在都能正确显示咨询的创建时间。
+
+### 具体修改
+
+1. **修复字段名不匹配问题**
+   - 后端返回的字段是 `createTime`，但前端使用的是 `createdTime`
+   - 将列表和详情页面中的 `createdTime` 改为 `createTime`
+   - 在API接口类型定义中添加了 `createTime` 字段，保留 `createdTime` 作为兼容字段
+
+2. **优化时间格式化函数**
+   - 改进了 `formatTime` 函数，增加了错误处理
+   - 使用中文本地化格式显示时间
+   - 当时间为空或无效时显示 "-"
+
+### 相关文件
+
+- `admin-frontend/src/views/content/ConsultationManage.vue`（修改：修复咨询时间字段名，优化时间格式化）
+- `admin-frontend/src/api/admin/consultation.ts`（修改：添加 createTime 字段定义）
+
+---
+
+## 2024-12-XX - 优化会员评价和咨询页面的商品跳转功能
+
+### 修改内容
+
+1. **会员评价页面（Reviews.vue）**
+   - 为商品图片和标题添加点击跳转功能
+   - 点击商品图片或标题可跳转到对应的商品详情页面
+   - 添加鼠标悬停效果（图片放大、标题变色）
+
+2. **会员咨询页面（Consultations.vue）**
+   - 为商品图片和标题添加点击跳转功能
+   - 点击商品图片或标题可跳转到对应的商品详情页面
+   - 添加鼠标悬停效果（图片放大、标题变色）
+
+### 技术实现
+
+- 导入 `useRouter` 实现路由跳转
+- 添加 `goToProductDetail` 方法处理跳转逻辑
+- 使用 `productId` 字段构建商品详情页路径 `/products/${productId}`
+- 为图片和标题添加 `cursor: pointer` 样式和悬停动画效果
+
+### 相关文件
+
+- `frontend/src/views/member/Reviews.vue`（修改：添加商品跳转功能）
+- `frontend/src/views/member/Consultations.vue`（修改：添加商品跳转功能）

@@ -162,7 +162,6 @@
         <el-descriptions-item label="旺旺账号">
           {{ currentBuyer.wangwang || '-' }}
         </el-descriptions-item>
-        <el-descriptions-item label="审核意见" :span="2">{{ currentBuyer.auditComment || '-' }}</el-descriptions-item>
         <el-descriptions-item label="注册时间">{{ formatDateTime(currentBuyer.createTime) }}</el-descriptions-item>
         <el-descriptions-item label="更新时间">{{ formatDateTime(currentBuyer.updateTime) }}</el-descriptions-item>
       </el-descriptions>
@@ -242,7 +241,7 @@
         >
           <template #default>
             <div>重置密码后，该会员需要使用新密码登录。</div>
-            <div>建议密码长度至少6位，包含字母和数字。</div>
+            <div>建议密码长度至少6位。</div>
           </template>
         </el-alert>
       </el-form>
@@ -304,19 +303,7 @@ const resetPasswordForm = reactive({
 const resetPasswordRules: FormRules = {
   password: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, message: '密码长度至少6位', trigger: 'blur' },
-    {
-      validator: (rule, value, callback) => {
-        if (value && value.length < 6) {
-          callback(new Error('密码长度至少6位'))
-        } else if (value && !/^(?=.*[A-Za-z])(?=.*\d)/.test(value)) {
-          callback(new Error('密码必须包含字母和数字'))
-        } else {
-          callback()
-        }
-      },
-      trigger: 'blur'
-    }
+    { min: 6, message: '密码长度至少6位', trigger: 'blur' }
   ],
   confirmPassword: [
     { required: true, message: '请再次输入新密码', trigger: 'blur' },
