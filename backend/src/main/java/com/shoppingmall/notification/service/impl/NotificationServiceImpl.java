@@ -1,6 +1,8 @@
 package com.shoppingmall.notification.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.shoppingmall.dto.ShippingAddressDTO;
 import com.shoppingmall.entity.Order;
 import com.shoppingmall.entity.OrderItem;
 import com.shoppingmall.entity.User;
@@ -35,6 +37,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final UserRepository userRepository;
+    private final ObjectMapper objectMapper;
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -200,13 +203,8 @@ public class NotificationServiceImpl implements NotificationService {
             String displayName = user.getRealName() != null ? user.getRealName() : user.getUsername();
             sb.append("客户名称：").append(displayName != null ? displayName : "未设置").append("\n");
             if (user.getPhone() != null && !user.getPhone().isEmpty()) {
-                // 手机号脱敏显示
-                String phone = user.getPhone();
-                if (phone.length() == 11) {
-                    sb.append("手机号：").append(phone.substring(0, 3)).append("****").append(phone.substring(7)).append("\n");
-                } else {
-                    sb.append("手机号：").append(phone).append("\n");
-                }
+                // 手机号明文显示
+                sb.append("手机号：").append(user.getPhone()).append("\n");
             }
         }
 
@@ -232,7 +230,8 @@ public class NotificationServiceImpl implements NotificationService {
         // 收货信息
         if (order.getShippingAddress() != null && !order.getShippingAddress().isEmpty()) {
             sb.append("\n收货信息：\n");
-            sb.append(order.getShippingAddress());
+            String addressText = formatShippingAddress(order.getShippingAddress());
+            sb.append(addressText);
         }
 
         return sb.toString();
@@ -252,13 +251,8 @@ public class NotificationServiceImpl implements NotificationService {
             String displayName = user.getRealName() != null ? user.getRealName() : user.getUsername();
             sb.append("客户名称：").append(displayName != null ? displayName : "未设置").append("\n");
             if (user.getPhone() != null && !user.getPhone().isEmpty()) {
-                // 手机号脱敏显示
-                String phone = user.getPhone();
-                if (phone.length() == 11) {
-                    sb.append("手机号：").append(phone.substring(0, 3)).append("****").append(phone.substring(7)).append("\n");
-                } else {
-                    sb.append("手机号：").append(phone).append("\n");
-                }
+                // 手机号明文显示
+                sb.append("手机号：").append(user.getPhone()).append("\n");
             }
         }
 
@@ -284,10 +278,72 @@ public class NotificationServiceImpl implements NotificationService {
         // 收货信息
         if (order.getShippingAddress() != null && !order.getShippingAddress().isEmpty()) {
             sb.append("\n收货信息：\n");
-            sb.append(order.getShippingAddress());
+            String addressText = formatShippingAddress(order.getShippingAddress());
+            sb.append(addressText);
         }
 
         return sb.toString();
+    }
+
+    /**
+     * 格式化收货地址为易读文本
+     * 将JSON格式的收货地址转换为文本格式
+     */
+    private String formatShippingAddress(String shippingAddressJson) {
+        try {
+            if (shippingAddressJson == null || shippingAddressJson.trim().isEmpty()) {
+                return "收货地址未设置";
+            }
+
+            // 尝试解析JSON
+            ShippingAddressDTO address = objectMapper.readValue(shippingAddressJson, ShippingAddressDTO.class);
+            
+            StringBuilder sb = new StringBuilder();
+            
+            // 收货人姓名
+            if (address.getName() != null && !address.getName().trim().isEmpty()) {
+                sb.append("收货人：").append(address.getName()).append("\n");
+            }
+            
+            // 联系电话（优先使用mobile，其次phone）
+            String phone = address.getMobile() != null && !address.getMobile().trim().isEmpty() 
+                ? address.getMobile() 
+                : address.getPhone();
+            if (phone != null && !phone.trim().isEmpty()) {
+                sb.append("联系电话：").append(phone).append("\n");
+            }
+            
+            // 收货地址
+            if (address.getFullAddress() != null && !address.getFullAddress().trim().isEmpty()) {
+                sb.append("收货地址：").append(address.getFullAddress());
+            } else {
+                // 如果没有完整地址，组合省市区和详细地址
+                StringBuilder addressBuilder = new StringBuilder();
+                if (address.getProvince() != null) {
+                    addressBuilder.append(address.getProvince());
+                }
+                if (address.getCity() != null) {
+                    addressBuilder.append(address.getCity());
+                }
+                if (address.getDistrict() != null) {
+                    addressBuilder.append(address.getDistrict());
+                }
+                if (address.getAddress() != null) {
+                    addressBuilder.append(address.getAddress());
+                }
+                if (addressBuilder.length() > 0) {
+                    sb.append("收货地址：").append(addressBuilder.toString());
+                } else {
+                    sb.append("收货地址：未设置");
+                }
+            }
+            
+            return sb.toString();
+        } catch (Exception e) {
+            // 如果解析失败，返回原始JSON（作为后备方案）
+            log.warn("解析收货地址JSON失败，返回原始内容: {}", shippingAddressJson, e);
+            return shippingAddressJson;
+        }
     }
 
     /**
@@ -303,7 +359,10 @@ public class NotificationServiceImpl implements NotificationService {
             case "WECHAT":
                 return "微信支付";
             case "DEPOSIT":
+            case "PRE_DEPOSIT":
                 return "预存款";
+            case "OFFLINE":
+                return "线下支付";
             default:
                 return paymentMethod;
         }

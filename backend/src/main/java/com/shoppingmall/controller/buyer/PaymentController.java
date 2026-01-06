@@ -13,6 +13,7 @@ import com.shoppingmall.service.payment.PaymentService;
 import com.shoppingmall.service.erp.JushuitanConfigService;
 import com.shoppingmall.service.erp.JushuitanOrderService;
 import com.shoppingmall.vo.JushuitanConfigVO;
+import com.shoppingmall.notification.service.NotificationService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +42,7 @@ public class PaymentController {
     private final ObjectMapper objectMapper;
     private final JushuitanOrderService jushuitanOrderService;
     private final JushuitanConfigService jushuitanConfigService;
+    private final NotificationService notificationService;
 
     /**
      * 支付回调接口（模拟支付宝/微信支付回调）
@@ -154,6 +156,9 @@ public class PaymentController {
                     // ERP推送失败不影响支付成功流程，记录日志即可
                     log.error("自动推送订单到ERP失败: orderId={}, orderNo={}", order.getId(), orderNo, e);
                 }
+
+                // 发送支付成功通知到企业微信
+                notificationService.sendPaymentSuccessNotification(orderNo);
 
                 log.info("支付回调处理成功: orderNo={}, tradeNo={}", orderNo, tradeNo);
             } else {

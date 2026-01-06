@@ -986,6 +986,9 @@ public class OrderServiceImpl implements OrderService {
             
             log.info("预存款支付成功: orderNo={}, userId={}, amount={}", orderNo, userId, order.getActualAmount());
             
+            // 发送支付成功通知到企业微信
+            notificationService.sendPaymentSuccessNotification(orderNo);
+            
         } else if ("ALIPAY".equals(paymentMethod) || "WECHAT".equals(paymentMethod)) {
             // 支付宝/微信支付
             // 2.1 创建支付订单
