@@ -34,6 +34,12 @@ public class JushuitanOrderDTO {
     private String shopBuyerId;
 
     /**
+     * 订单状态（必填）
+     */
+    @JsonProperty("shop_status")
+    private String shopStatus;
+
+    /**
      * 下单时间（yyyy-MM-dd HH:mm:ss）
      */
     @JsonProperty("order_date")
@@ -60,8 +66,8 @@ public class JushuitanOrderDTO {
     /**
      * 省
      */
-    @JsonProperty("receiver_province")
-    private String receiverProvince;
+    @JsonProperty("receiver_state")
+    private String receiverState;
 
     /**
      * 市
@@ -80,6 +86,18 @@ public class JushuitanOrderDTO {
      */
     @JsonProperty("receiver_address")
     private String receiverAddress;
+
+    /**
+     * 邮政编码
+     */
+    @JsonProperty("receiver_zip")
+    private String receiverZip;
+
+    /**
+     * 收货人电话
+     */
+    @JsonProperty("receiver_phone")
+    private String receiverPhone;
 
     /**
      * 买家留言
@@ -139,10 +157,16 @@ public class JushuitanOrderDTO {
         private String name;
 
         /**
-         * 商品名称（别名，兼容item_name）
+         * 店铺商品款式编码
          */
-        @JsonProperty("item_name")
-        private String itemName;
+        @JsonProperty("shop_i_id")
+        private String shopIId;
+
+        /**
+         * 商品属性（规格属性+规格值）
+         */
+        @JsonProperty("properties_value")
+        private String propertiesValue;
 
         /**
          * 数量

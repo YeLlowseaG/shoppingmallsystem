@@ -13,6 +13,13 @@ import com.shoppingmall.repository.order.OrderRepository;
 import com.shoppingmall.mapper.OrderSyncLogMapper;
 import com.shoppingmall.service.erp.JushuitanApiService;
 import com.shoppingmall.service.erp.JushuitanOrderService;
+import com.shoppingmall.repository.user.UserRepository;
+import com.shoppingmall.entity.User;
+import com.shoppingmall.entity.Product;
+import com.shoppingmall.entity.ProductSku;
+import com.shoppingmall.repository.product.ProductRepository;
+import com.shoppingmall.repository.sku.ProductSkuRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +30,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 聚水潭订单推送服务实现类
@@ -48,6 +56,15 @@ public class JushuitanOrderServiceImpl implements JushuitanOrderService {
 
     @Resource
     private com.shoppingmall.service.erp.JushuitanConfigService jushuitanConfigService;
+
+    @Resource
+    private UserRepository userRepository;
+
+    @Resource
+    private ProductRepository productRepository;
+
+    @Resource
+    private ProductSkuRepository productSkuRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper()
             .setSerializationInclusion(JsonInclude.Include.NON_NULL);
@@ -126,8 +143,12 @@ public class JushuitanOrderServiceImpl implements JushuitanOrderService {
                     log.warn("shop_id格式错误，无法转换为Integer: {}", shopId);
                 }
             }
-            // 设置店铺买家ID（使用用户ID或订单号）
-            orderDTO.setShopBuyerId(order.getUserId() != null ? String.valueOf(order.getUserId()) : order.getOrderNo());
+            // 设置店铺买家ID：获取下单用户的姓名
+            String buyerName = getBuyerName(order.getUserId());
+            orderDTO.setShopBuyerId(buyerName != null ? buyerName : (order.getUserId() != null ? String.valueOf(order.getUserId()) : order.getOrderNo()));
+            
+            // 设置订单状态：固定传WAIT_SELLER_SEND_GOODS（等待卖家发货）
+            orderDTO.setShopStatus("WAIT_SELLER_SEND_GOODS");
 
             // 记录请求数据
             syncLog.setRequestData(objectMapper.writeValueAsString(orderDTO));
@@ -237,8 +258,12 @@ public class JushuitanOrderServiceImpl implements JushuitanOrderService {
             } catch (Exception e) {
                 log.warn("获取店铺ID失败", e);
             }
-            // 设置店铺买家ID（使用用户ID或订单号）
-            orderDTO.setShopBuyerId(order.getUserId() != null ? String.valueOf(order.getUserId()) : order.getOrderNo());
+            // 设置店铺买家ID：获取下单用户的姓名
+            String buyerName = getBuyerName(order.getUserId());
+            orderDTO.setShopBuyerId(buyerName != null ? buyerName : (order.getUserId() != null ? String.valueOf(order.getUserId()) : order.getOrderNo()));
+            
+            // 设置订单状态：固定传WAIT_SELLER_SEND_GOODS（等待卖家发货）
+            orderDTO.setShopStatus("WAIT_SELLER_SEND_GOODS");
 
             // 更新请求数据
             syncLog.setRequestData(objectMapper.writeValueAsString(orderDTO));
@@ -376,8 +401,12 @@ public class JushuitanOrderServiceImpl implements JushuitanOrderService {
                     logBuilder.append("[警告] shop_id格式错误，无法转换为Integer: ").append(shopId).append("\n");
                 }
             }
-            // 设置店铺买家ID（使用用户ID或订单号）
-            orderDTO.setShopBuyerId(order.getUserId() != null ? String.valueOf(order.getUserId()) : order.getOrderNo());
+            // 设置店铺买家ID：获取下单用户的姓名
+            String buyerName = getBuyerName(order.getUserId());
+            orderDTO.setShopBuyerId(buyerName != null ? buyerName : (order.getUserId() != null ? String.valueOf(order.getUserId()) : order.getOrderNo()));
+            
+            // 设置订单状态：固定传WAIT_SELLER_SEND_GOODS（等待卖家发货）
+            orderDTO.setShopStatus("WAIT_SELLER_SEND_GOODS");
 
             String requestJson = objectMapper.writeValueAsString(orderDTO);
             result.setRequestData(requestJson);
@@ -518,8 +547,12 @@ public class JushuitanOrderServiceImpl implements JushuitanOrderService {
             } catch (Exception e) {
                 logBuilder.append("[警告] 获取配置失败: ").append(e.getMessage()).append("\n\n");
             }
-            // 设置店铺买家ID（使用用户ID或订单号）
-            orderDTO.setShopBuyerId(order.getUserId() != null ? String.valueOf(order.getUserId()) : order.getOrderNo());
+            // 设置店铺买家ID：获取下单用户的姓名
+            String buyerName = getBuyerName(order.getUserId());
+            orderDTO.setShopBuyerId(buyerName != null ? buyerName : (order.getUserId() != null ? String.valueOf(order.getUserId()) : order.getOrderNo()));
+            
+            // 设置订单状态：固定传WAIT_SELLER_SEND_GOODS（等待卖家发货）
+            orderDTO.setShopStatus("WAIT_SELLER_SEND_GOODS");
 
             String requestJson = objectMapper.writeValueAsString(orderDTO);
             result.setRequestData(requestJson);
@@ -606,6 +639,13 @@ public class JushuitanOrderServiceImpl implements JushuitanOrderService {
         dto.setPayDate(order.getPayTime() != null ? order.getPayTime().format(dateTimeFormatter) : null);
         dto.setFreight(order.getShippingFee());
         dto.setPayAmount(order.getActualAmount()); // 设置支付金额
+        
+        // 设置订单状态：固定传WAIT_SELLER_SEND_GOODS（等待卖家发货）
+        dto.setShopStatus("WAIT_SELLER_SEND_GOODS");
+        
+        // 设置店铺买家ID：获取下单用户的姓名
+        String buyerName = getBuyerName(order.getUserId());
+        dto.setShopBuyerId(buyerName != null ? buyerName : (order.getUserId() != null ? String.valueOf(order.getUserId()) : order.getOrderNo()));
 
         // 解析收货地址
         if (order.getShippingAddress() != null && !order.getShippingAddress().isEmpty()) {
@@ -627,8 +667,18 @@ public class JushuitanOrderServiceImpl implements JushuitanOrderService {
                 dto.setReceiverMobile(addressNode.get("receiverMobile").asText());
             }
 
+            // 收货人电话：使用phone字段
+            if (addressNode.has("phone")) {
+                dto.setReceiverPhone(addressNode.get("phone").asText());
+            }
+
+            // 邮政编码：使用zipCode字段
+            if (addressNode.has("zipCode")) {
+                dto.setReceiverZip(addressNode.get("zipCode").asText());
+            }
+
             if (addressNode.has("province")) {
-                dto.setReceiverProvince(addressNode.get("province").asText());
+                dto.setReceiverState(addressNode.get("province").asText());
             }
             if (addressNode.has("city")) {
                 dto.setReceiverCity(addressNode.get("city").asText());
@@ -652,25 +702,80 @@ public class JushuitanOrderServiceImpl implements JushuitanOrderService {
             }
         }
 
+        // buyer_message字段：传订单附言的字段内容（orderRemark）
+        if (order.getOrderRemark() != null && !order.getOrderRemark().isEmpty()) {
+            dto.setBuyerMessage(order.getOrderRemark());
+        }
+
         // 转换订单商品
         List<JushuitanOrderDTO.Item> items = new ArrayList<>();
         for (OrderItem orderItem : orderItems) {
             JushuitanOrderDTO.Item item = new JushuitanOrderDTO.Item();
 
-            // 使用SKU ID或商品编码
-            String skuIdStr;
+            // sku_id字段：需要和普通商品资料上传接口的sku_id逻辑对应
+            // 如果订单项有SKU ID，查询SKU信息获取SKU编码；否则使用商品编码
+            String skuIdStr = null;
+            String shopIId = orderItem.getProductCode(); // shop_i_id：传商品编码
+            
             if (orderItem.getSkuId() != null) {
-                skuIdStr = String.valueOf(orderItem.getSkuId());
-            } else if (orderItem.getProductCode() != null) {
-                skuIdStr = orderItem.getProductCode();
+                // 有SKU ID，查询SKU信息
+                ProductSku sku = productSkuRepository.selectById(orderItem.getSkuId());
+                if (sku != null && sku.getSkuCode() != null && !sku.getSkuCode().isEmpty()) {
+                    // 使用SKU编码
+                    skuIdStr = sku.getSkuCode();
+                } else {
+                    // SKU没有编码，使用商品编码+SKU ID
+                    Product product = productRepository.selectById(orderItem.getProductId());
+                    if (product != null && product.getProductCode() != null) {
+                        skuIdStr = product.getProductCode() + "_" + orderItem.getSkuId();
+                    } else {
+                        skuIdStr = String.valueOf(orderItem.getSkuId());
+                    }
+                }
+                
+                // properties_value字段：按照"规格属性+规格值"的方式拼接
+                if (sku != null && sku.getSpecCombination() != null && !sku.getSpecCombination().isEmpty()) {
+                    try {
+                        // 解析specCombination JSON字符串，格式如：{"颜色":"蓝色","尺码":"XXL"}
+                        Map<String, String> specMap = objectMapper.readValue(
+                            sku.getSpecCombination(), 
+                            new TypeReference<Map<String, String>>() {}
+                        );
+                        
+                        // 按照"规格属性+规格值"格式拼接，例如"颜色:蓝色;尺码:XXL"
+                        List<String> specParts = new ArrayList<>();
+                        for (Map.Entry<String, String> entry : specMap.entrySet()) {
+                            specParts.add(entry.getKey() + ":" + entry.getValue());
+                        }
+                        
+                        if (!specParts.isEmpty()) {
+                            String propertiesValue = String.join(";", specParts);
+                            item.setPropertiesValue(propertiesValue);
+                        }
+                    } catch (Exception e) {
+                        log.warn("解析订单项SKU规格组合失败: orderItemId={}, specCombination={}", 
+                                orderItem.getId(), sku.getSpecCombination(), e);
+                    }
+                }
             } else {
-                skuIdStr = String.valueOf(orderItem.getProductId());
+                // 没有SKU ID，使用商品编码
+                if (orderItem.getProductCode() != null) {
+                    skuIdStr = orderItem.getProductCode();
+                } else {
+                    Product product = productRepository.selectById(orderItem.getProductId());
+                    if (product != null && product.getProductCode() != null) {
+                        skuIdStr = product.getProductCode();
+                    } else {
+                        skuIdStr = String.valueOf(orderItem.getProductId());
+                    }
+                }
             }
 
             item.setSkuId(skuIdStr);
             item.setShopSkuId(skuIdStr); // 店铺SKU ID，通常与sku_id相同
+            item.setShopIId(shopIId); // shop_i_id：传商品编码
             item.setName(orderItem.getProductName()); // 使用name字段（必填）
-            item.setItemName(orderItem.getProductName()); // 兼容item_name
+            // item_name字段不需要，不设置（已从DTO中移除）
             item.setQty(orderItem.getQuantity());
             item.setPrice(orderItem.getPrice());
             item.setBasePrice(orderItem.getPrice()); // 基础价格，通常与price相同
@@ -697,37 +802,91 @@ public class JushuitanOrderServiceImpl implements JushuitanOrderService {
             payInfo.setPayDate(order.getCreateTime().format(dateTimeFormatter));
         }
 
-        // 支付方式（根据订单支付方式映射）
+        // 支付方式（转换为中文传值）
         String paymentMethod = order.getPaymentMethod();
         if (paymentMethod != null) {
-            // 映射支付方式：ALIPAY -> ALIPAY, WECHAT -> WECHAT, 其他 -> memall
+            // 映射支付方式为中文：ALIPAY -> 支付宝, WECHAT -> 微信, PRE_DEPOSIT -> 预存款支付
             if ("ALIPAY".equalsIgnoreCase(paymentMethod)) {
-                payInfo.setPayment("ALIPAY");
+                payInfo.setPayment("支付宝");
             } else if ("WECHAT".equalsIgnoreCase(paymentMethod)) {
-                payInfo.setPayment("WECHAT");
+                payInfo.setPayment("微信");
+            } else if ("PRE_DEPOSIT".equalsIgnoreCase(paymentMethod)) {
+                payInfo.setPayment("预存款支付");
             } else {
-                payInfo.setPayment("memall");
+                payInfo.setPayment("其他");
             }
         } else {
-            payInfo.setPayment("memall");
+            payInfo.setPayment("其他");
         }
 
         // 实付金额（必填，必须等于 pay_amount）
         payInfo.setAmount(order.getActualAmount());
 
-        // 卖家账号（必填，最大50字符）
-        payInfo.setSellerAccount("memall"); // 可以从配置中获取
+        // 卖家账号（转换为中文传值）
+        if (paymentMethod != null) {
+            if ("ALIPAY".equalsIgnoreCase(paymentMethod)) {
+                payInfo.setSellerAccount("支付宝");
+            } else if ("WECHAT".equalsIgnoreCase(paymentMethod)) {
+                payInfo.setSellerAccount("微信");
+            } else if ("PRE_DEPOSIT".equalsIgnoreCase(paymentMethod)) {
+                payInfo.setSellerAccount("预存款支付");
+            } else {
+                payInfo.setSellerAccount("其他");
+            }
+        } else {
+            payInfo.setSellerAccount("其他");
+        }
 
-        // 买家账号（必填，最大200字符）
-        String buyerAccount = order.getUserId() != null ? String.valueOf(order.getUserId()) : order.getOrderNo();
-        // 如果订单有收货人手机号，优先使用手机号
-        if (dto.getReceiverMobile() != null && !dto.getReceiverMobile().isEmpty()) {
+        // 买家账号：传买家的手机号
+        String buyerAccount = getBuyerPhone(order.getUserId());
+        // 如果获取不到用户手机号，使用收货人手机号
+        if (buyerAccount == null || buyerAccount.isEmpty()) {
             buyerAccount = dto.getReceiverMobile();
+        }
+        // 如果还是没有，使用用户ID或订单号
+        if (buyerAccount == null || buyerAccount.isEmpty()) {
+            buyerAccount = order.getUserId() != null ? String.valueOf(order.getUserId()) : order.getOrderNo();
         }
         payInfo.setBuyerAccount(buyerAccount);
 
         dto.setPay(payInfo);
 
         return dto;
+    }
+
+    /**
+     * 获取买家姓名
+     */
+    private String getBuyerName(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        try {
+            User user = userRepository.selectById(userId);
+            if (user != null && user.getRealName() != null && !user.getRealName().isEmpty()) {
+                return user.getRealName();
+            }
+        } catch (Exception e) {
+            log.warn("获取用户姓名失败: userId={}", userId, e);
+        }
+        return null;
+    }
+
+    /**
+     * 获取买家手机号
+     */
+    private String getBuyerPhone(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        try {
+            User user = userRepository.selectById(userId);
+            if (user != null && user.getPhone() != null && !user.getPhone().isEmpty()) {
+                return user.getPhone();
+            }
+        } catch (Exception e) {
+            log.warn("获取用户手机号失败: userId={}", userId, e);
+        }
+        return null;
     }
 }
