@@ -45,9 +45,10 @@
                           :src="consultation.productImage" 
                           :alt="consultation.productName"
                           class="product-image"
+                          @click="goToProductDetail(consultation.productId)"
                         />
                         <div class="product-details">
-                          <h4 class="product-name">{{ consultation.productName }}</h4>
+                          <h4 class="product-name" @click="goToProductDetail(consultation.productId)">{{ consultation.productName }}</h4>
                           <div class="consultation-meta">
                             <span class="consultation-time">{{ formatTime(consultation.createTime) }}</span>
                             <el-tag
@@ -118,6 +119,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Clock } from '@element-plus/icons-vue'
 import TopBar from '@/components/home/TopBar.vue'
@@ -127,6 +129,8 @@ import Footer from '@/components/home/Footer.vue'
 import MemberHeaderBar from '@/components/member/MemberHeaderBar.vue'
 import MemberSidebar from '@/components/member/MemberSidebar.vue'
 import { getMyConsultations, type ConsultationVO } from '@/api/buyer/consultation'
+
+const router = useRouter()
 
 const unreadMessageCount = ref(0)
 const loading = ref(false)
@@ -155,6 +159,11 @@ const getStatusTagType = (status: number) => {
 const formatTime = (time?: string) => {
   if (!time) return ''
   return new Date(time).toLocaleString()
+}
+
+// 跳转到商品详情页
+const goToProductDetail = (productId: number) => {
+  router.push(`/products/${productId}`)
 }
 
 // 加载咨询列表
@@ -256,6 +265,13 @@ onMounted(() => {
                   object-fit: cover;
                   border-radius: 4px;
                   border: 1px solid #e5e5e5;
+                  cursor: pointer;
+                  transition: transform 0.2s, box-shadow 0.2s;
+
+                  &:hover {
+                    transform: scale(1.05);
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+                  }
                 }
 
                 .product-details {
@@ -267,6 +283,12 @@ onMounted(() => {
                     color: #333;
                     margin: 0 0 8px 0;
                     line-height: 1.4;
+                    cursor: pointer;
+                    transition: color 0.2s;
+
+                    &:hover {
+                      color: #e4393c;
+                    }
                   }
 
                   .consultation-meta {

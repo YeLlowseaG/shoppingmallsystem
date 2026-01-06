@@ -22,7 +22,8 @@ export interface ConsultationVO {
   replyTime?: string
   replyAdminId?: number
   replyAdminName?: string
-  createdTime: string
+  createTime: string
+  createdTime?: string  // 兼容字段，实际使用 createTime
   updatedTime: string
 }
 

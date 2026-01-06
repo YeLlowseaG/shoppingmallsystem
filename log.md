@@ -6857,3 +6857,81 @@ if (win) {
 
 - `frontend/src/views/products/List.vue`（修改：修复排序参数值）
 - `backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java`（修改：优化综合排序逻辑）
+
+---
+
+## 2024-XX-XX - 会员中心我的收藏页面优化
+
+### 修改内容
+
+在会员中心的"我的收藏"页面（`/member/favorites/products`）中，移除了"加入购物车"按钮，仅保留"删除"按钮，并优化了按钮的显示位置。
+
+### 具体修改
+
+1. **移除加入购物车功能**
+   - 删除了"加入购物车"按钮及其相关代码
+   - 移除了 `handleAddToCart` 函数
+   - 移除了 `addingToCart` 状态管理
+   - 移除了相关的导入（`addToCartAPI`, `AddCartDTO`, `useCartStore`）
+
+2. **优化删除按钮样式和位置**
+   - 调整了 `.product-actions` 容器的宽度从 180px 改为 100px
+   - 将删除按钮对齐方式改为右对齐（`justify-content: flex-end`）
+   - 优化了响应式设计中的按钮布局
+
+### 相关文件
+
+- `frontend/src/views/member/Favorites.vue`（修改：移除加入购物车按钮，优化删除按钮位置）
+
+---
+
+## 2024-XX-XX - 修复管理后台咨询时间显示问题
+
+### 修改内容
+
+修复了管理后台咨询管理页面（`/admin/content/consultation`）中咨询时间不显示的问题。列表和详情页面现在都能正确显示咨询的创建时间。
+
+### 具体修改
+
+1. **修复字段名不匹配问题**
+   - 后端返回的字段是 `createTime`，但前端使用的是 `createdTime`
+   - 将列表和详情页面中的 `createdTime` 改为 `createTime`
+   - 在API接口类型定义中添加了 `createTime` 字段，保留 `createdTime` 作为兼容字段
+
+2. **优化时间格式化函数**
+   - 改进了 `formatTime` 函数，增加了错误处理
+   - 使用中文本地化格式显示时间
+   - 当时间为空或无效时显示 "-"
+
+### 相关文件
+
+- `admin-frontend/src/views/content/ConsultationManage.vue`（修改：修复咨询时间字段名，优化时间格式化）
+- `admin-frontend/src/api/admin/consultation.ts`（修改：添加 createTime 字段定义）
+
+---
+
+## 2024-12-XX - 优化会员评价和咨询页面的商品跳转功能
+
+### 修改内容
+
+1. **会员评价页面（Reviews.vue）**
+   - 为商品图片和标题添加点击跳转功能
+   - 点击商品图片或标题可跳转到对应的商品详情页面
+   - 添加鼠标悬停效果（图片放大、标题变色）
+
+2. **会员咨询页面（Consultations.vue）**
+   - 为商品图片和标题添加点击跳转功能
+   - 点击商品图片或标题可跳转到对应的商品详情页面
+   - 添加鼠标悬停效果（图片放大、标题变色）
+
+### 技术实现
+
+- 导入 `useRouter` 实现路由跳转
+- 添加 `goToProductDetail` 方法处理跳转逻辑
+- 使用 `productId` 字段构建商品详情页路径 `/products/${productId}`
+- 为图片和标题添加 `cursor: pointer` 样式和悬停动画效果
+
+### 相关文件
+
+- `frontend/src/views/member/Reviews.vue`（修改：添加商品跳转功能）
+- `frontend/src/views/member/Consultations.vue`（修改：添加商品跳转功能）

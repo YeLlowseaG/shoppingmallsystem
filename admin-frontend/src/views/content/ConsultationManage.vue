@@ -52,9 +52,9 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdTime" label="咨询时间" width="160">
+        <el-table-column prop="createTime" label="咨询时间" width="160">
           <template #default="{ row }">
-            {{ formatTime(row.createdTime) }}
+            {{ formatTime(row.createTime) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" width="280" fixed="right">
@@ -112,7 +112,7 @@
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="咨询时间" :span="2">
-            {{ formatTime(selectedConsultation.createdTime) }}
+            {{ formatTime(selectedConsultation.createTime) }}
           </el-descriptions-item>
           <el-descriptions-item label="咨询内容" :span="2">
             <div style="white-space: pre-wrap;">{{ selectedConsultation.consultationContent }}</div>
@@ -219,9 +219,22 @@ const getStatusTagType = (status: number) => {
 }
 
 // 格式化时间
-const formatTime = (time: string) => {
-  if (!time) return ''
-  return new Date(time).toLocaleString()
+const formatTime = (time: string | undefined) => {
+  if (!time) return '-'
+  try {
+    const date = new Date(time)
+    if (isNaN(date.getTime())) return '-'
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    })
+  } catch (error) {
+    return '-'
+  }
 }
 
 // 加载咨询列表
