@@ -1,5 +1,112 @@
 # 修改日志
 
+## 2026-01-05 - 为系统配置表添加分类字段，支持按分类查询
+
+### 功能说明
+为系统配置表添加分类字段，支持对配置进行分类管理，方便查询和管理。
+
+### 修改原因
+用户反馈基础配置页面数据太多、比较乱，需要增加分类功能，按照数据类型进行分类，方便查询。
+
+### 分类方案
+根据配置键的前缀，将配置分为6个分类：
+1. **网站基础** (site) - 包含网站基本信息、搜索相关配置
+2. **支付配置** (payment) - 包含微信支付、支付宝、预存款等支付相关配置
+3. **应用配置** (app) - 包含前端地址、密码重置、平台名称等应用配置
+4. **邮件配置** (mail) - 包含邮件服务器、邮件模板等配置
+5. **订单配置** (order) - 包含订单相关配置
+6. **企业微信** (wechat.work) - 包含企业微信通知相关配置
+
+### 修改内容
+
+#### 1. 数据库表结构修改
+
+**文件：** `database/update-20260105-add-system-config-category.sql`
+- 添加 `category` 字段到 `system_config` 表
+- 为现有数据设置分类（根据config_key前缀自动分类）
+
+#### 2. 后端实体类修改
+
+**文件：** `backend/src/main/java/com/shoppingmall/entity/SystemConfig.java`
+- 添加 `category` 字段，用于存储配置分类
+
+#### 3. 后端服务层修改
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/system/SystemConfigService.java`
+- 修改 `getSystemConfigPage` 方法签名，添加 `category` 参数
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/system/impl/SystemConfigServiceImpl.java`
+- 实现按分类筛选的逻辑
+
+#### 4. 后端控制器修改
+
+**文件：** `backend/src/main/java/com/shoppingmall/controller/admin/SystemConfigController.java`
+- 修改 `getSystemConfigPage` 接口，添加 `category` 查询参数
+
+#### 5. 前端API接口修改
+
+**文件：** `admin-frontend/src/api/admin/systemConfig.ts`
+- 在 `SystemConfig` 接口中添加 `category` 字段
+- 修改 `getSystemConfigPage` 函数，添加 `category` 参数
+
+#### 6. 前端页面修改
+
+**文件：** `admin-frontend/src/views/system/Basic.vue`
+- 在搜索栏中添加分类筛选下拉框
+- 在配置列表表格中添加分类列显示
+- 在编辑/新增对话框中添加分类选择
+- 添加分类标签类型和文本的辅助函数
+
+### 影响范围
+- ✅ 数据库：新增category字段，现有数据已自动分类
+- ✅ 后端接口：支持按分类查询配置
+- ✅ 前端页面：支持按分类筛选和显示配置分类
+
+### 注意事项
+1. 执行数据库更新脚本后，现有配置数据会根据config_key前缀自动设置分类
+2. 新增配置时可以选择分类，也可以不选择（分类为可选字段）
+3. 分类值：site、payment、app、mail、order、wechat.work
+
+## 2026-01-05 - 修改重置密码功能校验规则和提示文案
+
+### 功能说明
+修改会员列表页面中重置密码功能的校验规则和提示文案。
+
+### 修改原因
+用户要求：
+- 密码可以输入纯数字或纯字母（不需要同时包含字母和数字）
+- 提示文案去掉"包含字母和数字"，只保留"至少6位"
+
+### 修改内容
+
+**文件：** `admin-frontend/src/views/buyer/List.vue`
+- 删除密码校验规则中要求同时包含字母和数字的验证逻辑
+- 简化校验规则，只保留长度至少6位的校验
+- 修改提示文案：将"建议密码长度至少6位，包含字母和数字。"改为"建议密码长度至少6位。"
+
+### 影响范围
+- ✅ 会员列表页面（`/admin/buyer/list`）的重置密码功能：
+  - 密码可以输入纯数字或纯字母
+  - 只需要满足长度至少6位的要求
+  - 提示文案已更新
+
+## 2026-01-05 - 屏蔽会员详情页面中的"审核意见"字段
+
+### 功能说明
+在会员列表页面的会员详情对话框中，屏蔽"审核意见"字段的显示。
+
+### 修改原因
+用户要求在会员详情页面中隐藏"审核意见"字段。
+
+### 修改内容
+
+**文件：** `admin-frontend/src/views/buyer/List.vue`
+- 删除会员详情对话框中的"审核意见"字段显示
+- 移除第165行的 `<el-descriptions-item label="审核意见" :span="2">{{ currentBuyer.auditComment || '-' }}</el-descriptions-item>`
+
+### 影响范围
+- ✅ 会员列表页面（`/admin/buyer/list`）的会员详情对话框不再显示"审核意见"字段
+
 ## 2025-12-30 - 修改结算页面运费计算逻辑，根据商品是否启用SKU选择重量来源
 
 ### 功能说明
@@ -6572,3 +6679,21 @@ if (win) {
 
 - **调整重量字段列位置**：将重量字段列从"警戒库存"之后移到"库存"之后、"警戒库存"之前，使其更容易看到
 - **优化输入体验**：为重量字段添加`:step="0.01"`属性，使输入更加方便
+
+## 2026-01-05 - 修改顶部欢迎文案为配置化，屏蔽底部服务保障模块
+
+### 修改内容
+
+1. **顶部欢迎文案配置化**：
+   - 将顶部欢迎文案"亲，欢迎光临云起分销王商城！"改为从配置表`system_config`的`site.name`读取
+   - 格式为："亲，欢迎光临" + `site.name` + "！"
+   - 如果配置不存在，默认显示"云起分销王商城"
+
+2. **屏蔽底部服务保障模块**：
+   - 屏蔽页面底部的服务保障模块（包含"正品货源"、"海外直邮"、"本土客服"、"全球同价"）
+   - 通过注释的方式屏蔽，保留代码以便后续需要时恢复
+
+### 相关文件
+
+- `frontend/src/components/home/TopBar.vue`（修改：添加配置读取逻辑，将欢迎文案改为动态显示）
+- `frontend/src/components/home/Footer.vue`（修改：注释掉服务保障模块）

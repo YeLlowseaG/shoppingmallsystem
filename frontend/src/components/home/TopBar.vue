@@ -2,7 +2,7 @@
   <div class="top-bar">
     <div class="container">
       <div class="left">
-        <span class="welcome">亲，欢迎光临云起分销王商城！</span>
+        <span class="welcome">亲，欢迎光临{{ siteName }}！</span>
       </div>
       <div class="right">
         <template v-if="isLoggedIn">
@@ -27,21 +27,38 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, watch, ref } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { useCartStore } from '@/stores/cart'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
+import { getPublicConfigs } from '@/api/buyer/systemConfig'
 
 const userStore = useUserStore()
 const cartStore = useCartStore()
 const router = useRouter()
 
+// 网站名称 - 从配置读取
+const siteName = ref('云起分销王商城')
+
 // 计算登录状态，确保响应式
 const isLoggedIn = computed(() => userStore.isLoggedIn())
 
-// 初始化购物车数量
+// 加载网站配置
+const loadSiteConfig = async () => {
+  try {
+    const configs = await getPublicConfigs()
+    if (configs['site.name']) {
+      siteName.value = configs['site.name']
+    }
+  } catch (error) {
+    console.error('加载系统配置失败:', error)
+  }
+}
+
+// 初始化购物车数量和网站配置
 onMounted(() => {
+  loadSiteConfig()
   if (isLoggedIn.value) {
     cartStore.updateCartCount()
   }

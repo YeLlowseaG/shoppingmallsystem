@@ -1,7 +1,7 @@
 <template>
   <footer class="footer">
-    <!-- 服务保障 -->
-    <div class="service-bar">
+    <!-- 服务保障 - 已屏蔽 -->
+    <!-- <div class="service-bar">
       <div class="container">
         <div class="service-item">
           <div class="icon-circle">正</div>
@@ -21,7 +21,7 @@
         </div>
         <el-button type="danger" class="contact-btn">查看详情</el-button>
       </div>
-    </div>
+    </div> -->
 
     <!-- 底部信息 -->
     <div class="footer-info">

@@ -47,6 +47,11 @@ public class SystemConfig {
     private String configType;
 
     /**
+     * 配置分类（site-网站基础, payment-支付配置, app-应用配置, mail-邮件配置, order-订单配置, wechat.work-企业微信）
+     */
+    private String category;
+
+    /**
      * 排序
      */
     private Integer sortOrder;
