@@ -47,8 +47,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
             wrapper.eq(SystemConfig::getCategory, category);
         }
 
-        // 按排序号升序
-        wrapper.orderByAsc(SystemConfig::getSortOrder);
+        // 按ID升序排序
         wrapper.orderByAsc(SystemConfig::getId);
 
         return systemConfigRepository.selectPage(page, wrapper);

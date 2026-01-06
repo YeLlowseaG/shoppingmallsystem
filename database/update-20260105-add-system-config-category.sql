@@ -15,3 +15,4 @@ UPDATE `system_config` SET `category` = 'mail' WHERE `config_key` LIKE 'mail.%';
 UPDATE `system_config` SET `category` = 'order' WHERE `config_key` LIKE 'order.%';
 UPDATE `system_config` SET `category` = 'wechat.work' WHERE `config_key` LIKE 'wechat.work.%';
 
+
