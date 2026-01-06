@@ -1,5 +1,48 @@
 # 修改日志
 
+## 2026-01-05 - 页脚对接帮助中心模块
+
+### 功能说明
+将页脚内容从静态内容改为动态对接帮助中心模块，页脚分类和文章标题均从帮助中心API获取。
+
+### 修改原因
+用户要求页脚内容直接对接帮助中心模块，例如"购物指南"对应帮助中心的分类，下面的最多显示4条文章标题。帮助中心的分类最多显示4个（购物指南、新手上路、购物条款、支付/配送方式）。
+
+### 修改内容
+
+**文件：** `frontend/src/components/home/Footer.vue`
+- 导入帮助中心API：`getHelpCategories`、`getHelpArticlesByCategory`
+- 添加响应式数据 `footerCategories` 存储页脚分类和文章数据
+- 实现 `loadFooterData` 方法：
+  - 获取帮助中心分类列表，只取前4个顶级分类
+  - 对每个分类，如果有子分类则使用第一个子分类的ID获取文章，否则使用分类本身的ID
+  - 每个分类最多显示4条文章
+- 实现 `goToArticle` 方法，点击文章标题跳转到 `/help?articleId=xxx`
+- 保留"备案号"为静态内容，不依赖帮助中心
+
+### 影响范围
+- ✅ 页脚分类和文章标题现在从帮助中心动态获取
+- ✅ 最多显示4个帮助中心分类，每个分类最多显示4条文章
+- ✅ 点击文章标题可跳转到帮助中心查看详情
+- ✅ "备案号"保留为静态内容
+
+## 2026-01-05 - 修改页脚内容居中显示
+
+### 功能说明
+将页脚内容从左对齐改为居中对齐显示。
+
+### 修改原因
+用户反馈页脚内容（购物指南、新手上路、购物条款、支付/配送方式、备案号等）目前是偏左显示的，需要改为居中显示。
+
+### 修改内容
+
+**文件：** `frontend/src/components/home/Footer.vue`
+- 修改 `.footer-content` 的 `justify-content` 从 `space-between` 改为 `center`
+- 为 `.links` 添加 `justify-content: center` 样式，使链接组居中显示
+
+### 影响范围
+- ✅ 页脚内容现在居中显示，包括所有链接组（购物指南、新手上路、购物条款、支付/配送方式、备案号）
+
 ## 2026-01-05 - 修改基础配置列表排序为按ID顺序
 
 ### 功能说明
@@ -6782,3 +6825,35 @@ if (win) {
 ### 相关文件
 
 - `frontend/src/components/home/Navbar.vue`（修改：移除滚动条限制，优化菜单显示）
+
+---
+
+## 2024-12-XX - 修复商品列表排序功能并优化综合排序逻辑
+
+### 问题描述
+
+1. 商品列表页面（`/products?type=new`）的销量排序和最新排序功能没有生效
+2. 综合排序和最新排序逻辑相同，存在冗余
+
+### 修复内容
+
+1. **修复前端排序参数**：
+   - 将销量排序值从 `'sales'` 改为 `'sales_desc'`（销量从高到低）
+   - 将最新排序值从 `'newest'` 改为 `'create_time_desc'`（上架时间从新到旧）
+   - 修复位置：`frontend/src/views/products/List.vue` 第151-152行
+
+2. **优化后端综合排序逻辑**：
+   - 综合排序改为：先按销量降序，销量相同时按创建时间降序（新品优先）
+   - 这样既突出热销商品，又让新品有机会展示，符合标准电商做法
+   - 修复位置：`backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java` 第123-130行
+
+### 排序逻辑说明
+
+- **综合排序**：先按销量降序，销量相同时按创建时间降序
+- **销量排序**：按销量从高到低排序
+- **最新排序**：按上架时间从新到旧排序
+
+### 相关文件
+
+- `frontend/src/views/products/List.vue`（修改：修复排序参数值）
+- `backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java`（修改：优化综合排序逻辑）
