@@ -35,13 +35,13 @@
                 class="favorite-item"
               >
                 <!-- 商品图片 -->
-                <div class="product-image">
+                <div class="product-image" @click="handleViewProduct(item.productId)">
                   <img :src="item.mainImage" :alt="item.productName" />
                 </div>
 
                 <!-- 商品信息 -->
                 <div class="product-info">
-                  <div class="product-name">{{ item.productName }}</div>
+                  <div class="product-name" @click="handleViewProduct(item.productId)">{{ item.productName }}</div>
                   <div class="product-note">
                     <span v-if="item.userLevelPrice">会员价:{{ item.userLevelPrice }}元。</span>
                     <span v-if="item.stock">库存:{{ item.stock }}</span>
@@ -141,6 +141,11 @@ const handleDelete = async (item: FavoriteVO) => {
       ElMessage.error('删除收藏失败')
     }
   }
+}
+
+// 查看商品详情
+const handleViewProduct = (productId: number) => {
+  router.push(`/products/${productId}`)
 }
 
 onMounted(() => {

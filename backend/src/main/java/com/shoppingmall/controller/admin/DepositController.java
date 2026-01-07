@@ -63,6 +63,18 @@ public class DepositController {
         depositService.refundDepositRecharge(refundDTO);
         return Result.success();
     }
+
+    /**
+     * 手动查询并同步支付状态
+     * 用于支付中状态的交易记录，主动查询支付宝或微信的支付状态并同步结果
+     * 查询频率限制：30秒内同一记录只能查询一次
+     * 日志记录：自动记录到payment_api_log表
+     */
+    @PostMapping("/sync-payment-status/{id}")
+    public Result<Void> syncPaymentStatus(@PathVariable Long id) {
+        depositService.syncPaymentStatus(id);
+        return Result.success();
+    }
 }
 
 

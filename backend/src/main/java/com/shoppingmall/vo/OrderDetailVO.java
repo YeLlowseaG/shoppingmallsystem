@@ -203,6 +203,11 @@ public class OrderDetailVO {
         private String phone;
 
         /**
+         * 联系手机
+         */
+        private String mobile;
+
+        /**
          * 送货时间
          */
         private String deliveryTime;

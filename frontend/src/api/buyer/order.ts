@@ -97,6 +97,7 @@ export interface OrderDetailVO {
     address: string
     email: string
     phone: string
+    mobile?: string
     deliveryTime?: string
     paymentMethod: string
     paymentCurrency: string

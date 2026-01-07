@@ -103,14 +103,14 @@
                         <el-checkbox v-model="selectAll" @change="handleSelectAll" />
                       </th>
                       <th width="80">ID</th>
-                      <th width="150">事件</th>
+                      <th width="160">事件</th>
                       <th width="100">支付状态</th>
-                      <th width="100">支付方式</th>
+                      <th width="150">支付方式</th>
                       <th width="120">存入金额</th>
                       <th width="120">支出金额</th>
                       <th width="120">当前余额</th>
                       <th width="150">时间</th>
-                      <th>备注</th>
+                      <th width="160">备注</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -667,10 +667,12 @@ onMounted(() => {
                   }
 
                   .remark-cell {
-                    max-width: 300px;
+                    max-width: 200px;
                     overflow: hidden;
                     text-overflow: ellipsis;
                     white-space: nowrap;
+                    font-size: 12px;
+                    color: #666;
                   }
 
                   &.empty-data {

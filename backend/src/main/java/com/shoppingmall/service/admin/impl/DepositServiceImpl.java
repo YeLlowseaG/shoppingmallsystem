@@ -3,8 +3,10 @@ package com.shoppingmall.service.admin.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.shoppingmall.common.constant.DepositStatus;
 import com.shoppingmall.common.constant.DepositType;
 import com.shoppingmall.common.constant.PaymentMethod;
+import com.shoppingmall.common.constant.PaymentStatus;
 import com.shoppingmall.common.exception.BusinessException;
 import com.shoppingmall.dto.AdminDepositQueryDTO;
 import com.shoppingmall.dto.RefundRequestDTO;
@@ -16,14 +18,18 @@ import com.shoppingmall.repository.deposit.PreDepositRepository;
 import com.shoppingmall.repository.user.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shoppingmall.entity.PaymentApiLog;
+import com.shoppingmall.mapper.PaymentApiLogMapper;
 import com.shoppingmall.payment.config.AlipayConfig;
 import com.shoppingmall.payment.exception.PaymentException;
 import com.shoppingmall.payment.service.PaymentConfigService;
 import com.shoppingmall.payment.service.PaymentGatewayService;
+import com.shoppingmall.payment.strategy.PaymentStrategy;
 import com.shoppingmall.payment.util.AlipayUtil;
 import com.shoppingmall.service.admin.DepositService;
 import com.shoppingmall.service.payment.PaymentLogService;
 import com.shoppingmall.vo.AdminDepositRecordVO;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -39,6 +45,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -58,7 +65,16 @@ public class DepositServiceImpl implements DepositService {
     private final PaymentGatewayService paymentGatewayService;
     private final PaymentConfigService paymentConfigService;
     private final PaymentLogService paymentLogService;
+    private final PaymentApiLogMapper paymentApiLogMapper;
     private final ObjectMapper objectMapper;
+
+    /**
+     * 支付状态查询频率限制缓存（30秒过期）
+     */
+    private final Cache<String, Long> paymentQueryCache = Caffeine.newBuilder()
+            .maximumSize(1000)
+            .expireAfterWrite(30, TimeUnit.SECONDS) // 30秒过期
+            .build();
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
@@ -760,6 +776,144 @@ public class DepositServiceImpl implements DepositService {
                     return "微信";
                 }
                 return paymentMethod;
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void syncPaymentStatus(Long id) {
+        // 1. 查询记录
+        PreDepositDetail detail = preDepositDetailRepository.selectById(id);
+        if (detail == null) {
+            throw new BusinessException(404, "记录不存在");
+        }
+
+        // 2. 验证状态和支付方式
+        if (!DepositStatus.PAYING.equals(detail.getStatus())) {
+            throw new BusinessException(400, "只有支付中状态的记录才能查询支付状态");
+        }
+
+        String paymentMethod = detail.getPaymentMethod();
+        if (paymentMethod == null || 
+            (!"alipay".equalsIgnoreCase(paymentMethod) && !"wechat".equalsIgnoreCase(paymentMethod))) {
+            throw new BusinessException(400, "只有支付宝或微信支付的记录才能查询支付状态");
+        }
+
+        // 3. 频率限制检查（30秒内只能查询一次）
+        String cacheKey = "sync_payment_status:" + id;
+        Long lastQueryTime = paymentQueryCache.getIfPresent(cacheKey);
+        if (lastQueryTime != null) {
+            long elapsed = System.currentTimeMillis() - lastQueryTime;
+            if (elapsed < 30000) { // 30秒 = 30000毫秒
+                long remainingSeconds = (30000 - elapsed) / 1000;
+                throw new BusinessException(429, String.format("查询过于频繁，请等待%d秒后重试", remainingSeconds));
+            }
+        }
+
+        // 4. 更新缓存时间戳
+        paymentQueryCache.put(cacheKey, System.currentTimeMillis());
+
+        // 5. 获取内部订单号
+        String internalOrderNo = detail.getInternalOrderNo();
+        if (internalOrderNo == null || internalOrderNo.isEmpty()) {
+            throw new BusinessException(400, "内部订单号不存在，无法查询支付状态");
+        }
+
+        // 6. 调用支付网关查询状态（会自动记录日志到payment_api_log表）
+        String paymentMethodUpper = paymentMethod.toUpperCase();
+        Integer paymentStatus;
+        try {
+            // 获取支付策略
+            PaymentStrategy strategy = paymentGatewayService.getPaymentStrategy(paymentMethodUpper);
+            if (strategy == null) {
+                throw new BusinessException(400, "不支持的支付方式：" + paymentMethodUpper);
+            }
+            // 调用策略查询支付状态
+            paymentStatus = strategy.queryPaymentStatus(internalOrderNo);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("查询支付状态失败，记录ID：{}，内部订单号：{}", id, internalOrderNo, e);
+            throw new BusinessException(500, "查询支付状态失败：" + e.getMessage());
+        }
+
+        // 7. 根据查询结果更新状态
+        if (PaymentStatus.PAID.equals(paymentStatus)) {
+            // 支付成功，更新充值记录状态和余额
+            detail.setStatus(DepositStatus.APPROVED);
+            detail.setAuditTime(LocalDateTime.now());
+            
+            // 查询外部交易号（从支付日志中获取）
+            String externalTradeNo = getExternalTradeNoFromLog(internalOrderNo, paymentMethodUpper);
+            if (externalTradeNo != null) {
+                detail.setExternalTradeNo(externalTradeNo);
+                detail.setRemark("预存款充值:外部交易号(" + externalTradeNo + ")");
+            }
+
+            // 更新预存款余额（使用悲观锁，防止并发充值导致余额不一致）
+            PreDeposit preDeposit = preDepositRepository.selectOne(
+                new LambdaQueryWrapper<PreDeposit>()
+                    .eq(PreDeposit::getUserId, detail.getUserId())
+                    .last("FOR UPDATE")
+            );
+
+            if (preDeposit != null) {
+                BigDecimal currentBalance = preDeposit.getBalance() != null ? preDeposit.getBalance() : BigDecimal.ZERO;
+                BigDecimal currentAvailableBalance = preDeposit.getAvailableBalance() != null 
+                    ? preDeposit.getAvailableBalance() : BigDecimal.ZERO;
+                BigDecimal depositAmount = detail.getDepositAmount() != null 
+                    ? detail.getDepositAmount() 
+                    : detail.getAmount();
+                BigDecimal newBalance = currentBalance.add(depositAmount);
+                BigDecimal newAvailableBalance = currentAvailableBalance.add(depositAmount);
+
+                preDeposit.setBalance(newBalance);
+                preDeposit.setAvailableBalance(newAvailableBalance);
+                preDepositRepository.updateById(preDeposit);
+
+                detail.setCurrentBalance(newBalance);
+                detail.setAvailableBalance(newAvailableBalance);
+            }
+
+            preDepositDetailRepository.updateById(detail);
+            log.info("手动查询支付状态成功，记录ID：{}，内部订单号：{}，状态已更新为已通过", id, internalOrderNo);
+        } else if (PaymentStatus.CLOSED.equals(paymentStatus)) {
+            // 订单已关闭
+            detail.setStatus(DepositStatus.REJECTED);
+            preDepositDetailRepository.updateById(detail);
+            log.info("手动查询支付状态，记录ID：{}，内部订单号：{}，订单已关闭", id, internalOrderNo);
+        } else if (PaymentStatus.FAILED.equals(paymentStatus)) {
+            // 支付失败
+            detail.setStatus(DepositStatus.REJECTED);
+            preDepositDetailRepository.updateById(detail);
+            log.info("手动查询支付状态，记录ID：{}，内部订单号：{}，支付失败", id, internalOrderNo);
+        } else {
+            // 仍然是支付中状态，不更新
+            log.info("手动查询支付状态，记录ID：{}，内部订单号：{}，状态仍为支付中", id, internalOrderNo);
+        }
+    }
+
+    /**
+     * 从支付日志中获取外部交易号
+     *
+     * @param internalOrderNo 内部订单号
+     * @param paymentMethod 支付方式（ALIPAY/WECHAT）
+     * @return 外部交易号
+     */
+    private String getExternalTradeNoFromLog(String internalOrderNo, String paymentMethod) {
+        try {
+            LambdaQueryWrapper<PaymentApiLog> queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.eq(PaymentApiLog::getOrderNo, internalOrderNo);
+            queryWrapper.eq(PaymentApiLog::getApiType, "QUERY_ORDER");
+            queryWrapper.eq(PaymentApiLog::getPaymentMethod, paymentMethod);
+            queryWrapper.orderByDesc(PaymentApiLog::getCreateTime);
+            queryWrapper.last("LIMIT 1");
+            
+            PaymentApiLog log = paymentApiLogMapper.selectOne(queryWrapper);
+            return log != null ? log.getExternalTradeNo() : null;
+        } catch (Exception e) {
+            log.warn("从支付日志获取外部交易号失败", e);
+            return null;
         }
     }
 }

@@ -35,6 +35,15 @@ public interface DepositService {
      * @param refundDTO 退款请求
      */
     void refundDepositRecharge(RefundRequestDTO refundDTO);
+
+    /**
+     * 手动查询并同步支付状态
+     * 用于支付中状态的交易记录，主动查询支付宝或微信的支付状态并同步结果
+     * 查询频率限制：30秒内同一记录只能查询一次
+     *
+     * @param id 预存款交易记录ID
+     */
+    void syncPaymentStatus(Long id);
 }
 
 

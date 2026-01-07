@@ -165,12 +165,12 @@
                   </div>
                   <div class="info-right">
                     <div class="info-item">
-                      <span class="info-label">收货人Mail:</span>
-                      <span class="info-value">{{ recipientInfo.email }}</span>
+                      <span class="info-label">联系手机:</span>
+                      <span class="info-value">{{ recipientInfo.mobile || '-' }}</span>
                     </div>
                     <div class="info-item">
                       <span class="info-label">联系电话:</span>
-                      <span class="info-value">{{ recipientInfo.phone }}</span>
+                      <span class="info-value">{{ recipientInfo.phone || '-' }}</span>
                     </div>
                     <div class="info-item">
                       <span class="info-label">付款方式:</span>
@@ -357,6 +357,7 @@ const recipientInfo = computed(() => {
     address: '',
     email: '',
     phone: '',
+    mobile: '',
     deliveryTime: '',
     paymentMethod: '',
     paymentCurrency: ''
