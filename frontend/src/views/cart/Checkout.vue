@@ -336,7 +336,7 @@
                 </thead>
                 <tbody>
                   <tr v-for="item in orderItems" :key="item.id" class="product-row">
-                    <td class="col-code">{{ item.productCode }}</td>
+                    <td class="col-code">{{ item.skuCode || item.productCode }}</td>
                   <td class="col-name">
                     <div class="product-name">{{ item.name }}</div>
                     <div v-if="item.specText" class="sku-spec-text">规格：{{ item.specText }}</div>

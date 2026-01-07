@@ -276,6 +276,11 @@ public class CartServiceImpl implements CartService {
         ProductSku sku = null;
         if (cart.getSkuId() != null) {
             sku = productSkuRepository.selectById(cart.getSkuId());
+            // 设置SKU ID和SKU编码
+            vo.setSkuId(cart.getSkuId());
+            if (sku != null && sku.getSkuCode() != null && !sku.getSkuCode().trim().isEmpty()) {
+                vo.setSkuCode(sku.getSkuCode());
+            }
         }
 
         BigDecimal salesPrice;

@@ -96,7 +96,7 @@
             </div>
             <div class="meta-row">
               <span class="meta-label">货号：</span>
-              <span class="meta-value">{{ product.sku }}</span>
+              <span class="meta-value">{{ getProductCode() }}</span>
             </div>
             <div class="meta-row">
               <span class="meta-label">品牌：</span>
@@ -559,8 +559,8 @@ const loadProductDetail = async (productId: number) => {
       id: productData.id,
       name: productData.productName,
       productNo: productData.productCode,
+      productCode: productData.productCode,
       weight: productData.weight || 0, // 从API获取重量字段
-      sku: productData.productCode,
       barcode: productData.barcode || '', // 条码
       brand: productData.brandName || '暂无', // 从API获取品牌字段
       unit: productData.unit || '', // 计量单位
@@ -1109,6 +1109,16 @@ const getDisplayPrice = () => {
     }
     return parseFloat(product.value.basePrice ?? 0)
   }
+}
+
+// 获取货号：如果启用SKU且有当前SKU，显示SKU编码，否则显示商品编码
+const getProductCode = () => {
+  // 如果商品启用了SKU且有当前选中的SKU，显示SKU编码
+  if (product.value.enableSpec === 1 && currentSku.value && currentSku.value.skuCode) {
+    return currentSku.value.skuCode
+  }
+  // 否则显示商品编码
+  return product.value.productNo || product.value.productCode || ''
 }
 
 // 提交缺货登记

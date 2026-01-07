@@ -77,6 +77,16 @@ public class CartVO {
      * 运费模板ID（关联shipping_template表，为空表示包邮）
      */
     private Long shippingTemplateId;
+
+    /**
+     * SKU ID（可选，如果商品有规格）
+     */
+    private Long skuId;
+
+    /**
+     * SKU编码（可选，如果商品有SKU则返回SKU编码，否则为空）
+     */
+    private String skuCode;
 }
 
 

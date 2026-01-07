@@ -1,5 +1,67 @@
 # 修改日志
 
+## 2026-01-07 - 统一修改"货号"字段显示逻辑
+
+### 功能说明
+统一修改商品详情、购物车、结算、订单、订单详情等页面中"货号"字段的显示逻辑：
+- 如果商品启用SKU且有SKU编码，显示SKU编码
+- 如果没有启用SKU或没有SKU编码，显示商品编码
+
+### 修改原因
+用户要求统一"货号"字段的显示逻辑，确保在所有相关页面中，启用SKU的商品显示SKU编码，未启用SKU的商品显示商品编码。
+
+### 修改内容
+
+**后端修改：**
+
+1. **文件：** `backend/src/main/java/com/shoppingmall/vo/CartVO.java`
+   - 添加 `skuId` 字段（SKU ID）
+   - 添加 `skuCode` 字段（SKU编码）
+
+2. **文件：** `backend/src/main/java/com/shoppingmall/service/buyer/impl/CartServiceImpl.java`
+   - 在 `convertToVO()` 方法中，当购物车项有SKU时，设置 `skuId` 和 `skuCode` 字段
+
+3. **文件：** `backend/src/main/java/com/shoppingmall/vo/OrderDetailVO.java`
+   - 在 `OrderItemVO` 内部类中添加 `skuId` 字段（SKU ID）
+   - 在 `OrderItemVO` 内部类中添加 `skuCode` 字段（SKU编码）
+
+4. **文件：** `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java`
+   - 在构建 `OrderItemVO` 时，如果订单项有SKU ID，查询SKU信息并设置 `skuId` 和 `skuCode` 字段
+
+5. **文件：** `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java`
+   - 添加 `ProductSkuRepository` 依赖注入
+   - 添加 `ProductSku` 导入
+   - 在构建 `OrderItemVO` 时，如果订单项有SKU ID，查询SKU信息并设置 `skuId` 和 `skuCode` 字段
+
+**前端修改：**
+
+1. **文件：** `frontend/src/api/buyer/cart.ts`
+   - 在 `CartVO` 接口中添加 `skuCode?: string` 字段
+
+2. **文件：** `frontend/src/api/buyer/order.ts`
+   - 在 `OrderDetailVO` 接口的 `items` 数组中添加 `skuId?: number` 和 `skuCode?: string` 字段
+
+3. **文件：** `frontend/src/views/products/Detail.vue`
+   - 修改货号显示逻辑：使用 `getProductCode()` 函数
+   - 添加 `getProductCode()` 函数：如果启用SKU且有当前SKU，返回SKU编码，否则返回商品编码
+   - 移除 `sku` 字段映射，添加 `productCode` 字段映射
+
+4. **文件：** `frontend/src/views/cart/Index.vue`
+   - 修改货号显示：`{{ item.skuCode || item.productCode }}`
+
+5. **文件：** `frontend/src/views/cart/Checkout.vue`
+   - 修改货号显示：`{{ item.skuCode || item.productCode }}`
+
+6. **文件：** `frontend/src/views/order/Detail.vue`
+   - 修改货号显示：`{{ item.skuCode || item.productCode }}`
+
+### 影响范围
+- ✅ 商品详情页面：货号字段根据是否启用SKU显示对应编码
+- ✅ 购物车页面：货号字段根据是否有SKU显示对应编码
+- ✅ 结算页面：货号字段根据是否有SKU显示对应编码
+- ✅ 订单详情页面：货号字段根据是否有SKU显示对应编码
+- ✅ 后端API返回数据包含SKU编码信息，前端可直接使用
+
 ## 2026-01-07 - 修复预存款交易记录【重试】按钮编译错误
 
 ### 功能说明
