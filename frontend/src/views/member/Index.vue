@@ -18,7 +18,7 @@
         <!-- 会员中心主体 -->
         <div class="member-main">
           <!-- 左侧导航菜单 -->
-          <MemberSidebar :active-menu="activeMenu" :unread-message-count="unreadMessageCount" />
+          <MemberSidebar :active-menu="activeMenu" :unread-message-count="0" />
 
           <!-- 右侧主内容区 -->
           <div class="member-main-content">
@@ -44,8 +44,8 @@
               </div>
             </div>
 
-            <!-- 未读消息 -->
-            <div class="info-card">
+            <!-- 未读消息 - 已屏蔽，站内消息功能暂未实现 -->
+            <!-- <div class="info-card">
               <div class="card-header">
                 <span class="card-title">您的未读消息</span>
               </div>
@@ -53,7 +53,7 @@
                 <span class="message-count">{{ unreadMessageCount }}条</span>
                 <el-button type="text" class="view-link" @click="handleViewInbox">查看</el-button>
               </div>
-            </div>
+            </div> -->
 
             <!-- 订单相关 -->
             <div class="info-card">
@@ -94,7 +94,7 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { getDepositBalance } from '@/api/buyer/deposit'
 import { getOrderStatistics } from '@/api/buyer/order'
-import { getUnreadCount } from '@/api/buyer/message'
+// import { getUnreadCount } from '@/api/buyer/message' // 已屏蔽，站内消息功能暂未实现
 import TopBar from '@/components/home/TopBar.vue'
 import Header from '@/components/home/Header.vue'
 import Navbar from '@/components/home/Navbar.vue'
@@ -109,8 +109,8 @@ const userStore = useUserStore()
 // 当前激活的菜单
 const activeMenu = ref('transaction/orders')
 
-// 未读消息数量
-const unreadMessageCount = ref(0)
+// 未读消息数量 - 已屏蔽，站内消息功能暂未实现
+// const unreadMessageCount = ref(0)
 
 // 预存款余额
 const depositBalance = ref(0)
@@ -156,21 +156,21 @@ const fetchOrderStatistics = async () => {
   }
 }
 
-// 获取未读消息数量
-const fetchUnreadMessageCount = async () => {
-  try {
-    const response = await getUnreadCount()
-    if (response && response.data !== undefined) {
-      unreadMessageCount.value = response.data || 0
-    }
-  } catch (error: any) {
-    console.error('获取未读消息数量失败:', error)
-    // 如果用户未登录或其他错误，不显示错误提示，保持默认值0
-    if (error?.response?.status !== 401) {
-      // 静默失败，不显示错误提示
-    }
-  }
-}
+// 获取未读消息数量 - 已屏蔽，站内消息功能暂未实现
+// const fetchUnreadMessageCount = async () => {
+//   try {
+//     const response = await getUnreadCount()
+//     if (response && response.data !== undefined) {
+//       unreadMessageCount.value = response.data || 0
+//     }
+//   } catch (error: any) {
+//     console.error('获取未读消息数量失败:', error)
+//     // 如果用户未登录或其他错误，不显示错误提示，保持默认值0
+//     if (error?.response?.status !== 401) {
+//       // 静默失败，不显示错误提示
+//     }
+//   }
+// }
 
 // 查看未付款订单
 const handleViewUnpaidOrders = () => {
@@ -196,17 +196,17 @@ const handleViewCancelledOrders = () => {
   })
 }
 
-// 查看收件箱
-const handleViewInbox = () => {
-  router.push('/member/site-messages/inbox')
-}
+// 查看收件箱 - 已屏蔽，站内消息功能暂未实现
+// const handleViewInbox = () => {
+//   router.push('/member/site-messages/inbox')
+// }
 
 // 组件挂载时获取数据
 onMounted(() => {
   if (userStore.userInfo) {
     fetchDepositBalance()
     fetchOrderStatistics()
-    fetchUnreadMessageCount()
+    // fetchUnreadMessageCount() // 已屏蔽，站内消息功能暂未实现
   }
 })
 

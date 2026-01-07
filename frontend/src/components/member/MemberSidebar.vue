@@ -54,18 +54,17 @@
         <!-- <el-menu-item index="deposit/review">预存款充值审核</el-menu-item> -->
       </el-sub-menu>
 
-      <!-- 站内消息 -->
-      <el-sub-menu index="site-messages">
+      <!-- 站内消息 - 已屏蔽，站内消息功能暂未实现 -->
+      <!-- <el-sub-menu index="site-messages">
         <template #title>
           <span>站内消息({{ unreadCount }})</span>
         </template>
         <el-menu-item index="site-messages/inbox">收件箱</el-menu-item>
-        <!-- 其他菜单已屏蔽 -->
-        <!-- <el-menu-item index="site-messages/send">发送消息</el-menu-item> -->
-        <!-- <el-menu-item index="site-messages/drafts">草稿箱</el-menu-item> -->
-        <!-- <el-menu-item index="site-messages/outbox">发件箱</el-menu-item> -->
-        <!-- <el-menu-item index="site-messages/admin">给管理员发消息</el-menu-item> -->
-      </el-sub-menu>
+        <el-menu-item index="site-messages/send">发送消息</el-menu-item>
+        <el-menu-item index="site-messages/drafts">草稿箱</el-menu-item>
+        <el-menu-item index="site-messages/outbox">发件箱</el-menu-item>
+        <el-menu-item index="site-messages/admin">给管理员发消息</el-menu-item>
+      </el-sub-menu> -->
     </el-menu>
   </div>
 </template>
@@ -84,8 +83,8 @@ const props = withDefaults(defineProps<{
 const route = useRoute()
 const router = useRouter()
 
-// 默认展开所有子菜单
-const defaultOpeneds = ['transaction', 'favorites', 'messages', 'settings', 'deposit', 'site-messages']
+// 默认展开所有子菜单 - 已移除 site-messages，站内消息功能暂未实现
+const defaultOpeneds = ['transaction', 'favorites', 'messages', 'settings', 'deposit']
 
 // 如果没有传入activeMenu，则根据当前路由自动判断
 const activeMenu = computed(() => {

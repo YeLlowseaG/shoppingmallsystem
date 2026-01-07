@@ -8,7 +8,8 @@
       <span class="greeting-text">
         您好:{{ userStore.userInfo?.realName || userStore.userInfo?.username }}{{ userLevelText }}
       </span>
-      <el-button type="text" class="notification-btn" @click="handleNotificationClick">通知</el-button>
+      <!-- 通知按钮 - 已屏蔽，站内消息功能暂未实现 -->
+      <!-- <el-button type="text" class="notification-btn" @click="handleNotificationClick">通知</el-button> -->
       <!-- <span class="new-feature">NEW 新功能展示</span> -->
     </div>
   </div>
@@ -31,10 +32,10 @@ const userLevelText = computed(() => {
   return ''
 })
 
-// 点击通知按钮跳转到收件箱
-const handleNotificationClick = () => {
-  router.push('/member/site-messages/inbox')
-}
+// 点击通知按钮跳转到收件箱 - 已屏蔽，站内消息功能暂未实现
+// const handleNotificationClick = () => {
+//   router.push('/member/site-messages/inbox')
+// }
 </script>
 
 <style scoped lang="scss">
@@ -94,6 +95,7 @@ const handleNotificationClick = () => {
   }
 }
 </style>
+
 
 
 

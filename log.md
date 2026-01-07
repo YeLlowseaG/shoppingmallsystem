@@ -6935,3 +6935,77 @@ if (win) {
 
 - `frontend/src/views/member/Reviews.vue`（修改：添加商品跳转功能）
 - `frontend/src/views/member/Consultations.vue`（修改：添加商品跳转功能）
+
+---
+
+## 2024-XX-XX - 屏蔽站内消息相关入口
+
+### 修改内容
+
+由于站内消息功能尚未实现，前端暂时屏蔽所有通知/消息相关的入口。
+
+### 具体修改
+
+1. **会员中心首页（Index.vue）**
+   - 屏蔽"您的未读消息"信息卡片
+   - 注释掉未读消息数量相关的数据获取逻辑（`fetchUnreadMessageCount`）
+   - 注释掉查看收件箱的处理函数（`handleViewInbox`）
+   - 移除未读消息数量的导入和变量定义
+   - 将传递给 `MemberSidebar` 的 `unread-message-count` 固定为 0
+
+2. **会员中心头部栏（MemberHeaderBar.vue）**
+   - 屏蔽"通知"按钮
+   - 注释掉通知按钮的点击处理函数（`handleNotificationClick`）
+
+3. **会员中心侧边栏（MemberSidebar.vue）**
+   - 屏蔽整个"站内消息"子菜单模块
+   - 从默认展开菜单列表中移除 `site-messages`
+
+### 技术实现
+
+- 使用注释方式屏蔽相关代码，便于后续功能实现时恢复
+- 保留代码结构，仅注释显示和交互逻辑
+- 移除不必要的 API 调用，避免无效请求
+
+### 相关文件
+
+- `frontend/src/views/member/Index.vue`（修改：屏蔽未读消息入口和相关逻辑）
+- `frontend/src/components/member/MemberHeaderBar.vue`（修改：屏蔽通知按钮）
+- `frontend/src/components/member/MemberSidebar.vue`（修改：屏蔽站内消息模块）
+
+---
+
+## 2024-XX-XX - 商品详情页面登录检查优化
+
+### 修改内容
+
+优化商品详情页面，当用户未登录时，点击立即购买、加入购物车、加入收藏等操作时，直接跳转到登录页面，引导用户先登录。
+
+### 具体修改
+
+1. **立即购买功能（buyNow）**
+   - 在函数开始处添加登录状态检查
+   - 如果用户未登录，显示提示并跳转到登录页面
+   - 参考提交评论的逻辑实现
+
+2. **加入购物车功能（addToCart）**
+   - 在函数开始处添加登录状态检查
+   - 如果用户未登录，显示提示并跳转到登录页面
+   - 避免在API调用失败后才提示登录
+
+3. **加入收藏功能（toggleFavorite）**
+   - 在函数开始处添加登录状态检查
+   - 如果用户未登录，显示提示并跳转到登录页面
+   - 统一登录检查逻辑
+
+### 技术实现
+
+- 使用 `userStore.userInfo` 检查用户登录状态
+- 使用 `ElMessage.warning('请先登录')` 提示用户
+- 使用 `router.push('/login')` 跳转到登录页面
+- 在函数开始处进行检查，避免不必要的API调用
+- 参考 `submitReview` 和 `submitConsultation` 的实现方式，保持代码风格一致
+
+### 相关文件
+
+- `frontend/src/views/products/Detail.vue`（修改：添加登录检查逻辑）

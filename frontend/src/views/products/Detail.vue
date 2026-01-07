@@ -743,6 +743,13 @@ onMounted(async () => {
 
 // 立即购买
 const buyNow = async () => {
+  // 检查登录状态
+  if (!userStore.userInfo) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+
   // 检查商品信息是否存在
   if (!product.value.id) {
     ElMessage.error('商品信息不存在')
@@ -794,6 +801,13 @@ const buyNow = async () => {
 
 // 加入购物车
 const addToCart = async () => {
+  // 检查登录状态
+  if (!userStore.userInfo) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+
   if (addingToCart.value) return
   
   try {
@@ -951,6 +965,13 @@ const checkFavoriteStatus = async () => {
 
 // 切换收藏状态
 const toggleFavorite = async () => {
+  // 检查登录状态
+  if (!userStore.userInfo) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+
   if (!product.value.id) {
     ElMessage.error('商品信息不存在')
     return
