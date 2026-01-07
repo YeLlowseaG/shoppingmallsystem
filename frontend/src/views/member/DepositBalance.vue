@@ -292,7 +292,10 @@ const loadRecords = async () => {
     selectedRecords.value = []
     selectAll.value = false
   } catch (error: any) {
-    ElMessage.error(error.message || '加载交易记录失败')
+    // 如果全局拦截器已经显示过错误提示，这里就不再显示
+    if (!error.__messageShown) {
+      ElMessage.error(error.message || '加载交易记录失败')
+    }
     recordList.value = []
     pagination.total = 0
     depositBalance.value = 0

@@ -350,7 +350,7 @@
                     <td class="col-quantity">{{ item.quantity }}</td>
                     <td class="col-subtotal">
                       <div class="subtotal-price">¥{{ ((item.memberPrice || 0) * item.quantity).toFixed(2) }}</div>
-                      <div class="weight-text">({{ (item.weight || 0) }}克)</div>
+                      <div class="weight-text">({{ Number((item.weight || 0).toFixed(2)) }}克)</div>
                     </td>
                   </tr>
                 </tbody>
@@ -366,7 +366,7 @@
             </div>
             <div class="summary-row">
               <span class="summary-label">商品重量：</span>
-              <span class="summary-value">{{ totalWeight }}克</span>
+              <span class="summary-value">{{ totalWeight.toFixed(2) }}克</span>
             </div>
             <div class="summary-row">
               <span class="summary-label">配送费用：</span>
@@ -680,9 +680,10 @@ const totalProductPrice = computed(() => {
   return orderItems.value.reduce((sum, item) => sum + (item.memberPrice || 0) * item.quantity, 0)
 })
 
-// 计算总重量
+// 计算总重量（保留两位小数）
 const totalWeight = computed(() => {
-  return orderItems.value.reduce((sum, item) => sum + (item.weight || 0) * item.quantity, 0)
+  const weight = orderItems.value.reduce((sum, item) => sum + (item.weight || 0) * item.quantity, 0)
+  return Number(weight.toFixed(2))
 })
 
 // 配送费用（根据运费模板计算）
@@ -968,7 +969,10 @@ const handlePlaceOrder = async () => {
           addressId = newAddressId
         }
       } catch (error: any) {
-        ElMessage.error(error.message || '保存地址失败')
+        // 如果全局拦截器已经显示过错误提示，这里就不再显示
+        if (!error.__messageShown) {
+          ElMessage.error(error.message || '保存地址失败')
+        }
         return
       }
     } else {
@@ -1034,7 +1038,10 @@ const handlePlaceOrder = async () => {
       }
     })
   } catch (error: any) {
-    ElMessage.error(error.message || '创建订单失败')
+    // 如果全局拦截器已经显示过错误提示，这里就不再显示
+    if (!error.__messageShown) {
+      ElMessage.error(error.message || '创建订单失败')
+    }
   } finally {
     loading.value = false
   }
@@ -1070,7 +1077,10 @@ const loadAddressList = async () => {
       shippingFee.value = 0
     }
   } catch (error: any) {
-    ElMessage.error(error.message || '加载收货地址失败')
+    // 如果全局拦截器已经显示过错误提示，这里就不再显示
+    if (!error.__messageShown) {
+      ElMessage.error(error.message || '加载收货地址失败')
+    }
     // 加载失败时也清空表单默认值
     addressForm.value = {
       province: '',
@@ -1107,7 +1117,10 @@ const loadCartItems = async () => {
       return
     }
   } catch (error: any) {
-    ElMessage.error(error.message || '加载购物车商品失败')
+    // 如果全局拦截器已经显示过错误提示，这里就不再显示
+    if (!error.__messageShown) {
+      ElMessage.error(error.message || '加载购物车商品失败')
+    }
     router.push('/cart')
   }
 }

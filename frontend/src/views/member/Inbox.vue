@@ -143,7 +143,10 @@ const loadMessages = async () => {
     unreadCount.value = response.unreadCount || 0
     unreadMessageCount.value = unreadCount.value
   } catch (error: any) {
-    ElMessage.error(error.message || '加载消息失败')
+    // 如果全局拦截器已经显示过错误提示，这里就不再显示
+    if (!error.__messageShown) {
+      ElMessage.error(error.message || '加载消息失败')
+    }
     messageList.value = []
     pagination.total = 0
   } finally {
@@ -192,7 +195,10 @@ const handleMarkAllAsRead = async () => {
     ElMessage.success('全部标记为已读成功')
     await loadMessages()
   } catch (error: any) {
-    ElMessage.error(error.message || '标记失败')
+    // 如果全局拦截器已经显示过错误提示，这里就不再显示
+    if (!error.__messageShown) {
+      ElMessage.error(error.message || '标记失败')
+    }
   }
 }
 

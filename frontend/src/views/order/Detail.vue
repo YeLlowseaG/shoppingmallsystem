@@ -528,7 +528,10 @@ const loadOrderDetail = async (orderNo: string) => {
     // 加载退款记录
     await loadRefundList(orderNo)
   } catch (error: any) {
-    ElMessage.error(error.message || '加载订单详情失败')
+    // 如果全局拦截器已经显示过错误提示，这里就不再显示
+    if (!error.__messageShown) {
+      ElMessage.error(error.message || '加载订单详情失败')
+    }
     router.push('/member/transaction/orders')
   } finally {
     loading.value = false

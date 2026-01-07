@@ -122,7 +122,7 @@
                   </td>
                   <td class="col-total">
                     <div class="total-price">¥{{ (item.memberPrice * item.quantity).toFixed(2) }}</div>
-                    <div class="weight-text">({{ item.weight }}克)</div>
+                    <div class="weight-text">({{ Number((item.weight || 0).toFixed(2)) }}克)</div>
                   </td>
                   <td class="col-action">
                     <el-button
@@ -162,7 +162,7 @@
             </div>
             <div class="summary-total">
               <div class="total-info">
-                商品总重:{{ totalWeight }}克
+                商品总重:{{ totalWeight.toFixed(2) }}克
                 <span class="divider">|</span>
                 此笔订单总计(商品数量:{{ totalCount }}): = ¥{{ totalAmount.toFixed(2) }}
               </div>
@@ -235,19 +235,26 @@ const selectedTotal = computed(() => {
     .reduce((sum, item) => sum + (item.memberPrice || 0) * item.quantity, 0)
 })
 
-// 商品总数量
+// 商品总数量（只计算选中的商品）
 const totalCount = computed(() => {
-  return cartItems.value.reduce((sum, item) => sum + item.quantity, 0)
+  return cartItems.value
+    .filter(item => item.selected)
+    .reduce((sum, item) => sum + item.quantity, 0)
 })
 
-// 商品总重量
+// 商品总重量（只计算选中的商品，保留两位小数）
 const totalWeight = computed(() => {
-  return cartItems.value.reduce((sum, item) => sum + (item.weight || 0) * item.quantity, 0)
+  const weight = cartItems.value
+    .filter(item => item.selected)
+    .reduce((sum, item) => sum + (item.weight || 0) * item.quantity, 0)
+  return Number(weight.toFixed(2))
 })
 
-// 订单总金额
+// 订单总金额（只计算选中的商品）
 const totalAmount = computed(() => {
-  return cartItems.value.reduce((sum, item) => sum + (item.memberPrice || 0) * item.quantity, 0)
+  return cartItems.value
+    .filter(item => item.selected)
+    .reduce((sum, item) => sum + (item.memberPrice || 0) * item.quantity, 0)
 })
 
 // 快速添加到购物车
@@ -264,7 +271,10 @@ const handleQuickAdd = async () => {
     // 重新加载购物车列表
     loadCartList()
   } catch (error: any) {
-    ElMessage.error(error.message || '添加失败')
+    // 如果全局拦截器已经显示过错误提示，这里就不再显示
+    if (!error.__messageShown) {
+      ElMessage.error(error.message || '添加失败')
+    }
   }
 }
 
@@ -304,12 +314,15 @@ const handleQuantityChange = async (item: CartVO) => {
     await updateCartQuantity(item.id, item.quantity)
     ElMessage.success('数量已更新')
   } catch (error: any) {
-    // 检查是否是库存不足的错误
-    const errorMessage = error.response?.data?.message || error.message || '更新失败'
-    if (errorMessage.includes('库存') || errorMessage.includes('不足') || errorMessage.includes('stock')) {
-      ElMessage.error('库存不足，无法购买该数量')
-    } else {
-      ElMessage.error(errorMessage)
+    // 如果全局拦截器已经显示过错误提示，这里就不再显示
+    if (!error.__messageShown) {
+      // 检查是否是库存不足的错误
+      const errorMessage = error.response?.data?.message || error.message || '更新失败'
+      if (errorMessage.includes('库存') || errorMessage.includes('不足') || errorMessage.includes('stock')) {
+        ElMessage.error('库存不足，无法购买该数量')
+      } else {
+        ElMessage.error(errorMessage)
+      }
     }
     // 重新加载购物车列表以恢复原数量
     loadCartList()
@@ -328,7 +341,10 @@ const handleDeleteItem = (id: number) => {
       ElMessage.success('删除成功')
       loadCartList()
     } catch (error: any) {
-      ElMessage.error(error.message || '删除失败')
+      // 如果全局拦截器已经显示过错误提示，这里就不再显示
+      if (!error.__messageShown) {
+        ElMessage.error(error.message || '删除失败')
+      }
     }
   }).catch(() => {})
 }
@@ -345,7 +361,10 @@ const handleClearCart = () => {
       ElMessage.success('购物车已清空')
       loadCartList()
     } catch (error: any) {
-      ElMessage.error(error.message || '清空失败')
+      // 如果全局拦截器已经显示过错误提示，这里就不再显示
+      if (!error.__messageShown) {
+        ElMessage.error(error.message || '清空失败')
+      }
     }
   }).catch(() => {})
 }
@@ -374,7 +393,10 @@ const handleBatchDelete = () => {
       ElMessage.success('删除成功')
       loadCartList()
     } catch (error: any) {
-      ElMessage.error(error.message || '删除失败')
+      // 如果全局拦截器已经显示过错误提示，这里就不再显示
+      if (!error.__messageShown) {
+        ElMessage.error(error.message || '删除失败')
+      }
     }
   }).catch(() => {})
 }
@@ -452,7 +474,10 @@ const loadCartList = async () => {
     
     cartItems.value = cartItemsWithStock
   } catch (error: any) {
-    ElMessage.error(error.message || '加载购物车失败')
+    // 如果全局拦截器已经显示过错误提示，这里就不再显示
+    if (!error.__messageShown) {
+      ElMessage.error(error.message || '加载购物车失败')
+    }
     cartItems.value = []
   } finally {
     loading.value = false

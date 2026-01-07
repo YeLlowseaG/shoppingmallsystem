@@ -120,7 +120,10 @@ const loadAddressList = async () => {
     addressList.value = data
   } catch (error: any) {
     console.error('加载收货地址列表失败:', error)
-    ElMessage.error(error.message || '加载收货地址列表失败')
+    // 如果全局拦截器已经显示过错误提示，这里就不再显示
+    if (!error.__messageShown) {
+      ElMessage.error(error.message || '加载收货地址列表失败')
+    }
   }
 }
 
@@ -171,7 +174,10 @@ const handleDeleteAddress = async (row: AddressVO) => {
   } catch (error: any) {
     if (error !== 'cancel') {
       console.error('删除收货地址失败:', error)
-      ElMessage.error(error.message || '删除失败')
+      // 如果全局拦截器已经显示过错误提示，这里就不再显示
+      if (!error.__messageShown) {
+        ElMessage.error(error.message || '删除失败')
+      }
     }
   }
 }
@@ -185,7 +191,10 @@ const handleSetDefault = async (row: AddressVO) => {
     loadAddressList()
   } catch (error: any) {
     console.error('设置默认地址失败:', error)
-    ElMessage.error(error.message || '设置失败')
+    // 如果全局拦截器已经显示过错误提示，这里就不再显示
+    if (!error.__messageShown) {
+      ElMessage.error(error.message || '设置失败')
+    }
   }
 }
 

@@ -332,7 +332,10 @@ const handleSave = async () => {
         router.push('/member/settings/address')
       } catch (error: any) {
         console.error('保存收货地址失败:', error)
-        ElMessage.error(error.message || '保存失败')
+        // 如果全局拦截器已经显示过错误提示，这里就不再显示
+        if (!error.__messageShown) {
+          ElMessage.error(error.message || '保存失败')
+        }
       } finally {
         loading.value = false
       }
@@ -370,7 +373,10 @@ const loadAddressData = async () => {
     }
   } catch (error: any) {
     console.error('加载收货地址失败:', error)
-    ElMessage.error(error.message || '加载收货地址失败')
+    // 如果全局拦截器已经显示过错误提示，这里就不再显示
+    if (!error.__messageShown) {
+      ElMessage.error(error.message || '加载收货地址失败')
+    }
     router.push('/member/settings/address')
   }
 }

@@ -398,7 +398,10 @@ const loadOrderList = async () => {
     // 自动展开所有已发货订单的物流信息
     autoExpandLogistics()
   } catch (error: any) {
-    ElMessage.error(error.message || '加载订单失败')
+    // 如果全局拦截器已经显示过错误提示，这里就不再显示
+    if (!error.__messageShown) {
+      ElMessage.error(error.message || '加载订单失败')
+    }
     orderList.value = []
     pagination.total = 0
   } finally {
@@ -559,7 +562,10 @@ const handleConfirmReceipt = async (order: OrderListVO) => {
       return
     }
     // 接口调用失败
-    ElMessage.error(error.message || '确认收货失败')
+    // 如果全局拦截器已经显示过错误提示，这里就不再显示
+    if (!error.__messageShown) {
+      ElMessage.error(error.message || '确认收货失败')
+    }
   }
 }
 

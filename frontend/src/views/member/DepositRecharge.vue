@@ -347,7 +347,10 @@ const handlePayNow = async () => {
         }
       } catch (error: any) {
         console.error('支付失败:', error)
-        ElMessage.error(error.message || '支付失败，请重试')
+        // 如果全局拦截器已经显示过错误提示，这里就不再显示
+        if (!error.__messageShown) {
+          ElMessage.error(error.message || '支付失败，请重试')
+        }
         paymentStatus.value = 'problem'
         showPaymentStatusDialog.value = true
       } finally {

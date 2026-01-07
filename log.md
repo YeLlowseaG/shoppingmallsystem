@@ -1,5 +1,51 @@
 # 修改日志
 
+## 2026-01-05 - 修复购物车页面商品重量显示精度问题
+
+### 功能说明
+修复购物车页面商品重量显示的浮点数精度问题，确保商品重量保留两位小数显示。
+
+### 修改原因
+用户反馈在购物车页面（`http://localhost:3002/cart`）中，商品总重显示为 `10221.060000000001克`，存在浮点数精度问题，需要保留两位小数显示。
+
+### 修改内容
+
+**文件：** `frontend/src/views/cart/Index.vue`
+- 修改 `totalWeight` 计算逻辑（第246-250行）：
+  - 在计算总重量后，使用 `toFixed(2)` 保留两位小数，并转换为数字类型
+- 修改单个商品重量显示（第125行）：
+  - 使用 `Number((item.weight || 0).toFixed(2))` 确保单个商品重量保留两位小数
+- 修改总重量显示（第165行）：
+  - 使用 `totalWeight.toFixed(2)` 格式化显示，确保总重量保留两位小数
+
+### 影响范围
+- ✅ 购物车页面的商品重量现在正确显示为两位小数（如：`10221.06克`）
+- ✅ 单个商品重量显示也保留两位小数
+- ✅ 解决了浮点数精度导致的显示问题
+
+## 2026-01-05 - 修复购物车结算页面商品重量显示精度问题
+
+### 功能说明
+修复购物车结算页面商品重量显示的浮点数精度问题，确保商品重量保留两位小数显示。
+
+### 修改原因
+用户反馈在购物车结算页面（`http://localhost:3002/cart/checkout?cartIds=188,187,186`）中，商品重量显示为 `10221.060000000001克`，存在浮点数精度问题，需要保留两位小数显示。
+
+### 修改内容
+
+**文件：** `frontend/src/views/cart/Checkout.vue`
+- 修改 `totalWeight` 计算逻辑（第684-686行）：
+  - 在计算总重量后，使用 `toFixed(2)` 保留两位小数，并转换为数字类型
+- 修改单个商品重量显示（第353行）：
+  - 使用 `Number((item.weight || 0).toFixed(2))` 确保单个商品重量保留两位小数
+- 修改总重量显示（第369行）：
+  - 使用 `totalWeight.toFixed(2)` 格式化显示，确保总重量保留两位小数
+
+### 影响范围
+- ✅ 购物车结算页面的商品重量现在正确显示为两位小数（如：`10221.06克`）
+- ✅ 单个商品重量显示也保留两位小数
+- ✅ 解决了浮点数精度导致的显示问题
+
 ## 2026-01-05 - 商品详情页添加商品不存在提示页面
 
 ### 功能说明
@@ -7138,3 +7184,70 @@ if (win) {
 ### 相关文件
 
 - `frontend/src/views/cart/Index.vue`（修改：在加载购物车时获取库存信息）
+
+---
+
+## 2025-01-XX 修复购物车页面选中商品时右下角数据不同步问题
+
+### 问题描述
+
+购物车页面（`/cart`）中，当选中或取消选中商品时，右下角显示的"商品总重"和"此笔订单总计"数据没有同步更新。
+
+### 修复内容
+
+修改了 `frontend/src/views/cart/Index.vue` 文件中的三个计算属性：
+
+1. **`totalCount`** - 商品总数量：从计算所有商品改为只计算选中商品的数量
+2. **`totalWeight`** - 商品总重量：从计算所有商品改为只计算选中商品的重量
+3. **`totalAmount`** - 订单总金额：从计算所有商品改为只计算选中商品的金额
+
+### 技术实现
+
+- 在计算属性中添加 `.filter(item => item.selected)` 过滤，只统计选中状态的商品
+- 确保选中/取消选中商品时，右下角数据能够实时更新
+
+### 相关文件
+
+- `frontend/src/views/cart/Index.vue`（修改：修复选中商品时右下角数据不同步问题）
+
+---
+
+## 2025-01-XX 修复重复错误提示问题
+
+### 问题描述
+
+用户端很多校验提示都弹出了两个重复的提示语，例如"商品库存不足: 杜蕾斯至薄装安全套 12只"。原因是全局axios响应拦截器已经显示了错误提示，但业务代码的catch块中又再次显示了相同的错误提示。
+
+### 修复内容
+
+1. **修改全局请求拦截器** (`frontend/src/utils/request.ts`)：
+   - 在所有显示错误提示的地方，给错误对象添加 `__messageShown` 标记
+   - 标记错误已经显示过，避免业务代码重复显示
+
+2. **修复业务代码中的错误处理**：
+   - 在所有使用 `error.message` 显示错误的地方，添加检查 `error.__messageShown` 标记
+   - 如果全局拦截器已经显示过错误提示，业务代码就不再显示
+
+### 修复的文件列表
+
+- `frontend/src/utils/request.ts` - 全局拦截器添加标记
+- `frontend/src/views/cart/Checkout.vue` - 修复4处错误处理
+- `frontend/src/views/cart/Index.vue` - 修复5处错误处理
+- `frontend/src/views/member/Address.vue` - 修复3处错误处理
+- `frontend/src/views/member/AddressEdit.vue` - 修复2处错误处理
+- `frontend/src/views/order/Detail.vue` - 修复1处错误处理
+- `frontend/src/views/member/Orders.vue` - 修复2处错误处理
+- `frontend/src/views/member/DepositRecharge.vue` - 修复1处错误处理
+- `frontend/src/views/member/DepositBalance.vue` - 修复1处错误处理
+- `frontend/src/views/member/Inbox.vue` - 修复2处错误处理
+
+### 技术实现
+
+- 在全局拦截器中，当显示错误提示后，给错误对象添加 `__messageShown = true` 标记
+- 在业务代码的catch块中，检查 `error.__messageShown` 标记，如果已显示则不重复显示
+- 这样既保证了错误提示的统一性，又避免了重复显示的问题
+
+### 相关文件
+
+- `frontend/src/utils/request.ts`（修改：添加错误已显示标记）
+- `frontend/src/views/**/*.vue`（修改：检查标记避免重复显示错误）

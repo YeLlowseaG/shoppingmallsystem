@@ -52,7 +52,10 @@ service.interceptors.response.use(
       }
       // 其他状态码，显示错误信息
       ElMessage.error(res.message || '请求失败')
-      return Promise.reject(new Error(res.message || '请求失败'))
+      // 标记错误已经显示过，避免业务代码重复显示
+      const error = new Error(res.message || '请求失败')
+      ;(error as any).__messageShown = true
+      return Promise.reject(error)
     }
   },
   (error) => {
@@ -74,24 +77,31 @@ service.interceptors.response.use(
             ElMessage.error('未授权，请重新登录')
             localStorage.removeItem('token')
             router.push('/login')
+            ;(error as any).__messageShown = true
           }
           break
         case 403:
           ElMessage.error('拒绝访问')
+          ;(error as any).__messageShown = true
           break
         case 404:
           ElMessage.error('请求的资源不存在')
+          ;(error as any).__messageShown = true
           break
         case 500:
           ElMessage.error('服务器内部错误')
+          ;(error as any).__messageShown = true
           break
         default:
           ElMessage.error(data?.message || `请求失败: ${status}`)
+          ;(error as any).__messageShown = true
       }
     } else if (error.request) {
       ElMessage.error('网络错误，请检查网络连接')
+      ;(error as any).__messageShown = true
     } else {
       ElMessage.error('请求配置错误')
+      ;(error as any).__messageShown = true
     }
     
     return Promise.reject(error)
