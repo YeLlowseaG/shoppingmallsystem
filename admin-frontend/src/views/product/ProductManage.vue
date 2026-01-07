@@ -121,7 +121,7 @@
         style="width: 100%"
         @sort-change="handleTableSortChange"
       >
-        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="id" label="ID" width="50" />
         <el-table-column prop="mainImage" label="商品图片" width="100">
           <template #default="{ row }">
             <el-image
@@ -134,8 +134,8 @@
         </el-table-column>
         <el-table-column prop="productCode" label="商品编码" width="120" />
         <el-table-column prop="productName" label="商品名称" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="categoryName" label="分类" width="120" />
-        <el-table-column prop="basePrice" label="价格" width="100" sortable="custom">
+        <el-table-column prop="categoryName" label="分类" width="100" />
+        <el-table-column prop="basePrice" label="价格" width="80" sortable="custom">
           <template #default="{ row }">
             ¥{{ parseFloat(row.basePrice).toFixed(2) }}
           </template>
@@ -149,7 +149,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="360" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleEdit(row)">编辑</el-button>
             <el-button
@@ -252,7 +252,7 @@
               :value="template.id"
             />
           </el-select>
-          <div class="form-tip">不选择运费模板则该商品包邮</div>
+          <div class="form-tip" style="color: #f56c6c;">不选择运费模板则该商品包邮</div>
         </el-form-item>
 
         <!-- 价格与库存 -->
@@ -332,7 +332,7 @@
         <div class="member-price-row">
           <el-form-item label="启用会员价">
             <el-switch v-model="formData.enableMemberPrice" :active-value="1" :inactive-value="0" />
-            <span class="form-tip" style="margin-left: 10px;">启用后以会员价作为售价，否则以基础价作为售价</span>
+            <span class="form-tip" style="margin-left: 10px; color: #f56c6c;">启用后以会员价作为售价，否则以基础价作为售价</span>
           </el-form-item>
           <el-form-item label="会员价" prop="memberPrice" v-if="formData.enableMemberPrice === 1">
             <el-input-number
@@ -351,7 +351,7 @@
         
         <el-form-item label="是否启用规格" prop="enableSpec">
           <el-switch v-model="formData.enableSpec" @change="handleEnableSpecChange" />
-          <div class="form-tip">启用后可为商品配置不同规格的SKU（如颜色、尺寸等）</div>
+          <div class="form-tip" style="color: #f56c6c;">启用后可为商品配置不同规格的SKU（如颜色、尺寸等）</div>
         </el-form-item>
 
         <!-- 规格配置区域 -->
@@ -1567,8 +1567,8 @@ const handleSubmit = async () => {
         .map(file => file.url || (file.response as any)?.data?.url)
         .filter(url => url)
 
-      // 更新formData的images字段
-      formData.value.images = JSON.stringify(detailImages)
+      // 更新formData的images字段（JSON数组格式，如果没有图片则为undefined）
+      formData.value.images = detailImages.length > 0 ? JSON.stringify(detailImages) : undefined
 
       console.log('保存商品基本信息, enableSpec:', formData.value.enableSpec)
 

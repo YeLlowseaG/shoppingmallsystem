@@ -1,5 +1,137 @@
 # 修改日志
 
+## 2026-01-07 - 修复库存管理页面商品分类下拉值不正确的问题
+
+### 功能说明
+修复库存管理页面（/admin/inventory）查询条件中"商品分类"下拉值不正确的问题，使其与商品列表页面的分类数据一致。
+
+### 问题原因
+库存管理页面的分类数据使用的是硬编码的假数据，而不是从API获取的真实分类数据。
+
+### 修改内容
+
+**前端修改：**
+
+1. **文件：** `admin-frontend/src/views/inventory/Index.vue`
+   - 第294行：导入 `getCategoryTree` 和 `ProductCategoryVO` 类型
+   - 第329行：将 `categories` 改为 `categoryTree`，类型为 `ProductCategoryVO[]`
+   - 第332-345行：添加 `flatCategories` 计算属性，用于将分类树扁平化（与商品管理页面逻辑一致）
+   - 第420-432行：修改 `loadCategories` 函数，调用真实的分类API `getCategoryTree()`
+   - 第142-150行：修改分类下拉选择器，使用 `flatCategories` 替代 `categories`，并移除"全部分类"选项（清空选择即可）
+
+### 修改原因
+用户反馈库存管理页面的商品分类下拉值不正确，需要与商品列表的分类保持一致。
+
+---
+
+## 2026-01-07 - 屏蔽库存管理页面的导出数据和批量调整功能
+
+### 功能说明
+在库存管理页面（/admin/inventory）屏蔽"导出数据"和"批量调整"两个功能入口。
+
+### 修改内容
+
+**前端修改：**
+
+1. **文件：** `admin-frontend/src/views/inventory/Index.vue`
+   - 第112-121行：注释掉"导出数据"和"批量调整"两个按钮
+   - 保留相关函数代码，以便将来需要时可以恢复
+
+### 修改原因
+根据用户需求，需要在库存管理页面屏蔽这两个功能的入口。
+
+---
+
+## 2026-01-07 - 修复商品详情图JSON格式错误
+
+### 功能说明
+修复商品发布和编辑时，详情轮播图保存失败的问题。数据库 `product.images` 字段是 JSON 类型，需要传递 JSON 数组格式的字符串。
+
+### 问题原因
+前端传递的是逗号分隔的字符串（如 `"url1,url2,url3"`），但数据库字段类型是 JSON，需要传递 JSON 数组格式的字符串（如 `["url1","url2","url3"]`）。
+
+### 修改内容
+
+**前端修改：**
+
+1. **文件：** `admin-frontend/src/views/product/Add.vue`
+   - 第701行：将 `images: detailImages.join(',')` 改为 `images: detailImages.length > 0 ? JSON.stringify(detailImages) : undefined`
+   - 第780行：同样修改保存草稿时的图片格式
+
+2. **文件：** `admin-frontend/src/views/product/ProductManage.vue`
+   - 第1571行：将 `formData.value.images = JSON.stringify(detailImages)` 改为 `formData.value.images = detailImages.length > 0 ? JSON.stringify(detailImages) : undefined`
+   - 确保没有图片时传递 `undefined` 而不是空字符串
+
+### 修改原因
+用户反馈保存商品时出现数据库错误：`Data truncation: Invalid JSON text`。检查后发现是图片字段格式不正确导致的。
+
+---
+
+## 2026-01-07 - 修复商品发布页面运费模板和详情图保存问题
+
+### 功能说明
+修复商品发布页面保存时，运费模板和详情轮播图数据没有保存成功的问题。
+
+### 问题原因
+1. 商品发布时调用 createProduct API 时缺少了 `shippingTemplateId` 字段
+2. 商品发布时使用了错误的字段名 `detailImages`，应该使用 `images`
+
+### 修改内容
+
+**前端修改：**
+
+1. **文件：** `admin-frontend/src/views/product/Add.vue`
+   - 第690行：在 handleSubmit 函数的 createProduct 调用中添加 `shippingTemplateId: productForm.value.shippingTemplateId`
+   - 第701行：将 `detailImages` 字段名改为 `images`，与后端DTO字段名保持一致
+   - 第767行：在 handleSaveAsDraft 函数的 createProduct 调用中添加 `shippingTemplateId: productForm.value.shippingTemplateId`
+   - 第780行：将 `detailImages` 字段名改为 `images`
+
+### 修改原因
+用户反馈在商品发布页面填写了运费模板和详情轮播图后，保存后再次进入编辑页面时这些数据没有显示。检查代码发现保存时缺少了运费模板字段，且详情图字段名不正确。
+
+---
+
+## 2026-01-07 - 商品列表操作列宽度调整
+
+### 功能说明
+调整商品列表页面中操作列的宽度，使其更紧凑。
+
+### 修改内容
+
+**前端修改：**
+
+1. **文件：** `admin-frontend/src/views/product/ProductManage.vue`
+   - 第152行：将操作列宽度从 360px 调整为 280px
+
+### 修改原因
+用户要求将操作列宽度调小，使表格布局更紧凑。
+
+---
+
+## 2026-01-07 - 商品发布/编辑页面提示文案颜色优化
+
+### 功能说明
+将商品发布和编辑页面中的三个默认提示文案改为红色，使其更加醒目突出。
+
+### 修改内容
+
+**前端修改：**
+
+1. **文件：** `admin-frontend/src/views/product/Add.vue`
+   - 第72行：将"不选择运费模板则该商品包邮"文案颜色改为红色（#f56c6c）
+   - 第152行：将"启用后以会员价作为售价，否则以基础价作为售价"文案颜色改为红色（#f56c6c）
+   - 第171行：将"启用后可为商品配置不同规格的SKU（如颜色、尺寸等）"文案颜色改为红色（#f56c6c）
+
+2. **文件：** `admin-frontend/src/views/product/ProductManage.vue`
+   - 第255行：将"不选择运费模板则该商品包邮"文案颜色改为红色（#f56c6c）
+   - 第335行：将"启用后以会员价作为售价，否则以基础价作为售价"文案颜色改为红色（#f56c6c）
+   - 第354行：将"启用后可为商品配置不同规格的SKU（如颜色、尺寸等）"文案颜色改为红色（#f56c6c）
+
+### 修改原因
+用户要求将这三个重要的提示文案改为红色，使其更加醒目，提升用户体验。
+
+---
+
 ## 2026-01-07 - 统一修改"货号"字段显示逻辑
 
 ### 功能说明
