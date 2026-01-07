@@ -115,7 +115,7 @@
                     <el-input-number
                       v-model="item.quantity"
                       :min="1"
-                      :max="999"
+                      :max="getItemMaxQuantity(item)"
                       size="small"
                       @change="handleQuantityChange(item)"
                     />
@@ -199,6 +199,7 @@ import {
   clearCart
 } from '@/api/buyer/cart'
 import type { CartVO } from '@/api/buyer/cart'
+import { getProductById } from '@/api/buyer/product'
 
 const router = useRouter()
 
@@ -277,13 +278,39 @@ const handleItemSelect = () => {
   // 自动更新全选状态
 }
 
+// 获取商品的最大可购买数量
+const getItemMaxQuantity = (item: CartVO) => {
+  // 如果后端返回了库存信息，使用库存作为最大值
+  if (item.stock !== undefined && item.stock !== null) {
+    return Math.max(1, item.stock)
+  }
+  // 否则使用一个较大的默认值，后端会验证
+  return 999
+}
+
 // 修改数量
 const handleQuantityChange = async (item: CartVO) => {
+  // 检查库存（如果后端返回了库存信息）
+  if (item.stock !== undefined && item.stock !== null) {
+    if (item.quantity > item.stock) {
+      ElMessage.error(`库存不足，当前库存为 ${item.stock}`)
+      // 恢复原数量
+      loadCartList()
+      return
+    }
+  }
+
   try {
     await updateCartQuantity(item.id, item.quantity)
     ElMessage.success('数量已更新')
   } catch (error: any) {
-    ElMessage.error(error.message || '更新失败')
+    // 检查是否是库存不足的错误
+    const errorMessage = error.response?.data?.message || error.message || '更新失败'
+    if (errorMessage.includes('库存') || errorMessage.includes('不足') || errorMessage.includes('stock')) {
+      ElMessage.error('库存不足，无法购买该数量')
+    } else {
+      ElMessage.error(errorMessage)
+    }
     // 重新加载购物车列表以恢复原数量
     loadCartList()
   }
@@ -388,10 +415,42 @@ const loadCartList = async () => {
   loading.value = true
   try {
     const data = await getCartList()
-    cartItems.value = data.map(item => ({
-      ...item,
-      selected: true // 默认选中
-    }))
+    
+    // 为每个商品获取库存信息
+    const cartItemsWithStock = await Promise.all(
+      data.map(async (item) => {
+        try {
+          // 获取商品详情以获取库存信息
+          const productDetail = await getProductById(item.productId)
+          
+          let stock = productDetail.stock || 0
+          
+          // 如果商品有SKU且购物车项有skuId，需要找到对应SKU的库存
+          if (item.skuId && productDetail.skus && productDetail.skus.length > 0) {
+            const sku = productDetail.skus.find(s => s.id === item.skuId)
+            if (sku) {
+              stock = sku.stock || 0
+            }
+          }
+          
+          return {
+            ...item,
+            selected: true, // 默认选中
+            stock: stock // 添加库存信息
+          }
+        } catch (error) {
+          console.error(`获取商品 ${item.productId} 库存失败:`, error)
+          // 如果获取库存失败，使用默认值，后端会验证
+          return {
+            ...item,
+            selected: true,
+            stock: undefined // 库存获取失败，不设置限制
+          }
+        }
+      })
+    )
+    
+    cartItems.value = cartItemsWithStock
   } catch (error: any) {
     ElMessage.error(error.message || '加载购物车失败')
     cartItems.value = []

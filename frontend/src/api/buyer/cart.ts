@@ -18,6 +18,8 @@ export interface CartVO {
   selected?: boolean
   isMember?: number // 用户是否是会员（0-普通用户，1-会员）
   shippingTemplateId?: number // 运费模板ID（为空表示包邮）
+  stock?: number // 商品库存（可选，如果后端返回则使用）
+  skuId?: number // SKU ID（可选，如果商品有规格）
 }
 
 /**

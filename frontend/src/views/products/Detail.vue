@@ -32,6 +32,19 @@
           <p>加载中...</p>
         </div>
 
+        <!-- 商品不存在提示 -->
+        <div v-else-if="productNotFound" class="product-not-found">
+          <div class="not-found-content">
+            <el-icon :size="80" class="not-found-icon"><Warning /></el-icon>
+            <h2 class="not-found-title">商品不存在</h2>
+            <p class="not-found-message">抱歉，您访问的商品不存在或已被删除</p>
+            <div class="not-found-actions">
+              <el-button type="primary" @click="router.push('/')">返回首页</el-button>
+              <el-button @click="router.push('/products')">浏览商品</el-button>
+            </div>
+          </div>
+        </div>
+
         <!-- 商品内容 -->
         <template v-else>
           <!-- 左侧：商品图片 -->
@@ -136,7 +149,7 @@
             <el-input-number
               v-model="quantity"
               :min="1"
-              :max="999"
+              :max="getAvailableStock()"
               size="large"
             />
             <span class="stock-status" :class="getStockStatusClass()">
@@ -524,6 +537,9 @@ const product = ref({
 // 加载状态
 const loading = ref(true)
 
+// 商品不存在状态
+const productNotFound = ref(false)
+
 // 加入购物车按钮加载状态
 const addingToCart = ref(false)
 
@@ -627,9 +643,14 @@ const loadProductDetail = async (productId: number) => {
       selectedSpecs.value = {}
       defaultSpecs.value = {}
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('加载商品详情失败:', error)
-    ElMessage.error('加载商品详情失败')
+    // 检查是否是404错误（商品不存在）
+    if (error.response?.status === 404 || error.message?.includes('商品不存在')) {
+      productNotFound.value = true
+    } else {
+      ElMessage.error('加载商品详情失败')
+    }
   } finally {
     loading.value = false
   }
@@ -726,6 +747,15 @@ const getStockStatusClass = () => {
   return ''
 }
 
+// 获取可用库存数量
+const getAvailableStock = () => {
+  if (currentSku.value) {
+    return currentSku.value.stock || 0
+  }
+  // 没有SKU时使用商品基础库存
+  return product.value.stock || 0
+}
+
 // 初始化
 onMounted(async () => {
   // 根据路由参数加载商品数据
@@ -819,6 +849,20 @@ const addToCart = async () => {
     // 检查规格选择（仅当商品启用了规格且有规格数据时）
     if (productSpecKeys.value.length > 0 && !currentSku.value) {
       ElMessage.warning('请选择商品规格')
+      return
+    }
+
+    // 检查库存（如果有SKU用SKU库存，否则用商品基础库存）
+    const availableStock = getAvailableStock()
+    if (availableStock <= 0) {
+      ElMessage.error('商品库存不足')
+      return
+    }
+
+    if (quantity.value > availableStock) {
+      ElMessage.error(`购买数量不能超过库存数量 ${availableStock}`)
+      // 自动调整数量为最大库存
+      quantity.value = availableStock
       return
     }
 
@@ -1169,6 +1213,45 @@ const submitStockRegister = async () => {
 
       .el-icon {
         margin-bottom: 10px;
+      }
+    }
+
+    .product-not-found {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 100px 0;
+      min-height: 500px;
+
+      .not-found-content {
+        text-align: center;
+        max-width: 500px;
+
+        .not-found-icon {
+          color: #f56c6c;
+          margin-bottom: 20px;
+        }
+
+        .not-found-title {
+          font-size: 24px;
+          color: #333;
+          margin: 0 0 15px 0;
+          font-weight: bold;
+        }
+
+        .not-found-message {
+          font-size: 16px;
+          color: #666;
+          margin: 0 0 30px 0;
+          line-height: 1.6;
+        }
+
+        .not-found-actions {
+          display: flex;
+          gap: 15px;
+          justify-content: center;
+        }
       }
     }
   }
