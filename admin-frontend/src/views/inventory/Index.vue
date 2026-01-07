@@ -110,14 +110,15 @@
         <div class="card-header">
           <span>库存明细</span>
           <div class="header-actions">
-            <el-button type="primary" @click="handleExport">
+            <!-- 已屏蔽：导出数据和批量调整功能 -->
+            <!-- <el-button type="primary" @click="handleExport">
               <el-icon><Download /></el-icon>
               导出数据
             </el-button>
             <el-button type="success" @click="handleBatchUpdate">
               <el-icon><Edit /></el-icon>
               批量调整
-            </el-button>
+            </el-button> -->
           </div>
         </div>
       </template>
@@ -139,9 +140,8 @@
           </el-col>
           <el-col :span="4">
             <el-select v-model="searchForm.categoryId" placeholder="商品分类" clearable>
-              <el-option label="全部分类" value="" />
               <el-option 
-                v-for="category in categories" 
+                v-for="category in flatCategories" 
                 :key="category.id" 
                 :label="category.categoryName" 
                 :value="category.id" 
@@ -291,6 +291,7 @@ import {
 } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import request from '@/utils/request'
+import { getCategoryTree, type ProductCategoryVO } from '@/api/admin/productCategory'
 import StockAdjustDialog from './components/StockAdjustDialog.vue'
 import BatchStockAdjustDialog from './components/BatchStockAdjustDialog.vue'
 
@@ -325,9 +326,24 @@ const inventoryStats = ref({
 })
 
 // 数据列表
-const categories = ref<any[]>([])
+const categoryTree = ref<ProductCategoryVO[]>([])
 const inventoryList = ref<any[]>([])
 const selectedItems = ref<any[]>([])
+
+// 扁平化分类列表（用于下拉选择）
+const flatCategories = computed(() => {
+  const flatten = (categories: ProductCategoryVO[], level = 0): ProductCategoryVO[] => {
+    let result: ProductCategoryVO[] = []
+    categories.forEach(category => {
+      result.push(category)
+      if (category.children && category.children.length > 0) {
+        result = result.concat(flatten(category.children, level + 1))
+      }
+    })
+    return result
+  }
+  return flatten(categoryTree.value)
+})
 
 // 弹框控制
 const adjustDialogVisible = ref(false)
@@ -419,14 +435,10 @@ const initPieChart = () => {
 // 加载分类数据
 const loadCategories = async () => {
   try {
-    // 这里应该调用实际的分类API
-    categories.value = [
-      { id: 1, categoryName: '避孕润滑' },
-      { id: 2, categoryName: '情趣玩具' },
-      { id: 3, categoryName: '保健用品' }
-    ]
+    categoryTree.value = await getCategoryTree()
   } catch (error) {
     console.error('加载分类失败:', error)
+    ElMessage.error('加载分类失败')
   }
 }
 
