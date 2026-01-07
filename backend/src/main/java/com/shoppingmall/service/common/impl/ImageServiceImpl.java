@@ -129,8 +129,10 @@ public class ImageServiceImpl implements ImageService {
         }
         
         String fileName = UUID.randomUUID() + "_" + imageFile.getName();
-        String datePath = new java.text.SimpleDateFormat("yyyy/MM/dd").format(new Date());
-        String targetDir = uploadBasePath + "/products/" + datePath;
+        // 使用 yyyy/MM 格式，与正常上传保持一致
+        String datePath = new java.text.SimpleDateFormat("yyyy/MM").format(new Date());
+        // 修改存储路径为 images，与正常上传保持一致
+        String targetDir = uploadBasePath + "/images/" + datePath;
         
         Path targetDirPath = Paths.get(targetDir);
         if (!Files.exists(targetDirPath)) {
@@ -140,7 +142,8 @@ public class ImageServiceImpl implements ImageService {
         Path targetFilePath = Paths.get(targetDir, fileName);
         Files.copy(imageFile.toPath(), targetFilePath, StandardCopyOption.REPLACE_EXISTING);
         
-        String imageUrl = "/uploads/products/" + datePath + "/" + fileName;
+        // 修改返回路径为 /uploads/images/，与正常上传保持一致
+        String imageUrl = "/uploads/images/" + datePath + "/" + fileName;
         
         log.debug("图片上传成功: {}", imageUrl);
         return imageUrl;

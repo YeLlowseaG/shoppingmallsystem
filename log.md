@@ -7701,3 +7701,124 @@ if (win) {
 
 - `frontend/src/utils/request.ts`（修改：添加错误已显示标记）
 - `frontend/src/views/**/*.vue`（修改：检查标记避免重复显示错误）
+
+---
+
+## 2025年1月20日 - 运费模板列表增加ID字段
+
+### 修改内容
+- 在运费模板列表的第一列增加ID字段显示
+- ID列宽度设置为80px，显示运费模板的唯一标识
+
+### 修改文件
+- `admin-frontend/src/views/system/Logistics.vue`（修改：在运费模板列表表格第一列添加ID字段）
+
+---
+
+## 2025年1月20日 - 商品导入功能优化
+
+### 修改内容
+1. **添加运费模板ID校验**：在商品导入时，如果指定了运费模板ID，会校验该ID是否存在以及是否启用
+2. **修复预警库存字段映射问题**：确保导入的预警库存字段正确映射到商品的警戒库存字段
+
+### 修改文件
+- `backend/src/main/java/com/shoppingmall/service/product/impl/ProductImportServiceImpl.java`（修改：添加ShippingTemplateRepository依赖，在validateProductData方法中添加运费模板ID校验）
+- `backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java`（修改：在createProduct方法中手动设置warningStock字段，确保正确映射）
+
+### 详细说明
+- **运费模板ID校验**：当导入的商品指定了运费模板ID时，系统会检查该模板是否存在，如果不存在或已禁用，会抛出异常并阻止导入
+- **预警库存映射**：在创建商品时，手动设置warningStock字段，确保即使BeanUtils.copyProperties没有复制该字段，也能正确保存预警库存值
+
+---
+
+## 2025年1月20日 - 修复商品导入图片字段JSON格式错误
+
+### 修改内容
+- 修复商品导入时图片字段格式错误的问题
+- 将图片列表从逗号分隔字符串改为JSON数组格式，符合数据库JSON字段要求
+
+### 问题原因
+- 数据库 `product.images` 字段是 JSON 类型，需要传递 JSON 数组格式的字符串（如 `["url1","url2","url3"]`）
+- 导入代码中使用了 `String.join(",", detailImageUrls)` 生成逗号分隔字符串，导致数据库报错：`Invalid JSON text: "Invalid value."`
+
+### 修改文件
+- `backend/src/main/java/com/shoppingmall/service/product/impl/ProductImportServiceImpl.java`（修改：添加ObjectMapper实例，将图片列表转换为JSON数组格式）
+
+### 详细说明
+- 添加了 `ObjectMapper` 实例作为类成员，用于JSON转换
+- 在设置图片字段时，使用 `objectMapper.writeValueAsString(detailImageUrls)` 将图片列表转换为JSON数组字符串
+- 如果没有图片，设置为 `null` 而不是空字符串
+- 同时优化了 `convertSpecCombinationToJson` 方法，复用同一个 ObjectMapper 实例
+
+---
+
+## 2025年1月20日 - 修复商品导入图片路径错误
+
+### 修改内容
+- 修复商品导入时图片上传路径错误的问题
+- 将图片路径从 `/uploads/products/` 改为 `/uploads/images/`，与正常上传保持一致
+
+### 问题原因
+- 商品导入时使用的 `ImageServiceImpl.uploadImage()` 方法返回的路径是 `/uploads/products/...`
+- 正常上传图片时使用的 `FileUploadUtil.uploadImage()` 方法返回的路径是 `/uploads/images/...`
+- 导致导入的图片路径不正确，前端无法显示图片
+
+### 修改文件
+- `backend/src/main/java/com/shoppingmall/service/common/impl/ImageServiceImpl.java`（修改：将图片存储路径和返回路径从 `/uploads/products/` 改为 `/uploads/images/`，日期格式统一为 `yyyy/MM`）
+
+### 详细说明
+- 修改存储路径：从 `uploadBasePath + "/products/"` 改为 `uploadBasePath + "/images/"`
+- 修改返回路径：从 `/uploads/products/` 改为 `/uploads/images/`
+- 统一日期格式：从 `yyyy/MM/dd` 改为 `yyyy/MM`，与正常上传保持一致
+
+---
+
+## 2025年1月20日 - 改进商品导入重复编码错误处理
+
+### 修改内容
+- 改进商品导入时重复商品编码的错误处理
+- 捕获数据库唯一约束冲突异常，提供更友好的错误提示信息
+
+### 问题原因
+- 当导入的商品编码已存在时，数据库会抛出 `SQLIntegrityConstraintViolationException` 异常
+- 原始错误信息不够友好，用户无法快速理解问题原因
+
+### 修改文件
+- `backend/src/main/java/com/shoppingmall/service/product/impl/ProductImportServiceImpl.java`（修改：添加SQLIntegrityConstraintViolationException导入，添加getErrorMessage方法提取友好的错误信息）
+
+### 详细说明
+- 添加了 `getErrorMessage()` 方法，用于提取和转换错误信息
+- 当捕获到 `SQLIntegrityConstraintViolationException` 且错误信息包含 `Duplicate entry` 和 `uk_product_code` 时，返回友好的提示："商品编码已存在: {productCode}，请检查是否重复导入或数据库中已存在该商品"
+- 其他错误返回原始错误信息
+- 这样用户在导入失败时能够快速了解问题原因，便于排查和修复
+
+---
+
+## 2025年1月20日 - 调整商品导入错误详情列表错误信息列宽度
+
+### 修改内容
+- 调整商品导入错误详情列表中错误信息列的宽度，使其能够显示更多内容
+
+### 修改文件
+- `admin-frontend/src/views/product/ProductManage.vue`（修改：给错误信息列添加 `min-width="400"` 属性）
+
+### 详细说明
+- 错误信息列原本没有设置宽度，导致显示内容受限
+- 设置 `min-width="400"` 后，错误信息列最小宽度为400px，能够显示更长的错误信息
+- 使用 `min-width` 而不是 `width`，确保列可以根据内容自动扩展
+
+---
+
+## 2025年1月20日 - 暂时屏蔽商品导入图片压缩包功能
+
+### 修改内容
+- 暂时屏蔽商品批量导入功能中的"图片压缩包"上传入口
+- 使用注释方式屏蔽，方便后续需要时恢复
+
+### 修改文件
+- `admin-frontend/src/views/product/ProductManage.vue`（修改：将图片压缩包表单项注释掉，添加注释说明）
+
+### 详细说明
+- 将图片压缩包的上传表单项使用HTML注释包裹，并添加说明注释
+- 保留了完整的代码结构，后续需要恢复时只需取消注释即可
+- 相关的处理函数（handleZipChange、handleZipRemove）保留在代码中，但暂时不会被调用

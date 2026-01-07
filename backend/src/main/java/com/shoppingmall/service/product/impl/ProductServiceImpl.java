@@ -185,6 +185,13 @@ public class ProductServiceImpl implements ProductService {
             product.setWeight(null);
         }
 
+        // 手动设置预警库存字段，确保正确映射
+        if (productDTO.getWarningStock() != null) {
+            product.setWarningStock(productDTO.getWarningStock());
+        } else {
+            product.setWarningStock(0); // 默认值为0
+        }
+
         // 库存处理：如果启用规格，库存设为0（稍后由SKU创建时自动计算总和）
         // 如果不启用规格，使用用户输入的库存
         if (productDTO.getEnableSpec() != null && productDTO.getEnableSpec() == 1) {

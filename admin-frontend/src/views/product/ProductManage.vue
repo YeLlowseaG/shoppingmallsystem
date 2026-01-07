@@ -875,7 +875,8 @@
           <div class="form-tip">支持 CSV 或 Excel (.xlsx/.xls) 格式</div>
         </el-form-item>
 
-        <el-form-item label="图片压缩包">
+        <!-- 图片压缩包功能暂时屏蔽，后续有需要再放开 -->
+        <!-- <el-form-item label="图片压缩包" v-if="false">
           <el-upload
             ref="zipUploadRef"
             :auto-upload="false"
@@ -888,7 +889,7 @@
             <el-button>选择ZIP文件（可选）</el-button>
           </el-upload>
           <div class="form-tip">图片命名规则：商品编码.jpg（主图）、商品编码_1.jpg（详情图）</div>
-        </el-form-item>
+        </el-form-item> -->
 
         <el-form-item label="下载模板">
           <el-button type="success" @click="downloadTemplate('csv')" style="margin-right: 10px">
@@ -957,7 +958,7 @@
             >
               <el-table-column prop="row" label="行号" width="80" />
               <el-table-column prop="productCode" label="商品编码" width="150" />
-              <el-table-column prop="error" label="错误信息" />
+              <el-table-column prop="error" label="错误信息" min-width="400" />
             </el-table>
           </div>
         </template>
