@@ -126,7 +126,7 @@
             {{ formatDateTime(row.createTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleView(row)">查看详情</el-button>
             <el-button
@@ -136,6 +136,15 @@
               @click="handleRefund(row)"
             >
               退款
+            </el-button>
+            <el-button
+              v-if="row.status === 3 && (row.paymentMethod === 'alipay' || row.paymentMethod === 'wechat')"
+              type="warning"
+              size="small"
+              :loading="syncingIds.includes(row.id)"
+              @click="handleSyncPaymentStatus(row)"
+            >
+              重试
             </el-button>
           </template>
         </el-table-column>
@@ -278,7 +287,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
-import { getDepositRecordList, getDepositRecordById, refundDepositRecharge, type DepositRecordVO, type DepositQueryDTO } from '@/api/admin/deposit'
+import { getDepositRecordList, getDepositRecordById, refundDepositRecharge, syncPaymentStatus, type DepositRecordVO, type DepositQueryDTO } from '@/api/admin/deposit'
 import { formatDateTime } from '@/utils'
 
 const router = useRouter()
@@ -315,6 +324,9 @@ const refundForm = reactive({
   refundAmount: 0,
   refundReason: ''
 })
+
+// 正在同步支付状态的记录ID列表
+const syncingIds = ref<number[]>([])
 
 const refundRules = {
   refundAmount: [
@@ -560,6 +572,20 @@ const handleConfirmRefund = async () => {
 // 关闭退款对话框
 const handleRefundDialogClose = () => {
   refundFormRef.value?.resetFields()
+}
+
+// 手动查询并同步支付状态
+const handleSyncPaymentStatus = async (row: DepositRecordVO) => {
+  try {
+    syncingIds.value.push(row.id)
+    await syncPaymentStatus(row.id)
+    ElMessage.success('查询成功，状态已同步')
+    loadRecordList() // 刷新列表
+  } catch (error: any) {
+    ElMessage.error(error.message || '查询失败')
+  } finally {
+    syncingIds.value = syncingIds.value.filter(id => id !== row.id)
+  }
 }
 
 onMounted(() => {

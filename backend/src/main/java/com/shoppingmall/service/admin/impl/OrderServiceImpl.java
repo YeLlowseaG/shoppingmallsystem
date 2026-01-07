@@ -31,6 +31,8 @@ import com.shoppingmall.repository.order.OrderRepository;
 import com.shoppingmall.repository.payment.PaymentRecordRepository;
 import com.shoppingmall.repository.product.ProductRepository;
 import com.shoppingmall.repository.product.ProductStockRepository;
+import com.shoppingmall.repository.sku.ProductSkuRepository;
+import com.shoppingmall.entity.ProductSku;
 import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.payment.config.AlipayConfig;
 import com.shoppingmall.payment.exception.PaymentException;
@@ -76,6 +78,7 @@ public class OrderServiceImpl implements OrderService {
     private final PaymentRecordRepository paymentRecordRepository;
     private final ProductRepository productRepository;
     private final ProductStockRepository productStockRepository;
+    private final ProductSkuRepository productSkuRepository;
     private final UserRepository userRepository;
     private final DepositService depositService;
     private final PaymentGatewayService paymentGatewayService;
@@ -1122,6 +1125,15 @@ public class OrderServiceImpl implements OrderService {
             itemVO.setPrice(item.getPrice());
             itemVO.setQuantity(item.getQuantity());
             itemVO.setSubtotal(item.getSubtotal());
+            
+            // 设置SKU ID和SKU编码
+            if (item.getSkuId() != null) {
+                itemVO.setSkuId(item.getSkuId());
+                ProductSku sku = productSkuRepository.selectById(item.getSkuId());
+                if (sku != null && sku.getSkuCode() != null && !sku.getSkuCode().trim().isEmpty()) {
+                    itemVO.setSkuCode(sku.getSkuCode());
+                }
+            }
             
             // 计算已退款数量和可退款数量
             int refundedQuantity = calculateRefundedQuantity(item.getId());

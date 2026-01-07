@@ -292,7 +292,9 @@ public class PaymentNotifyController {
             boolean callbackSuccess = false;
             try {
                 depositService.handlePaymentCallback(orderNo, externalTradeNo, success, notifyData);
-                callbackSuccess = success; // 只有success为true且没有抛出异常才算成功
+                // 如果没有抛出异常，说明处理成功（包括重复回调的情况）
+                // 对于重复回调，如果充值记录已经是 APPROVED 状态，说明之前已经成功处理过了
+                callbackSuccess = true; // 只要没有抛出异常，就视为成功
             } catch (Exception e) {
                 log.error("预存款充值回调处理失败，订单号：{}，外部交易号：{}，错误：{}", orderNo, externalTradeNo, e.getMessage(), e);
                 callbackSuccess = false; // 处理失败

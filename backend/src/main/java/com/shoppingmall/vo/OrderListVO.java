@@ -45,6 +45,16 @@ public class OrderListVO {
     private String recipientAddress;
 
     /**
+     * 联系电话
+     */
+    private String contactPhone;
+
+    /**
+     * 联系手机
+     */
+    private String contactMobile;
+
+    /**
      * 订单描述（商品描述）
      */
     private String description;

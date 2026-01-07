@@ -361,6 +361,73 @@ public class OrderServiceImpl implements OrderService {
         
         wrapper.orderByDesc(Order::getCreateTime);
         
+        // 收货人信息查询（需要在内存中过滤，因为信息存储在JSON字段中）
+        final String searchRecipientName = (orderQueryDTO.getRecipientName() != null && !orderQueryDTO.getRecipientName().trim().isEmpty()) 
+            ? orderQueryDTO.getRecipientName().trim().toLowerCase() : null;
+        final String searchContactPhone = (orderQueryDTO.getContactPhone() != null && !orderQueryDTO.getContactPhone().trim().isEmpty()) 
+            ? orderQueryDTO.getContactPhone().trim() : null;
+        final String searchContactMobile = (orderQueryDTO.getContactMobile() != null && !orderQueryDTO.getContactMobile().trim().isEmpty()) 
+            ? orderQueryDTO.getContactMobile().trim() : null;
+        final String searchRecipientAddress = (orderQueryDTO.getRecipientAddress() != null && !orderQueryDTO.getRecipientAddress().trim().isEmpty()) 
+            ? orderQueryDTO.getRecipientAddress().trim().toLowerCase() : null;
+        
+        boolean needFilter = searchRecipientName != null || searchContactPhone != null 
+            || searchContactMobile != null || searchRecipientAddress != null;
+        
+        // 如果需要过滤收货人信息，先查询所有符合条件的订单，然后进行内存过滤
+        if (needFilter) {
+            // 查询所有符合条件的订单（不进行分页）
+            List<Order> allOrders = orderRepository.selectList(wrapper);
+            
+            // 转换为VO并进行内存过滤
+            List<OrderListVO> filteredRecords = allOrders.stream()
+                .map(order -> convertToListVO(order))
+                .filter(vo -> {
+                    boolean match = true;
+                    
+                    if (searchRecipientName != null) {
+                        String name = vo.getRecipientName() != null ? vo.getRecipientName().toLowerCase() : "";
+                        match = match && name.contains(searchRecipientName);
+                    }
+                    
+                    if (searchRecipientAddress != null) {
+                        String address = vo.getRecipientAddress() != null ? vo.getRecipientAddress().toLowerCase() : "";
+                        match = match && address.contains(searchRecipientAddress);
+                    }
+                    
+                    // 对于联系电话和联系手机，直接从VO中获取（已在convertToListVO中设置）
+                    if (searchContactPhone != null) {
+                        String phone = vo.getContactPhone() != null ? vo.getContactPhone() : "";
+                        match = match && phone.contains(searchContactPhone);
+                    }
+                    if (searchContactMobile != null) {
+                        String mobile = vo.getContactMobile() != null ? vo.getContactMobile() : "";
+                        match = match && mobile.contains(searchContactMobile);
+                    }
+                    
+                    return match;
+                })
+                .collect(Collectors.toList());
+            
+            // 进行内存分页
+            int total = filteredRecords.size();
+            int pageNum = orderQueryDTO.getPageNum();
+            int pageSize = orderQueryDTO.getPageSize();
+            int start = (pageNum - 1) * pageSize;
+            int end = Math.min(start + pageSize, total);
+            
+            List<OrderListVO> pagedRecords = start < total ? filteredRecords.subList(start, end) : new ArrayList<>();
+            
+            // 创建分页结果
+            Page<OrderListVO> resultPage = new Page<>(pageNum, pageSize);
+            resultPage.setRecords(pagedRecords);
+            resultPage.setTotal(total);
+            resultPage.setPages((int) Math.ceil((double) total / pageSize));
+            
+            return resultPage;
+        }
+        
+        // 如果不需要过滤收货人信息，直接进行数据库分页查询
         IPage<Order> orderPage = orderRepository.selectPage(page, wrapper);
         
         // 转换为VO
@@ -537,6 +604,32 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
+     * 格式化规格组合文本
+     * @param specCombination 规格组合JSON字符串，格式如：{"颜色":"蓝色","尺码":"XXL"}
+     * @return 格式化后的规格文本，格式如：颜色:蓝色 / 尺码:XXL
+     */
+    private String formatSpecText(String specCombination) {
+        if (specCombination == null || specCombination.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            Map<String, String> specMap = objectMapper.readValue(
+                specCombination,
+                new TypeReference<Map<String, String>>() {}
+            );
+            if (specMap == null || specMap.isEmpty()) {
+                return null;
+            }
+            return specMap.entrySet().stream()
+                .map(entry -> entry.getKey() + ":" + entry.getValue())
+                .collect(Collectors.joining(" / "));
+        } catch (Exception e) {
+            log.warn("解析规格组合失败: specCombination={}", specCombination, e);
+            return null;
+        }
+    }
+
+    /**
      * 订单实体转列表VO
      */
     private OrderListVO convertToListVO(Order order) {
@@ -554,20 +647,34 @@ public class OrderServiceImpl implements OrderService {
             vo.setRecipientName(shippingAddress.getName());
             vo.setRecipientAddress(shippingAddress.getFullAddress() != null ? 
                 shippingAddress.getFullAddress() : shippingAddress.getAddress());
+            vo.setContactPhone(shippingAddress.getPhone());
+            vo.setContactMobile(shippingAddress.getMobile());
         } else {
             vo.setRecipientName("未知");
             vo.setRecipientAddress("未知");
+            vo.setContactPhone("");
+            vo.setContactMobile("");
         }
         
-        // 构建商品描述（取前几个商品名称）
+        // 构建商品描述（取前几个商品名称，包含规格信息）
         LambdaQueryWrapper<OrderItem> itemWrapper = new LambdaQueryWrapper<>();
         itemWrapper.eq(OrderItem::getOrderId, order.getId());
         itemWrapper.last("LIMIT 3");
         List<OrderItem> items = orderItemRepository.selectList(itemWrapper);
         if (!items.isEmpty()) {
-            String description = items.stream()
-                .map(OrderItem::getProductName)
-                .collect(Collectors.joining("、"));
+            List<String> itemDescriptions = items.stream()
+                .map(item -> {
+                    String productName = item.getProductName();
+                    String specText = formatSpecText(item.getSpecCombination());
+                    if (specText != null && !specText.isEmpty()) {
+                        return productName + " 规格：" + specText;
+                    } else {
+                        return productName;
+                    }
+                })
+                .collect(Collectors.toList());
+            
+            String description = String.join("、", itemDescriptions);
             if (items.size() == 3) {
                 // 查询总数量
                 LambdaQueryWrapper<OrderItem> countWrapper = new LambdaQueryWrapper<>();
@@ -629,6 +736,14 @@ public class OrderServiceImpl implements OrderService {
             itemVO.setQuantity(item.getQuantity());
             itemVO.setSubtotal(item.getSubtotal());
             itemVO.setSpecCombination(item.getSpecCombination());
+            // 设置SKU ID和SKU编码
+            if (item.getSkuId() != null) {
+                itemVO.setSkuId(item.getSkuId());
+                ProductSku sku = productSkuRepository.selectById(item.getSkuId());
+                if (sku != null && sku.getSkuCode() != null && !sku.getSkuCode().trim().isEmpty()) {
+                    itemVO.setSkuCode(sku.getSkuCode());
+                }
+            }
             return itemVO;
         }).collect(Collectors.toList());
         
@@ -645,9 +760,9 @@ public class OrderServiceImpl implements OrderService {
         OrderDetailVO.RecipientInfo recipientInfo = new OrderDetailVO.RecipientInfo();
         if (shippingAddress != null) {
             recipientInfo.setName(shippingAddress.getName());
-            recipientInfo.setPhone(shippingAddress.getMobile() != null ? 
-                shippingAddress.getMobile() : shippingAddress.getPhone());
-            recipientInfo.setEmail(""); // TODO: 从用户表获取邮箱
+            recipientInfo.setPhone(shippingAddress.getPhone());
+            recipientInfo.setMobile(shippingAddress.getMobile());
+            recipientInfo.setEmail(""); // 屏蔽邮箱字段
             recipientInfo.setRegion(shippingAddress.getProvince() + "-" + 
                 shippingAddress.getCity() + "-" + shippingAddress.getDistrict());
             recipientInfo.setZipCode(shippingAddress.getZipCode());
@@ -656,6 +771,7 @@ public class OrderServiceImpl implements OrderService {
         } else {
             recipientInfo.setName("未知");
             recipientInfo.setPhone("");
+            recipientInfo.setMobile("");
             recipientInfo.setEmail("");
             recipientInfo.setRegion("");
             recipientInfo.setAddress("未知");

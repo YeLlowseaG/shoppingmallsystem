@@ -1,71 +1,322 @@
 # 修改日志
 
-## 2026-01-07 - 合并功能分支到 dev 并推送到远程
+## 2026-01-07 - 统一修改"货号"字段显示逻辑
 
-### 操作说明
-将 `feature/yellow-modules` 功能分支合并到 `dev` 分支，并推送到 gitee 远程仓库。
+### 功能说明
+统一修改商品详情、购物车、结算、订单、订单详情等页面中"货号"字段的显示逻辑：
+- 如果商品启用SKU且有SKU编码，显示SKU编码
+- 如果没有启用SKU或没有SKU编码，显示商品编码
 
-### 操作内容
-- **源分支**：feature/yellow-modules
-- **目标分支**：dev
-- **合并方式**：手动解决冲突后合并
-- **冲突文件**：log.md（已解决，保留了两边的所有记录）
-- **推送状态**：已成功推送到 gitee/dev
+### 修改原因
+用户要求统一"货号"字段的显示逻辑，确保在所有相关页面中，启用SKU的商品显示SKU编码，未启用SKU的商品显示商品编码。
 
-### 合并内容
-- 包含功能分支的所有提交
-- 包含 dev 分支的最新更新
-- 解决了 log.md 文件的合并冲突
+### 修改内容
 
-### 影响范围
-- ✅ dev 分支已包含功能分支的所有更新
-- ✅ 已推送到远程 gitee 仓库
-- ✅ 所有代码更改已同步
+**后端修改：**
 
-## 2026-01-07 - 执行订单问题菜单 SQL 脚本
+1. **文件：** `backend/src/main/java/com/shoppingmall/vo/CartVO.java`
+   - 添加 `skuId` 字段（SKU ID）
+   - 添加 `skuCode` 字段（SKU编码）
 
-### 操作说明
-执行了 `update-20251214-add-order-message-menu.sql` 脚本，添加订单问题管理菜单。
+2. **文件：** `backend/src/main/java/com/shoppingmall/service/buyer/impl/CartServiceImpl.java`
+   - 在 `convertToVO()` 方法中，当购物车项有SKU时，设置 `skuId` 和 `skuCode` 字段
 
-### 执行结果
-- **脚本文件**：`database/update-20251214-add-order-message-menu.sql`
-- **菜单ID**：55（脚本中为54，但实际创建为55，可能ID 54已被占用）
-- **菜单名称**：订单问题
-- **父菜单**：订单管理 (parent_id=3)
-- **菜单路径**：message
-- **组件路径**：order/OrderMessage
-- **权限标识**：admin:order:message:list
-- **图标**：ChatLineRound
+3. **文件：** `backend/src/main/java/com/shoppingmall/vo/OrderDetailVO.java`
+   - 在 `OrderItemVO` 内部类中添加 `skuId` 字段（SKU ID）
+   - 在 `OrderItemVO` 内部类中添加 `skuCode` 字段（SKU编码）
 
-### 权限分配
-- ✅ 超级管理员角色 (role_id=1) 已分配菜单权限
-- ✅ 运营人员角色 (role_id=2) 已分配菜单权限
+4. **文件：** `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java`
+   - 在构建 `OrderItemVO` 时，如果订单项有SKU ID，查询SKU信息并设置 `skuId` 和 `skuCode` 字段
 
-### 影响范围
-- ✅ 管理后台订单管理下已存在"订单问题"子菜单
-- ✅ 相关角色已获得菜单访问权限
-- ✅ 菜单配置正确，功能可用
+5. **文件：** `backend/src/main/java/com/shoppingmall/service/admin/impl/OrderServiceImpl.java`
+   - 添加 `ProductSkuRepository` 依赖注入
+   - 添加 `ProductSku` 导入
+   - 在构建 `OrderItemVO` 时，如果订单项有SKU ID，查询SKU信息并设置 `skuId` 和 `skuCode` 字段
 
-## 2026-01-07 - 合并 dev 分支更新到 feature/yellow-modules
+**前端修改：**
 
-### 操作说明
-将 gitee 上 dev 分支的最新更新合并到功能分支 `feature/yellow-modules`。
+1. **文件：** `frontend/src/api/buyer/cart.ts`
+   - 在 `CartVO` 接口中添加 `skuCode?: string` 字段
 
-### 合并内容
-- **合并方式**：Fast-forward（无冲突）
-- **更新统计**：240 个文件被修改，890 行新增，330 行删除
-- **主要更新**：
-  1. 商品详情页面/购物车页面，购买数量限制不能超过库存的数量
-  2. 商品详情页面/购物车页面，未登录状态操作优化，直接跳转到登录页
-  3. 会员中心，站内消息模块入口先屏蔽
-  4. 增加商品不存在或已被删除的提示页面
-  5. 文件结构优化（部分文件移动到 docs/apitest/ 目录）
-  6. 删除 `jushuitan_itemsku_upload.jmx` 文件
+2. **文件：** `frontend/src/api/buyer/order.ts`
+   - 在 `OrderDetailVO` 接口的 `items` 数组中添加 `skuId?: number` 和 `skuCode?: string` 字段
+
+3. **文件：** `frontend/src/views/products/Detail.vue`
+   - 修改货号显示逻辑：使用 `getProductCode()` 函数
+   - 添加 `getProductCode()` 函数：如果启用SKU且有当前SKU，返回SKU编码，否则返回商品编码
+   - 移除 `sku` 字段映射，添加 `productCode` 字段映射
+
+4. **文件：** `frontend/src/views/cart/Index.vue`
+   - 修改货号显示：`{{ item.skuCode || item.productCode }}`
+
+5. **文件：** `frontend/src/views/cart/Checkout.vue`
+   - 修改货号显示：`{{ item.skuCode || item.productCode }}`
+
+6. **文件：** `frontend/src/views/order/Detail.vue`
+   - 修改货号显示：`{{ item.skuCode || item.productCode }}`
 
 ### 影响范围
-- ✅ 功能分支已包含 dev 分支的所有最新更新
-- ✅ 无冲突，合并成功
-- ✅ 当前分支领先远程分支 5 个提交
+- ✅ 商品详情页面：货号字段根据是否启用SKU显示对应编码
+- ✅ 购物车页面：货号字段根据是否有SKU显示对应编码
+- ✅ 结算页面：货号字段根据是否有SKU显示对应编码
+- ✅ 订单详情页面：货号字段根据是否有SKU显示对应编码
+- ✅ 后端API返回数据包含SKU编码信息，前端可直接使用
+
+## 2026-01-07 - 修复预存款交易记录【重试】按钮编译错误
+
+### 功能说明
+修复预存款交易记录【重试】按钮功能中的编译错误。
+
+### 修改原因
+用户反馈：点击【重试】按钮时报错：`Handler dispatch failed: java.lang.Error: Unresolved compilation problem: The method valueOf(String) is undefined for the type PaymentMethod`
+
+**问题分析：**
+1. `PaymentMethod` 是一个常量类（`public class PaymentMethod`），不是枚举类
+2. 常量类没有 `valueOf()` 方法，只有枚举类才有这个方法
+3. `PaymentGatewayService` 接口中没有 `queryPaymentStatus()` 方法
+4. 应该通过 `getPaymentStrategy()` 获取支付策略，然后调用策略的 `queryPaymentStatus()` 方法
+
+### 修改内容
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/admin/impl/DepositServiceImpl.java`
+- 添加 `PaymentStrategy` 导入
+- 修改 `syncPaymentStatus()` 方法中的支付状态查询逻辑（第821-832行）：
+  - 移除错误的 `PaymentMethod.valueOf(paymentMethodUpper)` 调用
+  - 改为通过 `paymentGatewayService.getPaymentStrategy(paymentMethodUpper)` 获取支付策略
+  - 然后调用 `strategy.queryPaymentStatus(internalOrderNo)` 查询支付状态
+  - 添加策略为空的检查
+
+### 影响范围
+- ✅ 修复了【重试】按钮的编译错误
+- ✅ 支付状态查询功能可以正常工作
+- ✅ 日志记录功能正常（通过策略的 `queryPaymentStatus()` 方法自动记录）
+
+## 2026-01-07 - 预存款交易记录增加【重试】按钮功能
+
+### 功能说明
+在管理员后台的预存款交易记录页面（`http://localhost:3003/admin/finance/deposit`），为支付中状态的交易记录增加【重试】按钮，支持主动查询支付宝或微信的支付状态，同步支付状态结果。
+
+### 修改原因
+针对客户已经付款了，但是第三方支付平台处于异常没有回调通知成功的场景。管理员可以通过【重试】按钮主动查询支付状态，同步支付结果。
+
+### 修改内容
+
+**后端修改：**
+
+1. **文件：** `backend/src/main/java/com/shoppingmall/service/admin/DepositService.java`
+   - 添加 `syncPaymentStatus(Long id)` 方法接口
+
+2. **文件：** `backend/src/main/java/com/shoppingmall/service/admin/impl/DepositServiceImpl.java`
+   - 添加必要的导入：`DepositStatus`、`PaymentStatus`、`PaymentApiLogMapper`、`Caffeine` 缓存相关类
+   - 添加 `PaymentApiLogMapper` 注入
+   - 添加 `paymentQueryCache` 缓存（30秒过期，用于频率限制）
+   - 实现 `syncPaymentStatus()` 方法：
+     - 验证记录状态和支付方式（只允许支付中状态且为支付宝或微信）
+     - 实现30秒查询频率限制（使用Caffeine缓存）
+     - 调用支付网关查询状态（自动记录日志到 `payment_api_log` 表）
+     - 根据查询结果更新充值记录状态和余额
+   - 添加 `getExternalTradeNoFromLog()` 辅助方法：从支付日志中获取外部交易号
+
+3. **文件：** `backend/src/main/java/com/shoppingmall/controller/admin/DepositController.java`
+   - 添加 `sync-payment-status/{id}` 接口（POST方法）
+
+**前端修改：**
+
+4. **文件：** `admin-frontend/src/api/admin/deposit.ts`
+   - 添加 `syncPaymentStatus(id: number)` API方法
+
+5. **文件：** `admin-frontend/src/views/deposit/Record.vue`
+   - 导入 `syncPaymentStatus` 方法
+   - 添加 `syncingIds` 状态（用于显示加载状态）
+   - 在操作列中添加【重试】按钮（仅对支付中状态且为支付宝或微信的记录显示）
+   - 添加 `handleSyncPaymentStatus()` 方法处理重试逻辑
+
+### 功能特性
+
+1. **查询频率限制：** 30秒内同一记录只能查询一次，防止频繁调用第三方接口
+2. **日志记录：** 自动记录到 `payment_api_log` 表，包括：
+   - 支付方式（ALIPAY/WECHAT）
+   - 接口类型（QUERY_ORDER）
+   - 业务类型（DEPOSIT）
+   - 订单号和支付流水号
+   - 接口调用状态和执行耗时
+   - 请求和响应数据
+3. **状态同步：** 查询成功后自动更新充值记录状态和预存款余额
+4. **错误处理：** 频率超限返回429错误，其他错误返回相应错误信息
+
+### 影响范围
+- ✅ 管理员后台预存款交易记录页面：支付中状态的记录显示【重试】按钮
+- ✅ 支付状态查询：支持主动查询支付宝和微信的支付状态
+- ✅ 支付日志记录：所有查询操作自动记录到 `payment_api_log` 表
+- ✅ 用户体验：解决客户已付款但系统未收到回调的问题
+
+## 2026-01-07 - 修复预存款充值回调状态判断问题
+
+### 功能说明
+修复支付宝预存款充值回调时，即使支付成功但状态返回失败的问题。
+
+### 修改原因
+用户反馈：支付宝预存款充值回调时，`trade_status` 是 `TRADE_SUCCESS`（支付成功），但系统返回的状态是 `{"status": "failed"}`。
+
+**问题分析：**
+1. 当充值记录已经是 `APPROVED`（已通过）状态时，`handlePaymentCallback()` 方法会直接 `return`（重复回调处理），不会抛出异常
+2. 但在 `PaymentNotifyController.processPaymentNotify()` 中，原来的逻辑是 `callbackSuccess = success;`
+3. 如果 `success` 变量因为某些原因被错误地设置为 `false`，即使 `handlePaymentCallback()` 正常返回，`callbackSuccess` 也会是 `false`
+4. 这导致支付回调日志状态被错误地更新为失败
+
+### 修改内容
+
+**文件：** `backend/src/main/java/com/shoppingmall/payment/controller/PaymentNotifyController.java`
+- 修改预存款充值回调处理逻辑（第288-299行）：
+  - 将 `callbackSuccess = success;` 改为 `callbackSuccess = true;`
+  - 原因：只要 `handlePaymentCallback()` 没有抛出异常，就说明处理成功（包括重复回调的情况）
+  - 对于重复回调，如果充值记录已经是 `APPROVED` 状态，说明之前已经成功处理过了
+
+### 影响范围
+- ✅ 预存款充值回调：当充值记录已经是 `APPROVED` 状态时（重复回调），回调状态会正确更新为成功
+- ✅ 支付回调日志：`payment_api_log` 表中的状态会正确更新为成功（`api_status=1`）
+- ✅ 解决了支付宝支付成功但状态返回失败的问题
+
+## 2026-01-06 - 预存款列表页面列宽和字体优化
+
+### 功能说明
+调整预存款列表页面的列宽和字体大小，优化显示效果。
+
+### 修改原因
+用户反馈预存款列表页面（`http://localhost:3002/member/deposit/balance`）中：
+1. 支付方式列的宽度需要大一点
+2. 备注列的宽度需要小一点
+3. 备注内容的字体需要小一点
+
+### 修改内容
+
+**文件：** `frontend/src/views/member/DepositBalance.vue`
+- 修改表格列宽（第107-113行）：
+  - 将"支付方式"列的宽度从 `100px` 增加到 `150px`
+  - 将"备注"列的宽度设置为 `200px`（之前没有设置宽度）
+- 修改备注单元格样式（第669-675行）：
+  - 将 `max-width` 从 `300px` 调整为 `200px`
+  - 添加 `font-size: 12px` 使备注内容字体更小
+  - 添加 `color: #666` 使备注内容颜色更柔和
+
+### 影响范围
+- ✅ 支付方式列现在有更大的显示空间（150px）
+- ✅ 备注列宽度缩小为200px，节省页面空间
+- ✅ 备注内容字体更小（12px），视觉更协调
+
+## 2026-01-06 - 订单详情页面和订单列表查询功能优化（修复编译错误）
+
+### 功能说明
+1. 订单详情页面：屏蔽收货人Mail字段，添加联系手机和联系电话字段显示
+2. 订单列表查询功能：完善收货人姓名、联系电话、联系手机、收货人地址的查询功能
+3. 商品收藏页面：商品标题和图片支持点击跳转到商品详情页面
+
+### 修改原因
+用户反馈：
+1. 订单详情页面需要屏蔽收货人Mail字段，需要显示"联系手机"、"联系电话"字段
+2. 订单列表查询功能中，收货人姓名、联系电话、联系手机、收货人地址查询功能都无效
+3. 商品收藏页面，商品标题和图片需要支持点击跳转到商品详情页面
+
+### 修改内容
+
+**文件：** `backend/src/main/java/com/shoppingmall/vo/OrderDetailVO.java`
+- 在 `RecipientInfo` 内部类中添加 `mobile` 字段（第205-207行）
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java`
+- 修改 `convertToDetailVO` 方法（第643-662行）：
+  - 分别设置 `phone` 和 `mobile` 字段，不再合并
+  - 屏蔽 `email` 字段（设置为空字符串）
+- 修改 `getOrderList` 方法（第334-450行）：
+  - 添加收货人信息查询支持（收货人姓名、联系电话、联系手机、收货人地址）
+  - 当需要过滤收货人信息时，先查询所有符合条件的订单，然后进行内存过滤，最后进行分页
+  - 优化性能：在 `convertToListVO` 方法中设置 `contactPhone` 和 `contactMobile` 字段，避免重复查询订单
+  - **修复编译错误**：将 `searchRecipientName`、`searchContactPhone`、`searchContactMobile`、`searchRecipientAddress` 变量声明为 `final`，确保在lambda表达式中可以正常使用
+- 修改 `convertToListVO` 方法（第668-700行）：
+  - 设置 `contactPhone` 和 `contactMobile` 字段，用于订单列表查询过滤
+
+**文件：** `backend/src/main/java/com/shoppingmall/vo/OrderListVO.java`
+- 添加 `contactPhone` 和 `contactMobile` 字段（第47-54行），用于订单列表查询过滤
+
+**文件：** `frontend/src/views/order/Detail.vue`
+- 修改收货人信息显示区域（第166-183行）：
+  - 屏蔽"收货人Mail"字段显示
+  - 添加"联系手机"字段显示
+  - 保留"联系电话"字段显示
+- 修改 `recipientInfo` computed属性（第350-365行）：
+  - 添加 `mobile` 字段的默认值
+
+**文件：** `frontend/src/api/buyer/order.ts`
+- 修改 `OrderDetailVO` 接口（第91-103行）：
+  - 在 `recipientInfo` 中添加 `mobile` 字段
+
+**文件：** `frontend/src/views/member/Favorites.vue`
+- 修改商品图片和商品标题（第37-49行）：
+  - 为商品图片添加点击事件，跳转到商品详情页面
+  - 为商品标题添加点击事件，跳转到商品详情页面
+- 添加 `handleViewProduct` 方法（第146-149行）：
+  - 实现商品详情页面跳转功能
+
+### 影响范围
+- ✅ 订单详情页面现在显示"联系手机"和"联系电话"字段，不再显示"收货人Mail"字段
+- ✅ 订单列表查询功能现在支持收货人姓名、联系电话、联系手机、收货人地址的查询
+- ✅ 商品收藏页面的商品标题和图片现在支持点击跳转到商品详情页面
+- ✅ 优化了订单列表查询性能，避免重复查询订单数据
+- ✅ 修复了Java编译错误：lambda表达式中使用的变量必须是final或effectively final
+
+### 功能说明
+1. 订单详情页面：屏蔽收货人Mail字段，添加联系手机和联系电话字段显示
+2. 订单列表查询功能：完善收货人姓名、联系电话、联系手机、收货人地址的查询功能
+3. 商品收藏页面：商品标题和图片支持点击跳转到商品详情页面
+
+### 修改原因
+用户反馈：
+1. 订单详情页面需要屏蔽收货人Mail字段，需要显示"联系手机"、"联系电话"字段
+2. 订单列表查询功能中，收货人姓名、联系电话、联系手机、收货人地址查询功能都无效
+3. 商品收藏页面，商品标题和图片需要支持点击跳转到商品详情页面
+
+### 修改内容
+
+**文件：** `backend/src/main/java/com/shoppingmall/vo/OrderDetailVO.java`
+- 在 `RecipientInfo` 内部类中添加 `mobile` 字段（第205-207行）
+
+**文件：** `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java`
+- 修改 `convertToDetailVO` 方法（第643-662行）：
+  - 分别设置 `phone` 和 `mobile` 字段，不再合并
+  - 屏蔽 `email` 字段（设置为空字符串）
+- 修改 `getOrderList` 方法（第334-450行）：
+  - 添加收货人信息查询支持（收货人姓名、联系电话、联系手机、收货人地址）
+  - 当需要过滤收货人信息时，先查询所有符合条件的订单，然后进行内存过滤，最后进行分页
+  - 优化性能：在 `convertToListVO` 方法中设置 `contactPhone` 和 `contactMobile` 字段，避免重复查询订单
+- 修改 `convertToListVO` 方法（第668-700行）：
+  - 设置 `contactPhone` 和 `contactMobile` 字段，用于订单列表查询过滤
+
+**文件：** `backend/src/main/java/com/shoppingmall/vo/OrderListVO.java`
+- 添加 `contactPhone` 和 `contactMobile` 字段（第47-54行），用于订单列表查询过滤
+
+**文件：** `frontend/src/views/order/Detail.vue`
+- 修改收货人信息显示区域（第166-183行）：
+  - 屏蔽"收货人Mail"字段显示
+  - 添加"联系手机"字段显示
+  - 保留"联系电话"字段显示
+- 修改 `recipientInfo` computed属性（第350-365行）：
+  - 添加 `mobile` 字段的默认值
+
+**文件：** `frontend/src/api/buyer/order.ts`
+- 修改 `OrderDetailVO` 接口（第91-103行）：
+  - 在 `recipientInfo` 中添加 `mobile` 字段
+
+**文件：** `frontend/src/views/member/Favorites.vue`
+- 修改商品图片和商品标题（第37-49行）：
+  - 为商品图片添加点击事件，跳转到商品详情页面
+  - 为商品标题添加点击事件，跳转到商品详情页面
+- 添加 `handleViewProduct` 方法（第146-149行）：
+  - 实现商品详情页面跳转功能
+
+### 影响范围
+- ✅ 订单详情页面现在显示"联系手机"和"联系电话"字段，不再显示"收货人Mail"字段
+- ✅ 订单列表查询功能现在支持收货人姓名、联系电话、联系手机、收货人地址的查询
+- ✅ 商品收藏页面的商品标题和图片现在支持点击跳转到商品详情页面
+- ✅ 优化了订单列表查询性能，避免重复查询订单数据
 
 ## 2026-01-05 - 修复购物车页面商品重量显示精度问题
 

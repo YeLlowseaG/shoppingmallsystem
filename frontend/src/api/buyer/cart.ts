@@ -20,6 +20,7 @@ export interface CartVO {
   shippingTemplateId?: number // 运费模板ID（为空表示包邮）
   stock?: number // 商品库存（可选，如果后端返回则使用）
   skuId?: number // SKU ID（可选，如果商品有规格）
+  skuCode?: string // SKU编码（可选，如果商品有SKU则返回SKU编码）
 }
 
 /**

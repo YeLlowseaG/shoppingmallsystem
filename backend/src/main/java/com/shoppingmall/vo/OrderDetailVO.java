@@ -155,6 +155,16 @@ public class OrderDetailVO {
          * 小计
          */
         private BigDecimal subtotal;
+
+        /**
+         * SKU ID（可选，如果商品有规格）
+         */
+        private Long skuId;
+
+        /**
+         * SKU编码（可选，如果商品有SKU则返回SKU编码，否则为空）
+         */
+        private String skuCode;
     }
 
     /**
@@ -201,6 +211,11 @@ public class OrderDetailVO {
          * 联系电话
          */
         private String phone;
+
+        /**
+         * 联系手机
+         */
+        private String mobile;
 
         /**
          * 送货时间
