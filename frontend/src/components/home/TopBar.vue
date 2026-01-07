@@ -16,9 +16,9 @@
           <router-link to="/register" class="link highlight">【免费注册】</router-link>
         </template>
         <span class="divider">|</span>
-        <router-link to="/cart" class="link">
+        <a href="#" class="link" @click.prevent="handleCartClick">
           购物车总数量：<span class="cart-amount">{{ cartStore.totalCount }}</span>
-        </router-link>
+        </a>
         <span class="divider">|</span>
         <router-link to="/help" class="link">帮助中心</router-link>
       </div>
@@ -78,6 +78,18 @@ const handleLogout = (e: Event) => {
   userStore.logout()
   ElMessage.success('退出登录成功')
   router.push('/')
+}
+
+// 点击购物车总数量
+const handleCartClick = () => {
+  // 检查登录状态
+  if (!userStore.userInfo) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+  // 已登录，跳转到购物车页面
+  router.push('/cart')
 }
 </script>
 
