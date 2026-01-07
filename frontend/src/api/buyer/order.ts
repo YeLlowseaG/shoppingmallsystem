@@ -87,6 +87,8 @@ export interface OrderDetailVO {
     price: number
     quantity: number
     subtotal: number
+    skuId?: number // SKU ID（可选，如果商品有规格）
+    skuCode?: string // SKU编码（可选，如果商品有SKU则返回SKU编码）
   }>
   recipientInfo: {
     name: string

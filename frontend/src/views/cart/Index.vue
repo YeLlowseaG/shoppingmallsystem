@@ -98,7 +98,7 @@
                   <td class="col-image">
                     <img :src="item.image" :alt="item.name" class="product-image" />
                   </td>
-                  <td class="col-code">{{ item.productCode }}</td>
+                  <td class="col-code">{{ item.skuCode || item.productCode }}</td>
                   <td class="col-name">
                     <router-link :to="`/products/${item.productId}`" class="product-name-link">
                       {{ item.name }}

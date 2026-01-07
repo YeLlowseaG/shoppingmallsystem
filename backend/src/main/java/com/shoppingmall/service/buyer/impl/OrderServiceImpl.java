@@ -736,6 +736,14 @@ public class OrderServiceImpl implements OrderService {
             itemVO.setQuantity(item.getQuantity());
             itemVO.setSubtotal(item.getSubtotal());
             itemVO.setSpecCombination(item.getSpecCombination());
+            // 设置SKU ID和SKU编码
+            if (item.getSkuId() != null) {
+                itemVO.setSkuId(item.getSkuId());
+                ProductSku sku = productSkuRepository.selectById(item.getSkuId());
+                if (sku != null && sku.getSkuCode() != null && !sku.getSkuCode().trim().isEmpty()) {
+                    itemVO.setSkuCode(sku.getSkuCode());
+                }
+            }
             return itemVO;
         }).collect(Collectors.toList());
         
