@@ -11,7 +11,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import java.net.InetAddress;
 
 /**
- * B2B成人用品采购系统启动类
+ * 趣爱巢商城系统启动类
  *
  * @author ShoppingMall Team
  * @date 2025-12-04

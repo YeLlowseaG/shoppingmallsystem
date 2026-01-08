@@ -20,9 +20,9 @@ public class SwaggerConfig {
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("B2B成人用品采购系统API文档")
+                        .title("趣爱巢商城API文档")
                         .version("1.0.0")
-                        .description("B2B成人用品采购平台接口文档")
+                        .description("趣爱巢商城接口文档")
                         .contact(new Contact()
                                 .name("ShoppingMall Team")
                                 .email("support@shoppingmall.com"))

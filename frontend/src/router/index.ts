@@ -283,7 +283,7 @@ router.beforeEach((to, _from, next) => {
   
   // 设置页面标题
   if (to.meta.title) {
-    document.title = `${to.meta.title} - B2B成人用品采购平台`
+    document.title = `${to.meta.title} - 趣爱巢商城`
   }
 
   // 游客模式：默认允许访问，只有明确标记 requiresAuth: true 的页面才需要登录

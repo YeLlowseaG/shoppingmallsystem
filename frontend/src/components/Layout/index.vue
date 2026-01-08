@@ -2,7 +2,7 @@
   <el-container class="layout-container">
     <el-header>
       <div class="header-content">
-        <h1>B2B成人用品采购平台</h1>
+        <h1>趣爱巢商城</h1>
         <div class="header-right">
           <el-dropdown>
             <span class="user-info">

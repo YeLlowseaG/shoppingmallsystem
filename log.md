@@ -1262,3 +1262,47 @@ location /uploads/ {
 - `frontend/src/views/products/Detail.vue`
 >>>>>>> cc8e7415c71a5bce6695505e0488a5a650c027ef
 
+---
+
+## 2026-01-08 22:17:11 - 统一系统文案：将"B2B成人用品采购平台"改为"趣爱巢商城"
+
+### 修改内容
+统一替换系统中所有"B2B成人用品采购平台"相关文案为"趣爱巢商城"
+
+### 修改文件列表
+
+#### 前端代码文件
+- `frontend/src/components/Layout/index.vue` - 页面标题
+- `frontend/index.html` - HTML页面标题
+- `frontend/src/router/index.ts` - 路由页面标题后缀
+- `frontend/package.json` - 项目描述
+- `frontend/README.md` - README文档标题
+
+#### 管理后台代码文件
+- `admin-frontend/src/main.ts` - 启动日志
+- `admin-frontend/package.json` - 项目描述
+- `admin-frontend/README.md` - README文档标题
+
+#### 后端代码文件
+- `backend/pom.xml` - Maven项目名称和描述
+- `backend/src/main/java/com/shoppingmall/ShoppingMallApplication.java` - 启动类注释
+- `backend/src/main/java/com/shoppingmall/common/config/SwaggerConfig.java` - Swagger API文档标题和描述
+
+#### 配置文件
+- `config/nginx/nginx.conf` - Nginx配置注释
+
+#### 文档文件
+- `docs/第三方支付对接技术方案.md` - 系统名称
+- `docs/Requirements AnalysisV1.0.md` - 文档标题和系统类型
+- `docs/Development Task List.md` - 文档标题和项目名称
+- `docs/Development TODO List(backup).md` - 文档标题和项目名称
+- `docs/Technical Architecture Design.md` - 文档标题、系统名称和总结部分
+
+### 修改说明
+- 所有用户可见的文案统一改为"趣爱巢商城"
+- 保持代码注释和文档的一致性
+- 数据库SQL备份文件中的历史数据保持不变（仅修改代码和文档）
+
+### 相关文件
+- 所有包含"B2B成人用品采购平台"的代码和文档文件
+

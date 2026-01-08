@@ -17,8 +17,8 @@
     <version>1.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
-    <name>B2B成人用品采购系统</name>
-    <description>B2B成人用品采购平台 - 单模块Maven项目</description>
+    <name>趣爱巢商城系统</name>
+    <description>趣爱巢商城 - 单模块Maven项目</description>
 
     <properties>
         <java.version>17</java.version>
