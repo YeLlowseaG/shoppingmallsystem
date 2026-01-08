@@ -1,1 +1,0 @@
-import{s as n}from"./request-B1AtzOE1.js";const u=()=>n.get("/api/admin/menu/tree"),s=e=>n.get(`/api/admin/menu/${e}`),r=e=>n.post("/api/admin/menu",e),m=(e,t)=>n.put(`/api/admin/menu/${e}`,t),d=e=>n.delete(`/api/admin/menu/${e}`),i=(e,t)=>n.put(`/api/admin/menu/${e}/status`,null,{params:{status:t}});export{s as a,r as b,i as c,d,u as g,m as u};

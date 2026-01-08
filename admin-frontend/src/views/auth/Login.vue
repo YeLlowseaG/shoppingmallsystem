@@ -86,7 +86,10 @@ const handleLogin = async () => {
         adminStore.setPermissions(permissions)
         
         // 调试日志：检查菜单和权限
-        console.log('菜单数量:', menus.length, '权限数量:', permissions.length)
+        console.log('登录成功 - 菜单数量:', menus.length, '权限数量:', permissions.length)
+        
+        // 等待一下确保 store 状态已更新
+        await new Promise(resolve => setTimeout(resolve, 50))
         
         // 检查用户是否有角色和权限
         if (!menus || menus.length === 0 || !permissions || permissions.length === 0) {
@@ -98,8 +101,17 @@ const handleLogin = async () => {
           // 有权限时，显示成功消息并跳转
           ElMessage.success('登录成功')
           // 动态添加路由
+          console.log('登录成功 - 开始添加路由...')
           addRoutes(menus)
-          router.push('/admin/dashboard')
+          // 等待路由添加完成后再跳转
+          await new Promise(resolve => setTimeout(resolve, 300))
+          console.log('登录成功 - 路由已添加，准备跳转到 dashboard')
+          // 使用 replace 而不是 push，避免在历史记录中留下登录页
+          router.replace('/admin/dashboard').catch((err) => {
+            console.error('跳转失败:', err)
+            // 如果跳转失败，尝试使用 push
+            router.push('/admin/dashboard')
+          })
         }
       } catch (error: any) {
         // 错误提示已在响应拦截器中处理，这里不需要重复显示

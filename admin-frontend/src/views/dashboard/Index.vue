@@ -1,6 +1,17 @@
 <template>
   <div class="dashboard">
-    <h1>数据概览</h1>
+    <div class="dashboard-header">
+      <h1>数据概览</h1>
+      <el-button
+        v-if="hasPermissions"
+        type="primary"
+        :icon="Refresh"
+        :loading="loading"
+        @click="handleRefresh"
+      >
+        刷新数据
+      </el-button>
+    </div>
     
     <!-- 如果没有权限，显示提示信息 -->
     <el-alert
@@ -166,7 +177,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick, onBeforeUnmount } from 'vue'
 import { useAdminStore } from '@/stores/admin/user'
-import { Document, Money, Clock, Warning, User, Box } from '@element-plus/icons-vue'
+import { Document, Money, Clock, Warning, User, Box, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import { getDashboardStatistics, type DashboardVO } from '@/api/admin/dashboard'
@@ -247,6 +258,24 @@ const loadStatistics = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// 刷新数据
+const handleRefresh = async () => {
+  // 销毁现有图表实例
+  salesChart?.dispose()
+  orderChart?.dispose()
+  orderStatusChart?.dispose()
+  
+  // 重置图表实例
+  salesChart = null
+  orderChart = null
+  orderStatusChart = null
+  
+  // 重新加载数据
+  await loadStatistics()
+  
+  ElMessage.success('数据刷新成功')
 }
 
 // 初始化销售趋势图表
@@ -472,9 +501,16 @@ onBeforeUnmount(() => {
   padding: 20px;
 }
 
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
 h1 {
   font-size: 24px;
-  margin-bottom: 20px;
+  margin: 0;
   color: #333;
 }
 
