@@ -39,7 +39,7 @@ const cartStore = useCartStore()
 const router = useRouter()
 
 // 网站名称 - 从配置读取
-const siteName = ref('云起分销王商城')
+const siteName = ref('趣爱巢商城')
 
 // 计算登录状态，确保响应式
 const isLoggedIn = computed(() => userStore.isLoggedIn())
