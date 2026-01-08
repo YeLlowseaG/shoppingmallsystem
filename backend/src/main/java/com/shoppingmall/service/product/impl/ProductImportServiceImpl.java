@@ -7,9 +7,11 @@ import com.shoppingmall.dto.ProductSkuDTO;
 import com.shoppingmall.entity.Product;
 import com.shoppingmall.entity.ProductCategory;
 import com.shoppingmall.entity.Brand;
+import com.shoppingmall.entity.ShippingTemplate;
 import com.shoppingmall.repository.product.ProductRepository;
 import com.shoppingmall.repository.product.ProductCategoryRepository;
 import com.shoppingmall.repository.website.BrandRepository;
+import com.shoppingmall.repository.logistics.ShippingTemplateRepository;
 import com.shoppingmall.common.util.StringUtil;
 import com.shoppingmall.service.product.ProductImportService;
 import com.shoppingmall.service.common.ImageService;
@@ -26,12 +28,14 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.*;
 
 @Slf4j
@@ -45,6 +49,8 @@ public class ProductImportServiceImpl implements ProductImportService {
     private final ProductRepository productRepository;
     private final ProductCategoryRepository categoryRepository;
     private final BrandRepository brandRepository;
+    private final ShippingTemplateRepository shippingTemplateRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     
     @Override
     public ProductImportResultVO importProducts(MultipartFile csvFile, MultipartFile imageZip) throws Exception {
@@ -85,7 +91,8 @@ public class ProductImportServiceImpl implements ProductImportService {
                     result.incrementSuccess();
                 } catch (Exception e) {
                     log.error("导入商品失败: {}", productCode, e);
-                    result.addError(rows.get(0).getRowNumber(), productCode, e.getMessage());
+                    String errorMessage = getErrorMessage(e, productCode);
+                    result.addError(rows.get(0).getRowNumber(), productCode, errorMessage);
                 }
             }
 
@@ -366,7 +373,17 @@ public class ProductImportServiceImpl implements ProductImportService {
         productDTO.setDescription(firstRow.getDescription());
         productDTO.setStatus(firstRow.getStatus());
         productDTO.setMainImage(mainImageUrl != null ? mainImageUrl : "");
-        productDTO.setImages(detailImageUrls.isEmpty() ? null : String.join(",", detailImageUrls));
+        // 将图片列表转换为JSON数组格式（数据库images字段是JSON类型）
+        if (detailImageUrls.isEmpty()) {
+            productDTO.setImages(null);
+        } else {
+            try {
+                productDTO.setImages(objectMapper.writeValueAsString(detailImageUrls));
+            } catch (Exception e) {
+                log.error("转换图片列表为JSON失败: {}", detailImageUrls, e);
+                productDTO.setImages(null);
+            }
+        }
 
         // 如果不启用规格，使用第一行的库存
         if (!firstRow.getEnableSpec()) {
@@ -422,6 +439,16 @@ public class ProductImportServiceImpl implements ProductImportService {
         if (dto.getBasePrice() == null || dto.getBasePrice().compareTo(BigDecimal.ZERO) <= 0) {
             throw new RuntimeException("基础价必须大于0");
         }
+        // 校验运费模板ID是否存在
+        if (dto.getShippingTemplateId() != null) {
+            ShippingTemplate template = shippingTemplateRepository.selectById(dto.getShippingTemplateId());
+            if (template == null) {
+                throw new RuntimeException("运费模板ID不存在: " + dto.getShippingTemplateId());
+            }
+            if (template.getStatus() == null || template.getStatus() == 0) {
+                throw new RuntimeException("运费模板已禁用: " + dto.getShippingTemplateId());
+            }
+        }
     }
     
     private Long findOrCreateCategory(String categoryName) {
@@ -447,7 +474,7 @@ public class ProductImportServiceImpl implements ProductImportService {
         }
         
         try {
-            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(specMap);
+            return objectMapper.writeValueAsString(specMap);
         } catch (Exception e) {
             log.error("转换规格组合失败: {}", specCombination, e);
             return "{}";
@@ -497,5 +524,25 @@ public class ProductImportServiceImpl implements ProductImportService {
         } catch (Exception e) {
             return null;
         }
+    }
+    
+    /**
+     * 提取友好的错误信息
+     */
+    private String getErrorMessage(Exception e, String productCode) {
+        // 检查是否是数据库唯一约束冲突（商品编码重复）
+        Throwable cause = e.getCause();
+        while (cause != null) {
+            if (cause instanceof SQLIntegrityConstraintViolationException) {
+                String message = cause.getMessage();
+                if (message != null && message.contains("Duplicate entry") && message.contains("uk_product_code")) {
+                    return "商品编码已存在: " + productCode + "，请检查是否重复导入或数据库中已存在该商品";
+                }
+            }
+            cause = cause.getCause();
+        }
+        
+        // 返回原始错误信息
+        return e.getMessage() != null ? e.getMessage() : "导入失败";
     }
 }

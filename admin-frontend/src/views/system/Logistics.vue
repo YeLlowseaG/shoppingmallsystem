@@ -38,6 +38,7 @@
 
             <!-- 运费模板列表 -->
             <el-table :data="templateList" v-loading="templateLoading" border>
+              <el-table-column prop="id" label="ID" width="80" />
               <el-table-column prop="templateName" label="模板名称" width="200" />
               <el-table-column prop="calculationType" label="计算方式" width="120">
                 <template #default="{ row }">
