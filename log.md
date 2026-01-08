@@ -1,5 +1,36 @@
 # 修改日志
 
+## 2026-01-07 - 执行数据库更新脚本
+
+### 执行内容
+按时间顺序执行了以下数据库更新脚本：
+
+1. **update-20260102-create-product-sync-log.sql**
+   - 创建商品同步日志表 `product_sync_log`
+   - 状态：✅ 执行成功
+
+2. **update-20260103-add-test-shop-id.sql**
+   - 为 `jushuitan_config` 表添加测试环境店铺ID字段 `test_shop_id`
+   - 状态：✅ 字段已存在（之前已执行）
+
+3. **update-20260105-add-logistics-callback-url.sql**
+   - 为 `jushuitan_config` 表添加物流同步回调地址字段 `test_callback_url` 和 `callback_url`
+   - 状态：✅ 字段已存在（之前已执行）
+
+4. **update-20260105-add-system-config-category.sql**
+   - 为 `system_config` 表添加分类字段 `category`
+   - 状态：✅ 字段已存在（之前已执行）
+
+### 验证结果
+- ✅ `product_sync_log` 表已创建
+- ✅ `jushuitan_config` 表相关字段已存在
+- ✅ `system_config` 表 `category` 字段已存在
+
+### 说明
+部分脚本出现"字段已存在"的错误提示，属于正常情况，说明这些脚本之前已经执行过。数据库结构已是最新状态。
+
+---
+
 ## 2026-01-07 - 统一修改"货号"字段显示逻辑
 
 ### 功能说明
