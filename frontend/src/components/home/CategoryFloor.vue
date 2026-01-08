@@ -3,7 +3,7 @@
     <div class="container">
       <!-- 分类标题栏 -->
       <div class="floor-title" :style="{ background: titleColor }" @click="goToCategory">
-        {{ floorNumber }} {{ categoryName }}
+        {{ categoryName }}
       </div>
 
       <!-- 第二行：大图广告 + 2个商品 -->
