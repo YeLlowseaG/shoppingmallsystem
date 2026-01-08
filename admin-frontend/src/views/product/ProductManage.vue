@@ -13,14 +13,14 @@
         <div class="filters-row">
           <div class="filter-item">
             <label>分类</label>
-            <el-select v-model="searchForm.categoryId" placeholder="请选择分类" clearable>
-              <el-option
-                v-for="category in flatCategories"
-                :key="category.id"
-                :label="category.categoryName"
-                :value="category.id"
-              />
-            </el-select>
+            <el-cascader
+              v-model="searchForm.categoryId"
+              :options="categoryTree"
+              :props="cascaderProps"
+              placeholder="请选择分类"
+              clearable
+              style="width: 100%"
+            />
           </div>
           
           <div class="filter-item">
@@ -212,14 +212,13 @@
           <el-input v-model="formData.productName" placeholder="请输入商品名称" />
         </el-form-item>
         <el-form-item label="商品分类" prop="categoryId">
-          <el-select v-model="formData.categoryId" placeholder="请选择分类" style="width: 100%">
-            <el-option
-              v-for="category in flatCategories"
-              :key="category.id"
-              :label="category.categoryName"
-              :value="category.id"
-            />
-          </el-select>
+          <el-cascader
+            v-model="formData.categoryId"
+            :options="categoryTree"
+            :props="cascaderProps"
+            placeholder="请选择分类"
+            style="width: 100%"
+          />
         </el-form-item>
 
         <el-form-item label="商品品牌" prop="brandId">
@@ -1007,7 +1006,7 @@ const router = useRouter()
 
 // 搜索表单
 const searchForm = ref({
-  categoryId: undefined as number | undefined,
+  categoryId: undefined as number | number[] | undefined,
   keyword: '',
   status: '',
   sortBy: 'create_time_desc'
@@ -1038,7 +1037,15 @@ watch(shippingTemplates, (newVal) => {
   console.log('📦 运费模板数量:', newVal ? newVal.length : 0)
 }, { deep: true })
 
-// 扁平化分类列表（用于下拉选择）
+// 级联选择器配置
+const cascaderProps = {
+  value: 'id',
+  label: 'categoryName',
+  children: 'children',
+  checkStrictly: true
+}
+
+// 扁平化分类列表（保留用于其他可能需要的地方）
 const flatCategories = computed(() => {
   const flatten = (categories: ProductCategoryVO[], level = 0): ProductCategoryVO[] => {
     let result: ProductCategoryVO[] = []
@@ -1213,10 +1220,15 @@ const loadShippingTemplates = async () => {
 const loadProductList = async () => {
   try {
     console.log('排序参数:', searchForm.value.sortBy)
+    // 处理级联选择器的值（如果是数组，取最后一个值）
+    const categoryId = Array.isArray(searchForm.value.categoryId)
+      ? searchForm.value.categoryId[searchForm.value.categoryId.length - 1]
+      : searchForm.value.categoryId
+    
     const res = await getProductPage(
       pagination.value.current,
       pagination.value.size,
-      searchForm.value.categoryId,
+      categoryId,
       searchForm.value.keyword,
       undefined, // brand 参数
       searchForm.value.status,
@@ -1571,11 +1583,17 @@ const handleSubmit = async () => {
       // 更新formData的images字段（JSON数组格式，如果没有图片则为undefined）
       formData.value.images = detailImages.length > 0 ? JSON.stringify(detailImages) : undefined
 
+      // 处理级联选择器的值（如果是数组，取最后一个值）
+      const categoryId = Array.isArray(formData.value.categoryId)
+        ? formData.value.categoryId[formData.value.categoryId.length - 1]
+        : formData.value.categoryId
+
       console.log('保存商品基本信息, enableSpec:', formData.value.enableSpec)
 
       // 转换 enableSpec 为 0 或 1
       const submitData = {
         ...formData.value,
+        categoryId: categoryId,
         enableSpec: formData.value.enableSpec ? 1 : 0
       }
 
