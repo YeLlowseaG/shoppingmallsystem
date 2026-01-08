@@ -27,6 +27,8 @@
       :title-color="floor.titleColor"
       :category-id="floor.categoryId"
       :big-ad-image="floor.bigAd"
+      :ad-link-type="floor.adLinkType"
+      :ad-link-value="floor.adLinkValue"
       :side-products="floor.sideProducts"
       :bottom-products="floor.bottomProducts"
     />
@@ -68,6 +70,8 @@ const floorData = ref<Array<{
   titleColor: string
   categoryId: number
   bigAd: string
+  adLinkType?: number
+  adLinkValue?: string
   sideProducts: any[]
   bottomProducts: any[]
 }>>([])
@@ -125,6 +129,8 @@ const loadFloorData = async () => {
           titleColor: config.titleColor,
           categoryId: config.categoryId,
           bigAd: ad.imageUrl || '',  // 使用广告图片
+          adLinkType: ad.linkType,  // 广告链接类型
+          adLinkValue: ad.linkValue,  // 广告链接值
           sideProducts: convertedProducts.slice(0, 2),  // 前2个作为侧边商品
           bottomProducts: convertedProducts.slice(2, 6)  // 后4个作为底部商品
         }

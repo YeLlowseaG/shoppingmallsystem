@@ -1,5 +1,96 @@
 # 修改日志
 
+## 2026-01-08 - 修复首页广告位跳转问题：标题和图片统一使用广告配置的链接
+
+### 问题描述
+首页楼层广告位（如 floor_1）配置了商品分类跳转（link_type=1, link_value=1），但点击后跳转的地址不正确。例如配置的是分类ID=1，但实际跳转到了 categoryId=5。
+
+### 原因分析
+1. 在 `Index.vue` 中，楼层数据使用了硬编码的 `floorConfig` 映射（如 floor_1 对应 categoryId: 5），而不是使用广告数据中的 `linkValue`
+2. 在 `CategoryFloor.vue` 中，标题栏点击使用的是传入的 `categoryId`（硬编码值），而不是广告的 `linkValue`
+3. 大图广告没有点击事件处理
+
+### 解决方案
+1. **修改 `frontend/src/views/home/Index.vue`**：
+   - 在楼层数据中添加 `adLinkType` 和 `adLinkValue` 字段，从广告数据中获取
+   - 将广告的 `linkType` 和 `linkValue` 传递给 `CategoryFloor` 组件
+
+2. **修改 `frontend/src/components/home/CategoryFloor.vue`**：
+   - 添加 `adLinkType` 和 `adLinkValue` 属性接收广告链接配置
+   - 创建统一的 `goToAdTarget()` 方法处理跳转逻辑，优先使用广告配置的 `linkValue`
+   - 标题栏点击调用 `goToAdTarget()` 方法
+   - 大图广告添加点击事件，也调用 `goToAdTarget()` 方法
+   - 如果广告没有配置链接或链接类型为0（无链接），则回退使用 `categoryId`
+
+### 修改内容
+
+1. ✅ `frontend/src/views/home/Index.vue`
+   - 更新 `floorData` 类型定义，添加 `adLinkType?: number` 和 `adLinkValue?: string` 字段
+   - 在生成楼层数据时，从广告对象中获取 `linkType` 和 `linkValue` 并赋值给 `adLinkType` 和 `adLinkValue`
+   - 在模板中将 `adLinkType` 和 `adLinkValue` 传递给 `CategoryFloor` 组件
+
+2. ✅ `frontend/src/components/home/CategoryFloor.vue`
+   - 在 `Props` 接口中添加 `adLinkType?: number` 和 `adLinkValue?: string` 属性
+   - 创建 `goToAdTarget()` 方法，根据 `adLinkType` 处理不同类型的跳转：
+     - `linkType=1`：商品分类 → `/products?categoryId=${adLinkValue}`
+     - `linkType=2`：商品详情 → `/products/${adLinkValue}`
+     - `linkType=3`：促销活动 → `/products?type=${adLinkValue}`
+     - `linkType=4`：外部链接 → 新窗口打开
+   - 修改 `goToCategory()` 方法，调用 `goToAdTarget()` 方法
+   - 为大图广告添加 `@click="goToAdTarget"` 事件
+
+### 修改后的效果
+- ✅ 标题栏点击优先使用广告配置的 `linkValue`，而不是硬编码的 `categoryId`
+- ✅ 大图广告点击也使用广告配置的 `linkValue` 进行跳转
+- ✅ 标题和图片点击跳转到相同的位置（都使用广告配置的链接）
+- ✅ 如果广告没有配置链接，则回退使用默认的 `categoryId`
+- ✅ 支持所有广告链接类型：商品分类、商品详情、促销活动、外部链接
+
+---
+
+## 2025-12-27 - 商品列表和库存列表分类选择改为级联选择器
+
+### 修改内容
+
+1. **商品列表页面 (`admin-frontend/src/views/product/ProductManage.vue`)**
+   - 将搜索栏的分类下拉选择从 `el-select` 改为 `el-cascader`，支持多级树展开
+   - 将编辑对话框中的分类选择从 `el-select` 改为 `el-cascader`
+   - 添加 `cascaderProps` 配置，与商品发布页面保持一致
+   - 修改 `loadProductList` 函数，处理级联选择器返回的数组值（取最后一个值）
+   - 修改 `handleSubmit` 函数，处理编辑时的分类ID（级联选择器返回数组）
+   - 更新 `searchForm.categoryId` 的类型定义，支持数组类型
+
+2. **库存列表页面 (`admin-frontend/src/views/inventory/Index.vue`)**
+   - 将搜索栏的分类下拉选择从 `el-select` 改为 `el-cascader`，支持多级树展开
+   - 添加 `cascaderProps` 配置，与商品发布页面保持一致
+   - 修改 `loadInventoryList` 函数，处理级联选择器返回的数组值（取最后一个值）
+   - 修改 `handleReset` 函数，重置时使用 `undefined` 而不是空字符串
+   - 更新 `searchForm.categoryId` 的类型定义，支持数组类型
+
+### 技术细节
+
+- 级联选择器配置：
+  ```typescript
+  const cascaderProps = {
+    value: 'id',
+    label: 'categoryName',
+    children: 'children',
+    checkStrictly: true
+  }
+  ```
+- 级联选择器返回数组时，取最后一个值作为分类ID：
+  ```typescript
+  const categoryId = Array.isArray(searchForm.value.categoryId)
+    ? searchForm.value.categoryId[searchForm.value.categoryId.length - 1]
+    : searchForm.value.categoryId
+  ```
+
+### 变更原因
+
+统一商品列表、库存列表和商品发布页面的分类选择方式，使用多级树展开的级联选择器，提升用户体验。
+
+---
+
 ## 2025-12-27 - 更新部署文档为子域名架构（移除路径方式）
 
 ### 修改内容

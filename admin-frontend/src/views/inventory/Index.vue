@@ -139,14 +139,14 @@
             </el-input>
           </el-col>
           <el-col :span="4">
-            <el-select v-model="searchForm.categoryId" placeholder="商品分类" clearable>
-              <el-option 
-                v-for="category in flatCategories" 
-                :key="category.id" 
-                :label="category.categoryName" 
-                :value="category.id" 
-              />
-            </el-select>
+            <el-cascader
+              v-model="searchForm.categoryId"
+              :options="categoryTree"
+              :props="cascaderProps"
+              placeholder="商品分类"
+              clearable
+              style="width: 100%"
+            />
           </el-col>
           <el-col :span="4">
             <el-select v-model="searchForm.stockStatus" placeholder="库存状态" clearable>
@@ -304,7 +304,7 @@ let pieChart: echarts.EChartsInstance | null = null
 // 搜索表单
 const searchForm = ref({
   keyword: '',
-  categoryId: '',
+  categoryId: undefined as number | number[] | undefined,
   stockStatus: '',
   sortBy: 'stock'
 })
@@ -330,7 +330,15 @@ const categoryTree = ref<ProductCategoryVO[]>([])
 const inventoryList = ref<any[]>([])
 const selectedItems = ref<any[]>([])
 
-// 扁平化分类列表（用于下拉选择）
+// 级联选择器配置
+const cascaderProps = {
+  value: 'id',
+  label: 'categoryName',
+  children: 'children',
+  checkStrictly: true
+}
+
+// 扁平化分类列表（保留用于其他可能需要的地方）
 const flatCategories = computed(() => {
   const flatten = (categories: ProductCategoryVO[], level = 0): ProductCategoryVO[] => {
     let result: ProductCategoryVO[] = []
@@ -446,12 +454,17 @@ const loadCategories = async () => {
 const loadInventoryList = async () => {
   loading.value = true
   try {
+    // 处理级联选择器的值（如果是数组，取最后一个值）
+    const categoryId = Array.isArray(searchForm.value.categoryId)
+      ? searchForm.value.categoryId[searchForm.value.categoryId.length - 1]
+      : searchForm.value.categoryId
+    
     // 调用商品列表API获取所有商品
     const productParams = {
       current: pagination.value.current,
       size: pagination.value.size,
       keyword: searchForm.value.keyword,
-      categoryId: searchForm.value.categoryId
+      categoryId: categoryId
     }
     
     const response = await request.get('/api/admin/product/page', { params: productParams })
@@ -629,7 +642,7 @@ const handleSearch = () => {
 const handleReset = () => {
   searchForm.value = {
     keyword: '',
-    categoryId: '',
+    categoryId: undefined,
     stockStatus: '',
     sortBy: 'stock'
   }
