@@ -1,7 +1,7 @@
 {
   "name": "shopping-mall-buyer-frontend",
   "version": "1.0.0",
-  "description": "B2B成人用品采购平台-采购者端前端",
+  "description": "趣爱巢商城-采购者端前端",
   "type": "module",
   "scripts": {
     "dev": "vite",

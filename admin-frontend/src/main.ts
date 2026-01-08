@@ -28,5 +28,5 @@ app.use(router)
 // 挂载到 DOM
 app.mount('#app')
 
-console.log('✅ B2B成人用品采购平台 - 管理后台已启动')
+console.log('✅ 趣爱巢商城 - 管理后台已启动')
 console.log('📍 访问地址: http://localhost:3003/ 或 http://localhost:3003/admin/')
