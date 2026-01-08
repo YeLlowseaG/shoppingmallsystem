@@ -18,88 +18,19 @@
     <!-- 品牌展示 -->
     <BrandSection />
 
-    <!-- 1F 男用器具 -->
+    <!-- 动态楼层：根据广告数据生成 -->
     <CategoryFloor
-      v-if="floorData[0]"
-      floor-number="1F"
-      category-name="男用器具"
-      title-color="linear-gradient(to right, #FF6B9D, #E4393C)"
-      :category-id="1"
-      :big-ad-image="floorData[0].bigAd"
-      :side-products="floorData[0].sideProducts"
-      :bottom-products="floorData[0].bottomProducts"
-    />
-
-    <!-- 2F 女用器具 -->
-    <CategoryFloor
-      v-if="floorData[1]"
-      floor-number="2F"
-      category-name="女用器具"
-      title-color="linear-gradient(to right, #9D50BB, #6C5CE7)"
-      :category-id="2"
-      :big-ad-image="floorData[1].bigAd"
-      :side-products="floorData[1].sideProducts"
-      :bottom-products="floorData[1].bottomProducts"
-    />
-
-    <!-- 3F 润滑清洁 -->
-    <CategoryFloor
-      v-if="floorData[2]"
-      floor-number="3F"
-      category-name="润滑清洁"
-      title-color="linear-gradient(to right, #74B9FF, #0984E3)"
-      :category-id="3"
-      :big-ad-image="floorData[2].bigAd"
-      :side-products="floorData[2].sideProducts"
-      :bottom-products="floorData[2].bottomProducts"
-    />
-
-    <!-- 4F 情趣内衣 -->
-    <CategoryFloor
-      v-if="floorData[3]"
-      floor-number="4F"
-      category-name="情趣内衣"
-      title-color="linear-gradient(to right, #FFD93D, #FFA500)"
-      :category-id="4"
-      :big-ad-image="floorData[3].bigAd"
-      :side-products="floorData[3].sideProducts"
-      :bottom-products="floorData[3].bottomProducts"
-    />
-
-    <!-- 5F 延时保健 -->
-    <CategoryFloor
-      v-if="floorData[4]"
-      floor-number="5F"
-      category-name="延时保健"
-      title-color="linear-gradient(to right, #FD79A8, #E84393)"
-      :category-id="5"
-      :big-ad-image="floorData[4].bigAd"
-      :side-products="floorData[4].sideProducts"
-      :bottom-products="floorData[4].bottomProducts"
-    />
-
-    <!-- 6F 喷剂助情 -->
-    <CategoryFloor
-      v-if="floorData[5]"
-      floor-number="6F"
-      category-name="喷剂助情"
-      title-color="linear-gradient(to right, #55EFC4, #00B894)"
-      :category-id="6"
-      :big-ad-image="floorData[5].bigAd"
-      :side-products="floorData[5].sideProducts"
-      :bottom-products="floorData[5].bottomProducts"
-    />
-
-    <!-- 7F 其他情趣 -->
-    <CategoryFloor
-      v-if="floorData[6]"
-      floor-number="7F"
-      category-name="其他情趣"
-      title-color="linear-gradient(to right, #A29BFE, #6C5CE7)"
-      :category-id="7"
-      :big-ad-image="floorData[6].bigAd"
-      :side-products="floorData[6].sideProducts"
-      :bottom-products="floorData[6].bottomProducts"
+      v-for="floor in floorData"
+      :key="floor.floorNumber"
+      :floor-number="floor.floorNumber"
+      :category-name="floor.categoryName"
+      :title-color="floor.titleColor"
+      :category-id="floor.categoryId"
+      :big-ad-image="floor.bigAd"
+      :ad-link-type="floor.adLinkType"
+      :ad-link-value="floor.adLinkValue"
+      :side-products="floor.sideProducts"
+      :bottom-products="floor.bottomProducts"
     />
 
     <!-- 底部 -->
@@ -120,14 +51,30 @@ import Footer from '@/components/home/Footer.vue'
 import { getRecommendProducts, type ProductVO } from '@/api/buyer/product'
 import { getAllFloorAdvertisements, type Advertisement } from '@/api/buyer/website'
 
-// 分类ID配置（根据实际数据库分类ID）
-const categoryIds = [5, 6, 7, 8, 9, 11, 12]  // 男用器具、女用器具、润滑剂、安全套、护理用品、女士内衣、男士内衣
+// 广告位置与分类ID的映射配置（根据实际数据库分类ID）
+// 格式：广告位置 -> { 分类ID, 标题颜色 }
+const floorConfig: Record<string, { categoryId: number; titleColor: string }> = {
+  floor_1: { categoryId: 5, titleColor: 'linear-gradient(to right, #FF6B9D, #E4393C)' },  // 男用器具
+  floor_2: { categoryId: 6, titleColor: 'linear-gradient(to right, #9D50BB, #6C5CE7)' },  // 女用器具
+  floor_3: { categoryId: 7, titleColor: 'linear-gradient(to right, #74B9FF, #0984E3)' },  // 润滑清洁
+  floor_4: { categoryId: 8, titleColor: 'linear-gradient(to right, #FFD93D, #FFA500)' },  // 情趣内衣
+  floor_5: { categoryId: 9, titleColor: 'linear-gradient(to right, #FD79A8, #E84393)' },  // 延时保健
+  floor_6: { categoryId: 11, titleColor: 'linear-gradient(to right, #55EFC4, #00B894)' },  // 喷剂助情
+  floor_7: { categoryId: 12, titleColor: 'linear-gradient(to right, #A29BFE, #6C5CE7)' }   // 其他情趣
+}
 
 // 楼层数据
-const floorData = ref<any[]>([])
-
-// 楼层广告数据
-const floorAds = ref<Advertisement[]>([])
+const floorData = ref<Array<{
+  floorNumber: string
+  categoryName: string
+  titleColor: string
+  categoryId: number
+  bigAd: string
+  adLinkType?: number
+  adLinkValue?: string
+  sideProducts: any[]
+  bottomProducts: any[]
+}>>([])
 
 // 转换商品数据格式
 const convertProduct = (product: ProductVO) => ({
@@ -142,62 +89,64 @@ const convertProduct = (product: ProductVO) => ({
   salesCount: product.salesCount
 })
 
-// 加载楼层广告
-const loadFloorAds = async () => {
-  try {
-    floorAds.value = await getAllFloorAdvertisements()
-  } catch (error) {
-    console.error('加载楼层广告失败:', error)
+// 从广告位置提取楼层编号（如 floor_1 -> 1F）
+const getFloorNumber = (adPosition: string): string => {
+  const match = adPosition.match(/floor_(\d+)/)
+  if (match) {
+    return `${match[1]}F`
   }
+  return ''
 }
 
-// 获取楼层广告图片
-const getFloorAdImage = (floorIndex: number): string => {
-  // 根据楼层索引获取对应位置的广告
-  const positionMap = ['floor_1', 'floor_2', 'floor_3', 'floor_4', 'floor_5', 'floor_6', 'floor_7']
-  const position = positionMap[floorIndex]
-
-  const ad = floorAds.value.find(item => item.adPosition === position)
-  if (ad && ad.imageUrl) {
-    return ad.imageUrl
-  }
-
-  // 如果没有找到对应广告，返回占位符
-  const placeholderColors = ['FF6B9D', '9D50BB', '74B9FF', 'FFD93D', 'FD79A8', '55EFC4', 'A29BFE']
-  return `https://via.placeholder.com/800x400/${placeholderColors[floorIndex]}/ffffff?text=Floor+${floorIndex + 1}`
-}
-
-// 加载楼层数据
+// 加载楼层数据（根据广告数据动态生成）
 const loadFloorData = async () => {
   try {
+    // 先加载楼层广告（只返回启用状态的广告）
+    const ads = await getAllFloorAdvertisements()
+    
+    // 根据广告数据动态生成楼层
     const floors = await Promise.all(
-      categoryIds.map(async (categoryId, index) => {
+      ads.map(async (ad) => {
+        const config = floorConfig[ad.adPosition]
+        if (!config) {
+          // 如果广告位置没有配置，跳过
+          return null
+        }
+
         // 获取该分类的推荐商品（6个）
-        const products = await getRecommendProducts(categoryId, 6)
+        let products: ProductVO[] = []
+        try {
+          products = await getRecommendProducts(config.categoryId, 6)
+        } catch (error) {
+          console.error(`加载分类 ${config.categoryId} 的商品失败:`, error)
+        }
+        
         const convertedProducts = products.map(convertProduct)
 
         return {
-          bigAd: getFloorAdImage(index),
+          floorNumber: getFloorNumber(ad.adPosition),
+          categoryName: ad.adName,  // 使用广告名称作为标题
+          titleColor: config.titleColor,
+          categoryId: config.categoryId,
+          bigAd: ad.imageUrl || '',  // 使用广告图片
+          adLinkType: ad.linkType,  // 广告链接类型
+          adLinkValue: ad.linkValue,  // 广告链接值
           sideProducts: convertedProducts.slice(0, 2),  // 前2个作为侧边商品
           bottomProducts: convertedProducts.slice(2, 6)  // 后4个作为底部商品
         }
       })
     )
-    floorData.value = floors
+
+    // 过滤掉 null 值（没有配置的广告位置）
+    floorData.value = floors.filter((floor): floor is NonNullable<typeof floor> => floor !== null)
   } catch (error) {
     console.error('加载楼层数据失败:', error)
-    // 失败时使用空数据
-    floorData.value = categoryIds.map((_, index) => ({
-      bigAd: getFloorAdImage(index),
-      sideProducts: [],
-      bottomProducts: []
-    }))
+    floorData.value = []
   }
 }
 
 onMounted(async () => {
-  // 先加载楼层广告，再加载楼层数据
-  await loadFloorAds()
+  // 加载楼层数据（内部会先加载广告数据）
   await loadFloorData()
 })
 </script>

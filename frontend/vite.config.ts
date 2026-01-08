@@ -10,19 +10,15 @@ export default defineConfig({
       '@': resolve(__dirname, 'src')
     }
   },
-  // 根据环境变量设置base路径
-  base: process.env.VITE_BUILD_ENV === 'test' ? '/test/' : '/',
+  // 用户端部署在根路径（独立域名）
+  base: '/',
   server: {
     port: 3002, // 采购者端开发端口
     proxy: {
+      // 开发环境代理到本地后端
       '/api': {
         target: 'http://localhost:8081',
         changeOrigin: true
-      },
-      '/test/api': {
-        target: 'http://localhost:8082',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/test/, '')
       },
       '/uploads': {
         target: 'http://localhost:8081',
@@ -31,7 +27,7 @@ export default defineConfig({
     }
   },
   build: {
-    outDir: process.env.VITE_BUILD_ENV === 'test' ? 'dist-test' : 'dist-prod',
+    outDir: 'dist-prod',
     assetsDir: 'assets',
     sourcemap: false,
     minify: 'esbuild'

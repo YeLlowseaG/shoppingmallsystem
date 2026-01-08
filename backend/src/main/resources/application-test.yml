@@ -66,6 +66,8 @@ server:
   port: 8082  # 测试环境端口（与正式环境8081不同）
   servlet:
     context-path: /
+    # 支持HTTPS代理
+    forward-headers-strategy: framework
 
 # 日志配置
 logging:
@@ -113,8 +115,8 @@ order:
 # 应用配置
 app:
   frontend:
-    # 前端地址，用于生成重置密码链接等
-    url: ${FRONTEND_URL:http://www.shop.quaichao.com/test}
+    # 前端地址，用于生成重置密码链接等（如需测试环境，使用test前缀子域名）
+    url: ${FRONTEND_URL:https://test-www.shop.quaichao.com}
   password:
     reset:
       token-expire-minutes: 30  # 密码重置令牌有效期（分钟）

@@ -110,14 +110,15 @@
         <div class="card-header">
           <span>库存明细</span>
           <div class="header-actions">
-            <el-button type="primary" @click="handleExport">
+            <!-- 已屏蔽：导出数据和批量调整功能 -->
+            <!-- <el-button type="primary" @click="handleExport">
               <el-icon><Download /></el-icon>
               导出数据
             </el-button>
             <el-button type="success" @click="handleBatchUpdate">
               <el-icon><Edit /></el-icon>
               批量调整
-            </el-button>
+            </el-button> -->
           </div>
         </div>
       </template>
@@ -138,15 +139,14 @@
             </el-input>
           </el-col>
           <el-col :span="4">
-            <el-select v-model="searchForm.categoryId" placeholder="商品分类" clearable>
-              <el-option label="全部分类" value="" />
-              <el-option 
-                v-for="category in categories" 
-                :key="category.id" 
-                :label="category.categoryName" 
-                :value="category.id" 
-              />
-            </el-select>
+            <el-cascader
+              v-model="searchForm.categoryId"
+              :options="categoryTree"
+              :props="cascaderProps"
+              placeholder="商品分类"
+              clearable
+              style="width: 100%"
+            />
           </el-col>
           <el-col :span="4">
             <el-select v-model="searchForm.stockStatus" placeholder="库存状态" clearable>
@@ -291,6 +291,7 @@ import {
 } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import request from '@/utils/request'
+import { getCategoryTree, type ProductCategoryVO } from '@/api/admin/productCategory'
 import StockAdjustDialog from './components/StockAdjustDialog.vue'
 import BatchStockAdjustDialog from './components/BatchStockAdjustDialog.vue'
 
@@ -303,7 +304,7 @@ let pieChart: echarts.EChartsInstance | null = null
 // 搜索表单
 const searchForm = ref({
   keyword: '',
-  categoryId: '',
+  categoryId: undefined as number | number[] | undefined,
   stockStatus: '',
   sortBy: 'stock'
 })
@@ -325,9 +326,32 @@ const inventoryStats = ref({
 })
 
 // 数据列表
-const categories = ref<any[]>([])
+const categoryTree = ref<ProductCategoryVO[]>([])
 const inventoryList = ref<any[]>([])
 const selectedItems = ref<any[]>([])
+
+// 级联选择器配置
+const cascaderProps = {
+  value: 'id',
+  label: 'categoryName',
+  children: 'children',
+  checkStrictly: true
+}
+
+// 扁平化分类列表（保留用于其他可能需要的地方）
+const flatCategories = computed(() => {
+  const flatten = (categories: ProductCategoryVO[], level = 0): ProductCategoryVO[] => {
+    let result: ProductCategoryVO[] = []
+    categories.forEach(category => {
+      result.push(category)
+      if (category.children && category.children.length > 0) {
+        result = result.concat(flatten(category.children, level + 1))
+      }
+    })
+    return result
+  }
+  return flatten(categoryTree.value)
+})
 
 // 弹框控制
 const adjustDialogVisible = ref(false)
@@ -419,14 +443,10 @@ const initPieChart = () => {
 // 加载分类数据
 const loadCategories = async () => {
   try {
-    // 这里应该调用实际的分类API
-    categories.value = [
-      { id: 1, categoryName: '避孕润滑' },
-      { id: 2, categoryName: '情趣玩具' },
-      { id: 3, categoryName: '保健用品' }
-    ]
+    categoryTree.value = await getCategoryTree()
   } catch (error) {
     console.error('加载分类失败:', error)
+    ElMessage.error('加载分类失败')
   }
 }
 
@@ -434,12 +454,17 @@ const loadCategories = async () => {
 const loadInventoryList = async () => {
   loading.value = true
   try {
+    // 处理级联选择器的值（如果是数组，取最后一个值）
+    const categoryId = Array.isArray(searchForm.value.categoryId)
+      ? searchForm.value.categoryId[searchForm.value.categoryId.length - 1]
+      : searchForm.value.categoryId
+    
     // 调用商品列表API获取所有商品
     const productParams = {
       current: pagination.value.current,
       size: pagination.value.size,
       keyword: searchForm.value.keyword,
-      categoryId: searchForm.value.categoryId
+      categoryId: categoryId
     }
     
     const response = await request.get('/api/admin/product/page', { params: productParams })
@@ -617,7 +642,7 @@ const handleSearch = () => {
 const handleReset = () => {
   searchForm.value = {
     keyword: '',
-    categoryId: '',
+    categoryId: undefined,
     stockStatus: '',
     sortBy: 'stock'
   }

@@ -1,1 +1,0 @@
-import{s as i}from"./Footer-68470eb4.js";const e=t=>i.post("/api/buyer/stock-notification",t),a=t=>i.delete(`/api/buyer/stock-notification/${t}`),n=(t,o)=>i.get("/api/buyer/stock-notification/list",{params:{current:t,size:o}}),s=t=>i.get(`/api/buyer/stock-notification/check/${t}`);export{e as a,a as b,s as c,n as g};

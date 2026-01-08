@@ -38,7 +38,17 @@ public class AnnouncementServiceImpl implements AnnouncementService {
     @Override
     public IPage<AnnouncementVO> getAnnouncementList(Integer pageNum, Integer pageSize, String title, Integer status) {
         Page<Announcement> page = new Page<>(pageNum, pageSize);
+        // 优化：列表查询不返回content字段（longtext类型，数据量大），提升查询性能
         LambdaQueryWrapper<Announcement> wrapper = new LambdaQueryWrapper<Announcement>()
+                .select(Announcement::getId,
+                        Announcement::getTitle,
+                        Announcement::getImages,
+                        Announcement::getPublishDate,
+                        Announcement::getSort,
+                        Announcement::getStatus,
+                        Announcement::getDeleted,
+                        Announcement::getCreateTime,
+                        Announcement::getUpdateTime)
                 .eq(Announcement::getDeleted, 0)
                 .like(StringUtils.hasText(title), Announcement::getTitle, title)
                 .eq(status != null, Announcement::getStatus, status)

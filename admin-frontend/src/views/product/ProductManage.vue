@@ -13,14 +13,14 @@
         <div class="filters-row">
           <div class="filter-item">
             <label>分类</label>
-            <el-select v-model="searchForm.categoryId" placeholder="请选择分类" clearable>
-              <el-option
-                v-for="category in flatCategories"
-                :key="category.id"
-                :label="category.categoryName"
-                :value="category.id"
-              />
-            </el-select>
+            <el-cascader
+              v-model="searchForm.categoryId"
+              :options="categoryTree"
+              :props="cascaderProps"
+              placeholder="请选择分类"
+              clearable
+              style="width: 100%"
+            />
           </div>
           
           <div class="filter-item">
@@ -121,7 +121,7 @@
         style="width: 100%"
         @sort-change="handleTableSortChange"
       >
-        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="id" label="ID" width="50" />
         <el-table-column prop="mainImage" label="商品图片" width="100">
           <template #default="{ row }">
             <el-image
@@ -134,8 +134,8 @@
         </el-table-column>
         <el-table-column prop="productCode" label="商品编码" width="120" />
         <el-table-column prop="productName" label="商品名称" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="categoryName" label="分类" width="120" />
-        <el-table-column prop="basePrice" label="价格" width="100" sortable="custom">
+        <el-table-column prop="categoryName" label="分类" width="100" />
+        <el-table-column prop="basePrice" label="价格" width="80" sortable="custom">
           <template #default="{ row }">
             ¥{{ parseFloat(row.basePrice).toFixed(2) }}
           </template>
@@ -149,7 +149,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="360" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleEdit(row)">编辑</el-button>
             <el-button
@@ -212,14 +212,13 @@
           <el-input v-model="formData.productName" placeholder="请输入商品名称" />
         </el-form-item>
         <el-form-item label="商品分类" prop="categoryId">
-          <el-select v-model="formData.categoryId" placeholder="请选择分类" style="width: 100%">
-            <el-option
-              v-for="category in flatCategories"
-              :key="category.id"
-              :label="category.categoryName"
-              :value="category.id"
-            />
-          </el-select>
+          <el-cascader
+            v-model="formData.categoryId"
+            :options="categoryTree"
+            :props="cascaderProps"
+            placeholder="请选择分类"
+            style="width: 100%"
+          />
         </el-form-item>
 
         <el-form-item label="商品品牌" prop="brandId">
@@ -252,7 +251,7 @@
               :value="template.id"
             />
           </el-select>
-          <div class="form-tip">不选择运费模板则该商品包邮</div>
+          <div class="form-tip" style="color: #f56c6c;">不选择运费模板则该商品包邮</div>
         </el-form-item>
 
         <!-- 价格与库存 -->
@@ -332,7 +331,7 @@
         <div class="member-price-row">
           <el-form-item label="启用会员价">
             <el-switch v-model="formData.enableMemberPrice" :active-value="1" :inactive-value="0" />
-            <span class="form-tip" style="margin-left: 10px;">启用后以会员价作为售价，否则以基础价作为售价</span>
+            <span class="form-tip" style="margin-left: 10px; color: #f56c6c;">启用后以会员价作为售价，否则以基础价作为售价</span>
           </el-form-item>
           <el-form-item label="会员价" prop="memberPrice" v-if="formData.enableMemberPrice === 1">
             <el-input-number
@@ -351,7 +350,7 @@
         
         <el-form-item label="是否启用规格" prop="enableSpec">
           <el-switch v-model="formData.enableSpec" @change="handleEnableSpecChange" />
-          <div class="form-tip">启用后可为商品配置不同规格的SKU（如颜色、尺寸等）</div>
+          <div class="form-tip" style="color: #f56c6c;">启用后可为商品配置不同规格的SKU（如颜色、尺寸等）</div>
         </el-form-item>
 
         <!-- 规格配置区域 -->
@@ -875,7 +874,8 @@
           <div class="form-tip">支持 CSV 或 Excel (.xlsx/.xls) 格式</div>
         </el-form-item>
 
-        <el-form-item label="图片压缩包">
+        <!-- 图片压缩包功能暂时屏蔽，后续有需要再放开 -->
+        <!-- <el-form-item label="图片压缩包" v-if="false">
           <el-upload
             ref="zipUploadRef"
             :auto-upload="false"
@@ -888,7 +888,7 @@
             <el-button>选择ZIP文件（可选）</el-button>
           </el-upload>
           <div class="form-tip">图片命名规则：商品编码.jpg（主图）、商品编码_1.jpg（详情图）</div>
-        </el-form-item>
+        </el-form-item> -->
 
         <el-form-item label="下载模板">
           <el-button type="success" @click="downloadTemplate('csv')" style="margin-right: 10px">
@@ -957,7 +957,7 @@
             >
               <el-table-column prop="row" label="行号" width="80" />
               <el-table-column prop="productCode" label="商品编码" width="150" />
-              <el-table-column prop="error" label="错误信息" />
+              <el-table-column prop="error" label="错误信息" min-width="400" />
             </el-table>
           </div>
         </template>
@@ -1006,7 +1006,7 @@ const router = useRouter()
 
 // 搜索表单
 const searchForm = ref({
-  categoryId: undefined as number | undefined,
+  categoryId: undefined as number | number[] | undefined,
   keyword: '',
   status: '',
   sortBy: 'create_time_desc'
@@ -1037,7 +1037,15 @@ watch(shippingTemplates, (newVal) => {
   console.log('📦 运费模板数量:', newVal ? newVal.length : 0)
 }, { deep: true })
 
-// 扁平化分类列表（用于下拉选择）
+// 级联选择器配置
+const cascaderProps = {
+  value: 'id',
+  label: 'categoryName',
+  children: 'children',
+  checkStrictly: true
+}
+
+// 扁平化分类列表（保留用于其他可能需要的地方）
 const flatCategories = computed(() => {
   const flatten = (categories: ProductCategoryVO[], level = 0): ProductCategoryVO[] => {
     let result: ProductCategoryVO[] = []
@@ -1212,10 +1220,15 @@ const loadShippingTemplates = async () => {
 const loadProductList = async () => {
   try {
     console.log('排序参数:', searchForm.value.sortBy)
+    // 处理级联选择器的值（如果是数组，取最后一个值）
+    const categoryId = Array.isArray(searchForm.value.categoryId)
+      ? searchForm.value.categoryId[searchForm.value.categoryId.length - 1]
+      : searchForm.value.categoryId
+    
     const res = await getProductPage(
       pagination.value.current,
       pagination.value.size,
-      searchForm.value.categoryId,
+      categoryId,
       searchForm.value.keyword,
       undefined, // brand 参数
       searchForm.value.status,
@@ -1567,14 +1580,20 @@ const handleSubmit = async () => {
         .map(file => file.url || (file.response as any)?.data?.url)
         .filter(url => url)
 
-      // 更新formData的images字段
-      formData.value.images = JSON.stringify(detailImages)
+      // 更新formData的images字段（JSON数组格式，如果没有图片则为undefined）
+      formData.value.images = detailImages.length > 0 ? JSON.stringify(detailImages) : undefined
+
+      // 处理级联选择器的值（如果是数组，取最后一个值）
+      const categoryId = Array.isArray(formData.value.categoryId)
+        ? formData.value.categoryId[formData.value.categoryId.length - 1]
+        : formData.value.categoryId
 
       console.log('保存商品基本信息, enableSpec:', formData.value.enableSpec)
 
       // 转换 enableSpec 为 0 或 1
       const submitData = {
         ...formData.value,
+        categoryId: categoryId,
         enableSpec: formData.value.enableSpec ? 1 : 0
       }
 

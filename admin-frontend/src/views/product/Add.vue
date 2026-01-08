@@ -69,7 +69,7 @@
               :value="template.id"
             />
           </el-select>
-          <div class="form-tip">不选择运费模板则该商品包邮</div>
+          <div class="form-tip" style="color: #f56c6c;">不选择运费模板则该商品包邮</div>
         </el-form-item>
 
         <!-- 价格与库存 -->
@@ -149,7 +149,7 @@
         <div class="member-price-row">
           <el-form-item label="启用会员价">
             <el-switch v-model="productForm.enableMemberPrice" :active-value="1" :inactive-value="0" />
-            <span class="form-tip" style="margin-left: 10px;">启用后以会员价作为售价，否则以基础价作为售价</span>
+            <span class="form-tip" style="margin-left: 10px; color: #f56c6c;">启用后以会员价作为售价，否则以基础价作为售价</span>
           </el-form-item>
           <el-form-item label="会员价" prop="memberPrice" v-if="productForm.enableMemberPrice === 1">
             <el-input-number
@@ -168,7 +168,7 @@
         
         <el-form-item label="是否启用规格" prop="enableSpec">
           <el-switch v-model="productForm.enableSpec" @change="handleEnableSpecChange" />
-          <div class="form-tip">启用后可为商品配置不同规格的SKU（如颜色、尺寸等）</div>
+          <div class="form-tip" style="color: #f56c6c;">启用后可为商品配置不同规格的SKU（如颜色、尺寸等）</div>
         </el-form-item>
 
         <!-- 规格配置区域 -->
@@ -687,6 +687,7 @@ const handleSubmit = async () => {
           barcode: productForm.value.barcode,
           unit: productForm.value.unit,
           brandId: productForm.value.brandId,
+          shippingTemplateId: productForm.value.shippingTemplateId,
           basePrice: productForm.value.basePrice,
           suggestedRetailPrice: productForm.value.suggestedRetailPrice,
           marketRetailPrice: productForm.value.marketRetailPrice,
@@ -697,7 +698,7 @@ const handleSubmit = async () => {
           weight: productForm.value.weight,
           description: productForm.value.description,
           mainImage: productForm.value.mainImage,
-          detailImages: detailImages.join(','), // 多张图片用逗号分隔
+          images: detailImages.length > 0 ? JSON.stringify(detailImages) : undefined, // JSON数组格式
           status: productForm.value.status,
           enableSpec: productForm.value.enableSpec ? 1 : 0
         })
@@ -765,6 +766,7 @@ const handleSaveAsDraft = async () => {
       barcode: productForm.value.barcode,
       unit: productForm.value.unit,
       brandId: productForm.value.brandId,
+      shippingTemplateId: productForm.value.shippingTemplateId,
       basePrice: productForm.value.basePrice,
       suggestedRetailPrice: productForm.value.suggestedRetailPrice,
       marketRetailPrice: productForm.value.marketRetailPrice,
@@ -775,7 +777,7 @@ const handleSaveAsDraft = async () => {
       weight: productForm.value.weight,
       description: productForm.value.description,
       mainImage: productForm.value.mainImage,
-      detailImages: detailImages.join(','),
+      images: detailImages.length > 0 ? JSON.stringify(detailImages) : undefined, // JSON数组格式
       status: '草稿',
       enableSpec: productForm.value.enableSpec ? 1 : 0
     })

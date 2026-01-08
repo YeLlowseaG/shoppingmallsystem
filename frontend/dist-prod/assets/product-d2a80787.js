@@ -1,1 +1,0 @@
-import{s as t}from"./Footer-68470eb4.js";const p=(r,e,o,a,c,s)=>t.get("/api/buyer/product/page",{params:{current:r,size:e,categoryId:o,keyword:a,brand:c,sortBy:s}}),d=(r=4)=>t.get("/api/buyer/product/hot",{params:{limit:r}}),g=(r,e=6)=>t.get(`/api/buyer/product/recommend/${r}`,{params:{limit:e}}),n=r=>t.get(`/api/buyer/product/${r}`);export{g as a,p as b,n as c,d as g};

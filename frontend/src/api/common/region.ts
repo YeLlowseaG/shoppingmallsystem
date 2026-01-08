@@ -1,4 +1,4 @@
-import axios from 'axios';
+import request from '@/utils/request'
 
 export interface RegionVO {
   id: number;
@@ -71,9 +71,8 @@ export async function getProvinces(): Promise<RegionVO[]> {
     return cached;
   }
   
-  // 缓存未命中，请求接口
-  const response = await axios.get<{ code: number; data: RegionVO[]; message: string }>(`${API_BASE}/provinces`);
-  const provinces = response.data.data;
+  // 缓存未命中，请求接口（使用request工具，会自动使用baseURL并处理响应）
+  const provinces = await request.get<RegionVO[]>(`${API_BASE}/provinces`);
   
   // 存入缓存
   setCache(CACHE_KEY_PROVINCES, provinces);
@@ -95,9 +94,8 @@ export async function getChildrenByParentId(parentId: number): Promise<RegionVO[
     return cached;
   }
   
-  // 缓存未命中，请求接口
-  const response = await axios.get<{ code: number; data: RegionVO[]; message: string }>(`${API_BASE}/children/${parentId}`);
-  const children = response.data.data;
+  // 缓存未命中，请求接口（使用request工具）
+  const children = await request.get<RegionVO[]>(`${API_BASE}/children/${parentId}`);
   
   // 存入缓存
   setCache(cacheKey, children);
@@ -111,8 +109,7 @@ export async function getChildrenByParentId(parentId: number): Promise<RegionVO[
 export async function getRegionByCode(code: string): Promise<RegionVO | null> {
   if (!code) return null;
   
-  const response = await axios.get<{ code: number; data: RegionVO; message: string }>(`${API_BASE}/code/${code}`);
-  return response.data.data;
+  return await request.get<RegionVO>(`${API_BASE}/code/${code}`);
 }
 
 /**
@@ -121,8 +118,8 @@ export async function getRegionByCode(code: string): Promise<RegionVO | null> {
 export async function getFullPathByCode(code: string): Promise<string> {
   if (!code) return '';
   
-  const response = await axios.get<{ code: number; data: string; message: string }>(`${API_BASE}/path/${code}`);
-  return response.data.data || '';
+  const path = await request.get<string>(`${API_BASE}/path/${code}`);
+  return path || '';
 }
 
 /**
@@ -136,6 +133,8 @@ export function clearRegionCache(): void {
     }
   });
 }
+
+
 
 
 

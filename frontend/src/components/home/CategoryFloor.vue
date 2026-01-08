@@ -3,13 +3,13 @@
     <div class="container">
       <!-- 分类标题栏 -->
       <div class="floor-title" :style="{ background: titleColor }" @click="goToCategory">
-        {{ floorNumber }} {{ categoryName }}
+        {{ categoryName }}
       </div>
 
       <!-- 第二行：大图广告 + 2个商品 -->
       <div class="top-row">
         <!-- 左侧大图广告 (占2/3宽度) -->
-        <div class="big-ad">
+        <div class="big-ad" @click="goToAdTarget">
           <img :src="bigAdImage" alt="广告" />
         </div>
 
@@ -85,15 +85,41 @@ interface Props {
   sideProducts: Product[]
   bottomProducts: Product[]
   categoryId?: number
+  adLinkType?: number
+  adLinkValue?: string
 }
 
 const props = defineProps<Props>()
 
-// 跳转到分类列表页
-const goToCategory = () => {
+// 跳转到广告目标（标题和图片共用此方法）
+const goToAdTarget = () => {
+  // 如果广告配置了链接，优先使用广告的链接配置
+  if (props.adLinkType && props.adLinkValue) {
+    switch (props.adLinkType) {
+      case 1: // 商品分类
+        router.push(`/products?categoryId=${props.adLinkValue}`)
+        return
+      case 2: // 商品详情
+        router.push(`/products/${props.adLinkValue}`)
+        return
+      case 3: // 促销活动
+        router.push(`/products?type=${props.adLinkValue}`)
+        return
+      case 4: // 外部链接
+        window.open(props.adLinkValue, '_blank')
+        return
+    }
+  }
+  
+  // 如果没有配置广告链接或链接类型为0（无链接），使用默认的 categoryId
   if (props.categoryId) {
     router.push(`/products?categoryId=${props.categoryId}`)
   }
+}
+
+// 跳转到分类列表页（保留此方法以保持兼容性，实际调用 goToAdTarget）
+const goToCategory = () => {
+  goToAdTarget()
 }
 
 // 跳转到商品详情页

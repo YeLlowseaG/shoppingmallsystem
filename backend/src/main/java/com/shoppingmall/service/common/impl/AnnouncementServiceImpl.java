@@ -34,8 +34,18 @@ public class AnnouncementServiceImpl implements AnnouncementService {
     @Override
     public IPage<AnnouncementVO> getAnnouncementList(Integer pageNum, Integer pageSize) {
         // 只查询启用的公告，按发布日期倒序，排序字段升序
+        // 优化：列表查询不返回content字段（longtext类型，数据量大），提升查询性能
         Page<Announcement> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<Announcement> wrapper = new LambdaQueryWrapper<Announcement>()
+                .select(Announcement::getId,
+                        Announcement::getTitle,
+                        Announcement::getImages,
+                        Announcement::getPublishDate,
+                        Announcement::getSort,
+                        Announcement::getStatus,
+                        Announcement::getDeleted,
+                        Announcement::getCreateTime,
+                        Announcement::getUpdateTime)
                 .eq(Announcement::getStatus, 1)
                 .eq(Announcement::getDeleted, 0)
                 .orderByDesc(Announcement::getPublishDate)
