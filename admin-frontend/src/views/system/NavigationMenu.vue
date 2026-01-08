@@ -37,7 +37,11 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="menuParams" label="菜单参数" width="150" show-overflow-tooltip />
+        <el-table-column prop="menuParams" label="菜单参数" width="150" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ formatMenuParams(row) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="sortOrder" label="排序" width="80" />
         <el-table-column prop="target" label="打开方式" width="100">
           <template #default="{ row }">
@@ -147,6 +151,8 @@ import {
   type NavigationMenu
 } from '@/api/admin/navigationMenu'
 import LinkSelector from '@/components/common/LinkSelector.vue'
+import { getBrandOptions } from '@/api/admin/brand'
+import { type Brand } from '@/api/admin/website'
 
 // 搜索表单
 const searchForm = ref({
@@ -162,6 +168,9 @@ const pagination = ref({
 
 // 菜单列表
 const menuList = ref<NavigationMenu[]>([])
+
+// 品牌列表（用于显示品牌名称）
+const brandList = ref<Brand[]>([])
 
 // 对话框
 const dialogVisible = ref(false)
@@ -197,7 +206,8 @@ const getLinkTypeString = (type: number): string => {
     0: 'link',
     1: 'category', 
     3: 'type',
-    4: 'link'
+    4: 'link',
+    5: 'brand'
   }
   return typeMap[type] || 'link'
 }
@@ -208,6 +218,8 @@ const generateMenuParams = (type: number, value: string): string => {
     return JSON.stringify({ categoryId: value })
   } else if (type === 3) { // 促销活动
     return JSON.stringify({ type: value })
+  } else if (type === 5) { // 品牌类型
+    return JSON.stringify({ brand: value })
   }
   return ''
 }
@@ -246,7 +258,8 @@ const getNumberLinkType = (typeString: string): number => {
   const typeMap: Record<string, number> = {
     'link': 0,
     'category': 1,
-    'type': 3
+    'type': 3,
+    'brand': 5
   }
   return typeMap[typeString] || 0
 }
@@ -257,13 +270,15 @@ const parseMenuData = (menu: NavigationMenu) => {
   linkType.value = getNumberLinkType(menu.menuType || 'link')
   
   // 解析链接值
-  if (menu.menuType === 'category' || menu.menuType === 'type') {
+  if (menu.menuType === 'category' || menu.menuType === 'type' || menu.menuType === 'brand') {
     try {
       const params = menu.menuParams ? JSON.parse(menu.menuParams) : {}
       if (params.categoryId) {
         linkValue.value = params.categoryId
       } else if (params.type) {
         linkValue.value = params.type
+      } else if (params.brand) {
+        linkValue.value = params.brand
       }
     } catch (error) {
       console.error('解析菜单参数失败:', error)
@@ -274,6 +289,41 @@ const parseMenuData = (menu: NavigationMenu) => {
     linkValue.value = menu.menuUrl
   } else {
     linkValue.value = ''
+  }
+}
+
+// 加载品牌列表
+const loadBrandList = async () => {
+  try {
+    const response = await getBrandOptions()
+    brandList.value = Array.isArray(response) ? response : []
+  } catch (error) {
+    console.error('加载品牌列表失败:', error)
+    brandList.value = []
+  }
+}
+
+// 格式化菜单参数显示
+const formatMenuParams = (row: NavigationMenu): string => {
+  if (!row.menuParams) return ''
+  
+  try {
+    const params = JSON.parse(row.menuParams)
+    
+    // 如果是品牌类型，将品牌ID转换为品牌名称
+    if (row.menuType === 'brand' && params.brand) {
+      const brandId = params.brand
+      const brand = brandList.value.find(b => b.id?.toString() === brandId.toString())
+      if (brand) {
+        return JSON.stringify({ brand: brand.brandName })
+      }
+    }
+    
+    // 其他类型直接返回原始JSON
+    return row.menuParams
+  } catch (error) {
+    // 如果解析失败，返回原始值
+    return row.menuParams
   }
 }
 
@@ -386,8 +436,9 @@ const handleDelete = async (row: NavigationMenu) => {
 }
 
 // 初始化
-onMounted(() => {
-  loadMenuList()
+onMounted(async () => {
+  await loadBrandList()
+  await loadMenuList()
 })
 </script>
 

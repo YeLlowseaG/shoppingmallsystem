@@ -1,5 +1,89 @@
 # 修改日志
 
+## 2026-01-08 - 导航菜单配置添加品牌类型选择功能
+
+### 功能说明
+在导航菜单配置中，当用户选择"品牌类型"时，自动加载品牌列表供用户选择。
+
+### 修改内容
+
+**前端修改：**
+
+1. **文件：** `admin-frontend/src/components/common/LinkSelector.vue`
+   - 在链接类型选择器中添加"品牌类型"选项（类型值：5）
+   - 添加品牌下拉选择器（类似商品分类选择器）
+   - 导入 `getBrandOptions` API 和 `Brand` 类型
+   - 添加品牌列表状态和加载函数 `loadBrands()`
+   - 在组件挂载时自动加载品牌列表
+   - 当切换到品牌类型时，确保品牌列表已加载
+
+2. **文件：** `admin-frontend/src/views/system/NavigationMenu.vue`
+   - 更新 `getLinkTypeString()` 函数：添加 `5 -> 'brand'` 的映射
+   - 更新 `getNumberLinkType()` 函数：添加 `'brand' -> 5` 的映射
+   - 更新 `generateMenuParams()` 函数：当类型为5时，生成 `{"brand": value}` 格式的JSON参数
+   - 更新 `parseMenuData()` 函数：解析品牌类型的参数，支持编辑回显
+
+### 菜单参数格式
+- 品牌类型的 `menuParams` 格式：`{"brand": "1"}`（品牌ID转字符串）
+- 与数据库现有格式保持一致，使用 `brand` 字段名
+
+### 使用说明
+1. 在导航菜单配置页面，点击"添加菜单"或"编辑菜单"
+2. 在"链接类型"下拉框中选择"品牌类型"
+3. 系统自动加载启用的品牌列表
+4. 在"目标品牌"下拉框中选择要关联的品牌
+5. 保存后，菜单参数会自动生成 `{"brand": "品牌ID"}` 格式
+
+---
+
+## 2026-01-08 - 执行数据库更新脚本（公告性能优化）
+
+### 执行内容
+执行了以下数据库更新脚本：
+
+1. **update-20260108-optimize-announcement-index.sql**
+   - 优化公告列表查询性能，添加复合索引
+   - 添加 `idx_deleted_publish_sort` 复合索引（deleted, publish_date DESC, sort ASC）
+   - 添加 `idx_deleted_status_publish_sort` 复合索引（deleted, status, publish_date DESC, sort ASC）
+   - 状态：✅ 执行成功
+
+### 验证结果
+- ✅ `announcement` 表的 `idx_deleted_publish_sort` 索引已创建
+- ✅ `announcement` 表的 `idx_deleted_status_publish_sort` 索引已创建
+
+---
+
+## 2026-01-07 - 执行数据库更新脚本
+
+### 执行内容
+按时间顺序执行了以下数据库更新脚本：
+
+1. **update-20260102-create-product-sync-log.sql**
+   - 创建商品同步日志表 `product_sync_log`
+   - 状态：✅ 执行成功
+
+2. **update-20260103-add-test-shop-id.sql**
+   - 为 `jushuitan_config` 表添加测试环境店铺ID字段 `test_shop_id`
+   - 状态：✅ 字段已存在（之前已执行）
+
+3. **update-20260105-add-logistics-callback-url.sql**
+   - 为 `jushuitan_config` 表添加物流同步回调地址字段 `test_callback_url` 和 `callback_url`
+   - 状态：✅ 字段已存在（之前已执行）
+
+4. **update-20260105-add-system-config-category.sql**
+   - 为 `system_config` 表添加分类字段 `category`
+   - 状态：✅ 字段已存在（之前已执行）
+
+### 验证结果
+- ✅ `product_sync_log` 表已创建
+- ✅ `jushuitan_config` 表相关字段已存在
+- ✅ `system_config` 表 `category` 字段已存在
+
+### 说明
+部分脚本出现"字段已存在"的错误提示，属于正常情况，说明这些脚本之前已经执行过。数据库结构已是最新状态。
+
+---
+
 ## 2026-01-08 - 修复首页广告位跳转问题：标题和图片统一使用广告配置的链接
 
 ### 问题描述
@@ -877,6 +961,7 @@ location /uploads/ {
    ```
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 ## 2026-01-08 - 修复正式环境订单详情页图片不显示问题
 
 ### 问题描述
@@ -979,6 +1064,8 @@ location /uploads/ {
 - ✅ 管理后台可以配置楼层广告5、6、7：下拉选项中包含所有7个楼层广告位置
 - ✅ 广告位置文本显示正确：列表和详情中正确显示楼层广告5、6、7的文本
 =======
+=======
+>>>>>>> b74a7f175bbbada1ad9299cfe8e1b196cc68ab32
 ---
 
 ## 2025-01-08 - 修改管理后台标题，从系统配置读取网站名称
@@ -1323,4 +1410,110 @@ location /uploads/ {
 
 ### 相关文件
 - `frontend/src/components/home/TopBar.vue`
+<<<<<<< HEAD
+=======
+=======
+## 2026-01-08 - 修复正式环境订单详情页图片不显示问题
+
+### 问题描述
+正式环境（https://admin.quaichao.com）订单详情页的商品图片无法显示，但商品列表页的图片可以正常显示，用户端也可以正常显示。
+
+### 问题原因
+1. **图片URL拼接错误**：订单详情页使用了 `getImageUrl` 函数处理图片路径
+2. **使用了错误的baseURL**：`getImageUrl` 函数使用 `import.meta.env.VITE_API_BASE_URL`（`https://api.quaichao.com`）来拼接图片路径
+3. **路径错误**：图片路径 `/uploads/images/...` 被拼接成 `https://api.quaichao.com/uploads/images/...`，但图片实际应该通过当前域名（`https://admin.quaichao.com`）访问
+4. **对比**：商品列表页直接使用 `row.mainImage`，没有调用 `getImageUrl`，所以能正常显示
+
+### 解决方案
+修改 `admin-frontend/src/views/order/List.vue` 中的 `getImageUrl` 函数：
+- 将 `import.meta.env.VITE_API_BASE_URL` 改为 `window.location.origin`
+- 对于以 `/` 开头的相对路径，使用当前域名而不是API服务器域名
+- 确保图片资源通过当前域名访问，而不是API服务器
+
+### 代码修改清单
+1. ✅ `admin-frontend/src/views/order/List.vue` - 修改 `getImageUrl` 函数，使用 `window.location.origin` 而不是 `VITE_API_BASE_URL`
+
+### 修改后的效果
+- ✅ 订单详情页的图片可以正常显示：`https://admin.quaichao.com/uploads/images/2026/01/xxx.jpg`
+- ✅ 与商品列表页和用户端的图片显示方式保持一致
+- ✅ 图片路径正确：使用当前域名而不是API服务器域名
+
+### 技术说明
+- 图片资源（`/uploads/...`）应该通过当前域名访问，因为Nginx配置中 `/uploads/` 路径会提供静态文件服务
+- API请求（`/api/...`）才需要通过 `VITE_API_BASE_URL` 访问后端服务器
+- 使用 `window.location.origin` 可以动态获取当前域名，适配不同环境（开发/测试/生产）
+
+## 2026-01-08 - 用户端首页广告位模块优化：动态读取广告名称并隐藏禁用/删除的广告位
+
+### 问题描述
+用户端首页的广告位模块标题（如"7F 其他情趣"）是硬编码的，需要从管理后台读取广告名称。如果管理后台禁用或删除了某个广告位，前端仍然会显示该模块。
+
+### 需求
+1. 广告位模块的标题需要从管理后台读取广告名称（`adName`）
+2. 如果管理后台禁用或删除了某个广告位，前端不应该显示该模块
+3. 已删除、禁用或未添加的广告位整个模块应该隐藏
+
+### 解决方案
+修改 `frontend/src/views/home/Index.vue`：
+1. **动态生成楼层**：根据广告数据动态生成楼层，而不是固定7个楼层
+2. **使用广告名称**：从广告数据中读取 `adName` 作为楼层标题
+3. **自动过滤**：后端API `getAllFloorAdvertisements()` 已经只返回启用状态的广告，前端只需要根据返回的广告数据生成楼层
+4. **配置映射**：创建广告位置与分类ID的映射配置，将广告位置（如 `floor_1`）映射到对应的分类ID和标题颜色
+
+### 代码修改清单
+1. ✅ `frontend/src/views/home/Index.vue` - 修改楼层生成逻辑
+   - 移除硬编码的7个楼层组件
+   - 改为使用 `v-for` 动态生成楼层
+   - 根据广告数据动态生成楼层数据
+   - 使用广告的 `adName` 作为楼层标题
+   - 从广告位置（`adPosition`）中提取楼层编号（如 `floor_1` -> `1F`）
+   - 创建 `floorConfig` 配置对象，映射广告位置到分类ID和标题颜色
+
+### 修改后的效果
+- ✅ 广告位模块标题从管理后台读取：使用广告的 `adName` 字段
+- ✅ 禁用或删除的广告位自动隐藏：后端API只返回启用状态的广告，前端只显示有广告的楼层
+- ✅ 动态楼层生成：根据实际启用的广告数量动态生成楼层，不再固定7个
+- ✅ 配置化管理：通过 `floorConfig` 配置广告位置与分类ID的映射关系
+
+### 技术说明
+- 后端API `getAllFloorAdvertisements()` 已经实现了状态过滤（只返回 `status=1` 的广告）和时间过滤
+- 前端只需要根据返回的广告数据生成楼层，如果某个广告位被禁用或删除，就不会出现在返回列表中
+- 广告位置格式：`floor_1`, `floor_2`, ..., `floor_7`
+- 楼层编号格式：从 `floor_1` 提取为 `1F`，从 `floor_2` 提取为 `2F`，以此类推
+
+## 2026-01-08 - 修复广告位标题显示和管理后台广告位置选项
+
+### 问题描述
+1. 用户端首页广告位标题显示为"2F 2F楼层广告"，前面的"2F"不需要，应该只显示广告名称
+2. 管理后台广告位置下拉选项缺少了楼层广告5、楼层广告6、楼层广告7
+
+### 修复内容
+
+#### 1. 修改CategoryFloor组件标题显示
+- **文件**：`frontend/src/components/home/CategoryFloor.vue`
+- **修改**：移除楼层编号（`floorNumber`），标题栏只显示广告名称（`categoryName`）
+- **效果**：标题从"2F 2F楼层广告"改为"2F楼层广告"（只显示管理后台配置的广告名称）
+
+#### 2. 管理后台添加楼层广告5、6、7选项
+- **文件**：`admin-frontend/src/views/website/Advertisement.vue`
+- **修改位置**：
+  1. 搜索表单的广告位置下拉选项（第17-20行）
+  2. 编辑表单的广告位置下拉选项（第116-119行）
+  3. `getPositionText` 函数的映射（第262-265行）
+- **添加内容**：
+  - `<el-option label="楼层广告5" value="floor_5" />`
+  - `<el-option label="楼层广告6" value="floor_6" />`
+  - `<el-option label="楼层广告7" value="floor_7" />`
+  - 在 `positionMap` 中添加对应的映射
+
+### 代码修改清单
+1. ✅ `frontend/src/components/home/CategoryFloor.vue` - 移除楼层编号显示，只显示广告名称
+2. ✅ `admin-frontend/src/views/website/Advertisement.vue` - 添加楼层广告5、6、7选项
+
+### 修改后的效果
+- ✅ 广告位标题只显示广告名称：不再显示"2F"前缀，直接显示管理后台配置的广告名称
+- ✅ 管理后台可以配置楼层广告5、6、7：下拉选项中包含所有7个楼层广告位置
+- ✅ 广告位置文本显示正确：列表和详情中正确显示楼层广告5、6、7的文本
+>>>>>>> 745ac937db43a34c8711f309399dc6e7f2b2bd98
+>>>>>>> b74a7f175bbbada1ad9299cfe8e1b196cc68ab32
 
