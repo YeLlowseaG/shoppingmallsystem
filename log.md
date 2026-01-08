@@ -7158,3 +7158,285 @@ appSecret + access_token + app_key + biz + charset + timestamp + version
    nginx -s reload  # 重载配置
    ```
 
+---
+
+## 2025-01-08 - 修改管理后台标题，从系统配置读取网站名称
+
+### 修改内容
+1. **创建网站配置工具函数** (`admin-frontend/src/utils/siteConfig.ts`)
+   - 新增 `getSiteName()` 函数：从系统配置获取网站名称，支持缓存
+   - 新增 `getPageTitle()` 函数：生成完整页面标题（页面名称 + 网站名称 + 管理后台）
+   - 新增 `clearSiteNameCache()` 函数：清除缓存
+
+2. **修改Layout组件** (`admin-frontend/src/components/Layout/index.vue`)
+   - 添加 `siteName` 响应式变量，从系统配置读取 `site.name`
+   - 添加 `pageTitle` 计算属性，格式为：`${siteName}管理后台`
+   - 添加 `loadSiteConfig()` 函数，在组件挂载时加载系统配置
+   - 修改页面标题显示，从硬编码改为动态显示
+
+3. **修改路由守卫** (`admin-frontend/src/router/index.ts`)
+   - 导入 `getPageTitle` 工具函数
+   - 修改路由守卫中的标题设置逻辑，使用动态获取的网站名称
+   - 支持有页面标题和无页面标题两种情况
+
+4. **修改HTML默认标题** (`admin-frontend/index.html`)
+   - 将默认标题从 "B2B成人用品采购平台 - 管理后台" 改为 "管理后台"
+   - 实际标题会在应用启动后从系统配置动态更新
+
+### 功能说明
+- 管理后台标题格式：`网站名称管理后台`（例如："趣爱巢商城管理后台"）
+- 带页面标题时格式：`页面标题 - 网站名称管理后台`
+- 网站名称从系统配置表 `system_config` 的 `site.name` 配置项读取
+- 支持缓存机制，避免重复请求
+
+### 相关文件
+- `admin-frontend/src/utils/siteConfig.ts` (新建)
+- `admin-frontend/src/components/Layout/index.vue`
+- `admin-frontend/src/router/index.ts`
+- `admin-frontend/index.html`
+
+---
+
+## 2025-01-08 - 批量导入商品增加品牌字段校验
+
+### 修改内容
+**修改批量导入服务** (`backend/src/main/java/com/shoppingmall/service/product/impl/ProductImportServiceImpl.java`)
+- 在 `importSingleProduct` 方法中，增加品牌名称存在性校验
+- 如果导入数据中填写了品牌名称，则必须验证该品牌在系统中存在
+- 如果品牌不存在，抛出异常："品牌名称不存在: {品牌名称}"
+- 如果品牌存在但已禁用，抛出异常："品牌已禁用: {品牌名称}"
+- 如果品牌名称为空，则不进行校验（品牌为可选字段）
+
+### 功能说明
+- 品牌字段为可选字段，但如果填写了品牌名称，则必须存在且启用
+- 校验失败时，会在导入结果中显示错误信息，包含行号和商品编码
+- 确保导入的商品数据中品牌信息的准确性
+
+### 相关文件
+- `backend/src/main/java/com/shoppingmall/service/product/impl/ProductImportServiceImpl.java`
+
+---
+
+## 2025-01-08 - 批量导入商品增加200条数量限制
+
+### 修改内容
+1. **后端添加数量限制校验** (`backend/src/main/java/com/shoppingmall/service/product/impl/ProductImportServiceImpl.java`)
+   - 添加常量 `MAX_IMPORT_COUNT = 200`，定义单次最大导入数量
+   - 在解析文件后、导入前进行数量校验
+   - 如果超过200条，抛出异常："单次导入商品数量不能超过 200 条，当前数量: {数量} 条，请分批导入"
+
+2. **前端导入界面优化** (`admin-frontend/src/views/product/ProductManage.vue`)
+   - 在导入对话框顶部添加信息提示框（el-alert），显示导入说明：
+     - 单次最多导入 **200条** 商品数据
+     - 如果数据超过200条，请分批导入
+     - 支持 CSV 或 Excel (.xlsx/.xls) 格式
+   - 在文件选择时（handleCsvChange）添加前端预校验：
+     - 对于CSV文件，读取文件内容并计算行数
+     - 如果数据行数超过200条，显示警告并移除文件
+     - Excel文件由后端校验（因为前端解析Excel较复杂）
+
+### 功能说明
+- **数量限制**：单次最多导入200条商品数据
+- **双重校验**：前端预校验（CSV文件）+ 后端严格校验（所有文件）
+- **用户提示**：
+  - 导入界面顶部显示醒目的引导语
+  - 超过限制时，前端和后端都会给出明确的错误提示
+  - 提示用户分批导入
+
+### 相关文件
+- `backend/src/main/java/com/shoppingmall/service/product/impl/ProductImportServiceImpl.java`
+- `admin-frontend/src/views/product/ProductManage.vue`
+
+---
+
+## 2025-01-08 - 修复批量导入商品预警库存字段映射问题
+
+### 修改内容
+**修复商品创建服务** (`backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java`)
+- 在 `BeanUtils.copyProperties` 的排除字段列表中添加 `"warningStock"`
+- 确保 `warningStock`（预警库存/警戒库存）字段通过手动设置逻辑正确映射
+- 修复原因：`BeanUtils.copyProperties` 可能已经复制了该字段，但后续手动设置逻辑需要确保正确映射
+
+### 功能说明
+- 批量导入时，"预警库存"字段的数据现在会正确映射到商品的"警戒库存"字段
+- 如果导入数据中预警库存为空，则设置为默认值0
+- 确保导入的商品数据中预警库存信息能够正确保存
+
+### 相关文件
+- `backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java`
+
+---
+
+## 2025-01-08 - 修复批量导入商品警戒库存默认值问题
+
+### 问题描述
+批量导入商品后，所有商品的警戒库存都显示为10，而不是导入数据中的值。
+
+### 问题原因
+在 `StockServiceImpl.updateProductTotalStock` 方法中，创建库存记录时硬编码了默认预警阈值为10，没有从商品表读取 `warningStock` 字段的值。
+
+### 修改内容
+**修改库存服务** (`backend/src/main/java/com/shoppingmall/service/admin/impl/StockServiceImpl.java`)
+- 在 `updateProductTotalStock` 方法中，添加从商品表读取 `warningStock` 的逻辑
+- 创建库存记录时，优先使用商品表的 `warningStock` 值
+- 如果商品表中没有设置警戒库存，才使用默认值10
+- 更新库存记录时，如果商品表的警戒库存有更新，同步更新库存表的预警阈值
+- 移除了不必要的反向同步逻辑（因为已经从商品表读取了值）
+
+### 功能说明
+- 批量导入商品时，导入的"预警库存"字段数据现在会正确映射到：
+  1. 商品表的 `warning_stock` 字段（警戒库存）
+  2. 库存表的 `warning_threshold` 字段（预警阈值）
+- 确保导入的商品数据中预警库存信息能够正确保存和使用
+
+### 相关文件
+- `backend/src/main/java/com/shoppingmall/service/admin/impl/StockServiceImpl.java`
+
+---
+
+## 2025-01-08 - 商品列表增加状态标签tab页
+
+### 修改内容
+1. **后端支持查询已删除商品** (`backend/src/main/java/com/shoppingmall/service/product/`)
+   - 修改 `ProductService` 接口，添加 `includeDeleted` 参数
+   - 修改 `ProductServiceImpl.getProductPage` 方法：
+     - 添加 `includeDeleted` 参数处理逻辑
+     - 当 `includeDeleted=true` 时，手动添加 `deleted=1` 条件，绕过 MyBatis-Plus 的 `@TableLogic` 自动过滤
+     - 已删除的商品不进行状态筛选
+   - 修改 `ProductController.getProductPage` 方法，添加 `includeDeleted` 参数
+
+2. **前端添加状态标签tab页** (`admin-frontend/src/views/product/ProductManage.vue`)
+   - 添加商品状态标签页配置：全部、已上架、已下架、草稿、已删除（5个tab）
+   - 添加 `activeTab` 响应式变量，管理当前激活的tab
+   - 添加 `handleTabChange` 函数，处理tab切换逻辑
+   - 修改 `loadProductList` 函数，根据当前tab传递相应的查询参数
+   - 修改 `handleSearch` 和 `handleReset` 函数，同步tab状态
+   - 添加 `watch` 监听器，监听搜索表单状态变化，同步到tab
+   - 在搜索栏下方添加tab页UI组件
+   - 添加tab页样式（参考订单列表的实现）
+   - 修改状态列显示，已删除tab页显示"已删除"标签
+
+3. **前端API修改** (`admin-frontend/src/api/admin/product.ts`)
+   - 修改 `getProductPage` 函数，添加 `includeDeleted` 参数
+
+### 功能说明
+- **5个状态标签页**：
+  - 全部：显示所有未删除的商品
+  - 已上架：显示状态为"上架"的商品
+  - 已下架：显示状态为"下架"的商品
+  - 草稿：显示状态为"草稿"的商品
+  - 已删除：显示已逻辑删除的商品（deleted=1）
+- **Tab与搜索表单同步**：
+  - Tab切换时，自动更新搜索表单的状态字段
+  - 搜索表单状态变化时，自动同步到对应的tab
+  - 重置时，重置tab为"全部"
+- **已删除商品特殊处理**：
+  - 查询已删除商品时，使用 `includeDeleted=true` 参数
+  - 已删除商品不进行状态筛选
+  - 已删除商品在列表中显示"已删除"标签
+
+### 技术要点
+- 使用 MyBatis-Plus 的 `@TableLogic` 注解实现逻辑删除
+- 查询已删除商品时，需要手动添加 `deleted=1` 条件，绕过自动过滤
+- Tab页UI样式参考订单列表的实现，保持一致的用户体验
+
+### 相关文件
+- `backend/src/main/java/com/shoppingmall/service/product/ProductService.java`
+- `backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java`
+- `backend/src/main/java/com/shoppingmall/controller/admin/ProductController.java`
+- `backend/src/main/java/com/shoppingmall/controller/buyer/ProductController.java`
+- `admin-frontend/src/api/admin/product.ts`
+- `admin-frontend/src/views/product/ProductManage.vue`
+
+---
+
+## 2025-01-08 - 修复买家端ProductController编译错误
+
+### 问题描述
+修改 `ProductService.getProductPage` 方法添加 `includeDeleted` 参数后，买家端 `ProductController` 调用该方法时参数不匹配，导致编译错误。
+
+### 修改内容
+**修复买家端Controller** (`backend/src/main/java/com/shoppingmall/controller/buyer/ProductController.java`)
+- 在调用 `getProductPage` 方法时添加 `includeDeleted` 参数，传入 `false`
+- 买家端不应该看到已删除的商品，所以传入 `false`
+
+### 相关文件
+- `backend/src/main/java/com/shoppingmall/controller/buyer/ProductController.java`
+
+---
+
+## 2025-01-08 - 移除商品列表"已删除"标签页
+
+### 问题描述
+由于 MyBatis-Plus 的 `@TableLogic` 注解会自动在查询时添加 `deleted=0` 条件，要查询已删除的商品（`deleted=1`）需要绕过这个自动过滤机制，实现较为复杂。为了简化实现，决定移除"已删除"标签页。
+
+### 修改内容
+1. **前端移除"已删除"标签页** (`admin-frontend/src/views/product/ProductManage.vue`)
+   - 从 `productTabs` 配置中移除"已删除"选项
+   - 简化 `handleTabChange` 函数，移除已删除相关的逻辑
+   - 简化 `loadProductList` 函数，移除 `includeDeleted` 参数处理
+   - 简化 `handleSearch` 和 `watch` 监听器，移除已删除相关逻辑
+   - 移除状态列中已删除标签的特殊显示
+
+2. **前端API简化** (`admin-frontend/src/api/admin/product.ts`)
+   - 移除 `getProductPage` 函数的 `includeDeleted` 参数
+
+3. **后端简化** (`backend/src/main/java/com/shoppingmall/controller/admin/ProductController.java`)
+   - 移除 `getProductPage` 方法的 `includeDeleted` 参数
+   - 固定传入 `includeDeleted=false`
+
+4. **后端Service简化** (`backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java`)
+   - 移除 `includeDeleted` 参数的处理逻辑
+   - 简化查询条件，依赖 MyBatis-Plus 的 `@TableLogic` 自动过滤
+
+### 功能说明
+- 商品列表现在只显示 4 个状态标签页：全部、已上架、已下架、草稿
+- 已删除的商品不会在列表中显示（由 MyBatis-Plus 的 `@TableLogic` 自动过滤）
+- 代码更简洁，维护更容易
+
+### 相关文件
+- `admin-frontend/src/views/product/ProductManage.vue`
+- `admin-frontend/src/api/admin/product.ts`
+- `backend/src/main/java/com/shoppingmall/controller/admin/ProductController.java`
+- `backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java`
+
+---
+
+## 2025-01-08 - 用户端商品详情页添加商品状态验证
+
+### 需求
+用户通过修改产品ID的方式访问产品详情页时，需要判断商品状态：
+- 如果商品是下架状态，提示"商品已下架"
+- 如果商品是草稿或已删除状态，提示"商品不存在"
+- 只有上架状态的商品才能正常访问
+
+### 修改内容
+
+1. **前端商品详情页** (`frontend/src/views/products/Detail.vue`)
+   - 添加 `productStatusError` 响应式变量，用于存储商品状态错误信息
+   - 在 `loadProductDetail` 函数中添加商品状态检查逻辑
+   - 获取商品详情后，检查 `productData.status` 字段
+   - 如果状态不是"上架"：
+     - 状态为"下架"时，设置错误类型为 `offline`，提示"商品已下架"
+     - 状态为"草稿"或其他时，设置错误类型为 `notfound`，提示"商品不存在"
+   - 添加商品状态错误提示UI组件，显示相应的错误信息和操作按钮
+
+### 功能说明
+- **状态验证**：用户访问商品详情页时，自动检查商品状态
+- **错误提示**：
+  - 下架商品：显示"商品已下架"提示，说明商品暂时无法购买
+  - 草稿/已删除商品：显示"商品不存在"提示
+- **用户体验**：提供返回首页和浏览商品的操作按钮，方便用户导航
+
+### 技术要点
+- 商品状态定义：
+  - `0` = 下架
+  - `1` = 上架
+  - `2` = 草稿
+  - `deleted = 1` = 已删除（MyBatis-Plus 自动过滤，不会返回）
+- 前端通过检查 `ProductVO.status` 字段判断商品状态
+- 复用现有的 `product-not-found` 样式，保持UI一致性
+
+### 相关文件
+- `frontend/src/views/products/Detail.vue`
+

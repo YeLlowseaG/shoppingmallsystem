@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { nextTick } from 'vue'
 import type { MenuVO } from '@/api/admin/user'
 import { componentMap } from './componentMap'
+import { getPageTitle } from '@/utils/siteConfig'
 
 // 防止重复添加路由的标志
 let isAddingRoutes = false
@@ -231,7 +232,14 @@ router.beforeEach(async (to, _from, next) => {
   
   // 设置页面标题
   if (to.meta.title) {
-    document.title = `${to.meta.title} - B2B成人用品采购平台管理后台`
+    getPageTitle(to.meta.title as string).then(title => {
+      document.title = title
+    })
+  } else {
+    // 如果没有页面标题，只显示网站名称+管理后台
+    getPageTitle().then(title => {
+      document.title = title
+    })
   }
 
   // 调试日志：检查路由匹配情况

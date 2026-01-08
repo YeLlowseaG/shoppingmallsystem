@@ -43,6 +43,11 @@ import java.util.*;
 @RequiredArgsConstructor
 public class ProductImportServiceImpl implements ProductImportService {
     
+    /**
+     * 单次最大导入商品数量
+     */
+    private static final int MAX_IMPORT_COUNT = 200;
+    
     private final ProductService productService;
     private final ProductSkuService skuService;
     private final ImageService imageService;
@@ -76,12 +81,18 @@ public class ProductImportServiceImpl implements ProductImportService {
                 importDataList = parseCSV(csvFile);
             }
 
-            result.setTotalCount(importDataList.size());
+            // 3. 检查导入数量限制
+            int totalCount = importDataList.size();
+            if (totalCount > MAX_IMPORT_COUNT) {
+                throw new RuntimeException("单次导入商品数量不能超过 " + MAX_IMPORT_COUNT + " 条，当前数量: " + totalCount + " 条，请分批导入");
+            }
 
-            // 3. 按商品编码分组（一个商品可能有多个SKU行）
+            result.setTotalCount(totalCount);
+
+            // 4. 按商品编码分组（一个商品可能有多个SKU行）
             Map<String, List<ProductImportDTO>> productGroups = groupByProductCode(importDataList);
 
-            // 4. 逐个导入商品
+            // 5. 逐个导入商品
             for (Map.Entry<String, List<ProductImportDTO>> entry : productGroups.entrySet()) {
                 String productCode = entry.getKey();
                 List<ProductImportDTO> rows = entry.getValue();
@@ -96,7 +107,7 @@ public class ProductImportServiceImpl implements ProductImportService {
                 }
             }
 
-            // 5. 汇总缺失的分类到警告信息
+            // 6. 汇总缺失的分类到警告信息
             if (!missingCategories.isEmpty()) {
                 result.addWarning("以下分类在系统中不存在，建议先创建这些分类再导入：" + String.join("、", missingCategories));
             }
@@ -106,7 +117,7 @@ public class ProductImportServiceImpl implements ProductImportService {
             log.info("警告列表大小: {}, 警告详情: {}", result.getWarnings().size(), result.getWarnings());
 
         } finally {
-            // 6. 清理临时目录
+            // 7. 清理临时目录
             if (tempDir != null) {
                 imageService.cleanupTempDir(tempDir);
             }
@@ -316,15 +327,20 @@ public class ProductImportServiceImpl implements ProductImportService {
             throw new RuntimeException("分类不存在: " + firstRow.getCategoryName());
         }
         
-        // 3. 查找品牌（可选）
+        // 3. 查找品牌（可选，但如果填写了品牌名称，则必须存在）
         Long brandId = null;
         if (firstRow.getBrandName() != null && !firstRow.getBrandName().trim().isEmpty()) {
             QueryWrapper<Brand> brandQuery = new QueryWrapper<>();
             brandQuery.eq("brand_name", firstRow.getBrandName());
             Brand brand = brandRepository.selectOne(brandQuery);
-            if (brand != null) {
-                brandId = brand.getId();
+            if (brand == null) {
+                throw new RuntimeException("品牌名称不存在: " + firstRow.getBrandName());
             }
+            // 检查品牌是否启用
+            if (brand.getStatus() == null || brand.getStatus() == 0) {
+                throw new RuntimeException("品牌已禁用: " + firstRow.getBrandName());
+            }
+            brandId = brand.getId();
         }
         
         // 4. 处理图片

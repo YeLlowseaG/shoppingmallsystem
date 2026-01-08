@@ -35,9 +35,9 @@ public class ProductController {
             @RequestParam(required = false) String brand,
             @RequestParam(defaultValue = "default") String sortBy,
             HttpServletRequest request) {
-        // 买家端只查询已上架商品
+        // 买家端只查询已上架商品，不包含已删除的商品
         Long userId = (Long) request.getAttribute("userId");
-        Page<ProductVO> page = productService.getProductPage(current, size, categoryId, keyword, brand, "上架", sortBy, userId);
+        Page<ProductVO> page = productService.getProductPage(current, size, categoryId, keyword, brand, "上架", sortBy, userId, false);
         return Result.success("获取成功", page);
     }
 
