@@ -33,6 +33,11 @@
           label="外部链接" 
           :value="4" 
         />
+        <el-option 
+          v-if="!props.excludeTypes.includes('5')"
+          label="品牌类型" 
+          :value="5" 
+        />
       </el-select>
     </el-form-item>
 
@@ -92,6 +97,24 @@
           placeholder="请输入完整的URL地址，如：https://www.example.com"
           type="url"
         />
+      </el-form-item>
+
+      <!-- 品牌类型选择 -->
+      <el-form-item v-if="linkType === 5" label="目标品牌" required>
+        <el-select
+          v-model="linkValue"
+          placeholder="请选择品牌"
+          filterable
+          style="width: 100%"
+          :loading="brandLoading"
+        >
+          <el-option
+            v-for="brand in brandList"
+            :key="brand.id"
+            :label="brand.brandName"
+            :value="brand.id!.toString()"
+          />
+        </el-select>
       </el-form-item>
     </div>
 
@@ -186,6 +209,8 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getProductPage, type ProductVO } from '@/api/admin/product'
 import { getCategoryTree, type ProductCategoryVO } from '@/api/admin/productCategory'
+import { getBrandOptions } from '@/api/admin/brand'
+import { type Brand } from '@/api/admin/website'
 
 interface Props {
   modelLinkType?: number
@@ -220,6 +245,10 @@ const linkValue = computed({
 // 分类数据
 const categoryTree = ref<ProductCategoryVO[]>([])
 const flatCategories = ref<Array<{ id: number; name: string }>>([])
+
+// 品牌数据
+const brandList = ref<Brand[]>([])
+const brandLoading = ref(false)
 
 // 商品选择器
 const showProductSelector = ref(false)
@@ -265,6 +294,23 @@ const loadCategories = async () => {
   }
 }
 
+// 加载品牌数据
+const loadBrands = async () => {
+  brandLoading.value = true
+  try {
+    const response = await getBrandOptions()
+    // request拦截器已经提取了data字段，所以response直接就是品牌列表
+    brandList.value = Array.isArray(response) ? response : []
+    console.log('品牌列表加载成功，数量:', brandList.value.length)
+  } catch (error) {
+    console.error('加载品牌失败:', error)
+    ElMessage.error('加载品牌失败')
+    brandList.value = []
+  } finally {
+    brandLoading.value = false
+  }
+}
+
 // 加载商品数据
 const loadProducts = async () => {
   productLoading.value = true
@@ -293,6 +339,10 @@ const handleTypeChange = () => {
   linkValue.value = ''
   selectedProductName.value = ''
   selectedProductId.value = null
+  // 如果切换到品牌类型，确保品牌列表已加载
+  if (linkType.value === 5 && brandList.value.length === 0) {
+    loadBrands()
+  }
 }
 
 // 处理商品选择
@@ -337,19 +387,50 @@ const loadSelectedProductName = async () => {
   }
 }
 
+// 处理品牌类型的编辑回显：如果linkValue是品牌名称，转换为品牌ID
+const handleBrandValue = async () => {
+  if (linkType.value === 5 && linkValue.value) {
+    // 如果品牌列表还没加载，先加载
+    if (brandList.value.length === 0) {
+      await loadBrands()
+    }
+    
+    // 如果linkValue不是纯数字（可能是品牌名称），尝试根据品牌名称找到品牌ID
+    if (isNaN(Number(linkValue.value))) {
+      const brand = brandList.value.find(b => 
+        b.brandName.toLowerCase() === linkValue.value.toLowerCase() ||
+        b.brandName === linkValue.value
+      )
+      if (brand && brand.id) {
+        linkValue.value = brand.id.toString()
+        console.log('品牌名称转换为ID:', linkValue.value, '->', brand.id)
+      } else {
+        console.warn('未找到对应的品牌:', linkValue.value)
+      }
+    }
+  }
+}
+
 // 监听linkValue变化，用于编辑时回显
-watch([linkType, linkValue], () => {
+watch([linkType, linkValue], async () => {
   if (linkType.value === 2 && linkValue.value) {
     loadSelectedProductName()
+  } else if (linkType.value === 5 && linkValue.value) {
+    await handleBrandValue()
   } else if (linkType.value !== 2) {
     selectedProductName.value = ''
   }
 })
 
 // 组件挂载时加载数据
-onMounted(() => {
-  loadCategories()
-  loadSelectedProductName()
+onMounted(async () => {
+  await loadCategories()
+  await loadBrands()
+  await loadSelectedProductName()
+  // 如果初始值就是品牌类型，处理品牌名称转换
+  if (linkType.value === 5 && linkValue.value) {
+    await handleBrandValue()
+  }
 })
 
 // 打开商品选择器时加载商品
