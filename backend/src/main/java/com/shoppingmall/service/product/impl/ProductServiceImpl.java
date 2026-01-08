@@ -1,6 +1,7 @@
 package com.shoppingmall.service.product.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shoppingmall.common.exception.BusinessException;
@@ -58,10 +59,12 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String brand,
-            String status, String sortBy, Long userId) {
+            String status, String sortBy, Long userId, Boolean includeDeleted) {
         Page<Product> page = new Page<>(current, size);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
+        
+        // MyBatis-Plus 的 @TableLogic 会自动过滤 deleted=1 的记录，只查询未删除的商品
 
         // 分类筛选
         if (categoryId != null) {
@@ -173,7 +176,7 @@ public class ProductServiceImpl implements ProductService {
         }
 
         Product product = new Product();
-        BeanUtils.copyProperties(productDTO, product, "status", "weight", "stock");
+        BeanUtils.copyProperties(productDTO, product, "status", "weight", "stock", "warningStock");
 
         // 状态映射：上架=1，下架=0，草稿=2
         product.setStatus(statusToInteger(productDTO.getStatus()));
@@ -185,7 +188,7 @@ public class ProductServiceImpl implements ProductService {
             product.setWeight(null);
         }
 
-        // 手动设置预警库存字段，确保正确映射
+        // 手动设置预警库存字段（警戒库存），确保正确映射
         if (productDTO.getWarningStock() != null) {
             product.setWarningStock(productDTO.getWarningStock());
         } else {

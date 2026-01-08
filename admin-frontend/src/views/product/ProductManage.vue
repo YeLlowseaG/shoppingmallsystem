@@ -114,6 +114,18 @@
         </div>
       </div>
 
+      <!-- 商品状态标签页 -->
+      <div class="product-tabs">
+        <div
+          v-for="tab in productTabs"
+          :key="tab.value === undefined ? 'all' : tab.value"
+          :class="['tab-item', { active: activeTab === tab.value }]"
+          @click="handleTabChange(tab.value)"
+        >
+          {{ tab.label }}
+        </div>
+      </div>
+
       <!-- 商品列表 -->
       <el-table 
         :data="productList" 
@@ -859,6 +871,22 @@
       :before-close="handleImportDialogClose"
     >
       <el-form label-width="120px">
+        <el-alert
+          type="info"
+          :closable="false"
+          style="margin-bottom: 20px"
+        >
+          <template #title>
+            <div style="font-size: 14px">
+              <strong>导入说明：</strong>
+              <ul style="margin: 8px 0 0 20px; padding: 0">
+                <li>单次最多导入 <strong style="color: #409eff">200条</strong> 商品数据</li>
+                <li>如果数据超过200条，请分批导入</li>
+                <li>支持 CSV 或 Excel (.xlsx/.xls) 格式</li>
+              </ul>
+            </div>
+          </template>
+        </el-alert>
         <el-form-item label="数据文件" required>
           <el-upload
             ref="csvUploadRef"
@@ -1003,6 +1031,16 @@ import RichTextEditor from '@/components/common/RichTextEditor.vue'
 import request from '@/utils/request'
 
 const router = useRouter()
+
+// 商品状态标签页配置
+const productTabs = [
+  { label: '全部', value: undefined },
+  { label: '已上架', value: '上架' },
+  { label: '已下架', value: '下架' },
+  { label: '草稿', value: '草稿' }
+]
+
+const activeTab = ref<string | undefined>(undefined)
 
 // 搜索表单
 const searchForm = ref({
@@ -1216,6 +1254,17 @@ const loadShippingTemplates = async () => {
   }
 }
 
+// 标签页切换
+const handleTabChange = (value: string | undefined) => {
+  if (activeTab.value === value) {
+    return // 如果点击的是当前标签，不执行任何操作
+  }
+  activeTab.value = value
+  searchForm.value.status = value || ''
+  pagination.value.current = 1
+  loadProductList()
+}
+
 // 加载商品列表
 const loadProductList = async () => {
   try {
@@ -1245,6 +1294,16 @@ const loadProductList = async () => {
 
 // 搜索
 const handleSearch = () => {
+  // 如果搜索时没有指定状态，使用当前tab的状态
+  if (!searchForm.value.status && activeTab.value) {
+    searchForm.value.status = activeTab.value
+  }
+  // 同步tab状态
+  if (searchForm.value.status) {
+    activeTab.value = searchForm.value.status
+  } else {
+    activeTab.value = undefined
+  }
   pagination.value.current = 1
   loadProductList()
 }
@@ -1257,6 +1316,7 @@ const handleReset = () => {
     status: '',
     sortBy: 'create_time_desc'
   }
+  activeTab.value = undefined
   handleSearch()
 }
 
@@ -1942,8 +2002,29 @@ const batchSetStock = () => {
   }).catch(() => {})
 }
 
-const handleCsvChange = (file: UploadFile) => {
+const handleCsvChange = async (file: UploadFile) => {
   importForm.value.csvFile = file.raw || null
+  
+  // 检查文件行数（简单估算，仅对CSV文件有效）
+  if (file.raw && file.raw.name.toLowerCase().endsWith('.csv')) {
+    try {
+      const text = await file.raw.text()
+      const lines = text.split('\n').filter(line => line.trim().length > 0)
+      // 减去表头行
+      const dataRowCount = lines.length > 1 ? lines.length - 1 : 0
+      
+      if (dataRowCount > 200) {
+        ElMessage.warning(`文件包含 ${dataRowCount} 条数据，超过单次最大导入数量（200条），请分批导入`)
+        // 移除文件
+        importForm.value.csvFile = null
+        csvFileList.value = []
+        return
+      }
+    } catch (error) {
+      console.warn('检查文件行数失败:', error)
+      // 如果检查失败，不阻止上传，由后端校验
+    }
+  }
 }
 
 const handleCsvRemove = () => {
@@ -2083,6 +2164,15 @@ const handleResultClose = () => {
   zipFileList.value = []
 }
 
+// 监听搜索表单中的状态变化，同步到tab
+watch(() => searchForm.value.status, (newStatus) => {
+  if (newStatus) {
+    activeTab.value = newStatus
+  } else {
+    activeTab.value = undefined
+  }
+})
+
 // 初始化
 onMounted(() => {
   loadCategoryTree()
@@ -2209,6 +2299,34 @@ onMounted(() => {
           height: 36px;
           padding: 0 16px;
         }
+      }
+    }
+  }
+
+  // 商品状态标签页样式
+  .product-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid #e5e5e5;
+    margin-bottom: 20px;
+
+    .tab-item {
+      padding: 12px 20px;
+      font-size: 14px;
+      color: #666;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.3s;
+
+      &:hover {
+        color: #409eff;
+      }
+
+      &.active {
+        color: #409eff;
+        font-weight: bold;
+        border-bottom-color: #409eff;
       }
     }
   }

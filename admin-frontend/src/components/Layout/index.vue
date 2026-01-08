@@ -2,7 +2,7 @@
   <el-container class="layout-container">
     <el-header>
       <div class="header-content">
-        <h1>B2B成人用品采购平台 - 管理后台</h1>
+        <h1>{{ pageTitle }}</h1>
         <div class="header-right">
           <el-dropdown>
             <span class="admin-info">
@@ -75,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, nextTick, watch } from 'vue'
+import { computed, onMounted, nextTick, watch, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminStore } from '@/stores/admin/user'
 import { ElMessage } from 'element-plus'
@@ -83,12 +83,21 @@ import { User, HomeFilled } from '@element-plus/icons-vue'
 import { getAdminInfo } from '@/api/admin/user'
 import { addRoutes } from '@/router'
 import type { MenuVO } from '@/api/admin/user'
+import { getAllConfigs } from '@/api/admin/systemConfig'
 
 const route = useRoute()
 const router = useRouter()
 const adminStore = useAdminStore()
 
+// 网站名称，从系统配置读取
+const siteName = ref('管理后台')
+
 const activeMenu = computed(() => route.path)
+
+// 页面标题
+const pageTitle = computed(() => {
+  return `${siteName.value}管理后台`
+})
 
 const menuList = computed(() => {
   const menus = adminStore.menus || []
@@ -133,6 +142,20 @@ const getMenuPath = (menu: MenuVO, parentMenu?: MenuVO): string => {
   
   // 没有父菜单，直接拼接 /admin
   return `/admin/${menu.path}`
+}
+
+// 加载系统配置（网站名称）
+const loadSiteConfig = async () => {
+  try {
+    const configs = await getAllConfigs()
+    if (configs['site.name']) {
+      siteName.value = configs['site.name']
+      // 更新页面标题
+      document.title = `${siteName.value}管理后台`
+    }
+  } catch (error) {
+    console.error('加载系统配置失败:', error)
+  }
 }
 
 // 加载管理员信息和菜单
@@ -196,6 +219,9 @@ watch(
 
 onMounted(() => {
   adminStore.init()
+  
+  // 加载系统配置（网站名称）
+  loadSiteConfig()
   
   // 使用 nextTick 确保 store 初始化完成后再检查菜单数据
   nextTick(() => {

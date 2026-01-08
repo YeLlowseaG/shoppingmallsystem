@@ -45,6 +45,24 @@
           </div>
         </div>
 
+        <!-- 商品状态错误提示（下架、草稿等） -->
+        <div v-else-if="productStatusError" class="product-not-found">
+          <div class="not-found-content">
+            <el-icon :size="80" class="not-found-icon"><Warning /></el-icon>
+            <h2 class="not-found-title">{{ productStatusError.message }}</h2>
+            <p class="not-found-message" v-if="productStatusError.type === 'offline'">
+              抱歉，该商品已下架，暂时无法购买
+            </p>
+            <p class="not-found-message" v-else>
+              抱歉，您访问的商品不存在或已被删除
+            </p>
+            <div class="not-found-actions">
+              <el-button type="primary" @click="router.push('/')">返回首页</el-button>
+              <el-button @click="router.push('/products')">浏览商品</el-button>
+            </div>
+          </div>
+        </div>
+
         <!-- 商品内容 -->
         <template v-else>
           <!-- 左侧：商品图片 -->
@@ -540,6 +558,12 @@ const loading = ref(true)
 // 商品不存在状态
 const productNotFound = ref(false)
 
+// 商品状态错误信息（下架、草稿、已删除）
+const productStatusError = ref<{
+  type: 'offline' | 'notfound' // offline-下架, notfound-不存在（草稿或已删除）
+  message: string
+} | null>(null)
+
 // 加入购物车按钮加载状态
 const addingToCart = ref(false)
 
@@ -547,8 +571,29 @@ const addingToCart = ref(false)
 // 加载商品详情
 const loadProductDetail = async (productId: number) => {
   loading.value = true
+  productStatusError.value = null
+  productNotFound.value = false
   try {
     const productData = await getProductById(productId)
+
+    // 检查商品状态：只有上架状态的商品才能访问
+    if (productData.status !== '上架') {
+      if (productData.status === '下架') {
+        // 下架状态：提示商品已下架
+        productStatusError.value = {
+          type: 'offline',
+          message: '商品已下架'
+        }
+      } else {
+        // 草稿或其他状态：提示商品不存在
+        productStatusError.value = {
+          type: 'notfound',
+          message: '商品不存在'
+        }
+      }
+      loading.value = false
+      return
+    }
 
     // 将后端返回的 ProductVO 数据映射到页面需要的格式
     // 字段对应关系（根据管理后台）：

@@ -24,9 +24,11 @@ public interface ProductService {
      * @param brand 品牌名称（可选）
      * @param status 状态（可选）
      * @param sortBy 排序方式（可选）
+     * @param userId 用户ID（可选）
+     * @param includeDeleted 是否包含已删除的商品（可选，true-只查询已删除，false/null-不查询已删除）
      * @return 商品分页列表
      */
-    Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String brand, String status, String sortBy, Long userId);
+    Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String brand, String status, String sortBy, Long userId, Boolean includeDeleted);
 
     /**
      * 根据ID获取商品详情

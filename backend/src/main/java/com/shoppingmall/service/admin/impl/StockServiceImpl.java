@@ -509,6 +509,12 @@ public class StockServiceImpl implements StockService {
             wrapper.eq(ProductStock::getProductId, productId);
             ProductStock stock = stockRepository.selectOne(wrapper);
             
+            // 从商品表读取警戒库存值
+            Product product = productRepository.selectById(productId);
+            Integer warningThreshold = (product != null && product.getWarningStock() != null) 
+                ? product.getWarningStock() 
+                : 10; // 如果商品表中没有设置，使用默认值10
+            
             if (stock == null) {
                 // 创建新的库存记录
                 stock = new ProductStock();
@@ -516,9 +522,9 @@ public class StockServiceImpl implements StockService {
                 stock.setTotalStock(totalStock);
                 stock.setAvailableStock(totalStock);
                 stock.setLockedStock(0);
-                stock.setWarningThreshold(10); // 默认预警阈值
+                stock.setWarningThreshold(warningThreshold); // 使用商品的警戒库存值
                 stockRepository.insert(stock);
-                log.info("创建商品库存记录成功，商品ID: {}, 库存: {}", productId, totalStock);
+                log.info("创建商品库存记录成功，商品ID: {}, 库存: {}, 预警阈值: {}", productId, totalStock, warningThreshold);
             } else {
                 // 更新现有记录，保留锁定库存
                 int lockedStock = stock.getLockedStock() != null ? stock.getLockedStock() : 0;
@@ -531,18 +537,21 @@ public class StockServiceImpl implements StockService {
                 }
                 stock.setAvailableStock(availableStock);
                 
+                // 如果商品表的警戒库存有更新，同步更新库存表的预警阈值
+                if (product != null && product.getWarningStock() != null) {
+                    stock.setWarningThreshold(product.getWarningStock());
+                }
+                
                 stockRepository.updateById(stock);
-                log.info("更新商品库存记录成功，商品ID: {}, 总库存: {}, 锁定库存: {}, 可用库存: {}", 
-                        productId, totalStock, lockedStock, availableStock);
+                log.info("更新商品库存记录成功，商品ID: {}, 总库存: {}, 锁定库存: {}, 可用库存: {}, 预警阈值: {}", 
+                        productId, totalStock, lockedStock, availableStock, stock.getWarningThreshold());
             }
             
             // 同步更新Product表的库存字段（单向同步，避免冲突）
             syncProductStock(productId, totalStock);
             
-            // 同步预警阈值
-            if (stock.getWarningThreshold() != null) {
-                syncProductWarningStock(productId, stock.getWarningThreshold());
-            }
+            // 同步预警阈值（从商品表同步到库存表已完成，这里不需要反向同步）
+            // 注意：这里不再需要同步，因为我们已经从商品表读取了值
             
             // 注意：不再同步SKU库存，因为：
             // 1. SKU库存应该由用户明确设置
