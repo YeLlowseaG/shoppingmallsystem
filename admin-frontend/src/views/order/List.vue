@@ -1026,10 +1026,11 @@ const getImageUrl = (url: string | undefined): string => {
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url
   }
-  // 如果是相对路径，添加基础URL
+  // 如果是相对路径（以 / 开头），使用当前域名而不是API基础URL
+  // 因为图片资源应该通过当前域名访问，而不是API服务器
   if (url.startsWith('/')) {
-    const baseURL = import.meta.env.VITE_API_BASE_URL || ''
-    return baseURL + url
+    // 使用 window.location.origin 获取当前域名
+    return window.location.origin + url
   }
   return url
 }

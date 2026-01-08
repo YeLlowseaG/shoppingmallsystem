@@ -18,6 +18,9 @@
             <el-option label="楼层广告2" value="floor_2" />
             <el-option label="楼层广告3" value="floor_3" />
             <el-option label="楼层广告4" value="floor_4" />
+            <el-option label="楼层广告5" value="floor_5" />
+            <el-option label="楼层广告6" value="floor_6" />
+            <el-option label="楼层广告7" value="floor_7" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
@@ -117,6 +120,9 @@
             <el-option label="楼层广告2" value="floor_2" />
             <el-option label="楼层广告3" value="floor_3" />
             <el-option label="楼层广告4" value="floor_4" />
+            <el-option label="楼层广告5" value="floor_5" />
+            <el-option label="楼层广告6" value="floor_6" />
+            <el-option label="楼层广告7" value="floor_7" />
           </el-select>
         </el-form-item>
         <el-form-item label="图片" prop="imageUrl">
@@ -262,7 +268,10 @@ const getPositionText = (position: string) => {
     floor_1: '楼层广告1',
     floor_2: '楼层广告2',
     floor_3: '楼层广告3',
-    floor_4: '楼层广告4'
+    floor_4: '楼层广告4',
+    floor_5: '楼层广告5',
+    floor_6: '楼层广告6',
+    floor_7: '楼层广告7'
   }
   return positionMap[position] || position
 }
