@@ -32,18 +32,13 @@ if errorlevel 1 (
     cd ..
     exit /b 1
 )
-set VITE_BUILD_ENV=production
-set VITE_API_BASE_URL=
+REM 使用.env.production文件中的配置，不在这里设置环境变量
 call npm run build -- --mode production
 if errorlevel 1 (
     echo Error: User frontend build failed
-    set VITE_BUILD_ENV=
-    set VITE_API_BASE_URL=
     cd ..
     exit /b 1
 )
-set VITE_BUILD_ENV=
-set VITE_API_BASE_URL=
 cd ..
 
 echo.
@@ -56,6 +51,7 @@ echo   User Frontend: frontend\dist-prod\
 echo.
 endlocal
 pause
+
 
 
 

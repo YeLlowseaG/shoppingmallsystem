@@ -61,7 +61,14 @@
         </div>
       </el-aside>
       <el-main>
-        <router-view />
+        <router-view v-slot="{ Component, route }">
+          <component v-if="Component" :is="Component" :key="route.path" />
+          <div v-else class="no-route-matched">
+            <el-empty description="页面加载中，请稍候...">
+              <el-button type="primary" @click="handleRetry">重试</el-button>
+            </el-empty>
+          </div>
+        </router-view>
       </el-main>
     </el-container>
   </el-container>
@@ -152,6 +159,18 @@ const handleLogout = () => {
   adminStore.logout()
   ElMessage.success('退出登录成功')
   router.push('/admin/login')
+}
+
+const handleRetry = () => {
+  // 重新加载菜单数据并添加路由
+  if (adminStore.menus && adminStore.menus.length > 0) {
+    addRoutes(adminStore.menus)
+    // 重新导航到当前路径
+    router.replace(route.path)
+  } else {
+    // 如果没有菜单数据，重新加载用户信息
+    loadAdminInfo()
+  }
 }
 
 // 监听菜单数据变化，确保路由正确添加
@@ -271,6 +290,11 @@ h1 {
   padding: 20px;
   text-align: center;
   color: #bfcbd9;
+}
+
+.no-route-matched {
+  padding: 40px;
+  text-align: center;
 }
 </style>
 

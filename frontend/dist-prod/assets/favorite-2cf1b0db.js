@@ -1,1 +1,0 @@
-import{s as r}from"./Footer-68470eb4.js";const o=e=>r.post("/api/buyer/favorites",{productId:e}),s=e=>r.delete(`/api/buyer/favorites/${e}`),i=e=>r.get(`/api/buyer/favorites/check/${e}`),c=(e=1,a=10)=>r.get("/api/buyer/favorites/page",{params:{current:e,size:a}});export{o as a,i as c,c as g,s as r};
