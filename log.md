@@ -1,5 +1,58 @@
 # 修改日志
 
+## 2026-01-08 - 导航菜单配置添加品牌类型选择功能
+
+### 功能说明
+在导航菜单配置中，当用户选择"品牌类型"时，自动加载品牌列表供用户选择。
+
+### 修改内容
+
+**前端修改：**
+
+1. **文件：** `admin-frontend/src/components/common/LinkSelector.vue`
+   - 在链接类型选择器中添加"品牌类型"选项（类型值：5）
+   - 添加品牌下拉选择器（类似商品分类选择器）
+   - 导入 `getBrandOptions` API 和 `Brand` 类型
+   - 添加品牌列表状态和加载函数 `loadBrands()`
+   - 在组件挂载时自动加载品牌列表
+   - 当切换到品牌类型时，确保品牌列表已加载
+
+2. **文件：** `admin-frontend/src/views/system/NavigationMenu.vue`
+   - 更新 `getLinkTypeString()` 函数：添加 `5 -> 'brand'` 的映射
+   - 更新 `getNumberLinkType()` 函数：添加 `'brand' -> 5` 的映射
+   - 更新 `generateMenuParams()` 函数：当类型为5时，生成 `{"brand": value}` 格式的JSON参数
+   - 更新 `parseMenuData()` 函数：解析品牌类型的参数，支持编辑回显
+
+### 菜单参数格式
+- 品牌类型的 `menuParams` 格式：`{"brand": "1"}`（品牌ID转字符串）
+- 与数据库现有格式保持一致，使用 `brand` 字段名
+
+### 使用说明
+1. 在导航菜单配置页面，点击"添加菜单"或"编辑菜单"
+2. 在"链接类型"下拉框中选择"品牌类型"
+3. 系统自动加载启用的品牌列表
+4. 在"目标品牌"下拉框中选择要关联的品牌
+5. 保存后，菜单参数会自动生成 `{"brand": "品牌ID"}` 格式
+
+---
+
+## 2026-01-08 - 执行数据库更新脚本（公告性能优化）
+
+### 执行内容
+执行了以下数据库更新脚本：
+
+1. **update-20260108-optimize-announcement-index.sql**
+   - 优化公告列表查询性能，添加复合索引
+   - 添加 `idx_deleted_publish_sort` 复合索引（deleted, publish_date DESC, sort ASC）
+   - 添加 `idx_deleted_status_publish_sort` 复合索引（deleted, status, publish_date DESC, sort ASC）
+   - 状态：✅ 执行成功
+
+### 验证结果
+- ✅ `announcement` 表的 `idx_deleted_publish_sort` 索引已创建
+- ✅ `announcement` 表的 `idx_deleted_status_publish_sort` 索引已创建
+
+---
+
 ## 2026-01-07 - 执行数据库更新脚本
 
 ### 执行内容
