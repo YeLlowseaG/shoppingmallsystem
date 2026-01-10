@@ -424,12 +424,17 @@ const isMember = computed(() => {
   return cartItems.value.length > 0 && cartItems.value[0].isMember === 1
 })
 
-// 获取价格列标题（根据用户是否是会员）
+// 获取价格列标题（优先判断用户是否是会员，再判断商品是否启用会员价）
 const getPriceColumnTitle = () => {
-  if (isMember.value) {
-    return '会员价'
+  // 1. 优先判断：如果不是会员或未登录，统一显示"商品价格"
+  if (!isMember.value) {
+    return '商品价格'
   }
-  return '商品价格'
+  
+  // 2. 如果是会员，再检查购物车中是否有启用会员价的商品
+  // 如果至少有一个商品启用了会员价，就显示"会员价"
+  const hasMemberPrice = cartItems.value.some(item => item.enableMemberPrice === 1)
+  return hasMemberPrice ? '会员价' : '商品价格'
 }
 
 // 加载购物车列表

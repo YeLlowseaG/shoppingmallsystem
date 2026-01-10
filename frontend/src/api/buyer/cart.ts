@@ -21,6 +21,7 @@ export interface CartVO {
   stock?: number // 商品库存（可选，如果后端返回则使用）
   skuId?: number // SKU ID（可选，如果商品有规格）
   skuCode?: string // SKU编码（可选，如果商品有SKU则返回SKU编码）
+  enableMemberPrice?: number // 是否启用会员价（0-否，1-是），如果商品有SKU则使用SKU的，否则使用商品的
 }
 
 /**

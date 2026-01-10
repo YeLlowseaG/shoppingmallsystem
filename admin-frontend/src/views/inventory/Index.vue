@@ -157,6 +157,14 @@
             </el-select>
           </el-col>
           <el-col :span="4">
+            <el-select v-model="searchForm.productStatus" placeholder="商品状态" clearable>
+              <el-option label="全部" value="" />
+              <el-option label="已上架" value="上架" />
+              <el-option label="已下架" value="下架" />
+              <el-option label="草稿" value="草稿" />
+            </el-select>
+          </el-col>
+          <el-col :span="4">
             <el-select v-model="searchForm.sortBy" placeholder="排序方式">
               <el-option label="按库存数量" value="stock" />
               <el-option label="按库存价值" value="value" />
@@ -204,18 +212,25 @@
           </template>
         </el-table-column>
         <el-table-column prop="categoryName" label="分类" width="120" />
+        <el-table-column prop="productStatus" label="商品状态" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.productStatus === '上架' ? 'success' : row.productStatus === '草稿' ? '' : 'info'">
+              {{ row.productStatus || '-' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="currentStock" label="当前库存" width="100" align="center">
           <template #default="{ row }">
             <span :class="getStockStatusClass(row)">{{ row.currentStock }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="warningStock" label="预警库存" width="100" align="center" />
-        <el-table-column prop="unitPrice" label="库存价格" width="120" align="right">
+        <el-table-column prop="unitPrice" label="库存价格" width="100" align="right">
           <template #default="{ row }">
             ¥{{ parseFloat(row.unitPrice).toFixed(2) }}
           </template>
         </el-table-column>
-        <el-table-column prop="stockValue" label="库存价值" width="120" align="right">
+        <el-table-column prop="stockValue" label="库存价值" width="100" align="right">
           <template #default="{ row }">
             ¥{{ parseFloat(row.stockValue).toFixed(2) }}
           </template>
@@ -251,7 +266,7 @@
           v-model:current-page="pagination.current"
           v-model:page-size="pagination.size"
           :total="pagination.total"
-          :page-sizes="[20, 50, 100, 200]"
+          :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="loadInventoryList"
           @current-change="loadInventoryList"
@@ -306,13 +321,14 @@ const searchForm = ref({
   keyword: '',
   categoryId: undefined as number | number[] | undefined,
   stockStatus: '',
+  productStatus: '上架', // 商品状态，默认值为已上架
   sortBy: 'stock'
 })
 
 // 分页
 const pagination = ref({
   current: 1,
-  size: 20,
+  size: 10, // 默认显示10条一页
   total: 0
 })
 
@@ -464,7 +480,8 @@ const loadInventoryList = async () => {
       current: pagination.value.current,
       size: pagination.value.size,
       keyword: searchForm.value.keyword,
-      categoryId: categoryId
+      categoryId: categoryId,
+      status: searchForm.value.productStatus || undefined // 传递商品状态参数
     }
     
     const response = await request.get('/api/admin/product/page', { params: productParams })
@@ -512,6 +529,7 @@ const loadInventoryList = async () => {
               productCode: product.productCode,
               productImage: product.mainImage || 'https://via.placeholder.com/60',
               categoryName: product.categoryName,
+              productStatus: product.status || '草稿', // 添加商品状态
               skuSpecs: `${skuList.length}个SKU`,
               currentStock: totalStock,
               warningStock: minWarningStock,
@@ -531,6 +549,7 @@ const loadInventoryList = async () => {
               productCode: product.productCode,
               productImage: product.mainImage || 'https://via.placeholder.com/60',
               categoryName: product.categoryName,
+              productStatus: product.status || '草稿', // 添加商品状态
               skuSpecs: '默认规格',
               currentStock: product.stock || 0,
               warningStock: product.warningStock || 20,
@@ -552,6 +571,7 @@ const loadInventoryList = async () => {
             productCode: product.productCode,
             productImage: product.mainImage || 'https://via.placeholder.com/60',
             categoryName: product.categoryName,
+            productStatus: product.status || '草稿', // 添加商品状态
             skuSpecs: '默认规格',
             currentStock: product.stock || 0,
             warningStock: product.warningStock || 20,
@@ -644,6 +664,7 @@ const handleReset = () => {
     keyword: '',
     categoryId: undefined,
     stockStatus: '',
+    productStatus: '上架', // 重置时保持默认值为已上架
     sortBy: 'stock'
   }
   handleSearch()

@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import com.shoppingmall.vo.ProductSkuVO;
+import com.shoppingmall.vo.ProductMemberPriceVO;
 
 /**
  * 商品VO
@@ -170,4 +171,9 @@ public class ProductVO {
      * 用户是否是会员（0-普通用户，1-会员）
      */
     private Integer isMember;
+
+    /**
+     * 商品会员价列表（按会员等级设置，管理后台编辑时使用）
+     */
+    private List<ProductMemberPriceVO> memberPrices;
 }

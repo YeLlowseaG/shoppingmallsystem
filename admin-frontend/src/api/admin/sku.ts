@@ -1,5 +1,17 @@
 import request from '@/utils/request'
 
+// SKU会员价DTO
+export interface ProductSkuMemberPriceDTO {
+  memberLevelId: number
+  memberPrice: number
+}
+
+// SKU会员价VO（用于接收后端数据）
+export interface ProductSkuMemberPriceVO {
+  memberLevelId: number
+  memberPrice: number
+}
+
 // SKU相关接口类型定义
 export interface ProductSkuDTO {
   productId: number
@@ -10,6 +22,7 @@ export interface ProductSkuDTO {
   marketRetailPrice?: number
   memberPrice?: number
   enableMemberPrice?: number
+  memberPrices?: ProductSkuMemberPriceDTO[]
   stock: number
   warningStock?: number
   weight?: number
@@ -37,6 +50,7 @@ export interface ProductSkuVO {
   status: number
   createTime: string
   updateTime: string
+  memberPrices?: ProductSkuMemberPriceVO[]
 }
 
 export interface ProductSpecKeyDTO {

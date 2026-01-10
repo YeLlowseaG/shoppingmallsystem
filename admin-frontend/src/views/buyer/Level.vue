@@ -32,13 +32,14 @@
         <el-table-column prop="levelName" label="等级名称" width="150" />
         <!-- 积分区间列已屏蔽 -->
         <!-- <el-table-column prop="pointsRangeText" label="积分区间" width="180" /> -->
-        <el-table-column prop="discountRateText" label="折扣率" width="120" align="center">
+        <!-- 折扣率列已屏蔽：不再使用折扣率计算会员价 -->
+        <!-- <el-table-column prop="discountRateText" label="折扣率" width="120" align="center">
           <template #default="{ row }">
             <el-tag :type="getDiscountTagType(row.discountRate)">
               {{ row.discountRateText }}
             </el-tag>
           </template>
-        </el-table-column>
+        </el-table-column> -->
         <el-table-column prop="sortOrder" label="排序号" width="100" align="center" />
         <el-table-column prop="statusName" label="状态" width="100" align="center">
           <template #default="{ row }">
@@ -119,7 +120,8 @@
           />
           <div class="form-item-tip">不包含此积分值，留空表示无上限</div>
         </el-form-item> -->
-        <el-form-item label="折扣率" prop="discountRate">
+        <!-- 折扣率字段已屏蔽：不再使用折扣率计算会员价 -->
+        <!-- <el-form-item label="折扣率" prop="discountRate">
           <el-input-number
             v-model="form.discountRate"
             :min="0.01"
@@ -130,7 +132,7 @@
             style="width: 100%"
           />
           <div class="form-item-tip">例如：95.00 表示 95折，100.00 表示无折扣</div>
-        </el-form-item>
+        </el-form-item> -->
         <el-form-item label="排序号" prop="sortOrder">
           <el-input-number
             v-model="form.sortOrder"
@@ -222,10 +224,11 @@ const rules: FormRules = {
   //   { required: true, message: '请输入最低积分', trigger: 'blur' },
   //   { type: 'number', min: 0, message: '最低积分不能小于0', trigger: 'blur' }
   // ],
-  discountRate: [
-    { required: true, message: '请输入折扣率', trigger: 'blur' },
-    { type: 'number', min: 0.01, max: 100.00, message: '折扣率必须在0.01-100.00之间', trigger: 'blur' }
-  ],
+  // 折扣率验证已屏蔽：不再使用折扣率计算会员价
+  // discountRate: [
+  //   { required: true, message: '请输入折扣率', trigger: 'blur' },
+  //   { type: 'number', min: 0.01, max: 100.00, message: '折扣率必须在0.01-100.00之间', trigger: 'blur' }
+  // ],
   sortOrder: [
     { required: true, message: '请输入排序号', trigger: 'blur' },
     { type: 'number', min: 0, message: '排序号不能小于0', trigger: 'blur' }

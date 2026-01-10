@@ -4,13 +4,17 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shoppingmall.dto.ProductSkuDTO;
+import com.shoppingmall.dto.ProductSkuMemberPriceDTO;
 import com.shoppingmall.entity.ProductSku;
+import com.shoppingmall.entity.ProductSkuMemberPrice;
 import com.shoppingmall.entity.ProductSpecKey;
 import com.shoppingmall.entity.ProductSpecValue;
 import com.shoppingmall.entity.ProductStock;
 import com.shoppingmall.repository.product.ProductRepository;
 import com.shoppingmall.repository.product.ProductStockRepository;
+import com.shoppingmall.repository.sku.ProductSkuMemberPriceRepository;
 import com.shoppingmall.repository.sku.ProductSkuRepository;
+import com.shoppingmall.vo.ProductSkuMemberPriceVO;
 import com.shoppingmall.repository.sku.ProductSpecKeyRepository;
 import com.shoppingmall.repository.sku.ProductSpecValueRepository;
 import com.shoppingmall.repository.user.UserRepository;
@@ -44,6 +48,7 @@ public class ProductSkuServiceImpl implements ProductSkuService {
     private final ProductSpecValueRepository specValueRepository;
     private final ProductRepository productRepository;
     private final ProductStockRepository productStockRepository;
+    private final ProductSkuMemberPriceRepository productSkuMemberPriceRepository;
     private final ObjectMapper objectMapper;
     private final MemberLevelService memberLevelService;
     private final UserRepository userRepository;
@@ -103,6 +108,9 @@ public class ProductSkuServiceImpl implements ProductSkuService {
         // 更新商品总库存
         updateProductTotalStock(dto.getProductId());
 
+        // 保存SKU会员价列表
+        saveSkuMemberPrices(entity.getId(), dto.getMemberPrices());
+
         return entity.getId();
     }
     
@@ -153,6 +161,9 @@ public class ProductSkuServiceImpl implements ProductSkuService {
         // 更新商品总库存
         updateProductTotalStock(dto.getProductId());
 
+        // 保存SKU会员价列表
+        saveSkuMemberPrices(id, dto.getMemberPrices());
+
         return result > 0;
     }
     
@@ -180,6 +191,7 @@ public class ProductSkuServiceImpl implements ProductSkuService {
         List<ProductSku> skus = skuRepository.findByProductId(productId);
         return skus.stream().map(sku -> {
             ProductSkuVO vo = convertToVO(sku);
+            
             // 会员价逻辑：如果SKU启用了固定会员价且有值，使用固定会员价；否则按等级折扣计算
             if (sku.getEnableMemberPrice() != null && sku.getEnableMemberPrice() == 1
                     && sku.getMemberPrice() != null && sku.getMemberPrice().compareTo(BigDecimal.ZERO) > 0) {
@@ -189,6 +201,30 @@ public class ProductSkuServiceImpl implements ProductSkuService {
                 // 按用户等级折扣计算会员价
                 vo.setMemberPrice(calculateMemberPrice(sku.getPrice(), userId));
             }
+            
+            // 加载SKU会员价配置（管理后台编辑时使用，userId为null）
+            if (userId == null) {
+                try {
+                    LambdaQueryWrapper<ProductSkuMemberPrice> memberPriceWrapper = new LambdaQueryWrapper<>();
+                    memberPriceWrapper.eq(ProductSkuMemberPrice::getSkuId, sku.getId());
+                    List<ProductSkuMemberPrice> skuMemberPrices = productSkuMemberPriceRepository.selectList(memberPriceWrapper);
+                    
+                    if (skuMemberPrices != null && !skuMemberPrices.isEmpty()) {
+                        List<ProductSkuMemberPriceVO> memberPriceVOs = skuMemberPrices.stream()
+                            .map(mp -> {
+                                ProductSkuMemberPriceVO mpVO = new ProductSkuMemberPriceVO();
+                                mpVO.setMemberLevelId(mp.getMemberLevelId());
+                                mpVO.setMemberPrice(mp.getMemberPrice());
+                                return mpVO;
+                            })
+                            .collect(Collectors.toList());
+                        vo.setMemberPrices(memberPriceVOs);
+                    }
+                } catch (Exception e) {
+                    log.error("加载SKU会员价配置失败: skuId={}", sku.getId(), e);
+                }
+            }
+            
             return vo;
         }).collect(Collectors.toList());
     }
@@ -453,6 +489,38 @@ public class ProductSkuServiceImpl implements ProductSkuService {
         } catch (Exception e) {
             log.error("计算会员价格失败: userId={}, salesPrice={}", userId, salesPrice, e);
             return salesPrice;
+        }
+    }
+
+    /**
+     * 保存SKU会员价列表
+     *
+     * @param skuId SKU ID
+     * @param memberPrices 会员价列表
+     */
+    private void saveSkuMemberPrices(Long skuId, List<ProductSkuMemberPriceDTO> memberPrices) {
+        if (skuId == null) {
+            return;
+        }
+
+        // 删除该SKU的所有现有会员价配置
+        LambdaQueryWrapper<ProductSkuMemberPrice> deleteWrapper = new LambdaQueryWrapper<>();
+        deleteWrapper.eq(ProductSkuMemberPrice::getSkuId, skuId);
+        productSkuMemberPriceRepository.delete(deleteWrapper);
+
+        // 如果有新的会员价配置，则保存
+        if (memberPrices != null && !memberPrices.isEmpty()) {
+            for (ProductSkuMemberPriceDTO dto : memberPrices) {
+                if (dto.getMemberLevelId() != null && dto.getMemberPrice() != null 
+                        && dto.getMemberPrice().compareTo(BigDecimal.ZERO) > 0) {
+                    ProductSkuMemberPrice entity = new ProductSkuMemberPrice();
+                    entity.setSkuId(skuId);
+                    entity.setMemberLevelId(dto.getMemberLevelId());
+                    entity.setMemberPrice(dto.getMemberPrice());
+                    productSkuMemberPriceRepository.insert(entity);
+                }
+            }
+            log.info("保存SKU{}会员价配置成功，共{}个等级", skuId, memberPrices.size());
         }
     }
 }

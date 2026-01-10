@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 商品SKU VO
@@ -100,4 +101,9 @@ public class ProductSkuVO {
      * 更新时间
      */
     private LocalDateTime updateTime;
+
+    /**
+     * SKU会员价列表（按会员等级设置，管理后台编辑时使用）
+     */
+    private List<ProductSkuMemberPriceVO> memberPrices;
 }

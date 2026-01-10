@@ -44,11 +44,16 @@ public class FavoriteController {
     
     /**
      * 检查是否已收藏
+     * 支持未登录用户访问，未登录时返回false
      */
     @GetMapping("/check/{productId}")
-    public Result<Boolean> checkFavorite(@PathVariable Long productId) {
-        // TODO: 从JWT token中获取用户ID
-        Long userId = 1L; // 临时硬编码，实际应从认证信息中获取
+    public Result<Boolean> checkFavorite(@PathVariable Long productId, jakarta.servlet.http.HttpServletRequest request) {
+        // 从request中获取用户ID，如果未登录则为null
+        Long userId = (Long) request.getAttribute("userId");
+        // 未登录用户返回false
+        if (userId == null) {
+            return Result.success("检查成功", false);
+        }
         boolean isFavorited = favoriteService.isFavorited(productId, userId);
         return Result.success("检查成功", isFavorited);
     }

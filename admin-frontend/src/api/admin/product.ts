@@ -4,6 +4,18 @@
 
 import request from '@/utils/request'
 
+// 商品会员价DTO
+export interface ProductMemberPriceDTO {
+  memberLevelId: number
+  memberPrice: number
+}
+
+// 商品会员价VO（用于接收后端数据）
+export interface ProductMemberPriceVO {
+  memberLevelId: number
+  memberPrice: number
+}
+
 // 商品DTO
 export interface ProductDTO {
   id?: number
@@ -22,11 +34,13 @@ export interface ProductDTO {
   marketRetailPrice?: number
   memberPrice?: number
   enableMemberPrice?: number
+  memberPrices?: ProductMemberPriceDTO[]
   stock: number
   warningStock?: number
   weight?: number
   status?: string
   enableSpec?: boolean
+  memberPrices?: ProductMemberPriceVO[]
 }
 
 // 商品VO
@@ -58,6 +72,7 @@ export interface ProductVO {
   status: string
   createTime: string
   updateTime: string
+  memberPrices?: ProductMemberPriceVO[]
 }
 
 // 分页响应
