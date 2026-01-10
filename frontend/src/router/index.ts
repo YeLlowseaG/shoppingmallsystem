@@ -3,6 +3,15 @@ import { useUserStore } from '@/stores/user'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
+  // 路由跳转时滚动到顶部
+  scrollBehavior(to, from, savedPosition) {
+    // 如果路由有保存的滚动位置（浏览器前进/后退），使用保存的位置
+    if (savedPosition) {
+      return savedPosition
+    }
+    // 否则滚动到顶部
+    return { top: 0, behavior: 'smooth' }
+  },
   routes: [
     {
       path: '/',

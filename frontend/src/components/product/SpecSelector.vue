@@ -167,10 +167,24 @@ const handleSpecValueClick = (specName: string, specValue: string) => {
     return
   }
 
-  // 如果点击的是已选择的规格值，则取消选择
+  // 如果点击的是已选择的规格值，检查是否可以取消选择
   if (selectedSpecs.value[specName] === specValue) {
-    delete selectedSpecs.value[specName]
+    // 检查取消选择后是否还有至少一个规格被选中
+    const tempSpecs = { ...selectedSpecs.value }
+    delete tempSpecs[specName]
+    
+    // 如果取消后还有其他规格被选中，允许取消
+    // 如果这是最后一个规格，不允许取消（必须至少保留一个SKU选中）
+    const remainingSpecsCount = Object.keys(tempSpecs).length
+    if (remainingSpecsCount > 0) {
+      // 还有其他规格被选中，允许取消
+      delete selectedSpecs.value[specName]
+    } else {
+      // 这是最后一个规格，不允许取消，必须至少保留一个SKU选中
+      return
+    }
   } else {
+    // 选择新的规格值
     selectedSpecs.value[specName] = specValue
   }
 

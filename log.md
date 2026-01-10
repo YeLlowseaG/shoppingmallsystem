@@ -1,5 +1,55 @@
 # 修改日志
 
+## 2026-01-08 - 修复商品详情页面包屑导航硬编码问题
+
+### 问题描述
+商品详情页（`http://localhost:3002/products/18`）的面包屑导航路径是硬编码的，显示为"首页 > 避孕润滑 > 安全套 >"，而不是根据后端返回的商品分类层级动态生成。
+
+### 问题原因
+1. 面包屑导航中的分类名称和链接是硬编码的（"避孕润滑"和"安全套"）
+2. 没有根据商品的 `categoryId` 动态构建分类路径
+3. 没有递归查找父分类来构建完整的面包屑路径
+
+### 修改内容
+
+1. **导入分类API** (`frontend/src/views/products/Detail.vue`)
+   - 添加 `getCategoryById` 和 `ProductCategoryVO` 的导入
+   - 用于根据分类ID获取分类信息（包括父分类ID）
+
+2. **添加面包屑路径数据** (`frontend/src/views/products/Detail.vue`)
+   - 添加 `breadcrumbPath` 响应式变量，存储分类路径数组
+   - 每个路径项包含 `id` 和 `name` 字段
+
+3. **实现分类路径构建函数** (`frontend/src/views/products/Detail.vue`)
+   - 添加 `buildCategoryPath()` 函数
+   - 根据商品的 `categoryId` 递归向上查找所有父分类
+   - 构建从根分类到当前分类的完整路径
+
+4. **在加载商品时构建路径** (`frontend/src/views/products/Detail.vue`)
+   - 在 `loadProductDetail()` 函数中，加载商品详情后调用 `buildCategoryPath()`
+   - 根据商品的 `categoryId` 动态构建面包屑路径
+
+5. **修改模板使用动态数据** (`frontend/src/views/products/Detail.vue`)
+   - 将硬编码的分类链接改为使用 `v-for` 遍历 `breadcrumbPath`
+   - 动态生成分类链接和名称
+
+### 功能说明
+- **动态路径生成**：根据商品的 `categoryId` 自动构建分类路径
+- **递归查找父分类**：从当前分类向上递归查找所有父分类，构建完整路径
+- **自动适配**：无论商品属于几级分类，都能正确显示完整的面包屑路径
+- **链接正确**：每个分类链接都指向对应的分类商品列表页
+
+### 修改后的效果
+- ✅ 面包屑导航根据商品的实际分类动态生成
+- ✅ 支持多级分类（一级、二级、三级等）
+- ✅ 分类路径自动适配，无需手动维护
+- ✅ 分类链接正确指向对应的分类商品列表
+
+### 相关文件
+- `frontend/src/views/products/Detail.vue`
+
+---
+
 ## 2026-01-10 - 生成新模板批量导入测试数据
 
 ### 需求说明
@@ -2001,5 +2051,388 @@ location /uploads/ {
 - ✅ 广告位标题只显示广告名称：不再显示"2F"前缀，直接显示管理后台配置的广告名称
 - ✅ 管理后台可以配置楼层广告5、6、7：下拉选项中包含所有7个楼层广告位置
 - ✅ 广告位置文本显示正确：列表和详情中正确显示楼层广告5、6、7的文本
->>>>>>> 745ac937db43a34c8711f309399dc6e7f2b2bd98
+
+---
+
+## 2025-01-08 - 修复分类查询逻辑：支持通过父级分类查询所有子分类的商品
+
+### 问题描述
+1. 管理后台商品列表（`/admin/product/list`）：通过父级分类查询时，查询不到子分类的商品
+2. 库存管理（`/admin/inventory`）：同样的问题，通过父级分类查询不到子分类的商品
+3. 用户端商品列表（`/products?categoryId=6`）：通过父级分类查询时，后端没有返回子分类的商品
+4. 首页广告位推荐商品：通过父级分类查询时，没有返回子分类的商品
+
+### 解决方案
+修改商品查询逻辑，使其支持查询父分类及其所有子分类的商品。当传入父分类ID时，系统会递归获取该分类下的所有子分类ID，然后使用 `IN` 查询来获取所有相关分类的商品。
+
+### 修改内容
+
+1. ✅ `backend/src/main/java/com/shoppingmall/service/product/ProductCategoryService.java`
+   - 添加接口方法 `getAllCategoryIdsIncludingChildren(Long categoryId)`：获取指定分类及其所有子分类的ID列表
+
+2. ✅ `backend/src/main/java/com/shoppingmall/service/product/impl/ProductCategoryServiceImpl.java`
+   - 实现 `getAllCategoryIdsIncludingChildren()` 方法
+   - 添加私有方法 `collectChildCategoryIds()`：递归收集所有子分类ID
+   - 只查询启用状态（status=1）的分类
+
+3. ✅ `backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java`
+   - 注入 `ProductCategoryService` 依赖
+   - 修改 `getProductPage()` 方法：将分类筛选从精确匹配（`eq`）改为包含子分类的查询（`in`）
+   - 修改 `getRecommendProducts()` 方法：同样支持查询父分类及其所有子分类的商品
+
+### 技术细节
+
+**分类查询逻辑变更：**
+- **修改前**：`wrapper.eq(Product::getCategoryId, categoryId)` - 只查询指定分类的商品
+- **修改后**：`wrapper.in(Product::getCategoryId, categoryIds)` - 查询指定分类及其所有子分类的商品
+
+**递归获取子分类ID：**
+- 从指定分类ID开始，递归查询所有子分类
+- 只包含启用状态（status=1）的分类
+- 返回包含自身及所有子分类的ID列表
+
+### 修改后的效果
+- ✅ 管理后台商品列表：通过父级分类可以查询到所有子分类的商品
+- ✅ 库存管理：通过父级分类可以查询到所有子分类的商品
+- ✅ 用户端商品列表：通过父级分类可以查询到所有子分类的商品
+- ✅ 首页广告位推荐商品：通过父级分类可以查询到所有子分类的商品
+- ✅ 所有涉及分类查询的地方都已统一支持子分类查询
+
+### 代码修改清单
+1. ✅ `backend/src/main/java/com/shoppingmall/service/product/ProductCategoryService.java` - 添加接口方法
+2. ✅ `backend/src/main/java/com/shoppingmall/service/product/impl/ProductCategoryServiceImpl.java` - 实现递归获取子分类ID的方法
+3. ✅ `backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java` - 修改商品查询逻辑，支持子分类查询
+
+---
+
+## 2025-01-08 - 修复首页广告位商品关联逻辑：优先使用广告配置的分类ID
+
+### 问题描述
+首页广告位模块的商品关联逻辑存在问题：
+1. 后台配置了广告位-商品分类（linkType=1, linkValue=分类ID），但前端没有使用这个配置
+2. 前端代码使用了硬编码的 `floorConfig` 中的分类ID，导致数据对不上
+3. 理论上，如果配置了某一个商品分类，应该只显示这个商品分类的商品数据
+
+### 问题原因
+在 `frontend/src/views/home/Index.vue` 中：
+- 第119行代码使用了硬编码的 `config.categoryId` 来获取推荐商品
+- 没有检查广告配置中的 `linkType` 和 `linkValue` 字段
+- 当 `linkType === 1`（商品分类）时，`linkValue` 就是分类ID，但代码没有使用它
+
+### 解决方案
+修改商品关联逻辑，优先使用广告配置中的分类ID：
+1. 当广告的 `linkType === 1`（商品分类）且 `linkValue` 存在时，使用 `linkValue` 作为分类ID
+2. 否则，使用 `floorConfig` 中的默认分类ID作为后备方案
+3. 确保数据与后台配置一致
+
+### 修改内容
+
+1. ✅ `frontend/src/views/home/Index.vue`
+   - 修改 `loadFloorData()` 函数中的商品关联逻辑
+   - 添加分类ID判断：优先使用广告配置中的分类ID（`linkType === 1` 时的 `linkValue`）
+   - 如果广告配置中没有分类ID，则使用默认配置中的分类ID
+   - 更新 `categoryId` 字段使用实际使用的分类ID
+
+### 技术细节
+
+**分类ID选择逻辑：**
+```typescript
+// 确定使用的分类ID：优先使用广告配置中的分类ID，否则使用默认配置
+let categoryId = config.categoryId
+if (ad.linkType === 1 && ad.linkValue) {
+  // linkType=1 表示商品分类，linkValue 是分类ID
+  const adCategoryId = Number(ad.linkValue)
+  if (!isNaN(adCategoryId)) {
+    categoryId = adCategoryId
+  }
+}
+```
+
+**修改前：**
+- 始终使用 `config.categoryId`（硬编码的分类ID）
+- 忽略广告配置中的 `linkValue`
+
+**修改后：**
+- 优先使用广告配置中的分类ID（`linkType === 1` 时的 `linkValue`）
+- 如果广告配置中没有分类ID，使用默认配置作为后备
+- 确保显示的商品与后台配置的分类一致
+
+### 修改后的效果
+- ✅ 广告位商品关联逻辑正确：优先使用后台配置的商品分类ID
+- ✅ 数据与后台配置一致：如果配置了某个商品分类，只显示该分类的商品
+- ✅ 兼容性保持：如果广告配置中没有分类ID，使用默认配置作为后备
+- ✅ 类型安全：对 `linkValue` 进行数字转换和有效性检查
+
+### 代码修改清单
+1. ✅ `frontend/src/views/home/Index.vue` - 修改商品关联逻辑，优先使用广告配置的分类ID
+
+---
+
+## 2025-01-08 - 修复首页商品原价计算：优先使用市场零售价
+
+### 问题描述
+首页广告位模块的商品原价计算存在硬编码问题：
+1. 原价被硬编码为基础价的1.5倍：`originalPrice: product.basePrice * 1.5`
+2. 商品VO中已经有 `marketRetailPrice`（市场零售价）字段，但没有使用
+3. 与商品列表页的逻辑不一致（商品列表页已经正确使用了 `marketRetailPrice`）
+
+### 问题原因
+在 `frontend/src/views/home/Index.vue` 的 `convertProduct` 函数中：
+- 第86行代码硬编码了原价计算：`originalPrice: product.basePrice * 1.5`
+- 没有使用后端返回的 `marketRetailPrice` 字段
+- 导致即使后端配置了市场零售价，前端也没有使用
+
+### 解决方案
+修改原价计算逻辑，优先使用后端返回的市场零售价：
+1. 优先使用 `product.marketRetailPrice`（如果存在）
+2. 如果 `marketRetailPrice` 不存在，则使用 `product.basePrice * 1.5` 作为后备
+3. 与商品列表页的逻辑保持一致
+
+### 修改内容
+
+1. ✅ `frontend/src/views/home/Index.vue`
+   - 修改 `convertProduct()` 函数中的原价计算逻辑
+   - 将 `originalPrice: product.basePrice * 1.5` 改为 `originalPrice: product.marketRetailPrice || product.basePrice * 1.5`
+   - 优先使用后端返回的市场零售价
+
+### 技术细节
+
+**原价计算逻辑变更：**
+```typescript
+// 修改前
+originalPrice: product.basePrice * 1.5,  // 原价设置为基础价的1.5倍
+
+// 修改后
+originalPrice: product.marketRetailPrice || product.basePrice * 1.5,  // 优先使用市场零售价，否则使用基础价的1.5倍
+```
+
+**修改前：**
+- 始终使用 `basePrice * 1.5` 计算原价
+- 忽略后端返回的 `marketRetailPrice` 字段
+
+**修改后：**
+- 优先使用后端返回的 `marketRetailPrice`（如果存在）
+- 如果 `marketRetailPrice` 不存在，使用 `basePrice * 1.5` 作为后备
+- 与商品列表页的逻辑保持一致
+
+### 修改后的效果
+- ✅ 原价计算逻辑正确：优先使用后端配置的市场零售价
+- ✅ 数据与后端配置一致：如果后端配置了市场零售价，前端会正确显示
+- ✅ 逻辑一致性：与商品列表页的原价计算逻辑保持一致
+- ✅ 兼容性保持：如果后端没有配置市场零售价，使用基础价的1.5倍作为后备
+
+### 代码修改清单
+1. ✅ `frontend/src/views/home/Index.vue` - 修改商品原价计算逻辑，优先使用市场零售价
+
+---
+
+## 2025-01-08 - 修复商品价格计算：启用SKU时优先使用SKU价格
+
+### 问题描述
+商品价格计算逻辑存在不合理的地方：
+1. 首页和商品列表页的价格计算都没有考虑SKU的情况
+2. 如果商品启用了SKU（enableSpec === 1），应该优先读取SKU的价格字段
+3. 当前逻辑只使用了商品级别的价格，忽略了SKU级别的价格配置
+
+### 问题原因
+在 `frontend/src/views/home/Index.vue` 和 `frontend/src/views/products/List.vue` 中：
+- 价格计算直接使用商品级别的 `basePrice`、`memberPrice`、`marketRetailPrice`
+- 没有检查商品是否启用了SKU（`enableSpec === 1`）
+- 没有优先使用SKU的价格字段（`skus[0].price`、`skus[0].memberPrice`、`skus[0].marketRetailPrice`）
+
+### 解决方案
+修改价格计算逻辑，启用SKU时优先使用SKU价格：
+1. 检查商品是否启用了SKU（`enableSpec === 1`）且有SKU数据
+2. 如果启用了SKU，优先使用第一个SKU的价格字段
+3. 如果没有启用SKU或没有SKU数据，使用商品级别的价格作为后备
+4. 统一修改首页和商品列表页的价格计算逻辑
+
+### 修改内容
+
+1. ✅ `frontend/src/views/home/Index.vue`
+   - 修改 `convertProduct()` 函数中的价格计算逻辑
+   - 添加SKU检查：如果启用了SKU且有SKU数据，优先使用第一个SKU的价格
+   - 价格字段优先级：
+     - `price`: SKU的`price` → 商品的`basePrice`
+     - `memberPrice`: SKU的`memberPrice` → 商品的`memberPrice` → 商品的`basePrice`
+     - `originalPrice`: SKU的`marketRetailPrice` → 商品的`marketRetailPrice` → 商品的`basePrice * 1.5`
+
+2. ✅ `frontend/src/views/products/List.vue`
+   - 修改 `displayProducts` computed 中的价格计算逻辑
+   - 添加SKU检查：如果启用了SKU且有SKU数据，优先使用第一个SKU的价格
+   - 价格字段优先级与首页保持一致
+
+### 技术细节
+
+**价格计算逻辑变更：**
+```typescript
+// 检查是否启用了SKU
+const hasSku = product.enableSpec === 1 && product.skus && product.skus.length > 0
+const firstSku = hasSku && product.skus ? product.skus[0] : null
+
+// 价格：优先使用SKU价格，否则使用商品价格
+price: firstSku?.price ?? product.basePrice
+
+// 会员价：优先使用SKU会员价，否则使用商品会员价
+memberPrice: firstSku?.memberPrice ?? product.memberPrice ?? product.basePrice
+
+// 原价：优先使用SKU市场零售价，否则使用商品市场零售价，最后使用基础价的1.5倍
+originalPrice: firstSku?.marketRetailPrice ?? product.marketRetailPrice ?? product.basePrice * 1.5
+```
+
+**修改前：**
+- 始终使用商品级别的价格（`basePrice`、`memberPrice`、`marketRetailPrice`）
+- 忽略SKU级别的价格配置
+
+**修改后：**
+- 如果启用了SKU且有SKU数据，优先使用第一个SKU的价格
+- 如果没有启用SKU或没有SKU数据，使用商品级别的价格作为后备
+- 确保价格显示与商品详情页的逻辑保持一致
+
+### 修改后的效果
+- ✅ 价格计算逻辑正确：启用SKU时优先使用SKU价格
+- ✅ 数据与后端配置一致：如果商品启用了SKU，会正确显示SKU的价格
+- ✅ 逻辑一致性：首页和商品列表页的价格计算逻辑统一
+- ✅ 兼容性保持：如果没有启用SKU，使用商品级别的价格作为后备
+
+### 代码修改清单
+1. ✅ `frontend/src/views/home/Index.vue` - 修改商品价格计算逻辑，启用SKU时优先使用SKU价格
+2. ✅ `frontend/src/views/products/List.vue` - 修改商品价格计算逻辑，启用SKU时优先使用SKU价格
+
+---
+
+## 2025-01-08 - 修复路由跳转滚动位置：跳转到商品详情页时自动滚动到顶部
+
+### 问题描述
+从首页或商品列表页点击商品跳转到商品详情页时，页面没有定位到顶部，而是停留在底部，用户体验不佳。
+
+### 问题原因
+Vue Router 没有配置 `scrollBehavior`，导致路由跳转时不会自动重置滚动位置。当用户从页面底部点击商品时，跳转到新页面后仍然停留在底部位置。
+
+### 解决方案
+在 Vue Router 配置中添加 `scrollBehavior`，让所有路由跳转时自动滚动到顶部：
+1. 如果路由有保存的滚动位置（浏览器前进/后退），使用保存的位置
+2. 否则滚动到顶部，使用平滑滚动效果
+
+### 修改内容
+
+1. ✅ `frontend/src/router/index.ts`
+   - 在 `createRouter` 配置中添加 `scrollBehavior` 函数
+   - 实现路由跳转时自动滚动到顶部的逻辑
+   - 支持浏览器前进/后退时恢复滚动位置
+
+### 技术细节
+
+**scrollBehavior 配置：**
+```typescript
+scrollBehavior(to, from, savedPosition) {
+  // 如果路由有保存的滚动位置（浏览器前进/后退），使用保存的位置
+  if (savedPosition) {
+    return savedPosition
+  }
+  // 否则滚动到顶部
+  return { top: 0, behavior: 'smooth' }
+}
+```
+
+**修改前：**
+- 路由跳转时不会自动重置滚动位置
+- 从页面底部点击商品跳转后，新页面仍然停留在底部
+
+**修改后：**
+- 路由跳转时自动滚动到顶部（使用平滑滚动）
+- 浏览器前进/后退时恢复之前的滚动位置
+- 提升用户体验，确保用户能看到页面顶部内容
+
+### 修改后的效果
+- ✅ 路由跳转自动滚动到顶部：从首页或商品列表页跳转到商品详情页时，页面自动滚动到顶部
+- ✅ 平滑滚动效果：使用 `behavior: 'smooth'` 提供更好的视觉体验
+- ✅ 浏览器导航支持：前进/后退时恢复之前的滚动位置
+- ✅ 全局生效：所有路由跳转都会应用此滚动行为
+
+### 代码修改清单
+1. ✅ `frontend/src/router/index.ts` - 添加 scrollBehavior 配置，实现路由跳转时自动滚动到顶部
+
+---
+
+## 2025-01-08 - 修复商品详情页SKU选择：确保至少选中一个SKU且不能取消
+
+### 问题描述
+商品详情页如果商品启用了SKU，用户可以取消所有规格的选择，导致没有SKU被选中，这不符合业务逻辑。应该默认至少选中第一个SKU，且不能取消所有规格的选择。
+
+### 问题原因
+1. `SpecSelector` 组件允许用户点击已选中的规格值来取消选择
+2. 用户可以取消所有规格，导致没有SKU被选中
+3. 没有强制要求至少保留一个SKU被选中
+
+### 解决方案
+修改SKU选择逻辑，确保至少有一个SKU被选中：
+1. 在 `SpecSelector` 组件中，防止取消最后一个规格的选择
+2. 在商品详情页的 `handleSpecChange` 中，如果所有规格都被取消，自动恢复默认选中的第一个SKU
+3. 确保默认选中第一个SKU的逻辑更加健壮
+
+### 修改内容
+
+1. ✅ `frontend/src/components/product/SpecSelector.vue`
+   - 修改 `handleSpecValueClick()` 方法
+   - 添加检查：如果取消选择后没有其他规格被选中，不允许取消
+   - 确保至少保留一个规格被选中
+
+2. ✅ `frontend/src/views/products/Detail.vue`
+   - 修改 `handleSpecChange()` 方法
+   - 添加检查：如果所有规格都被取消，自动恢复默认选中的第一个SKU
+   - 确保至少有一个SKU被选中
+
+### 技术细节
+
+**SpecSelector组件修改：**
+```typescript
+// 如果点击的是已选择的规格值，检查是否可以取消选择
+if (selectedSpecs.value[specName] === specValue) {
+  const tempSpecs = { ...selectedSpecs.value }
+  delete tempSpecs[specName]
+  
+  // 如果取消后还有其他规格被选中，允许取消
+  // 如果这是最后一个规格，不允许取消（必须至少保留一个SKU选中）
+  const remainingSpecsCount = Object.keys(tempSpecs).length
+  if (remainingSpecsCount > 0) {
+    delete selectedSpecs.value[specName]
+  } else {
+    // 这是最后一个规格，不允许取消
+    return
+  }
+}
+```
+
+**商品详情页修改：**
+```typescript
+// 如果商品启用了SKU，确保至少有一个SKU被选中
+if (product.value.enableSpec === 1 && productSkuList.value.length > 0) {
+  const selectedCount = Object.keys(newSelectedSpecs).length
+  if (selectedCount === 0) {
+    // 恢复默认选中的第一个SKU
+    // ...恢复逻辑
+  }
+}
+```
+
+**修改前：**
+- 用户可以取消所有规格的选择
+- 可能导致没有SKU被选中
+- 用户体验不佳
+
+**修改后：**
+- 至少保留一个规格被选中（不能取消最后一个规格）
+- 如果所有规格都被取消，自动恢复默认选中的第一个SKU
+- 确保至少有一个SKU被选中，提升用户体验
+
+### 修改后的效果
+- ✅ 默认选中第一个SKU：商品详情页加载时自动选中第一个SKU
+- ✅ 不能取消所有规格：至少保留一个规格被选中
+- ✅ 自动恢复机制：如果所有规格都被取消，自动恢复默认选中的第一个SKU
+- ✅ 用户体验提升：确保用户始终能看到商品的价格和库存信息
+
+### 代码修改清单
+1. ✅ `frontend/src/components/product/SpecSelector.vue` - 修改规格选择逻辑，防止取消最后一个规格
+2. ✅ `frontend/src/views/products/Detail.vue` - 修改规格变化处理逻辑，确保至少有一个SKU被选中
 
