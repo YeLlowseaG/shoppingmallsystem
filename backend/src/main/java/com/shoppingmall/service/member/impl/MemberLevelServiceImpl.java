@@ -6,8 +6,12 @@ import com.shoppingmall.common.exception.BusinessException;
 import com.shoppingmall.common.util.StringUtil;
 import com.shoppingmall.dto.MemberLevelDTO;
 import com.shoppingmall.entity.MemberLevel;
+import com.shoppingmall.entity.ProductMemberPrice;
+import com.shoppingmall.entity.ProductSkuMemberPrice;
 import com.shoppingmall.entity.User;
 import com.shoppingmall.repository.member.MemberLevelRepository;
+import com.shoppingmall.repository.product.ProductMemberPriceRepository;
+import com.shoppingmall.repository.sku.ProductSkuMemberPriceRepository;
 import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.service.member.MemberLevelService;
 import com.shoppingmall.vo.MemberLevelVO;
@@ -18,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -34,6 +39,8 @@ public class MemberLevelServiceImpl implements MemberLevelService {
 
     private final MemberLevelRepository memberLevelRepository;
     private final UserRepository userRepository;
+    private final ProductMemberPriceRepository productMemberPriceRepository;
+    private final ProductSkuMemberPriceRepository productSkuMemberPriceRepository;
 
     @Override
     public Page<MemberLevelVO> getMemberLevelPage(Integer page, Integer pageSize, String levelName, Integer status) {
@@ -145,18 +152,43 @@ public class MemberLevelServiceImpl implements MemberLevelService {
             throw new BusinessException(404, "会员等级不存在");
         }
 
-        // 检查是否有用户使用了该会员等级
+        // 收集所有关联信息
+        List<String> reasons = new ArrayList<>();
+
+        // 1. 检查是否有用户使用了该会员等级
         LambdaQueryWrapper<User> userWrapper = new LambdaQueryWrapper<>();
         userWrapper.eq(User::getIsMember, 1)  // 是会员
                    .eq(User::getMemberLevelId, id)  // 使用了该等级
                    .eq(User::getDeleted, 0);  // 未删除
         Long userCount = userRepository.selectCount(userWrapper);
-        
         if (userCount != null && userCount > 0) {
-            throw new BusinessException(400, 
-                String.format("该会员等级已被 %d 位会员使用，无法删除。如需修改，请使用编辑功能。", userCount));
+            reasons.add(String.format("%d 位会员正在使用", userCount));
         }
 
+        // 2. 检查是否有商品配置了该会员等级的会员价
+        LambdaQueryWrapper<ProductMemberPrice> productPriceWrapper = new LambdaQueryWrapper<>();
+        productPriceWrapper.eq(ProductMemberPrice::getMemberLevelId, id);
+        Long productPriceCount = productMemberPriceRepository.selectCount(productPriceWrapper);
+        if (productPriceCount != null && productPriceCount > 0) {
+            reasons.add(String.format("%d 个商品配置了会员价", productPriceCount));
+        }
+
+        // 3. 检查是否有SKU配置了该会员等级的会员价
+        LambdaQueryWrapper<ProductSkuMemberPrice> skuPriceWrapper = new LambdaQueryWrapper<>();
+        skuPriceWrapper.eq(ProductSkuMemberPrice::getMemberLevelId, id);
+        Long skuPriceCount = productSkuMemberPriceRepository.selectCount(skuPriceWrapper);
+        if (skuPriceCount != null && skuPriceCount > 0) {
+            reasons.add(String.format("%d 个SKU配置了会员价", skuPriceCount));
+        }
+
+        // 如果有任何关联，抛出异常
+        if (!reasons.isEmpty()) {
+            String reasonText = String.join("、", reasons);
+            throw new BusinessException(400, 
+                String.format("该会员等级无法删除，原因：%s。请先处理相关数据后再删除。", reasonText));
+        }
+
+        // 所有检查通过，执行删除
         memberLevelRepository.deleteById(id);
         log.info("删除会员等级成功: id={}", id);
     }

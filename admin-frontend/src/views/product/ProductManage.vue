@@ -202,8 +202,10 @@
     <el-dialog
       v-model="dialogVisible"
       title="编辑商品"
-      width="980px"
+      width="1400px"
       class="product-edit-dialog"
+      :close-on-click-modal="false"
+      destroy-on-close
     >
       <el-form
         ref="formRef"
@@ -339,21 +341,32 @@
           </el-form-item>
         </div>
 
-        <!-- 会员价设置（单独一行） -->
+        <!-- 会员价设置 -->
         <div class="member-price-row">
           <el-form-item label="启用会员价">
-            <el-switch v-model="formData.enableMemberPrice" :active-value="1" :inactive-value="0" />
-            <span class="form-tip" style="margin-left: 10px; color: #f56c6c;">启用后以会员价作为售价，否则以基础价作为售价</span>
+            <el-switch v-model="formData.enableMemberPrice" :active-value="1" :inactive-value="0" @change="handleEnableMemberPriceChange" />
+            <span class="form-tip" style="margin-left: 10px; color: #f56c6c;">启用后可为不同会员等级设置不同的会员价</span>
           </el-form-item>
-          <el-form-item label="会员价" prop="memberPrice" v-if="formData.enableMemberPrice === 1">
-            <el-input-number
-              v-model="formData.memberPrice"
-              :min="0"
-              :precision="2"
-              :step="0.01"
-              controls-position="right"
-              style="width: 200px"
-            />
+          <el-form-item v-if="formData.enableMemberPrice === 1" label="会员价设置">
+            <el-table :data="productMemberPriceTable" border style="width: 100%; margin-top: 10px;" max-height="300">
+              <el-table-column prop="memberLevelName" label="会员等级" width="150" align="center" />
+              <el-table-column label="会员价" min-width="200">
+                <template #default="{ row }">
+                  <el-input-number
+                    v-model="row.memberPrice"
+                    :min="0"
+                    :precision="2"
+                    :step="0.01"
+                    controls-position="right"
+                    style="width: 100%"
+                    placeholder="请输入会员价"
+                  />
+                </template>
+              </el-table-column>
+            </el-table>
+            <div class="form-tip" style="margin-top: 5px; color: #909399;">
+              提示：为空表示该等级不享受会员价，将显示基础价格
+            </div>
           </el-form-item>
         </div>
 
@@ -458,7 +471,8 @@
                 border
                 class="sku-table"
                 size="small"
-                style="width: 100%; min-width: 1200px;"
+                style="width: 100%; min-width: 1350px;"
+                :scroll="{ x: 1350 }"
               >
                 <el-table-column prop="specCombinationText" label="规格组合" min-width="120" align="left" />
                 <el-table-column label="SKU编码" min-width="150">
@@ -509,28 +523,17 @@
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="启用会员价" min-width="100" align="center">
-                  <template #default="{ row, $index }">
-                    <el-switch
-                      v-model="row.enableMemberPrice"
-                      :active-value="1"
-                      :inactive-value="0"
-                      size="small"
-                    />
-                  </template>
-                </el-table-column>
-                <el-table-column label="会员价" min-width="130">
-                  <template #default="{ row, $index }">
-                    <el-input-number
-                      v-model="row.memberPrice"
-                      :min="0"
-                      :precision="2"
-                      :step="0.01"
-                      size="small"
-                      controls-position="right"
-                      style="width: 100%"
-                      :disabled="row.enableMemberPrice !== 1"
-                    />
+                <el-table-column label="会员价状态" width="120" align="center">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.enableMemberPrice === 1 && row.memberPrices?.length > 0" type="success" size="small">
+                      已设置
+                    </el-tag>
+                    <el-tag v-else-if="row.enableMemberPrice === 1" type="warning" size="small">
+                      未设置
+                    </el-tag>
+                    <el-tag v-else type="info" size="small">
+                      未启用
+                    </el-tag>
                   </template>
                 </el-table-column>
                 <el-table-column label="库存" min-width="120">
@@ -557,7 +560,7 @@
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="警戒库存" min-width="120">
+                <el-table-column label="警戒库存" width="110">
                   <template #default="{ row, $index }">
                     <el-input-number
                       v-model="row.warningStock"
@@ -568,13 +571,22 @@
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="70" fixed="right">
+                <el-table-column label="操作" width="130" fixed="right">
                   <template #default="{ row, $index }">
+                    <el-button
+                      type="primary"
+                      size="small"
+                      @click="openSkuMemberPriceDialog(row, $index)"
+                      style="margin-right: 3px; font-size: 12px; padding: 4px 6px;"
+                    >
+                      设置会员价
+                    </el-button>
                     <el-button
                       type="danger"
                       size="small"
                       :icon="Delete"
                       @click="removeEditSku($index)"
+                      style="padding: 4px 8px;"
                     />
                   </template>
                 </el-table-column>
@@ -666,6 +678,57 @@
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" @click="handleSubmit">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- SKU会员价设置弹窗 -->
+    <el-dialog
+      v-model="skuMemberPriceDialogVisible"
+      :title="`设置会员价 - ${currentSkuForMemberPrice ? currentSkuForMemberPrice.specCombinationText : ''}`"
+      width="600px"
+    >
+      <div style="margin-bottom: 15px;" v-if="currentSkuForMemberPrice">
+        <el-switch
+          v-model="currentSkuForMemberPrice.enableMemberPrice"
+          :active-value="1"
+          :inactive-value="0"
+          @change="handleSkuEnableMemberPriceChange"
+        />
+        <span style="margin-left: 10px; color: #909399;">
+          启用会员价后可为不同会员等级设置不同的会员价
+        </span>
+      </div>
+      
+      <el-table
+        v-if="currentSkuForMemberPrice && currentSkuForMemberPrice.enableMemberPrice === 1"
+        :data="skuMemberPriceTable"
+        border
+        style="width: 100%"
+        max-height="400"
+      >
+        <el-table-column prop="memberLevelName" label="会员等级" width="150" align="center" />
+        <el-table-column label="会员价" min-width="200">
+          <template #default="{ row }">
+            <el-input-number
+              v-model="row.memberPrice"
+              :min="0"
+              :precision="2"
+              :step="0.01"
+              controls-position="right"
+              style="width: 100%"
+              placeholder="请输入会员价"
+            />
+          </template>
+        </el-table-column>
+      </el-table>
+      
+      <div v-if="currentSkuForMemberPrice && currentSkuForMemberPrice.enableMemberPrice === 1" class="form-tip" style="margin-top: 10px; color: #909399;">
+        提示：为空表示该等级不享受会员价，将显示基础价格
+      </div>
+      
+      <template #footer>
+        <el-button @click="skuMemberPriceDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveSkuMemberPrice">确定</el-button>
       </template>
     </el-dialog>
 
@@ -882,24 +945,24 @@
               <ul style="margin: 8px 0 0 20px; padding: 0">
                 <li>单次最多导入 <strong style="color: #409eff">200条</strong> 商品数据</li>
                 <li>如果数据超过200条，请分批导入</li>
-                <li>支持 CSV 或 Excel (.xlsx/.xls) 格式</li>
+                <li>支持 Excel (.xlsx/.xls) 格式</li>
               </ul>
             </div>
           </template>
         </el-alert>
         <el-form-item label="数据文件" required>
-          <el-upload
+            <el-upload
             ref="csvUploadRef"
             :auto-upload="false"
             :limit="1"
-            accept=".csv,.xlsx,.xls"
+            accept=".xlsx,.xls"
             :on-change="handleCsvChange"
             :on-remove="handleCsvRemove"
             :file-list="csvFileList"
           >
             <el-button type="primary">选择文件</el-button>
           </el-upload>
-          <div class="form-tip">支持 CSV 或 Excel (.xlsx/.xls) 格式</div>
+          <div class="form-tip">支持 Excel (.xlsx/.xls) 格式</div>
         </el-form-item>
 
         <!-- 图片压缩包功能暂时屏蔽，后续有需要再放开 -->
@@ -919,11 +982,7 @@
         </el-form-item> -->
 
         <el-form-item label="下载模板">
-          <el-button type="success" @click="downloadTemplate('csv')" style="margin-right: 10px">
-            <el-icon><Download /></el-icon>
-            下载CSV模板
-          </el-button>
-          <el-button type="success" @click="downloadTemplate('excel')">
+          <el-button type="success" @click="downloadTemplate()">
             <el-icon><Download /></el-icon>
             下载Excel模板
           </el-button>
@@ -1005,6 +1064,7 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type Upload
 import { Plus, Delete, Upload, Search, ArrowUp, ArrowDown, Download } from '@element-plus/icons-vue'
 import {
   getProductPage,
+  getProductById,
   updateProduct,
   deleteProduct,
   updateProductStatus,
@@ -1024,11 +1084,14 @@ import {
   deleteSpecsByProductId,
   type ProductSkuVO,
   type ProductSkuDTO,
+  type ProductSkuMemberPriceDTO,
   type ProductSpecKeyVO
 } from '@/api/admin/sku'
 import { syncProductToErp } from '@/api/admin/erp'
+import { getAllEnabledMemberLevels, type MemberLevelVO } from '@/api/admin/memberLevel'
 import RichTextEditor from '@/components/common/RichTextEditor.vue'
 import request from '@/utils/request'
+import type { ProductMemberPriceDTO, ProductMemberPriceVO } from '@/api/admin/product'
 
 const router = useRouter()
 
@@ -1068,6 +1131,26 @@ const brandOptions = ref<any[]>([])
 
 // 运费模板列表
 const shippingTemplates = ref<any[]>([])
+
+// 会员等级列表
+const memberLevels = ref<MemberLevelVO[]>([])
+
+// 商品会员价表格数据（按会员等级）
+const productMemberPriceTable = ref<Array<{
+  memberLevelId: number
+  memberLevelName: string
+  memberPrice: number | null
+}>>([])
+
+// SKU会员价设置相关
+const skuMemberPriceDialogVisible = ref(false)
+const currentSkuForMemberPrice = ref<any>(null)
+const currentSkuIndex = ref<number>(-1)
+const skuMemberPriceTable = ref<Array<{
+  memberLevelId: number
+  memberLevelName: string
+  memberPrice: number | null
+}>>([])
 
 // 监控运费模板数据变化
 watch(shippingTemplates, (newVal) => {
@@ -1119,6 +1202,7 @@ const formData = ref<ProductDTO>({
   marketRetailPrice: 0,
   memberPrice: 0,
   enableMemberPrice: 0,
+  memberPrices: [] as ProductMemberPriceDTO[],
   stock: 0,
   warningStock: 10,
   weight: 0,
@@ -1432,6 +1516,7 @@ const handleEdit = async (row: ProductVO) => {
     marketRetailPrice: row.marketRetailPrice || 0,
     memberPrice: row.memberPrice || 0,
     enableMemberPrice: row.enableMemberPrice || 0,
+    memberPrices: [] as ProductMemberPriceDTO[],
     stock: row.stock,
     warningStock: row.warningStock || 10,
     weight: row.weight || 0,
@@ -1451,6 +1536,9 @@ const handleEdit = async (row: ProductVO) => {
   } else {
     detailImageList.value = []
   }
+
+  // 加载商品会员价配置（从row.memberPrices中加载）
+  await loadProductMemberPrices(row.id, row.memberPrices)
 
   // 加载SKU数据
   try {
@@ -1498,6 +1586,7 @@ const handleEdit = async (row: ProductVO) => {
           marketRetailPrice: sku.marketRetailPrice ?? 0,
           memberPrice: sku.memberPrice ?? 0,
           enableMemberPrice: sku.enableMemberPrice ?? 0,
+          memberPrices: (sku.memberPrices || []) as ProductSkuMemberPriceDTO[], // 加载已有的会员价配置
           stock: sku.stock ?? 0,
           warningStock: sku.warningStock ?? 0,
           weight: sku.weight ?? 0,
@@ -1599,6 +1688,7 @@ const handleSubmit = async () => {
             marketRetailPrice: sku.marketRetailPrice || 0,
             memberPrice: sku.memberPrice || 0,
             enableMemberPrice: sku.enableMemberPrice || 0,
+            memberPrices: sku.memberPrices || [], // 添加memberPrices
             stock: stock,
             warningStock: sku.warningStock || 0,
             weight: sku.weight || 0,
@@ -1649,6 +1739,18 @@ const handleSubmit = async () => {
         : formData.value.categoryId
 
       console.log('保存商品基本信息, enableSpec:', formData.value.enableSpec)
+
+      // 转换会员价表格数据为memberPrices数组
+      if (formData.value.enableMemberPrice === 1) {
+        formData.value.memberPrices = productMemberPriceTable.value
+          .filter(row => row.memberPrice != null && row.memberPrice > 0)
+          .map(row => ({
+            memberLevelId: row.memberLevelId,
+            memberPrice: row.memberPrice!
+          }))
+      } else {
+        formData.value.memberPrices = []
+      }
 
       // 转换 enableSpec 为 0 或 1
       const submitData = {
@@ -1820,6 +1922,7 @@ const generateEditSkuList = () => {
       marketRetailPrice: formData.value.marketRetailPrice || 0,
       memberPrice: formData.value.memberPrice,
       enableMemberPrice: formData.value.enableMemberPrice,
+      memberPrices: [] as ProductSkuMemberPriceDTO[], // 添加memberPrices字段
       stock: formData.value.stock,
       warningStock: formData.value.warningStock,
       weight: formData.value.weight,
@@ -2004,27 +2107,6 @@ const batchSetStock = () => {
 
 const handleCsvChange = async (file: UploadFile) => {
   importForm.value.csvFile = file.raw || null
-  
-  // 检查文件行数（简单估算，仅对CSV文件有效）
-  if (file.raw && file.raw.name.toLowerCase().endsWith('.csv')) {
-    try {
-      const text = await file.raw.text()
-      const lines = text.split('\n').filter(line => line.trim().length > 0)
-      // 减去表头行
-      const dataRowCount = lines.length > 1 ? lines.length - 1 : 0
-      
-      if (dataRowCount > 200) {
-        ElMessage.warning(`文件包含 ${dataRowCount} 条数据，超过单次最大导入数量（200条），请分批导入`)
-        // 移除文件
-        importForm.value.csvFile = null
-        csvFileList.value = []
-        return
-      }
-    } catch (error) {
-      console.warn('检查文件行数失败:', error)
-      // 如果检查失败，不阻止上传，由后端校验
-    }
-  }
 }
 
 const handleCsvRemove = () => {
@@ -2039,16 +2121,9 @@ const handleZipRemove = () => {
   importForm.value.imageZip = null
 }
 
-const downloadTemplate = (type: 'csv' | 'excel') => {
-  if (type === 'csv') {
-    const link = document.createElement('a')
-    link.href = '/商品批量导入模板.csv'
-    link.download = '商品批量导入模板.csv'
-    link.click()
-  } else {
-    // 下载Excel模板
-    window.open('/api/admin/product/template/excel', '_blank')
-  }
+const downloadTemplate = () => {
+  // 下载Excel模板
+  window.open('/api/admin/product/template/excel', '_blank')
 }
 
 const handleImportSubmit = async () => {
@@ -2174,10 +2249,131 @@ watch(() => searchForm.value.status, (newStatus) => {
 })
 
 // 初始化
+// 加载会员等级列表
+const loadMemberLevels = async () => {
+  try {
+    memberLevels.value = await getAllEnabledMemberLevels()
+    // 初始化会员价表格
+    initProductMemberPriceTable()
+  } catch (error) {
+    ElMessage.error('加载会员等级失败')
+    console.error('加载会员等级失败:', error)
+  }
+}
+
+// 初始化商品会员价表格
+const initProductMemberPriceTable = () => {
+  productMemberPriceTable.value = memberLevels.value.map(level => ({
+    memberLevelId: level.id!,
+    memberLevelName: level.levelName,
+    memberPrice: null as number | null
+  }))
+}
+
+// 处理启用会员价切换
+const handleEnableMemberPriceChange = (value: number) => {
+  if (value === 1 && productMemberPriceTable.value.length === 0) {
+    initProductMemberPriceTable()
+  }
+}
+
+// 加载商品会员价配置
+const loadProductMemberPrices = async (productId: number, memberPrices?: ProductMemberPriceVO[]) => {
+  try {
+    // 初始化表格
+    initProductMemberPriceTable()
+    
+    // 从后端返回的数据中加载会员价配置
+    if (memberPrices && memberPrices.length > 0) {
+      memberPrices.forEach((mp: ProductMemberPriceVO) => {
+        const tableRow = productMemberPriceTable.value.find(row => row.memberLevelId === mp.memberLevelId)
+        if (tableRow) {
+          tableRow.memberPrice = mp.memberPrice
+        }
+      })
+      console.log('已加载商品会员价配置:', memberPrices)
+    } else {
+      console.log('商品暂无会员价配置')
+    }
+  } catch (error) {
+    console.error('加载商品会员价失败:', error)
+  }
+}
+
+// 打开SKU会员价设置弹窗
+const openSkuMemberPriceDialog = (sku: any, index: number) => {
+  // 深拷贝SKU数据，避免直接修改原数据
+  currentSkuForMemberPrice.value = {
+    ...sku,
+    enableMemberPrice: sku.enableMemberPrice ?? 0,
+    memberPrices: sku.memberPrices ? [...sku.memberPrices] : []
+  }
+  currentSkuIndex.value = index
+  
+  // 初始化会员价表格
+  initSkuMemberPriceTable(currentSkuForMemberPrice.value)
+  
+  skuMemberPriceDialogVisible.value = true
+}
+
+// 初始化SKU会员价表格
+const initSkuMemberPriceTable = (sku: any) => {
+  skuMemberPriceTable.value = memberLevels.value.map(level => {
+    // 如果SKU已有会员价配置，查找对应的价格
+    const existingPrice = sku.memberPrices?.find(
+      (mp: any) => mp.memberLevelId === level.id
+    )
+    
+    return {
+      memberLevelId: level.id!,
+      memberLevelName: level.levelName,
+      memberPrice: existingPrice ? existingPrice.memberPrice : null
+    }
+  })
+}
+
+// 处理SKU启用会员价切换
+const handleSkuEnableMemberPriceChange = (value: number) => {
+  if (value === 1 && skuMemberPriceTable.value.length === 0) {
+    initSkuMemberPriceTable(currentSkuForMemberPrice.value)
+  }
+}
+
+// 保存SKU会员价设置
+const saveSkuMemberPrice = () => {
+  if (!currentSkuForMemberPrice.value || currentSkuIndex.value < 0) {
+    return
+  }
+  
+  // 转换会员价表格数据为memberPrices数组
+  if (currentSkuForMemberPrice.value.enableMemberPrice === 1) {
+    currentSkuForMemberPrice.value.memberPrices = skuMemberPriceTable.value
+      .filter(row => row.memberPrice != null && row.memberPrice > 0)
+      .map(row => ({
+        memberLevelId: row.memberLevelId,
+        memberPrice: row.memberPrice!
+      }))
+  } else {
+    currentSkuForMemberPrice.value.memberPrices = []
+  }
+  
+  // 更新editSkuList中对应的SKU（保留原有字段）
+  const originalSku = editSkuList.value[currentSkuIndex.value]
+  editSkuList.value[currentSkuIndex.value] = {
+    ...originalSku,
+    enableMemberPrice: currentSkuForMemberPrice.value.enableMemberPrice,
+    memberPrices: currentSkuForMemberPrice.value.memberPrices
+  }
+  
+  ElMessage.success('会员价设置已保存')
+  skuMemberPriceDialogVisible.value = false
+}
+
 onMounted(() => {
   loadCategoryTree()
   loadBrands()
   loadShippingTemplates()
+  loadMemberLevels()
   loadProductList()
 })
 </script>
@@ -2628,6 +2824,10 @@ onMounted(() => {
 
 // 商品编辑对话框样式 - 固定底部按钮
 :deep(.product-edit-dialog) {
+  .el-dialog {
+    margin-top: 5vh !important;
+  }
+
   .el-dialog__footer {
     position: sticky;
     bottom: 0;
@@ -2639,7 +2839,7 @@ onMounted(() => {
   }
 
   .el-dialog__body {
-    max-height: 60vh;
+    max-height: 90vh;
     overflow-y: auto;
   }
 }

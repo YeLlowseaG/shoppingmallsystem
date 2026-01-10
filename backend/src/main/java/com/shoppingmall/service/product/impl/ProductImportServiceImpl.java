@@ -17,7 +17,12 @@ import com.shoppingmall.service.product.ProductImportService;
 import com.shoppingmall.service.common.ImageService;
 import com.shoppingmall.service.product.ProductService;
 import com.shoppingmall.service.sku.ProductSkuService;
+import com.shoppingmall.service.member.MemberLevelService;
+import com.shoppingmall.dto.ProductMemberPriceDTO;
+import com.shoppingmall.dto.ProductSkuMemberPriceDTO;
 import com.shoppingmall.vo.ProductImportResultVO;
+import com.shoppingmall.vo.MemberLevelVO;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;
@@ -55,7 +60,11 @@ public class ProductImportServiceImpl implements ProductImportService {
     private final ProductCategoryRepository categoryRepository;
     private final BrandRepository brandRepository;
     private final ShippingTemplateRepository shippingTemplateRepository;
+    private final MemberLevelService memberLevelService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    
+    // 会员等级名称到ID的映射缓存
+    private Map<String, Long> memberLevelNameToIdMap = null;
     
     @Override
     public ProductImportResultVO importProducts(MultipartFile csvFile, MultipartFile imageZip) throws Exception {
@@ -88,11 +97,18 @@ public class ProductImportServiceImpl implements ProductImportService {
             }
 
             result.setTotalCount(totalCount);
+            
+            // 4. 验证会员等级名称
+            try {
+                validateMemberLevelNames(importDataList);
+            } catch (Exception e) {
+                throw new RuntimeException("会员等级名称验证失败: " + e.getMessage(), e);
+            }
 
-            // 4. 按商品编码分组（一个商品可能有多个SKU行）
+            // 5. 按商品编码分组（一个商品可能有多个SKU行）
             Map<String, List<ProductImportDTO>> productGroups = groupByProductCode(importDataList);
 
-            // 5. 逐个导入商品
+            // 6. 逐个导入商品
             for (Map.Entry<String, List<ProductImportDTO>> entry : productGroups.entrySet()) {
                 String productCode = entry.getKey();
                 List<ProductImportDTO> rows = entry.getValue();
@@ -107,7 +123,7 @@ public class ProductImportServiceImpl implements ProductImportService {
                 }
             }
 
-            // 6. 汇总缺失的分类到警告信息
+            // 7. 汇总缺失的分类到警告信息
             if (!missingCategories.isEmpty()) {
                 result.addWarning("以下分类在系统中不存在，建议先创建这些分类再导入：" + String.join("、", missingCategories));
             }
@@ -117,7 +133,7 @@ public class ProductImportServiceImpl implements ProductImportService {
             log.info("警告列表大小: {}, 警告详情: {}", result.getWarnings().size(), result.getWarnings());
 
         } finally {
-            // 7. 清理临时目录
+            // 8. 清理临时目录
             if (tempDir != null) {
                 imageService.cleanupTempDir(tempDir);
             }
@@ -129,12 +145,19 @@ public class ProductImportServiceImpl implements ProductImportService {
     private List<ProductImportDTO> parseCSV(MultipartFile csvFile) throws Exception {
         List<ProductImportDTO> dataList = new ArrayList<>();
         
+        // 初始化会员等级映射
+        initMemberLevelMap();
+        List<MemberLevelVO> memberLevels = memberLevelService.getAllEnabledMemberLevels();
+        
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(csvFile.getInputStream(), StandardCharsets.UTF_8));
              CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT
                      .withFirstRecordAsHeader()
                      .withIgnoreHeaderCase()
                      .withTrim())) {
+            
+            // 获取表头
+            Map<String, Integer> headerMap = csvParser.getHeaderMap();
             
             int rowNum = 1; // 第1行是表头
             for (CSVRecord record : csvParser) {
@@ -159,13 +182,58 @@ public class ProductImportServiceImpl implements ProductImportService {
                     // 批量导入商品默认为草稿状态，除非明确指定
                     String status = record.get("状态");
                     dto.setStatus(StringUtil.isBlank(status) ? "草稿" : status);
+                    
+                    // 解析启用会员价
+                    String enableMemberPriceStr = getStringOrNull(record, "启用会员价");
+                    dto.setEnableMemberPrice("是".equals(enableMemberPriceStr));
+                    
+                    // 解析商品会员价（每个等级一列）
+                    Map<String, BigDecimal> productMemberPrices = new HashMap<>();
+                    for (MemberLevelVO level : memberLevels) {
+                        String headerName = "商品会员价-" + level.getLevelName();
+                        if (headerMap.containsKey(headerName)) {
+                            BigDecimal price = getBigDecimal(record, headerName);
+                            if (price != null && price.compareTo(BigDecimal.ZERO) > 0) {
+                                productMemberPrices.put(level.getLevelName(), price);
+                            }
+                        }
+                    }
+                    dto.setProductMemberPrices(productMemberPrices);
+                    
                     dto.setEnableSpec("是".equals(record.get("启用规格")));
                     dto.setSkuCode(getStringOrNull(record, "SKU编码"));
                     dto.setSpecCombination(getStringOrNull(record, "规格组合"));
                     dto.setSkuPrice(getBigDecimal(record, "SKU价格"));
                     dto.setSkuStock(getInteger(record, "SKU库存"));
-                    dto.setSkuMemberPrice(getBigDecimal(record, "SKU会员价"));
-                    dto.setEnableSkuMemberPrice("是".equals(getStringOrNull(record, "启用SKU会员价")));
+                    
+                    // 解析启用SKU会员价
+                    String enableSkuMemberPriceStr = getStringOrNull(record, "启用SKU会员价");
+                    dto.setEnableSkuMemberPrice("是".equals(enableSkuMemberPriceStr));
+                    
+                    // 解析SKU会员价（每个等级一列）
+                    Map<String, BigDecimal> skuMemberPrices = new HashMap<>();
+                    for (MemberLevelVO level : memberLevels) {
+                        String headerName = "SKU会员价-" + level.getLevelName();
+                        if (headerMap.containsKey(headerName)) {
+                            BigDecimal price = getBigDecimal(record, headerName);
+                            if (price != null && price.compareTo(BigDecimal.ZERO) > 0) {
+                                skuMemberPrices.put(level.getLevelName(), price);
+                            }
+                        }
+                    }
+                    dto.setSkuMemberPrices(skuMemberPrices);
+                    
+                    // 兼容旧模板：如果存在旧的"SKU会员价"列（单个价格），也解析
+                    if (headerMap.containsKey("SKU会员价")) {
+                        BigDecimal oldSkuMemberPrice = getBigDecimal(record, "SKU会员价");
+                        if (oldSkuMemberPrice != null && oldSkuMemberPrice.compareTo(BigDecimal.ZERO) > 0) {
+                            // 如果新格式没有数据，使用旧格式的数据（需要指定一个默认等级，这里使用第一个等级）
+                            if (skuMemberPrices.isEmpty() && !memberLevels.isEmpty()) {
+                                skuMemberPrices.put(memberLevels.get(0).getLevelName(), oldSkuMemberPrice);
+                                dto.setSkuMemberPrices(skuMemberPrices);
+                            }
+                        }
+                    }
                     
                     dataList.add(dto);
                 } catch (Exception e) {
@@ -180,6 +248,10 @@ public class ProductImportServiceImpl implements ProductImportService {
 
     private List<ProductImportDTO> parseExcel(MultipartFile excelFile) throws Exception {
         List<ProductImportDTO> dataList = new ArrayList<>();
+        
+        // 初始化会员等级映射
+        initMemberLevelMap();
+        List<MemberLevelVO> memberLevels = memberLevelService.getAllEnabledMemberLevels();
 
         try (Workbook workbook = new XSSFWorkbook(excelFile.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
@@ -188,6 +260,39 @@ public class ProductImportServiceImpl implements ProductImportService {
             Row headerRow = sheet.getRow(0);
             if (headerRow == null) {
                 throw new RuntimeException("Excel文件格式错误：缺少表头");
+            }
+            
+            // 解析表头，找到会员价列的索引
+            Map<String, Integer> headerIndexMap = new HashMap<>();
+            int lastCellNum = headerRow.getLastCellNum();
+            for (int i = 0; i < lastCellNum; i++) {
+                Cell cell = headerRow.getCell(i);
+                if (cell != null) {
+                    String headerName = getCellValue(headerRow, i);
+                    if (headerName != null) {
+                        headerIndexMap.put(headerName.trim(), i);
+                    }
+                }
+            }
+            
+            // 计算基础列数（启用会员价之前）
+            int baseColumnCount = 15; // 商品编码到启用会员价（包含运费模板ID）
+            int enableMemberPriceIndex = headerIndexMap.getOrDefault("启用会员价", baseColumnCount - 1);
+            int enableSpecIndex = headerIndexMap.getOrDefault("启用规格", enableMemberPriceIndex + 1);
+            
+            // 找到商品会员价列和SKU会员价列的起始索引
+            Map<String, Integer> productMemberPriceIndexMap = new HashMap<>();
+            Map<String, Integer> skuMemberPriceIndexMap = new HashMap<>();
+            
+            for (MemberLevelVO level : memberLevels) {
+                String productHeader = "商品会员价-" + level.getLevelName();
+                String skuHeader = "SKU会员价-" + level.getLevelName();
+                if (headerIndexMap.containsKey(productHeader)) {
+                    productMemberPriceIndexMap.put(level.getLevelName(), headerIndexMap.get(productHeader));
+                }
+                if (headerIndexMap.containsKey(skuHeader)) {
+                    skuMemberPriceIndexMap.put(level.getLevelName(), headerIndexMap.get(skuHeader));
+                }
             }
 
             // 解析数据行
@@ -218,13 +323,69 @@ public class ProductImportServiceImpl implements ProductImportService {
                     // 批量导入商品默认为草稿状态，除非明确指定
                     String status = getCellValue(row, 13);
                     dto.setStatus(StringUtil.isBlank(status) ? "草稿" : status);
-                    dto.setEnableSpec("是".equals(getCellValue(row, 14)));
-                    dto.setSkuCode(getCellValue(row, 15));
-                    dto.setSpecCombination(getCellValue(row, 16));
-                    dto.setSkuPrice(getBigDecimalFromCell(row, 17));
-                    dto.setSkuStock(getIntegerFromCell(row, 18));
-                    dto.setSkuMemberPrice(getBigDecimalFromCell(row, 19));
-                    dto.setEnableSkuMemberPrice("是".equals(getCellValue(row, 20)));
+                    
+                    // 解析启用会员价
+                    String enableMemberPriceStr = getCellValue(row, enableMemberPriceIndex);
+                    dto.setEnableMemberPrice("是".equals(enableMemberPriceStr));
+                    
+                    // 解析商品会员价（每个等级一列）
+                    Map<String, BigDecimal> productMemberPrices = new HashMap<>();
+                    for (MemberLevelVO level : memberLevels) {
+                        Integer colIndex = productMemberPriceIndexMap.get(level.getLevelName());
+                        if (colIndex != null) {
+                            BigDecimal price = getBigDecimalFromCell(row, colIndex);
+                            if (price != null && price.compareTo(BigDecimal.ZERO) > 0) {
+                                productMemberPrices.put(level.getLevelName(), price);
+                            }
+                        }
+                    }
+                    dto.setProductMemberPrices(productMemberPrices);
+                    
+                    // 兼容旧模板：如果表头中有"启用规格"，使用新的列索引；否则使用旧的固定索引
+                    int enableSpecColIndex = enableSpecIndex > enableMemberPriceIndex ? enableSpecIndex : 15;
+                    dto.setEnableSpec("是".equals(getCellValue(row, enableSpecColIndex)));
+                    
+                    // 兼容旧模板：SKU相关列的索引需要根据是否有会员价列来调整
+                    int skuCodeIndex = enableSpecColIndex + 1;
+                    int specCombinationIndex = skuCodeIndex + 1;
+                    int skuPriceIndex = specCombinationIndex + 1;
+                    int skuStockIndex = skuPriceIndex + 1;
+                    int enableSkuMemberPriceIndex = skuStockIndex + 1;
+                    
+                    dto.setSkuCode(getCellValue(row, skuCodeIndex));
+                    dto.setSpecCombination(getCellValue(row, specCombinationIndex));
+                    dto.setSkuPrice(getBigDecimalFromCell(row, skuPriceIndex));
+                    dto.setSkuStock(getIntegerFromCell(row, skuStockIndex));
+                    
+                    // 解析启用SKU会员价
+                    String enableSkuMemberPriceStr = getCellValue(row, enableSkuMemberPriceIndex);
+                    dto.setEnableSkuMemberPrice("是".equals(enableSkuMemberPriceStr));
+                    
+                    // 解析SKU会员价（每个等级一列）
+                    Map<String, BigDecimal> skuMemberPrices = new HashMap<>();
+                    for (MemberLevelVO level : memberLevels) {
+                        Integer colIndex = skuMemberPriceIndexMap.get(level.getLevelName());
+                        if (colIndex != null) {
+                            BigDecimal price = getBigDecimalFromCell(row, colIndex);
+                            if (price != null && price.compareTo(BigDecimal.ZERO) > 0) {
+                                skuMemberPrices.put(level.getLevelName(), price);
+                            }
+                        }
+                    }
+                    dto.setSkuMemberPrices(skuMemberPrices);
+                    
+                    // 兼容旧模板：如果存在旧的"SKU会员价"列（单个价格），也解析
+                    if (headerIndexMap.containsKey("SKU会员价")) {
+                        Integer oldSkuMemberPriceIndex = headerIndexMap.get("SKU会员价");
+                        BigDecimal oldSkuMemberPrice = getBigDecimalFromCell(row, oldSkuMemberPriceIndex);
+                        if (oldSkuMemberPrice != null && oldSkuMemberPrice.compareTo(BigDecimal.ZERO) > 0) {
+                            // 如果新格式没有数据，使用旧格式的数据（需要指定一个默认等级，这里使用第一个等级）
+                            if (skuMemberPrices.isEmpty() && !memberLevels.isEmpty()) {
+                                skuMemberPrices.put(memberLevels.get(0).getLevelName(), oldSkuMemberPrice);
+                                dto.setSkuMemberPrices(skuMemberPrices);
+                            }
+                        }
+                    }
 
                     dataList.add(dto);
                 } catch (Exception e) {
@@ -408,6 +569,28 @@ public class ProductImportServiceImpl implements ProductImportService {
             productDTO.setStock(0); // 启用规格时，总库存由SKU汇总
         }
         
+        // 设置启用会员价
+        productDTO.setEnableMemberPrice(firstRow.getEnableMemberPrice() != null && firstRow.getEnableMemberPrice() ? 1 : 0);
+        
+        // 构建商品会员价列表
+        if (firstRow.getEnableMemberPrice() != null && firstRow.getEnableMemberPrice() 
+                && firstRow.getProductMemberPrices() != null && !firstRow.getProductMemberPrices().isEmpty()) {
+            List<ProductMemberPriceDTO> memberPrices = new ArrayList<>();
+            for (Map.Entry<String, BigDecimal> entry : firstRow.getProductMemberPrices().entrySet()) {
+                if (StringUtil.isNotBlank(entry.getKey()) && entry.getValue() != null 
+                        && entry.getValue().compareTo(BigDecimal.ZERO) > 0) {
+                    Long levelId = findMemberLevelIdByName(entry.getKey());
+                    if (levelId != null) {
+                        ProductMemberPriceDTO mpDTO = new ProductMemberPriceDTO();
+                        mpDTO.setMemberLevelId(levelId);
+                        mpDTO.setMemberPrice(entry.getValue());
+                        memberPrices.add(mpDTO);
+                    }
+                }
+            }
+            productDTO.setMemberPrices(memberPrices);
+        }
+        
         Long productId = productService.createProduct(productDTO);
         
         // 7. 创建SKU（如果启用规格）
@@ -424,11 +607,29 @@ public class ProductImportServiceImpl implements ProductImportService {
                     skuDTO.setStock(row.getSkuStock() != null ? row.getSkuStock() : 0);
                     skuDTO.setSuggestedRetailPrice(row.getSuggestedRetailPrice());
                     skuDTO.setMarketRetailPrice(row.getMarketRetailPrice());
-                    skuDTO.setMemberPrice(row.getSkuMemberPrice());
-                    skuDTO.setEnableMemberPrice(row.getEnableSkuMemberPrice() ? 1 : 0);
+                    skuDTO.setEnableMemberPrice(row.getEnableSkuMemberPrice() != null && row.getEnableSkuMemberPrice() ? 1 : 0);
                     skuDTO.setWarningStock(row.getWarningStock());
                     skuDTO.setWeight(row.getWeight());
                     skuDTO.setStatus(1);
+                    
+                    // 构建SKU会员价列表
+                    if (row.getEnableSkuMemberPrice() != null && row.getEnableSkuMemberPrice() 
+                            && row.getSkuMemberPrices() != null && !row.getSkuMemberPrices().isEmpty()) {
+                        List<ProductSkuMemberPriceDTO> skuMemberPrices = new ArrayList<>();
+                        for (Map.Entry<String, BigDecimal> entry : row.getSkuMemberPrices().entrySet()) {
+                            if (StringUtil.isNotBlank(entry.getKey()) && entry.getValue() != null 
+                                    && entry.getValue().compareTo(BigDecimal.ZERO) > 0) {
+                                Long levelId = findMemberLevelIdByName(entry.getKey());
+                                if (levelId != null) {
+                                    ProductSkuMemberPriceDTO mpDTO = new ProductSkuMemberPriceDTO();
+                                    mpDTO.setMemberLevelId(levelId);
+                                    mpDTO.setMemberPrice(entry.getValue());
+                                    skuMemberPrices.add(mpDTO);
+                                }
+                            }
+                        }
+                        skuDTO.setMemberPrices(skuMemberPrices);
+                    }
                     
                     skuDTOs.add(skuDTO);
                 }
@@ -539,6 +740,77 @@ public class ProductImportServiceImpl implements ProductImportService {
             return Long.parseLong(value.trim());
         } catch (Exception e) {
             return null;
+        }
+    }
+    
+    /**
+     * 初始化会员等级名称到ID的映射
+     */
+    private void initMemberLevelMap() {
+        if (memberLevelNameToIdMap == null) {
+            memberLevelNameToIdMap = new HashMap<>();
+            try {
+                List<MemberLevelVO> levels = memberLevelService.getAllEnabledMemberLevels();
+                for (MemberLevelVO level : levels) {
+                    if (level.getLevelName() != null && level.getId() != null) {
+                        memberLevelNameToIdMap.put(level.getLevelName().trim(), level.getId());
+                    }
+                }
+                log.info("初始化会员等级映射完成，共 {} 个等级", memberLevelNameToIdMap.size());
+            } catch (Exception e) {
+                log.error("初始化会员等级映射失败", e);
+                memberLevelNameToIdMap = new HashMap<>();
+            }
+        }
+    }
+    
+    /**
+     * 根据会员等级名称查找ID
+     */
+    private Long findMemberLevelIdByName(String levelName) {
+        if (StringUtil.isBlank(levelName)) {
+            return null;
+        }
+        
+        initMemberLevelMap();
+        Long id = memberLevelNameToIdMap.get(levelName.trim());
+        
+        if (id == null) {
+            throw new RuntimeException("会员等级名称不存在: " + levelName);
+        }
+        
+        return id;
+    }
+    
+    /**
+     * 验证会员等级名称是否存在
+     */
+    private void validateMemberLevelNames(List<ProductImportDTO> importDataList) {
+        initMemberLevelMap();
+        Set<String> allLevelNames = memberLevelNameToIdMap.keySet();
+        
+        for (ProductImportDTO dto : importDataList) {
+            // 验证商品会员价中的等级名称
+            if (dto.getProductMemberPrices() != null && !dto.getProductMemberPrices().isEmpty()) {
+                for (String levelName : dto.getProductMemberPrices().keySet()) {
+                    if (StringUtil.isNotBlank(levelName) && !allLevelNames.contains(levelName.trim())) {
+                        throw new RuntimeException(
+                            String.format("第%d行，会员等级名称不存在: %s", 
+                                dto.getRowNumber(), levelName));
+                    }
+                }
+            }
+            
+            // 验证SKU会员价中的等级名称
+            if (dto.getSkuMemberPrices() != null && !dto.getSkuMemberPrices().isEmpty()) {
+                for (String levelName : dto.getSkuMemberPrices().keySet()) {
+                    if (StringUtil.isNotBlank(levelName) && !allLevelNames.contains(levelName.trim())) {
+                        throw new RuntimeException(
+                            String.format("第%d行，SKU会员等级名称不存在: %s", 
+                                dto.getRowNumber(), levelName));
+                    }
+                }
+            }
         }
     }
     

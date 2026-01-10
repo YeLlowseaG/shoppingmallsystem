@@ -129,4 +129,9 @@ public class ProductDTO {
      * 状态（上架/下架）
      */
     private String status;
+
+    /**
+     * 商品会员价列表（按会员等级设置）
+     */
+    private java.util.List<ProductMemberPriceDTO> memberPrices;
 }

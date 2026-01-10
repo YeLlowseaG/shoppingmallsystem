@@ -134,10 +134,10 @@
                 ¥{{ currentSku ? parseFloat(currentSku.suggestedRetailPrice || 0).toFixed(2) : parseFloat(product.suggestedRetailPrice || 0).toFixed(2) }}
               </span>
             </div>
-            <div class="price-row" v-if="userStore.isLoggedIn()">
+            <div class="price-row">
               <span class="price-label">{{ getPriceLabel() }}</span>
               <span class="member-price">
-                <!-- 根据isMember显示价格：会员显示会员价，普通用户显示原价 -->
+                <!-- 根据isMember显示价格：会员显示会员价，普通用户和未登录用户显示基础价格 -->
                 ¥{{ getDisplayPrice().toFixed(2) }}
               </span>
             </div>
@@ -161,13 +161,31 @@
             </div>
           </div>
 
+          <!-- 库存不足提示 -->
+          <div v-if="isOutOfStock()" class="out-of-stock-alert">
+            <el-alert
+              title="商品暂时缺货"
+              type="warning"
+              :closable="false"
+              show-icon
+            >
+              <template #default>
+                <div class="alert-content">
+                  <p>该商品目前库存不足，暂时无法购买。</p>
+                  <p>您可以进行缺货登记，商品补货后我们会第一时间通知您。</p>
+                </div>
+              </template>
+            </el-alert>
+          </div>
+
           <!-- 购买数量 -->
           <div class="quantity-row">
             <span class="quantity-label">购买数量：</span>
             <el-input-number
               v-model="quantity"
               :min="1"
-              :max="getAvailableStock()"
+              :max="getAvailableStock() || 1"
+              :disabled="isOutOfStock()"
               size="large"
             />
             <span class="stock-status" :class="getStockStatusClass()">
@@ -625,7 +643,8 @@ const loadProductDetail = async (productId: number) => {
         </div>
       `,
       isMember: productData.isMember, // 从后端获取isMember字段（后端已根据用户ID判断）
-      enableSpec: productData.enableSpec // 是否启用规格（0-否，1-是）
+      enableSpec: productData.enableSpec, // 是否启用规格（0-否，1-是）
+      enableMemberPrice: productData.enableMemberPrice // 是否启用会员价（0-否，1-是）
     }
     
     // 调试日志：检查后端返回的数据（开发环境）
@@ -1122,12 +1141,25 @@ const showStockRegisterDialog = () => {
   stockRegisterDialogVisible.value = true
 }
 
-// 获取价格标签（根据用户是否是会员）
-// 完全依赖后端返回的isMember字段（后端已根据用户ID判断）
+// 获取价格标签（优先判断用户是否是会员，再判断商品或SKU是否启用会员价）
 const getPriceLabel = () => {
-  // 后端返回的isMember字段：1-会员，0-普通用户，undefined-未登录
+  // 1. 优先判断：如果不是会员或未登录，统一显示"商品价格"
   const isMember = product.value.isMember === 1
-  return isMember ? '会员价：' : '商品价格：'
+  if (!isMember) {
+    return '商品价格：'
+  }
+  
+  // 2. 如果是会员，再判断商品或SKU是否启用会员价
+  // 如果商品启用了SKU且有当前选中的SKU，优先检查SKU是否启用会员价
+  if (product.value.enableSpec === 1 && currentSku.value && currentSku.value.enableMemberPrice === 1) {
+    return '会员价：'
+  }
+  // 如果没有SKU或SKU未启用会员价，检查商品是否启用会员价
+  if (product.value.enableMemberPrice === 1) {
+    return '会员价：'
+  }
+  // 会员但商品/SKU都没有启用会员价，显示"商品价格"
+  return '商品价格：'
 }
 
 // 获取显示价格（根据用户是否是会员）
@@ -1135,6 +1167,15 @@ const getPriceLabel = () => {
 const getDisplayPrice = () => {
   // 后端返回的isMember字段：1-会员，0-普通用户，undefined-未登录
   const isMember = product.value.isMember === 1
+  
+  // 未登录用户：直接显示基础价格
+  if (product.value.isMember === undefined || product.value.isMember === null) {
+    // SKU的price字段就是基础价格
+    if (currentSku.value && currentSku.value.price != null) {
+      return parseFloat(currentSku.value.price)
+    }
+    return parseFloat(product.value.basePrice ?? 0)
+  }
   
   if (isMember) {
     // 会员用户显示会员价（后端已计算好）
@@ -1148,7 +1189,8 @@ const getDisplayPrice = () => {
     // 如果都没有，返回原价（不应该发生，但作为兜底）
     return parseFloat(product.value.basePrice ?? 0)
   } else {
-    // 普通用户显示原价
+    // 普通用户显示原价（基础价格）
+    // SKU的price字段就是基础价格
     if (currentSku.value && currentSku.value.price != null) {
       return parseFloat(currentSku.value.price)
     }
@@ -1530,6 +1572,19 @@ const submitStockRegister = async () => {
 
         &.out-stock {
           color: #cf1322;
+        }
+      }
+    }
+
+    .out-of-stock-alert {
+      padding: 20px 0;
+      margin-bottom: 20px;
+
+      .alert-content {
+        p {
+          margin: 5px 0;
+          line-height: 1.6;
+          color: #666;
         }
       }
     }

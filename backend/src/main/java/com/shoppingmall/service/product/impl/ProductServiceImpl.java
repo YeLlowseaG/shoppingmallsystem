@@ -10,12 +10,17 @@ import com.shoppingmall.dto.ProductDTO;
 import com.shoppingmall.entity.Brand;
 import com.shoppingmall.entity.Product;
 import com.shoppingmall.entity.ProductCategory;
+import com.shoppingmall.dto.ProductMemberPriceDTO;
+import com.shoppingmall.entity.ProductMemberPrice;
 import com.shoppingmall.entity.ProductSku;
+import com.shoppingmall.entity.ProductSkuMemberPrice;
 import com.shoppingmall.entity.ProductStock;
 import com.shoppingmall.entity.User;
 import com.shoppingmall.repository.product.ProductCategoryRepository;
+import com.shoppingmall.repository.product.ProductMemberPriceRepository;
 import com.shoppingmall.repository.product.ProductRepository;
 import com.shoppingmall.repository.product.ProductStockRepository;
+import com.shoppingmall.repository.sku.ProductSkuMemberPriceRepository;
 import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.repository.website.BrandRepository;
 import com.shoppingmall.service.admin.StockService;
@@ -56,6 +61,8 @@ public class ProductServiceImpl implements ProductService {
     private final MemberLevelService memberLevelService;
     private final UserRepository userRepository;
     private final ProductSkuService productSkuService;
+    private final ProductMemberPriceRepository productMemberPriceRepository;
+    private final ProductSkuMemberPriceRepository productSkuMemberPriceRepository;
 
     @Override
     public Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String brand,
@@ -220,6 +227,9 @@ public class ProductServiceImpl implements ProductService {
             }
         }
 
+        // 保存商品会员价列表
+        saveProductMemberPrices(product.getId(), productDTO.getMemberPrices());
+
         log.info("创建商品成功: {}", product.getProductName());
         return product.getId();
     }
@@ -301,6 +311,9 @@ public class ProductServiceImpl implements ProductService {
                 throw new BusinessException(500, "更新商品库存失败");
             }
         }
+
+        // 保存商品会员价列表
+        saveProductMemberPrices(product.getId(), productDTO.getMemberPrices());
 
         log.info("更新商品成功: {}", product.getProductName());
     }
@@ -425,17 +438,40 @@ public class ProductServiceImpl implements ProductService {
         vo.setMemberPrice(memberPrice);
         vo.setUserLevelPrice(salesPrice);
 
+        // 1.1 加载商品会员价配置（管理后台编辑时使用）
+        if (userId == null) { // 管理后台查询时userId为null
+            try {
+                LambdaQueryWrapper<ProductMemberPrice> memberPriceWrapper = new LambdaQueryWrapper<>();
+                memberPriceWrapper.eq(ProductMemberPrice::getProductId, product.getId());
+                List<ProductMemberPrice> productMemberPrices = productMemberPriceRepository.selectList(memberPriceWrapper);
+                
+                if (productMemberPrices != null && !productMemberPrices.isEmpty()) {
+                    List<com.shoppingmall.vo.ProductMemberPriceVO> memberPriceVOs = productMemberPrices.stream()
+                        .map(mp -> {
+                            com.shoppingmall.vo.ProductMemberPriceVO mpVO = new com.shoppingmall.vo.ProductMemberPriceVO();
+                            mpVO.setMemberLevelId(mp.getMemberLevelId());
+                            mpVO.setMemberPrice(mp.getMemberPrice());
+                            return mpVO;
+                        })
+                        .collect(java.util.stream.Collectors.toList());
+                    vo.setMemberPrices(memberPriceVOs);
+                }
+            } catch (Exception e) {
+                log.error("加载商品会员价配置失败: productId={}", product.getId(), e);
+            }
+        }
+
         // 2. 获取 SKU 列表并处理 SKU 层级的会员价
         try {
             var skuList = productSkuService.getSkusByProductId(product.getId(), userId);
             if (skuList != null) {
                 skuList.forEach(sku -> {
-                    // SKU会员价逻辑：优先使用SKU配置的会员价，如果没有则根据会员等级折扣率计算
+                    // SKU会员价逻辑：如果启用会员价，根据会员等级从 product_sku_member_price 表查询
                     BigDecimal skuSalesPrice = sku.getPrice();
                     if (skuSalesPrice == null) {
                         skuSalesPrice = BigDecimal.ZERO;
                     }
-                    // 计算SKU会员价（参考购物车逻辑）
+                    // 计算SKU会员价
                     BigDecimal skuMemberPrice = calculateMemberPriceForSku(sku, skuSalesPrice, userId);
                     sku.setMemberPrice(skuMemberPrice);
                 });
@@ -451,129 +487,128 @@ public class ProductServiceImpl implements ProductService {
 
     /**
      * 计算商品的会员价格
-     * 优先使用商品配置的会员价，如果没有则根据会员等级折扣率计算
-     * 注意：非会员不能享受会员价，直接返回原价
+     * 新逻辑：
+     * 1. 普通用户：返回基础价格
+     * 2. 会员用户：
+     *    a. 如果启用会员价：根据会员等级从 product_member_price 表查询会员价
+     *    b. 如果没有启用会员价：返回基础价格
      *
      * @param product 商品实体
-     * @param salesPrice 销售价格
+     * @param salesPrice 销售价格（基础价格）
      * @param userId 用户ID
-     * @return 会员价格（非会员返回原价）
+     * @return 会员价格（非会员或未启用会员价返回基础价格）
      */
     private BigDecimal calculateMemberPriceForProduct(Product product, BigDecimal salesPrice, Long userId) {
         if (salesPrice == null || salesPrice.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
 
-        // 首先检查用户是否是会员（大前提条件）
+        // 1. 检查用户是否是会员
         User user = userId != null ? userRepository.selectById(userId) : null;
         if (user == null || user.getIsMember() == null || user.getIsMember() != 1) {
-            // 非会员不能享受会员价，直接返回原价
+            // 普通用户：返回基础价格
             return salesPrice;
         }
 
-        // 如果是会员，检查商品是否启用了会员价且有配置会员价
-        if (product.getEnableMemberPrice() != null && product.getEnableMemberPrice() == 1
-                && product.getMemberPrice() != null && product.getMemberPrice().compareTo(BigDecimal.ZERO) > 0) {
-            return product.getMemberPrice();
+        // 2. 如果是会员，检查商品是否启用了会员价
+        if (product.getEnableMemberPrice() == null || product.getEnableMemberPrice() != 1) {
+            // 未启用会员价：返回基础价格
+            return salesPrice;
         }
 
-        // 否则根据会员等级折扣率计算
-        return calculateMemberPriceByDiscount(salesPrice, userId);
+        // 3. 启用会员价：根据会员等级查询会员价
+        Long memberLevelId = user.getMemberLevelId();
+        if (memberLevelId == null) {
+            // 会员但没有等级：返回基础价格
+            return salesPrice;
+        }
+
+        try {
+            LambdaQueryWrapper<ProductMemberPrice> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(ProductMemberPrice::getProductId, product.getId())
+                   .eq(ProductMemberPrice::getMemberLevelId, memberLevelId);
+            ProductMemberPrice productMemberPrice = productMemberPriceRepository.selectOne(wrapper);
+            
+            if (productMemberPrice != null && productMemberPrice.getMemberPrice() != null 
+                    && productMemberPrice.getMemberPrice().compareTo(BigDecimal.ZERO) > 0) {
+                return productMemberPrice.getMemberPrice();
+            }
+        } catch (Exception e) {
+            log.error("查询商品会员价失败: productId={}, memberLevelId={}, userId={}", 
+                    product.getId(), memberLevelId, userId, e);
+        }
+
+        // 如果查询不到会员价配置，返回基础价格
+        return salesPrice;
     }
 
     /**
      * 计算SKU的会员价格
-     * 优先使用SKU配置的会员价，如果没有则根据会员等级折扣率计算
-     * 注意：非会员不能享受会员价，直接返回原价
+     * 新逻辑：
+     * 1. 普通用户：返回基础价格
+     * 2. 会员用户：
+     *    a. 如果启用会员价：根据会员等级从 product_sku_member_price 表查询会员价
+     *    b. 如果没有启用会员价：返回基础价格
      *
      * @param sku SKU实体（ProductSkuVO）
-     * @param salesPrice 销售价格
+     * @param salesPrice 销售价格（基础价格）
      * @param userId 用户ID
-     * @return 会员价格（非会员返回原价）
+     * @return 会员价格（非会员或未启用会员价返回基础价格）
      */
     private BigDecimal calculateMemberPriceForSku(com.shoppingmall.vo.ProductSkuVO sku, BigDecimal salesPrice, Long userId) {
         if (salesPrice == null || salesPrice.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
 
-        // 首先检查用户是否是会员（大前提条件）
+        // 1. 检查用户是否是会员
         User user = userId != null ? userRepository.selectById(userId) : null;
         if (user == null || user.getIsMember() == null || user.getIsMember() != 1) {
-            // 非会员不能享受会员价，直接返回原价
+            // 普通用户：返回基础价格
             return salesPrice;
         }
 
-        // 如果是会员，检查SKU是否启用了会员价且有配置会员价
-        if (sku.getEnableMemberPrice() != null && sku.getEnableMemberPrice() == 1
-                && sku.getMemberPrice() != null && sku.getMemberPrice().compareTo(BigDecimal.ZERO) > 0) {
-            return sku.getMemberPrice();
+        // 2. 如果是会员，检查SKU是否启用了会员价
+        if (sku.getEnableMemberPrice() == null || sku.getEnableMemberPrice() != 1) {
+            // 未启用会员价：返回基础价格
+            return salesPrice;
         }
 
-        // 否则根据会员等级折扣率计算
-        return calculateMemberPriceByDiscount(salesPrice, userId);
+        // 3. 启用会员价：根据会员等级查询会员价
+        Long memberLevelId = user.getMemberLevelId();
+        if (memberLevelId == null || sku.getId() == null) {
+            // 会员但没有等级或SKU没有ID：返回基础价格
+            return salesPrice;
+        }
+
+        try {
+            LambdaQueryWrapper<ProductSkuMemberPrice> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(ProductSkuMemberPrice::getSkuId, sku.getId())
+                   .eq(ProductSkuMemberPrice::getMemberLevelId, memberLevelId);
+            ProductSkuMemberPrice skuMemberPrice = productSkuMemberPriceRepository.selectOne(wrapper);
+            
+            if (skuMemberPrice != null && skuMemberPrice.getMemberPrice() != null 
+                    && skuMemberPrice.getMemberPrice().compareTo(BigDecimal.ZERO) > 0) {
+                return skuMemberPrice.getMemberPrice();
+            }
+        } catch (Exception e) {
+            log.error("查询SKU会员价失败: skuId={}, memberLevelId={}, userId={}", 
+                    sku.getId(), memberLevelId, userId, e);
+        }
+
+        // 如果查询不到会员价配置，返回基础价格
+        return salesPrice;
     }
 
     /**
      * 根据会员等级折扣率计算会员价格
-     *
-     * @param salesPrice 销售价格
-     * @param userId 用户ID
-     * @return 会员价格
+     * 已废弃：不再使用折扣率计算会员价，改为从 product_member_price 和 product_sku_member_price 表查询
+     * 
+     * @deprecated 此方法已废弃，不再使用折扣率计算会员价
      */
+    @Deprecated
     private BigDecimal calculateMemberPriceByDiscount(BigDecimal salesPrice, Long userId) {
-        if (salesPrice == null || salesPrice.compareTo(BigDecimal.ZERO) <= 0) {
-            return BigDecimal.ZERO;
-        }
-
-        try {
-            // 获取用户的会员等级
-            User user = userId != null ? userRepository.selectById(userId) : null;
-
-            // 如果不是会员，返回原价
-            if (user == null || user.getIsMember() == null || user.getIsMember() != 1) {
-                return salesPrice;
-            }
-
-            // 获取所有启用的会员等级（按排序号排序）
-            List<MemberLevelVO> memberLevels = memberLevelService.getAllEnabledMemberLevels();
-            if (memberLevels == null || memberLevels.isEmpty()) {
-                // 如果没有会员等级，返回原价
-                return salesPrice;
-            }
-
-            // 查找用户的会员等级
-            Long memberLevelId = user.getMemberLevelId();
-            MemberLevelVO memberLevel = null;
-
-            if (memberLevelId != null) {
-                // 根据 member_level.id 查找
-                for (MemberLevelVO level : memberLevels) {
-                    if (level.getId() != null && level.getId().equals(memberLevelId)) {
-                        memberLevel = level;
-                        break;
-                    }
-                }
-            }
-
-            // 如果找不到匹配的等级，返回原价
-            if (memberLevel == null) {
-                return salesPrice;
-            }
-
-            BigDecimal discountRate = memberLevel.getDiscountRate();
-            if (discountRate == null) {
-                // 如果没有折扣率，返回原价
-                return salesPrice;
-            }
-
-            // 计算会员价格：销售价格 * (折扣率 / 100.00)
-            // 例如：100.00 * (95.00 / 100.00) = 95.00
-            BigDecimal memberPrice = salesPrice.multiply(discountRate).divide(new BigDecimal("100.00"), 2, BigDecimal.ROUND_HALF_UP);
-            return memberPrice;
-        } catch (Exception e) {
-            log.error("计算会员价格失败: userId={}, salesPrice={}", userId, salesPrice, e);
-            return salesPrice;
-        }
+        // 已废弃，直接返回基础价格
+        return salesPrice;
     }
 
     /**
@@ -617,4 +652,36 @@ public class ProductServiceImpl implements ProductService {
     }
 
     // 已删除原createOrUpdateProductStock方法，统一使用StockService.updateProductTotalStock
+
+    /**
+     * 保存商品会员价列表
+     *
+     * @param productId 商品ID
+     * @param memberPrices 会员价列表
+     */
+    private void saveProductMemberPrices(Long productId, List<ProductMemberPriceDTO> memberPrices) {
+        if (productId == null) {
+            return;
+        }
+
+        // 删除该商品的所有现有会员价配置
+        LambdaQueryWrapper<ProductMemberPrice> deleteWrapper = new LambdaQueryWrapper<>();
+        deleteWrapper.eq(ProductMemberPrice::getProductId, productId);
+        productMemberPriceRepository.delete(deleteWrapper);
+
+        // 如果有新的会员价配置，则保存
+        if (memberPrices != null && !memberPrices.isEmpty()) {
+            for (ProductMemberPriceDTO dto : memberPrices) {
+                if (dto.getMemberLevelId() != null && dto.getMemberPrice() != null 
+                        && dto.getMemberPrice().compareTo(BigDecimal.ZERO) > 0) {
+                    ProductMemberPrice entity = new ProductMemberPrice();
+                    entity.setProductId(productId);
+                    entity.setMemberLevelId(dto.getMemberLevelId());
+                    entity.setMemberPrice(dto.getMemberPrice());
+                    productMemberPriceRepository.insert(entity);
+                }
+            }
+            log.info("保存商品{}会员价配置成功，共{}个等级", productId, memberPrices.size());
+        }
+    }
 }

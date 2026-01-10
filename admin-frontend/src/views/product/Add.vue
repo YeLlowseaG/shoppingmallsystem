@@ -145,21 +145,32 @@
           </el-form-item>
         </div>
 
-        <!-- 会员价设置（单独一行） -->
+        <!-- 会员价设置 -->
         <div class="member-price-row">
           <el-form-item label="启用会员价">
-            <el-switch v-model="productForm.enableMemberPrice" :active-value="1" :inactive-value="0" />
-            <span class="form-tip" style="margin-left: 10px; color: #f56c6c;">启用后以会员价作为售价，否则以基础价作为售价</span>
+            <el-switch v-model="productForm.enableMemberPrice" :active-value="1" :inactive-value="0" @change="handleProductEnableMemberPriceChange" />
+            <span class="form-tip" style="margin-left: 10px; color: #f56c6c;">启用后可为不同会员等级设置不同的会员价</span>
           </el-form-item>
-          <el-form-item label="会员价" prop="memberPrice" v-if="productForm.enableMemberPrice === 1">
-            <el-input-number
-              v-model="productForm.memberPrice"
-              :min="0"
-              :precision="2"
-              :step="0.01"
-              controls-position="right"
-              style="width: 200px"
-            />
+          <el-form-item v-if="productForm.enableMemberPrice === 1" label="会员价设置">
+            <el-table :data="productMemberPriceTable" border style="width: 100%; margin-top: 10px;" max-height="300">
+              <el-table-column prop="memberLevelName" label="会员等级" width="150" align="center" />
+              <el-table-column label="会员价" min-width="200">
+                <template #default="{ row }">
+                  <el-input-number
+                    v-model="row.memberPrice"
+                    :min="0"
+                    :precision="2"
+                    :step="0.01"
+                    controls-position="right"
+                    style="width: 100%"
+                    placeholder="请输入会员价"
+                  />
+                </template>
+              </el-table-column>
+            </el-table>
+            <div class="form-tip" style="margin-top: 5px; color: #909399;">
+              提示：为空表示该等级不享受会员价，将显示基础价格
+            </div>
           </el-form-item>
         </div>
 
@@ -263,7 +274,8 @@
                 :data="skuList"
                 border
                 class="sku-table"
-                style="width: 100%; min-width: 1200px;"
+                style="width: 100%; min-width: 1350px;"
+                :scroll="{ x: 1350 }"
               >
                 <el-table-column prop="specCombinationText" label="规格组合" min-width="120" align="left" />
                 <el-table-column label="SKU编码" min-width="150">
@@ -314,28 +326,17 @@
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="启用会员价" min-width="100" align="center">
-                  <template #default="{ row, $index }">
-                    <el-switch
-                      v-model="row.enableMemberPrice"
-                      :active-value="1"
-                      :inactive-value="0"
-                      size="small"
-                    />
-                  </template>
-                </el-table-column>
-                <el-table-column label="会员价" min-width="130">
-                  <template #default="{ row, $index }">
-                    <el-input-number
-                      v-model="row.memberPrice"
-                      :min="0"
-                      :precision="2"
-                      :step="0.01"
-                      size="small"
-                      controls-position="right"
-                      style="width: 100%"
-                      :disabled="row.enableMemberPrice !== 1"
-                    />
+                <el-table-column label="会员价状态" width="120" align="center">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.enableMemberPrice === 1 && row.memberPrices?.length > 0" type="success" size="small">
+                      已设置
+                    </el-tag>
+                    <el-tag v-else-if="row.enableMemberPrice === 1" type="warning" size="small">
+                      未设置
+                    </el-tag>
+                    <el-tag v-else type="info" size="small">
+                      未启用
+                    </el-tag>
                   </template>
                 </el-table-column>
                 <el-table-column label="库存" min-width="120">
@@ -362,7 +363,7 @@
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="警戒库存" min-width="120">
+                <el-table-column label="警戒库存" width="110">
                   <template #default="{ row, $index }">
                     <el-input-number
                       v-model="row.warningStock"
@@ -373,13 +374,22 @@
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="70" fixed="right">
+                <el-table-column label="操作" width="130" fixed="right">
                   <template #default="{ row, $index }">
+                    <el-button
+                      type="primary"
+                      size="small"
+                      @click="openSkuMemberPriceDialog(row, $index)"
+                      style="margin-right: 3px; font-size: 12px; padding: 4px 6px;"
+                    >
+                      设置会员价
+                    </el-button>
                     <el-button
                       type="danger"
                       size="small"
                       :icon="Delete"
                       @click="removeSku($index)"
+                      style="padding: 4px 8px;"
                     />
                   </template>
                 </el-table-column>
@@ -472,6 +482,57 @@
       </el-form>
     </el-card>
 
+    <!-- SKU会员价设置弹窗 -->
+    <el-dialog
+      v-model="skuMemberPriceDialogVisible"
+      :title="`设置会员价 - ${currentSkuForMemberPrice ? currentSkuForMemberPrice.specCombinationText : ''}`"
+      width="600px"
+    >
+      <div style="margin-bottom: 15px;" v-if="currentSkuForMemberPrice">
+        <el-switch
+          v-model="currentSkuForMemberPrice.enableMemberPrice"
+          :active-value="1"
+          :inactive-value="0"
+          @change="handleSkuEnableMemberPriceChange"
+        />
+        <span style="margin-left: 10px; color: #909399;">
+          启用会员价后可为不同会员等级设置不同的会员价
+        </span>
+      </div>
+      
+      <el-table
+        v-if="currentSkuForMemberPrice && currentSkuForMemberPrice.enableMemberPrice === 1"
+        :data="skuMemberPriceTable"
+        border
+        style="width: 100%"
+        max-height="400"
+      >
+        <el-table-column prop="memberLevelName" label="会员等级" width="150" align="center" />
+        <el-table-column label="会员价" min-width="200">
+          <template #default="{ row }">
+            <el-input-number
+              v-model="row.memberPrice"
+              :min="0"
+              :precision="2"
+              :step="0.01"
+              controls-position="right"
+              style="width: 100%"
+              placeholder="请输入会员价"
+            />
+          </template>
+        </el-table-column>
+      </el-table>
+      
+      <div v-if="currentSkuForMemberPrice && currentSkuForMemberPrice.enableMemberPrice === 1" class="form-tip" style="margin-top: 10px; color: #909399;">
+        提示：为空表示该等级不享受会员价，将显示基础价格
+      </div>
+      
+      <template #footer>
+        <el-button @click="skuMemberPriceDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveSkuMemberPrice">确定</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 固定底部操作栏 -->
     <div class="fixed-footer">
       <el-button type="primary" @click="handleSubmit">提交</el-button>
@@ -488,10 +549,11 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules, UploadFile, UploadUserFile } from 'element-plus'
-import { createProduct } from '@/api/admin/product'
+import { createProduct, type ProductMemberPriceDTO } from '@/api/admin/product'
 import { getCategoryTree } from '@/api/admin/productCategory'
 import { getBrandOptions } from '@/api/admin/brand'
-import { batchCreateSkus, type ProductSkuDTO } from '@/api/admin/sku'
+import { batchCreateSkus, type ProductSkuDTO, type ProductSkuMemberPriceDTO } from '@/api/admin/sku'
+import { getAllEnabledMemberLevels, type MemberLevelVO } from '@/api/admin/memberLevel'
 import request from '@/utils/request'
 import RichTextEditor from '@/components/common/RichTextEditor.vue'
 
@@ -511,6 +573,7 @@ const productForm = ref({
   marketRetailPrice: 0,
   memberPrice: 0,
   enableMemberPrice: 0,
+  memberPrices: [] as ProductMemberPriceDTO[],
   stock: 0,
   warningStock: 10,
   weight: 0,
@@ -532,6 +595,26 @@ const specKeys = ref([
 ])
 
 const skuList = ref<any[]>([])
+
+// 会员等级列表
+const memberLevels = ref<MemberLevelVO[]>([])
+
+// 商品会员价表格数据（按会员等级）
+const productMemberPriceTable = ref<Array<{
+  memberLevelId: number
+  memberLevelName: string
+  memberPrice: number | null
+}>>([])
+
+// SKU会员价设置相关
+const skuMemberPriceDialogVisible = ref(false)
+const currentSkuForMemberPrice = ref<any>(null)
+const currentSkuIndex = ref<number>(-1)
+const skuMemberPriceTable = ref<Array<{
+  memberLevelId: number
+  memberLevelName: string
+  memberPrice: number | null
+}>>([])
 
 // 计算属性：是否可以生成SKU
 const canGenerateSkus = computed(() => {
@@ -680,6 +763,18 @@ const handleSubmit = async () => {
           .map(file => file.url || (file.response as any)?.data?.url)
           .filter(url => url)
 
+        // 转换会员价表格数据为memberPrices数组
+        if (productForm.value.enableMemberPrice === 1) {
+          productForm.value.memberPrices = productMemberPriceTable.value
+            .filter(row => row.memberPrice != null && row.memberPrice > 0)
+            .map(row => ({
+              memberLevelId: row.memberLevelId,
+              memberPrice: row.memberPrice!
+            }))
+        } else {
+          productForm.value.memberPrices = []
+        }
+
         const productId = await createProduct({
           productName: productForm.value.productName,
           categoryId: categoryId,
@@ -691,8 +786,8 @@ const handleSubmit = async () => {
           basePrice: productForm.value.basePrice,
           suggestedRetailPrice: productForm.value.suggestedRetailPrice,
           marketRetailPrice: productForm.value.marketRetailPrice,
-          memberPrice: productForm.value.memberPrice,
           enableMemberPrice: productForm.value.enableMemberPrice,
+          memberPrices: productForm.value.memberPrices,
           stock: productForm.value.stock,
           warningStock: productForm.value.warningStock,
           weight: productForm.value.weight,
@@ -712,8 +807,8 @@ const handleSubmit = async () => {
             price: sku.price,
             suggestedRetailPrice: sku.suggestedRetailPrice || 0,
             marketRetailPrice: sku.marketRetailPrice || 0,
-            memberPrice: sku.memberPrice || 0,
             enableMemberPrice: sku.enableMemberPrice || 0,
+            memberPrices: sku.memberPrices || [],
             stock: sku.stock || 0,
             warningStock: sku.warningStock || 0,
             weight: sku.weight || 0,
@@ -759,6 +854,18 @@ const handleSaveAsDraft = async () => {
       .map(file => file.url || (file.response as any)?.data?.url)
       .filter(url => url)
 
+    // 转换会员价表格数据为memberPrices数组
+    if (productForm.value.enableMemberPrice === 1) {
+      productForm.value.memberPrices = productMemberPriceTable.value
+        .filter(row => row.memberPrice != null && row.memberPrice > 0)
+        .map(row => ({
+          memberLevelId: row.memberLevelId,
+          memberPrice: row.memberPrice!
+        }))
+    } else {
+      productForm.value.memberPrices = []
+    }
+
     const productId = await createProduct({
       productName: productForm.value.productName,
       categoryId: categoryId,
@@ -770,8 +877,8 @@ const handleSaveAsDraft = async () => {
       basePrice: productForm.value.basePrice,
       suggestedRetailPrice: productForm.value.suggestedRetailPrice,
       marketRetailPrice: productForm.value.marketRetailPrice,
-      memberPrice: productForm.value.memberPrice,
       enableMemberPrice: productForm.value.enableMemberPrice,
+      memberPrices: productForm.value.memberPrices,
       stock: productForm.value.stock,
       warningStock: productForm.value.warningStock,
       weight: productForm.value.weight,
@@ -791,8 +898,8 @@ const handleSaveAsDraft = async () => {
         price: sku.price,
         suggestedRetailPrice: sku.suggestedRetailPrice || 0,
         marketRetailPrice: sku.marketRetailPrice || 0,
-        memberPrice: sku.memberPrice || 0,
         enableMemberPrice: sku.enableMemberPrice || 0,
+        memberPrices: sku.memberPrices || [],
         stock: sku.stock || 0,
         warningStock: sku.warningStock || 0,
         weight: sku.weight || 0,
@@ -875,8 +982,8 @@ const generateSkuList = () => {
       price: productForm.value.basePrice,
       suggestedRetailPrice: productForm.value.suggestedRetailPrice,
       marketRetailPrice: productForm.value.marketRetailPrice,
-      memberPrice: productForm.value.memberPrice,
-      enableMemberPrice: productForm.value.enableMemberPrice,
+      enableMemberPrice: 0,
+      memberPrices: [] as ProductSkuMemberPriceDTO[],
       stock: productForm.value.stock,
       warningStock: productForm.value.warningStock,
       weight: productForm.value.weight,
@@ -904,10 +1011,105 @@ const removeSku = (index: number) => {
   skuList.value.splice(index, 1)
 }
 
+// 加载会员等级列表
+const loadMemberLevels = async () => {
+  try {
+    memberLevels.value = await getAllEnabledMemberLevels()
+    // 初始化商品会员价表格
+    initProductMemberPriceTable()
+  } catch (error) {
+    console.error('加载会员等级失败:', error)
+    memberLevels.value = []
+  }
+}
+
+// 初始化商品会员价表格
+const initProductMemberPriceTable = () => {
+  productMemberPriceTable.value = memberLevels.value.map(level => ({
+    memberLevelId: level.id,
+    memberLevelName: level.levelName,
+    memberPrice: null
+  }))
+}
+
+// 处理启用会员价切换
+const handleProductEnableMemberPriceChange = (value: number) => {
+  if (value === 1 && productMemberPriceTable.value.length === 0) {
+    initProductMemberPriceTable()
+  }
+}
+
+// 打开SKU会员价设置弹窗
+const openSkuMemberPriceDialog = (sku: any, index: number) => {
+  currentSkuForMemberPrice.value = {
+    ...sku,
+    enableMemberPrice: sku.enableMemberPrice ?? 0,
+    memberPrices: sku.memberPrices || []
+  }
+  currentSkuIndex.value = index
+  skuMemberPriceDialogVisible.value = true
+  // 初始化会员价表格
+  initSkuMemberPriceTable()
+}
+
+// 初始化SKU会员价表格
+const initSkuMemberPriceTable = () => {
+  skuMemberPriceTable.value = memberLevels.value.map(level => {
+    // 如果SKU已有会员价配置，查找对应的价格
+    const existingPrice = currentSkuForMemberPrice.value.memberPrices?.find(
+      (mp: ProductSkuMemberPriceDTO) => mp.memberLevelId === level.id
+    )
+    return {
+      memberLevelId: level.id,
+      memberLevelName: level.levelName,
+      memberPrice: existingPrice ? existingPrice.memberPrice : null
+    }
+  })
+}
+
+// 处理SKU启用会员价切换
+const handleSkuEnableMemberPriceChange = (value: number) => {
+  if (value === 0) {
+    // 禁用会员价时，清空会员价配置
+    if (currentSkuForMemberPrice.value) {
+      currentSkuForMemberPrice.value.memberPrices = []
+    }
+  }
+}
+
+// 保存SKU会员价设置
+const saveSkuMemberPrice = () => {
+  if (!currentSkuForMemberPrice.value) return
+  
+  // 转换会员价表格数据为memberPrices数组
+  if (currentSkuForMemberPrice.value.enableMemberPrice === 1) {
+    currentSkuForMemberPrice.value.memberPrices = skuMemberPriceTable.value
+      .filter(row => row.memberPrice != null && row.memberPrice > 0)
+      .map(row => ({
+        memberLevelId: row.memberLevelId,
+        memberPrice: row.memberPrice!
+      }))
+  } else {
+    currentSkuForMemberPrice.value.memberPrices = []
+  }
+  
+  // 更新skuList中对应的SKU（保留原有字段）
+  const originalSku = skuList.value[currentSkuIndex.value]
+  skuList.value[currentSkuIndex.value] = {
+    ...originalSku,
+    enableMemberPrice: currentSkuForMemberPrice.value.enableMemberPrice,
+    memberPrices: currentSkuForMemberPrice.value.memberPrices
+  }
+  
+  ElMessage.success('会员价设置已保存')
+  skuMemberPriceDialogVisible.value = false
+}
+
 onMounted(() => {
   loadCategories()
   loadBrands()
   loadShippingTemplates()
+  loadMemberLevels()
 })
 </script>
 

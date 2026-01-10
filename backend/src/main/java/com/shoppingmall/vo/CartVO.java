@@ -87,6 +87,12 @@ public class CartVO {
      * SKU编码（可选，如果商品有SKU则返回SKU编码，否则为空）
      */
     private String skuCode;
+
+    /**
+     * 是否启用会员价（0-否，1-是）
+     * 如果商品有SKU，则使用SKU的enableMemberPrice；否则使用商品的enableMemberPrice
+     */
+    private Integer enableMemberPrice;
 }
 
 

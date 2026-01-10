@@ -98,4 +98,9 @@ public class ProductSkuDTO {
      * 状态：0-禁用，1-启用
      */
     private Integer status = 1;
+
+    /**
+     * SKU会员价列表（按会员等级设置）
+     */
+    private java.util.List<ProductSkuMemberPriceDTO> memberPrices;
 }

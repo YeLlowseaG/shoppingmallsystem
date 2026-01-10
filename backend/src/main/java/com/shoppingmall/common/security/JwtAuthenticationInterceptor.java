@@ -31,8 +31,10 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
         String token = getTokenFromRequest(request);
         
         // 如果商品详情等公开接口，支持可选认证：有token就验证并设置userId，没有token就允许通过
+        // 包括收藏和缺货登记的check接口，允许未登录用户访问
         if (uri.contains("/product/") || uri.contains("/product-category/") || 
-            uri.contains("/website/") || uri.contains("/navigation/")) {
+            uri.contains("/website/") || uri.contains("/navigation/") ||
+            uri.contains("/favorites/check/") || uri.contains("/stock-notification/check/")) {
             // 可选认证：如果有token就验证并设置userId
             if (token != null) {
                 try {

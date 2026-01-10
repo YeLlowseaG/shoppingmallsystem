@@ -64,10 +64,16 @@ public class StockNotificationController {
 
     /**
      * 检查是否已登记某商品
+     * 支持未登录用户访问，未登录时返回false
      */
     @GetMapping("/check/{productId}")
     public Result<Boolean> checkRegistered(@PathVariable Long productId, HttpServletRequest request) {
-        Long userId = getUserIdFromRequest(request);
+        // 从request中获取用户ID，如果未登录则为null
+        Long userId = (Long) request.getAttribute("userId");
+        // 未登录用户返回false
+        if (userId == null) {
+            return Result.success("查询成功", false);
+        }
         
         boolean hasRegistered = stockNotificationService.hasRegistered(userId, productId);
         return Result.success("查询成功", hasRegistered);
