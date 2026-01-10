@@ -14,10 +14,12 @@
       <div class="container">
         <span>您当前的位置：</span>
         <router-link to="/">首页</router-link>
-        <span> > </span>
-        <router-link to="/products?categoryId=3">避孕润滑</router-link>
-        <span> > </span>
-        <router-link to="/products?categoryId=31">安全套</router-link>
+        <template v-for="(category, index) in breadcrumbPath" :key="category.id">
+          <span> > </span>
+          <router-link :to="`/products?categoryId=${category.id}`">
+            {{ category.name }}
+          </router-link>
+        </template>
         <span> > </span>
         <span class="current">{{ product.name }}</span>
       </div>
@@ -452,6 +454,7 @@ import { addFavorite, removeFavorite, checkFavorite } from '@/api/buyer/favorite
 import { getSkusByProductId, getSpecKeysByProductId, type ProductSkuVO, type ProductSpecKeyVO } from '@/api/buyer/sku'
 import { createStockNotification, checkStockNotificationRegistered, type StockNotificationDTO } from '@/api/buyer/stock-notification'
 import { submitReview as submitReviewAPI, type ProductReviewDTO } from '@/api/buyer/review'
+import { getCategoryById, type ProductCategoryVO } from '@/api/buyer/productCategory'
 import { useCartStore } from '@/stores/cart'
 import { useUserStore } from '@/stores/user'
 import SpecSelector from '@/components/product/SpecSelector.vue'
@@ -476,6 +479,9 @@ const quantity = ref(1)
 
 // 当前标签页
 const activeTab = ref('detail')
+
+// 面包屑路径
+const breadcrumbPath = ref<Array<{ id: number; name: string }>>([])
 
 // 咨询和评论数量
 const consultationCount = ref(0)
@@ -585,6 +591,29 @@ const productStatusError = ref<{
 // 加入购物车按钮加载状态
 const addingToCart = ref(false)
 
+// 根据分类ID构建面包屑路径（递归向上查找父分类）
+const buildCategoryPath = async (categoryId: number) => {
+  const path: Array<{ id: number; name: string }> = []
+  
+  try {
+    let currentCategoryId = categoryId
+    while (currentCategoryId) {
+      const category = await getCategoryById(currentCategoryId)
+      path.unshift({ id: category.id, name: category.categoryName })
+      
+      // 如果有父分类，继续向上查找
+      if (category.parentId && category.parentId !== 0) {
+        currentCategoryId = category.parentId
+      } else {
+        break
+      }
+    }
+  } catch (error) {
+    console.error('获取分类路径失败:', error)
+  }
+  
+  return path
+}
 
 // 加载商品详情
 const loadProductDetail = async (productId: number) => {
@@ -666,6 +695,11 @@ const loadProductDetail = async (productId: number) => {
     // 设置默认图片
     if (product.value.images.length > 0) {
       currentImage.value = product.value.images[0]
+    }
+
+    // 构建面包屑路径
+    if (productData.categoryId) {
+      breadcrumbPath.value = await buildCategoryPath(productData.categoryId)
     }
 
     // 只有当商品启用了规格（enableSpec === 1）且有SKU数据时，才加载规格选择器
@@ -764,6 +798,35 @@ const loadProductSkuData = async (productId: number) => {
 
 // 处理规格选择变化
 const handleSpecChange = (newSelectedSpecs: Record<string, string>, newCurrentSku: ProductSkuVO | null) => {
+  // 如果商品启用了SKU，确保至少有一个SKU被选中
+  if (product.value.enableSpec === 1 && productSkuList.value.length > 0) {
+    // 如果所有规格都被取消选择，恢复默认选中的第一个SKU
+    const selectedCount = Object.keys(newSelectedSpecs).length
+    if (selectedCount === 0) {
+      // 恢复默认选中的第一个SKU
+      let firstSku = productSkuList.value.find(sku => sku.status === 1 && sku.stock > 0)
+      if (!firstSku) {
+        firstSku = productSkuList.value.find(sku => sku.status === 1)
+      }
+      if (!firstSku) {
+        firstSku = productSkuList.value[0]
+      }
+      
+      if (firstSku) {
+        try {
+          const specCombination = JSON.parse(firstSku.specCombination)
+          selectedSpecs.value = { ...specCombination }
+          currentSku.value = firstSku
+          // 重置购买数量为1
+          quantity.value = 1
+          return
+        } catch (error) {
+          console.error('解析默认SKU规格失败:', error)
+        }
+      }
+    }
+  }
+  
   selectedSpecs.value = newSelectedSpecs
   currentSku.value = newCurrentSku
   

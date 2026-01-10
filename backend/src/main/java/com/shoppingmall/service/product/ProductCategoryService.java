@@ -65,4 +65,12 @@ public interface ProductCategoryService {
      * @param status 状态（0-禁用，1-启用）
      */
     void updateStatus(Long id, Integer status);
+
+    /**
+     * 获取指定分类及其所有子分类的ID列表（递归）
+     *
+     * @param categoryId 分类ID
+     * @return 分类ID列表（包含自身及所有子分类）
+     */
+    List<Long> getAllCategoryIdsIncludingChildren(Long categoryId);
 }

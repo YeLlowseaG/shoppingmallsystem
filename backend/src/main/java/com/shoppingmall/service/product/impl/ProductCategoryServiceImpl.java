@@ -140,6 +140,33 @@ public class ProductCategoryServiceImpl implements ProductCategoryService {
         log.info("更新分类状态成功: id={}, status={}", id, status);
     }
 
+    @Override
+    public List<Long> getAllCategoryIdsIncludingChildren(Long categoryId) {
+        List<Long> categoryIds = new ArrayList<>();
+        categoryIds.add(categoryId);
+        
+        // 递归获取所有子分类ID
+        collectChildCategoryIds(categoryId, categoryIds);
+        
+        return categoryIds;
+    }
+
+    /**
+     * 递归收集所有子分类ID
+     */
+    private void collectChildCategoryIds(Long parentId, List<Long> categoryIds) {
+        LambdaQueryWrapper<ProductCategory> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ProductCategory::getParentId, parentId)
+                .eq(ProductCategory::getStatus, 1); // 只查询启用的分类
+        List<ProductCategory> children = categoryRepository.selectList(wrapper);
+        
+        for (ProductCategory child : children) {
+            categoryIds.add(child.getId());
+            // 递归获取子分类的子分类
+            collectChildCategoryIds(child.getId(), categoryIds);
+        }
+    }
+
     /**
      * 构建分类树
      */

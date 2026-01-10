@@ -25,6 +25,7 @@ import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.repository.website.BrandRepository;
 import com.shoppingmall.service.admin.StockService;
 import com.shoppingmall.service.member.MemberLevelService;
+import com.shoppingmall.service.product.ProductCategoryService;
 import com.shoppingmall.service.product.ProductService;
 import com.shoppingmall.service.sku.ProductSkuService;
 import com.shoppingmall.service.user.StockNotificationService;
@@ -53,6 +54,7 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final ProductCategoryRepository categoryRepository;
+    private final ProductCategoryService categoryService;
     private final BrandRepository brandRepository;
     private final ProductStockRepository productStockRepository;
     private final ObjectMapper objectMapper;
@@ -73,9 +75,11 @@ public class ProductServiceImpl implements ProductService {
         
         // MyBatis-Plus 的 @TableLogic 会自动过滤 deleted=1 的记录，只查询未删除的商品
 
-        // 分类筛选
+        // 分类筛选（支持查询父分类及其所有子分类的商品）
         if (categoryId != null) {
-            wrapper.eq(Product::getCategoryId, categoryId);
+            // 获取该分类及其所有子分类的ID列表
+            List<Long> categoryIds = categoryService.getAllCategoryIdsIncludingChildren(categoryId);
+            wrapper.in(Product::getCategoryId, categoryIds);
         }
 
         // 关键词搜索
@@ -365,7 +369,9 @@ public class ProductServiceImpl implements ProductService {
         Page<Product> page = new Page<>(1, limit);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Product::getCategoryId, categoryId)
+        // 获取该分类及其所有子分类的ID列表（支持查询父分类及其所有子分类的商品）
+        List<Long> categoryIds = categoryService.getAllCategoryIdsIncludingChildren(categoryId);
+        wrapper.in(Product::getCategoryId, categoryIds)
                 .eq(Product::getStatus, 1) // 1=上架
                 .orderByDesc(Product::getSalesCount);
 

@@ -676,8 +676,8 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit">确定</el-button>
+        <el-button @click="dialogVisible = false" :disabled="submitLoading">取消</el-button>
+        <el-button type="primary" @click="handleSubmit" :loading="submitLoading" :disabled="submitLoading">确定</el-button>
       </template>
     </el-dialog>
 
@@ -1184,6 +1184,7 @@ const flatCategories = computed(() => {
 // 对话框
 const dialogVisible = ref(false)
 const formRef = ref<FormInstance>()
+const submitLoading = ref(false)
 
 // 详情图片列表
 const detailImageList = ref<UploadUserFile[]>([])
@@ -1613,10 +1614,12 @@ const handleEdit = async (row: ProductVO) => {
 // 提交表单（只用于编辑）
 const handleSubmit = async () => {
   if (!formRef.value) return
+  if (submitLoading.value) return // 防止重复点击
 
   await formRef.value.validate(async (valid) => {
     if (!valid) return
 
+    submitLoading.value = true
     try {
       console.log('=== 开始保存商品数据 ===')
       console.log('当前正在编辑的商品ID:', formData.value.id)
@@ -1768,6 +1771,8 @@ const handleSubmit = async () => {
     } catch (error) {
       console.error('保存失败:', error)
       ElMessage.error('操作失败: ' + (error.response?.data?.message || error.message))
+    } finally {
+      submitLoading.value = false
     }
   })
 }

@@ -126,18 +126,27 @@ const pageSize = ref(12)
 
 // 转换商品数据格式给 ProductCard 使用
 const displayProducts = computed(() => {
-  return products.value.map(product => ({
-    id: product.id,
-    name: product.productName,
-    image: product.mainImage,
-    price: product.salePrice || product.basePrice,
-    memberPrice: product.memberPrice ?? product.basePrice,
-    originalPrice: product.marketRetailPrice || product.basePrice * 1.5, // 使用实际市场零售价或基础价的1.5倍
-    sales: product.salesCount,
-    category: product.categoryName,
-    tags: '', // 暂不使用标签
-    brand: product.brandName || '' // 使用实际品牌名称
-  }))
+  return products.value.map(product => {
+    // 如果启用了SKU且有SKU数据，优先使用第一个SKU的价格
+    const hasSku = product.enableSpec === 1 && product.skus && product.skus.length > 0
+    const firstSku = hasSku ? product.skus[0] : null
+
+    return {
+      id: product.id,
+      name: product.productName,
+      image: product.mainImage,
+      // 价格：优先使用SKU价格，否则使用商品价格
+      price: firstSku?.price ?? (product.salePrice || product.basePrice),
+      // 会员价：优先使用SKU会员价，否则使用商品会员价
+      memberPrice: firstSku?.memberPrice ?? product.memberPrice ?? product.basePrice,
+      // 原价：优先使用SKU市场零售价，否则使用商品市场零售价，最后使用基础价的1.5倍
+      originalPrice: firstSku?.marketRetailPrice ?? product.marketRetailPrice ?? product.basePrice * 1.5,
+      sales: product.salesCount,
+      category: product.categoryName,
+      tags: '', // 暂不使用标签
+      brand: product.brandName || '' // 使用实际品牌名称
+    }
+  })
 })
 
 // 显示模式

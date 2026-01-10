@@ -49,7 +49,7 @@ import BrandSection from '@/components/home/BrandSection.vue'
 import CategoryFloor from '@/components/home/CategoryFloor.vue'
 import Footer from '@/components/home/Footer.vue'
 import { getRecommendProducts, type ProductVO } from '@/api/buyer/product'
-import { getAllFloorAdvertisements, type Advertisement } from '@/api/buyer/website'
+import { getAllFloorAdvertisements } from '@/api/buyer/website'
 
 // 广告位置与分类ID的映射配置（根据实际数据库分类ID）
 // 格式：广告位置 -> { 分类ID, 标题颜色 }
@@ -77,17 +77,26 @@ const floorData = ref<Array<{
 }>>([])
 
 // 转换商品数据格式
-const convertProduct = (product: ProductVO) => ({
-  id: product.id,
-  name: product.productName,
-  image: product.mainImage,
-  price: product.basePrice,
-  memberPrice: product.memberPrice ?? product.basePrice,
-  originalPrice: product.basePrice * 1.5,  // 原价设置为基础价的1.5倍
-  category: product.categoryName,
-  tag: '',
-  salesCount: product.salesCount
-})
+const convertProduct = (product: ProductVO) => {
+  // 如果启用了SKU且有SKU数据，优先使用第一个SKU的价格
+  const hasSku = product.enableSpec === 1 && product.skus && product.skus.length > 0
+  const firstSku = hasSku && product.skus ? product.skus[0] : null
+
+  return {
+    id: product.id,
+    name: product.productName,
+    image: product.mainImage,
+    // 价格：优先使用SKU价格，否则使用商品价格
+    price: firstSku?.price ?? product.basePrice,
+    // 会员价：优先使用SKU会员价，否则使用商品会员价
+    memberPrice: firstSku?.memberPrice ?? product.memberPrice ?? product.basePrice,
+    // 原价：优先使用SKU市场零售价，否则使用商品市场零售价，最后使用基础价的1.5倍
+    originalPrice: firstSku?.marketRetailPrice ?? product.marketRetailPrice ?? product.basePrice * 1.5,
+    category: product.categoryName,
+    tag: '',
+    salesCount: product.salesCount
+  }
+}
 
 // 从广告位置提取楼层编号（如 floor_1 -> 1F）
 const getFloorNumber = (adPosition: string): string => {
@@ -113,12 +122,22 @@ const loadFloorData = async () => {
           return null
         }
 
+        // 确定使用的分类ID：优先使用广告配置中的分类ID，否则使用默认配置
+        let categoryId = config.categoryId
+        if (ad.linkType === 1 && ad.linkValue) {
+          // linkType=1 表示商品分类，linkValue 是分类ID
+          const adCategoryId = Number(ad.linkValue)
+          if (!isNaN(adCategoryId)) {
+            categoryId = adCategoryId
+          }
+        }
+
         // 获取该分类的推荐商品（6个）
         let products: ProductVO[] = []
         try {
-          products = await getRecommendProducts(config.categoryId, 6)
+          products = await getRecommendProducts(categoryId, 6)
         } catch (error) {
-          console.error(`加载分类 ${config.categoryId} 的商品失败:`, error)
+          console.error(`加载分类 ${categoryId} 的商品失败:`, error)
         }
         
         const convertedProducts = products.map(convertProduct)
@@ -127,7 +146,7 @@ const loadFloorData = async () => {
           floorNumber: getFloorNumber(ad.adPosition),
           categoryName: ad.adName,  // 使用广告名称作为标题
           titleColor: config.titleColor,
-          categoryId: config.categoryId,
+          categoryId: categoryId,  // 使用实际使用的分类ID
           bigAd: ad.imageUrl || '',  // 使用广告图片
           adLinkType: ad.linkType,  // 广告链接类型
           adLinkValue: ad.linkValue,  // 广告链接值
