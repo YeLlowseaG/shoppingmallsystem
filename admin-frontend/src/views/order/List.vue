@@ -109,7 +109,7 @@
             <el-tag v-else type="info" size="small">未同步</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="320" fixed="right">
+        <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleViewLogistics(row)">物流信息</el-button>
             <el-button
@@ -150,9 +150,6 @@
                   </el-dropdown-item>
                   <el-dropdown-item @click="handlePullLogistics(row)" v-if="row.erpSyncStatus === 1 && row.status === 1">
                     拉取物流信息
-                  </el-dropdown-item>
-                  <el-dropdown-item @click="handleViewErpLogs(row)">
-                    查看同步日志
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -1077,13 +1074,10 @@ const handlePushToErp = async (row: any) => {
       }
     )
 
-    const res = await pushOrderToErp(row.id)
-    if (res.code === 200) {
-      ElMessage.success(res.message || '推送成功')
-      loadOrderList() // 重新加载订单列表
-    } else {
-      ElMessage.error(res.message || '推送失败')
-    }
+    // 由于响应拦截器的逻辑，成功时返回的是 data 字段的内容
+    const result = await pushOrderToErp(row.id)
+    ElMessage.success(result || '推送成功')
+    loadOrderList() // 重新加载订单列表
   } catch (error: any) {
     if (error !== 'cancel') {
       ElMessage.error(error.message || '推送失败')
@@ -1106,14 +1100,6 @@ const handlePullLogistics = async (row: any) => {
   }
 }
 
-// 查看ERP同步日志
-const handleViewErpLogs = (row: any) => {
-  // 跳转到ERP同步日志页面，并传入订单ID作为筛选条件
-  router.push({
-    path: '/erp/order-sync',
-    query: { orderId: row.id }
-  })
-}
 
 // 监听搜索表单中的订单状态变化，同步到tab
 watch(() => searchForm.orderStatus, (newStatus) => {

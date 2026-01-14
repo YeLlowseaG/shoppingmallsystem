@@ -14,3 +14,9 @@ import org.apache.ibatis.annotations.Mapper;
 public interface ProductMemberPriceRepository extends BaseMapper<ProductMemberPrice> {
 }
 
+
+
+
+
+
+

@@ -47,12 +47,16 @@ public class JushuitanApiServiceImpl implements JushuitanApiService {
             // 直接序列化为数组，不要包装在对象中
             String bizContent = objectMapper.writeValueAsString(orders);
 
-            // 使用专用接口路径（与商品上传接口类似）
-            String apiUrl;
-            if ("test".equals(config.getEnvType())) {
-                apiUrl = "https://dev-api.jushuitan.com/open/jushuitan/orders/upload";
-            } else {
-                apiUrl = "https://api.jushuitan.com/open/jushuitan/orders/upload";
+            // 使用配置中的API地址（去除前后空格）
+            String apiUrl = config.getApiUrl().trim();
+            
+            // 如果配置的是通用接口路径（/api/open/query.aspx），则替换为订单上传专用路径
+            if (apiUrl.contains("/api/open/query.aspx")) {
+                if ("test".equals(config.getEnvType())) {
+                    apiUrl = "https://dev-api.jushuitan.com/open/jushuitan/orders/upload";
+                } else {
+                    apiUrl = "https://openapi.jushuitan.com/open/jushuitan/orders/upload";
+                }
             }
 
             log.info("===== 聚水潭订单推送开始 =====");

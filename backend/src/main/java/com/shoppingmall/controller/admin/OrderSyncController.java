@@ -10,6 +10,8 @@ import com.shoppingmall.service.erp.JushuitanOrderService;
 import com.shoppingmall.vo.OrderSyncLogVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.annotation.Resource;
@@ -42,12 +44,13 @@ public class OrderSyncController {
      * 手动推送订单到聚水潭
      */
     @PostMapping("/push/{orderId}")
-    public Result<String> pushOrder(@PathVariable Long orderId) {
+    public ResponseEntity<Result<String>> pushOrder(@PathVariable Long orderId) {
         boolean success = jushuitanOrderService.pushOrder(orderId);
         if (success) {
-            return Result.success("订单推送成功");
+            return ResponseEntity.ok(Result.success("订单推送成功"));
         } else {
-            return Result.error("订单推送失败");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Result.error(500, "订单推送失败"));
         }
     }
 
@@ -156,6 +159,7 @@ public class OrderSyncController {
         @RequestParam(defaultValue = "1") Integer pageNum,
         @RequestParam(defaultValue = "20") Integer pageSize,
         @RequestParam(required = false) Long orderId,
+        @RequestParam(required = false) String orderNo,
         @RequestParam(required = false) String syncType,
         @RequestParam(required = false) Integer syncStatus,
         @RequestParam(required = false) String envType
@@ -165,6 +169,9 @@ public class OrderSyncController {
 
         if (orderId != null) {
             queryWrapper.eq("order_id", orderId);
+        }
+        if (orderNo != null && !orderNo.isEmpty()) {
+            queryWrapper.eq("order_no", orderNo);
         }
         if (syncType != null && !syncType.isEmpty()) {
             queryWrapper.eq("sync_type", syncType);

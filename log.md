@@ -1,657 +1,223 @@
-# 修改日志
+# 2026-01-14 ERP同步日志查询功能增强记录
 
-## 2026-01-08 - 修复商品详情页面包屑导航硬编码问题
+## 功能增强内容
 
-### 问题描述
-商品详情页（`http://localhost:3002/products/18`）的面包屑导航路径是硬编码的，显示为"首页 > 避孕润滑 > 安全套 >"，而不是根据后端返回的商品分类层级动态生成。
+### 1. 订单同步日志页面增加订单号查询
+**需求描述**：订单同步日志查询页面增加订单号字段查询功能。
 
-### 问题原因
-1. 面包屑导航中的分类名称和链接是硬编码的（"避孕润滑"和"安全套"）
-2. 没有根据商品的 `categoryId` 动态构建分类路径
-3. 没有递归查找父分类来构建完整的面包屑路径
+**实现方案**：
+- 前端在查询表单中添加订单号输入框
+- 后端API添加orderNo参数支持
+- 支持通过订单号精确查询同步日志
+
+### 2. 商品同步日志页面增加商品编码查询
+**需求描述**：商品同步日志查询页面增加商品编码字段查询功能。
+
+**实现方案**：
+- 前端在查询表单中添加商品编码输入框
+- 后端API添加productCode参数支持
+- 支持通过商品编码精确查询同步日志
+
+## 修改的文件
+
+### 前端文件
+1. `admin-frontend/src/views/erp/OrderSync.vue`
+   - 添加订单号查询输入框
+   - 更新queryForm响应式数据
+   - 更新重置函数
+
+2. `admin-frontend/src/views/erp/ProductSync.vue`
+   - 添加商品编码查询输入框
+   - 更新queryForm响应式数据
+   - 更新重置函数
+
+### 后端文件
+1. `backend/src/main/java/com/shoppingmall/controller/admin/OrderSyncController.java`
+   - getSyncLogs方法添加orderNo参数
+   - 添加订单号查询条件
+
+2. `backend/src/main/java/com/shoppingmall/controller/admin/ProductSyncController.java`
+   - getSyncLogs方法添加productCode参数
+   - 添加商品编码查询条件
+
+## 测试建议
+
+1. **订单同步日志页面**：
+   - 访问 `http://localhost:3003/admin/erp/order-sync`
+   - 验证订单号查询字段存在并能正常输入
+   - 通过订单号查询确认能正确筛选日志记录
+
+2. **商品同步日志页面**：
+   - 访问 `http://localhost:3003/admin/erp/product-sync`
+   - 验证商品编码查询字段存在并能正常输入
+   - 通过商品编码查询确认能正确筛选日志记录
+
+---
+
+# 2026-01-14 聚水潭订单推送问题修复记录
+
+## 问题分析与修复
+
+### 1. 订单支付成功后自动推送问题
+**问题描述**：聚水潭配置已开启订单推送，但订单支付成功后没有自动推送订单数据到聚水潭ERP平台。
+
+**问题原因**：两个方面的问题
+1. 支付宝/微信支付回调中有自动推送逻辑，但预存款支付没有
+2. 缺少详细日志，无法确定是否执行到自动推送步骤
+
+**修复方案**：
+- 在 `PaymentNotifyController.processPaymentNotify()` 方法中添加详细的调试日志
+- 在 `OrderServiceImpl` 的预存款支付成功逻辑中添加自动推送代码
+- 添加配置检查、推送条件判断和执行结果的日志输出
+
+### 2. order_sync_log表无推送日志问题
+**问题描述**：order_sync_log表看不到推送的订单日志。
+
+**问题原因**：由于自动推送没有执行，所以没有产生同步日志记录。
+
+**修复方案**：修复自动推送问题后，该问题将自动解决。
+
+### 3. 前端订单列表推送ERP按钮响应问题
+**问题描述**：接口返回成功但前端页面提示推送失败。
+
+**问题原因**：两个方面的问题
+1. 后端使用 `Result.error()` 返回业务错误码，但HTTP状态码仍然是200，前端响应拦截器只检查业务状态码
+2. 前端响应拦截器在 `res.code === 200` 时返回 `res.data`，导致前端收到的不是完整的响应对象而是数据字符串
+
+**修复方案**：
+- 修改 `OrderSyncController.pushOrder()` 方法，在推送失败时返回HTTP 500状态码
+- 使用 `ResponseEntity` 返回适当的HTTP状态码
+- 修改前端代码，使用 try-catch 处理成功和失败的情况，因为响应拦截器会在失败时抛出异常
+
+### 4. 屏蔽"查看同步日志"入口
+**问题描述**：订单列表中的"查看同步日志"入口需要屏蔽。
+
+**修复方案**：
+- 从前端订单列表页面的下拉菜单中移除"查看同步日志"按钮
+- 删除对应的 `handleViewErpLogs` 处理函数
+
+## 修改的文件
+1. `backend/src/main/java/com/shoppingmall/payment/controller/PaymentNotifyController.java` - 添加调试日志
+2. `backend/src/main/java/com/shoppingmall/controller/admin/OrderSyncController.java` - 修复HTTP状态码返回
+3. `admin-frontend/src/views/order/List.vue` - 修复前端响应处理逻辑，屏蔽"查看同步日志"入口
+4. `backend/src/main/java/com/shoppingmall/service/buyer/impl/OrderServiceImpl.java` - 添加预存款支付的自动推送逻辑
+
+# 2025-01-14 聚水潭店铺商品资料上传接口开发记录
+
+## 开发内容
+实现了聚水潭开放平台店铺商品资料上传接口的完整功能，包括普通商品资料上传和店铺商品资料上传的区分。
+
+## 2025-01-14 第二次修改：实现双接口同时同步
+
+### 修改背景
+用户要求商品上传时同时同步普通商品资料和店铺商品资料到聚水潭平台。
 
 ### 修改内容
-
-1. **导入分类API** (`frontend/src/views/products/Detail.vue`)
-   - 添加 `getCategoryById` 和 `ProductCategoryVO` 的导入
-   - 用于根据分类ID获取分类信息（包括父分类ID）
-
-2. **添加面包屑路径数据** (`frontend/src/views/products/Detail.vue`)
-   - 添加 `breadcrumbPath` 响应式变量，存储分类路径数组
-   - 每个路径项包含 `id` 和 `name` 字段
-
-3. **实现分类路径构建函数** (`frontend/src/views/products/Detail.vue`)
-   - 添加 `buildCategoryPath()` 函数
-   - 根据商品的 `categoryId` 递归向上查找所有父分类
-   - 构建从根分类到当前分类的完整路径
-
-4. **在加载商品时构建路径** (`frontend/src/views/products/Detail.vue`)
-   - 在 `loadProductDetail()` 函数中，加载商品详情后调用 `buildCategoryPath()`
-   - 根据商品的 `categoryId` 动态构建面包屑路径
-
-5. **修改模板使用动态数据** (`frontend/src/views/products/Detail.vue`)
-   - 将硬编码的分类链接改为使用 `v-for` 遍历 `breadcrumbPath`
-   - 动态生成分类链接和名称
-
-### 功能说明
-- **动态路径生成**：根据商品的 `categoryId` 自动构建分类路径
-- **递归查找父分类**：从当前分类向上递归查找所有父分类，构建完整路径
-- **自动适配**：无论商品属于几级分类，都能正确显示完整的面包屑路径
-- **链接正确**：每个分类链接都指向对应的分类商品列表页
-
-### 修改后的效果
-- ✅ 面包屑导航根据商品的实际分类动态生成
-- ✅ 支持多级分类（一级、二级、三级等）
-- ✅ 分类路径自动适配，无需手动维护
-- ✅ 分类链接正确指向对应的分类商品列表
-
-### 相关文件
-- `frontend/src/views/products/Detail.vue`
-
----
-
-## 2026-01-10 - 生成新模板批量导入测试数据
-
-### 需求说明
-根据修改后的批量导入模板（包含会员价列和运费模板ID字段），生成多份组合场景的测试数据，用于验证导入功能。
-
-### 生成内容
-
-生成了6份测试数据文件（CSV格式），位于 `docs/test/` 目录：
-
-1. **商品导入测试数据-09-新模板基础商品.csv**
-   - 基础商品测试（无规格、无会员价）
-   - 包含5个商品，涵盖不同分类、品牌、运费模板ID场景
-   - 验证基础字段导入功能
-
-2. **商品导入测试数据-10-新模板商品会员价.csv**
-   - 启用商品会员价的商品测试
-   - 包含5个商品，涵盖不同会员价配置场景：
-     - 所有会员等级都有价格
-     - 部分会员等级有价格
-     - 仅普通会员有价格
-     - 无运费模板ID的商品
-     - 无品牌的商品
-
-3. **商品导入测试数据-11-新模板规格商品.csv**
-   - 启用规格的商品测试（无会员价）
-   - 包含3个商品，涵盖：
-     - 单规格商品（颜色）
-     - 多规格组合商品（颜色+尺寸）
-     - 三规格组合商品（颜色+尺寸+其他）
-
-4. **商品导入测试数据-12-新模板规格+SKU会员价.csv**
-   - 启用规格+SKU会员价的商品测试
-   - 包含3个商品，涵盖：
-     - 所有SKU都启用会员价
-     - 部分SKU启用会员价
-     - SKU会员价部分等级有价格
-
-5. **商品导入测试数据-13-新模板综合场景.csv**
-   - 综合场景测试，涵盖各种组合：
-     - 基础商品+运费模板
-     - 规格+SKU会员价
-     - 草稿+规格
-     - 无运费模板+商品会员价
-     - 无品牌+运费模板
-     - 无预警库存+规格+SKU会员价
-     - 商品会员价+规格+SKU会员价
-     - 商品会员价（部分等级）
-     - 规格+部分SKU会员价
-
-6. **商品导入测试数据-14-新模板边界值测试.csv**
-   - 边界值测试，验证系统对极端值的处理：
-     - 最小价格和库存（0.01, 0）
-     - 最大价格和库存（99999.99, 99999）
-     - 空运费模板ID
-     - 空品牌名称
-     - 空预警库存
-     - 会员价边界值（最小和最大）
-     - 长描述文本测试
-
-### 测试数据特点
-
-- **完整的列结构**：包含所有新模板字段：
-  - 基础列（15列）：商品编码、条码、计量单位、商品名称、分类名称、品牌名称、运费模板ID、基础价、建议零售价、市场零售价、预警库存、重量(g)、商品描述、状态、启用会员价
-  - 商品会员价列（动态）：商品会员价-普通会员、商品会员价-银卡会员、商品会员价-金卡会员、商品会员价-钻石会员
-  - SKU相关列（6列）：启用规格、SKU编码、规格组合、SKU价格、SKU库存、启用SKU会员价
-  - SKU会员价列（动态）：SKU会员价-普通会员、SKU会员价-银卡会员、SKU会员价-金卡会员、SKU会员价-钻石会员
-
-- **会员等级假设**：测试数据中假设系统有4个会员等级：
-  - 普通会员
-  - 银卡会员
-  - 金卡会员
-  - 钻石会员
-  - **注意**：实际使用时，需要根据系统中实际的会员等级名称调整列名
-
-- **场景覆盖**：
-  - ✅ 基础商品导入
-  - ✅ 商品会员价导入
-  - ✅ 规格商品导入
-  - ✅ SKU会员价导入
-  - ✅ 综合场景导入
-  - ✅ 边界值测试
-  - ✅ 可选字段测试（运费模板ID、品牌名称、预警库存）
-
-### 使用说明
-
-1. **会员等级名称调整**：
-   - 如果系统中的会员等级名称与测试数据中的不同，需要修改CSV文件的列名
-   - 例如：如果系统只有"普通会员"和"VIP会员"，需要删除"商品会员价-银卡会员"等列，并添加"商品会员价-VIP会员"列
-
-2. **导入测试步骤**：
-   - 先使用"商品导入测试数据-09-新模板基础商品.csv"测试基础功能
-   - 然后逐步测试其他场景
-   - 最后使用"商品导入测试数据-13-新模板综合场景.csv"进行综合测试
-   - 使用"商品导入测试数据-14-新模板边界值测试.csv"验证边界值处理
-
-3. **验证要点**：
-   - 验证会员价是否正确保存到数据库
-   - 验证运费模板ID是否正确关联
-   - 验证规格和SKU是否正确创建
-   - 验证会员等级名称验证是否生效
-   - 验证边界值是否正确处理
-
-### 相关文件
-- `docs/test/商品导入测试数据-09-新模板基础商品.csv` (新建)
-- `docs/test/商品导入测试数据-10-新模板商品会员价.csv` (新建)
-- `docs/test/商品导入测试数据-11-新模板规格商品.csv` (新建)
-- `docs/test/商品导入测试数据-12-新模板规格+SKU会员价.csv` (新建)
-- `docs/test/商品导入测试数据-13-新模板综合场景.csv` (新建)
-- `docs/test/商品导入测试数据-14-新模板边界值测试.csv` (新建)
-
----
-
-## 2026-01-10 - 批量导入功能优化：移除CSV模板支持并添加运费模板ID字段
-
-### 需求说明
-1. 屏蔽CSV模板的入口，只保留Excel模板下载
-2. 在导入模板中添加"运费模板ID"字段，解决导入时提示"运费模板ID不存在"的问题
-
-### 修改内容
-
-1. **前端移除CSV模板入口** (`admin-frontend/src/views/product/ProductManage.vue`)
-   - 移除"下载CSV模板"按钮
-   - 移除文件上传的CSV格式支持（`.csv`）
-   - 更新导入说明，只保留Excel格式
-   - 简化 `downloadTemplate` 函数，移除CSV相关逻辑
-   - 移除CSV文件行数检查逻辑
-
-2. **模板添加运费模板ID字段** (`backend/src/main/java/com/shoppingmall/controller/admin/ProductController.java`)
-   - 在"品牌名称"之后添加"运费模板ID"字段
-   - 更新列索引计算，基础列数从14改为15
-   - 更新示例数据，添加运费模板ID列（留空，表示可选）
-   - 在 `getFieldComment()` 方法中添加运费模板ID的批注说明
-
-3. **修复解析代码列索引** (`backend/src/main/java/com/shoppingmall/service/product/impl/ProductImportServiceImpl.java`)
-   - 更新 `baseColumnCount` 从14改为15（包含运费模板ID）
-   - 更新兼容旧模板的列索引计算
-
-### 功能说明
-- **只支持Excel格式**：批量导入现在只支持Excel格式（.xlsx/.xls），不再支持CSV格式
-- **运费模板ID字段**：模板中包含"运费模板ID"字段，位于"品牌名称"之后
-- **字段说明**：运费模板ID字段有批注说明，说明其为可选字段，如果填写则必须存在且已启用
-
-### 相关文件
-- `admin-frontend/src/views/product/ProductManage.vue`
-- `backend/src/main/java/com/shoppingmall/controller/admin/ProductController.java`
-- `backend/src/main/java/com/shoppingmall/service/product/impl/ProductImportServiceImpl.java`
-
----
-
-## 2026-01-10 - 批量导入模板添加填写说明注释
-
-### 需求说明
-在批量导入Excel模板中添加填写说明注释，方便用户了解如何填写各个字段的规则。通过在表头单元格添加批注，鼠标悬停时显示详细说明。
-
-### 修改内容
-
-1. **添加批注功能** (`backend/src/main/java/com/shoppingmall/controller/admin/ProductController.java`)
-   - 为每个表头单元格添加批注说明
-   - 鼠标悬停在表头单元格上时显示该字段的详细填写规则
-   - 使用 `XSSFClientAnchor` 和 `Comment` 实现批注功能
-   - 批注包含：必填项、格式要求、示例、注意事项等
-
-2. **添加字段说明方法** (`backend/src/main/java/com/shoppingmall/controller/admin/ProductController.java`)
-   - 添加 `getFieldComment()` 方法，为每个字段返回详细的填写说明
-   - 支持基础字段、会员价字段、SKU字段的说明
-   - 会员价字段说明会根据会员等级名称动态生成
-
-### 功能说明
-- **批注说明**：鼠标悬停在表头单元格上，会显示该字段的详细填写规则
-- **字段说明覆盖**：
-  - 基础字段：商品编码、商品名称、分类名称、价格等
-  - 会员价字段：根据会员等级动态生成说明（如"商品会员价-银卡会员"）
-  - SKU字段：规格组合格式、SKU编码等
-- **说明内容**：包含必填项标识、格式要求、示例、注意事项等
-
-### 相关文件
-- `backend/src/main/java/com/shoppingmall/controller/admin/ProductController.java`
-
----
-
-## 2026-01-10 - 批量导入商品功能支持按会员等级设置会员价
-
-### 需求说明
-批量导入商品功能需要支持不同会员等级的会员价格，与界面功能保持一致。导入时需要判断会员等级名称是否存在。
-
-### 修改内容
-
-1. **修改 ProductImportDTO** (`backend/src/main/java/com/shoppingmall/dto/ProductImportDTO.java`)
-   - 添加 `enableMemberPrice` 字段：是否启用商品会员价
-   - 添加 `productMemberPrices` 字段：商品会员价Map（key: 会员等级名称, value: 会员价）
-   - 添加 `enableSkuMemberPrice` 字段：是否启用SKU会员价
-   - 添加 `skuMemberPrices` 字段：SKU会员价Map（key: 会员等级名称, value: 会员价）
-   - 保留 `skuMemberPrice` 字段（标记为废弃），用于兼容旧模板
-
-2. **修改 ProductImportServiceImpl** (`backend/src/main/java/com/shoppingmall/service/product/impl/ProductImportServiceImpl.java`)
-   - 添加 `MemberLevelService` 依赖
-   - 添加 `memberLevelNameToIdMap` 缓存：会员等级名称到ID的映射
-   - 添加 `initMemberLevelMap()` 方法：初始化会员等级映射
-   - 添加 `findMemberLevelIdByName()` 方法：根据会员等级名称查找ID
-   - 添加 `validateMemberLevelNames()` 方法：验证会员等级名称是否存在
-   - 修改 `importProducts()` 方法：在导入前验证会员等级名称
-   - 修改 `parseExcel()` 方法：解析会员价列（动态列，根据会员等级数量）
-   - 修改 `parseCSV()` 方法：解析会员价列（动态列，根据会员等级数量）
-   - 修改 `importSingleProduct()` 方法：保存商品和SKU的会员价配置
-
-3. **修改 ProductController** (`backend/src/main/java/com/shoppingmall/controller/admin/ProductController.java`)
-   - 添加 `MemberLevelService` 依赖
-   - 修改 `downloadExcelTemplate()` 方法：
-     - 动态获取所有启用的会员等级
-     - 为每个会员等级添加"商品会员价-{等级名称}"列
-     - 为每个会员等级添加"SKU会员价-{等级名称}"列
-     - 更新示例数据，展示会员价填写方式
-
-### 功能说明
-- **会员价列格式**：使用会员等级名称作为列名，例如"商品会员价-普通会员"、"SKU会员价-VIP会员"
-- **会员等级名称验证**：导入时会验证会员等级名称是否存在，如果不存在会抛出明确的错误提示
-- **兼容性**：保留对旧模板的支持（单个SKU会员价列），如果新格式没有数据，会尝试使用旧格式
-- **动态适配**：模板列数会根据系统中启用的会员等级数量动态调整
-
-### 技术要点
-- 使用会员等级名称而不是ID，提升用户体验
-- 通过名称到ID的映射缓存，提高解析效率
-- 在导入前统一验证会员等级名称，避免部分数据导入成功部分失败的情况
-- 支持CSV和Excel两种格式
-
-### 相关文件
-- `backend/src/main/java/com/shoppingmall/dto/ProductImportDTO.java`
-- `backend/src/main/java/com/shoppingmall/service/product/impl/ProductImportServiceImpl.java`
-- `backend/src/main/java/com/shoppingmall/controller/admin/ProductController.java`
-
----
-
-## 2026-01-10 - 修复用户端商品详情页库存为0时不显示商品信息的问题
-
-### 问题描述
-用户端商品详情页面（`http://localhost:3002/products/311`），当商品的库存为0时，目前只显示了商品的图片，没有显示商品的基本字段信息（如商品名称、价格、规格等），这是不合理的。应该也要显示字段信息，只是需要提示库存不足，支持缺货登记。
-
-### 修改内容
-
-1. **添加库存不足提示** (`frontend/src/views/products/Detail.vue`)
-   - 在购买数量输入框之前添加库存不足提示框（`el-alert`）
-   - 当库存为0时，显示醒目的警告提示："商品暂时缺货"
-   - 提示内容说明商品暂时无法购买，可以进行缺货登记
-
-2. **优化购买数量输入框** (`frontend/src/views/products/Detail.vue`)
-   - 当库存为0时，禁用购买数量输入框（`:disabled="isOutOfStock()"`）
-   - 修改 `:max` 属性，当库存为0时使用 `1` 作为最大值，避免输入框无法使用
-
-3. **添加样式支持** (`frontend/src/views/products/Detail.vue`)
-   - 添加 `.out-of-stock-alert` 样式类
-   - 美化库存不足提示框的显示效果
-
-### 功能说明
-- **库存为0时**：
-  - ✅ 商品信息正常显示（商品名称、价格、规格、描述等）
-  - ✅ 显示醒目的库存不足提示
-  - ✅ 购买数量输入框被禁用
-  - ✅ 显示缺货登记按钮，用户可以登记缺货通知
-  - ✅ 已登记的用户显示"已登记缺货通知"按钮
-
-### 相关文件
-- `frontend/src/views/products/Detail.vue`
-
----
-
-## 2026-01-10 - 库存列表优化
-
-### 需求说明
-优化库存列表页面（`http://localhost:3003/admin/inventory`）：
-1. 列表默认显示10条一页（之前是20条）
-2. 查询字段增加商品状态，支持按照商品状态查询，默认值是已上架
-3. 列表表格中增加商品状态字段显示
-4. 调整列宽度，金额字段（库存价格、库存价值）宽度调小
-
-### 修改内容
-
-1. **分页设置** (`admin-frontend/src/views/inventory/Index.vue`)
-   - 将分页默认值从 `size: 20` 改为 `size: 10`
-   - 将分页选项从 `[20, 50, 100, 200]` 改为 `[10, 20, 50, 100]`
-
-2. **查询表单** (`admin-frontend/src/views/inventory/Index.vue`)
-   - 在 `searchForm` 中添加 `productStatus` 字段，默认值为 `'上架'`
-   - 在查询区域添加商品状态下拉选择框，选项包括：全部、已上架、已下架、草稿
-   - 在 `loadInventoryList` 函数中，将 `productStatus` 作为 `status` 参数传递给API
-
-3. **列表表格** (`admin-frontend/src/views/inventory/Index.vue`)
-   - 在表格中增加"商品状态"列，显示位置在"分类"列之后
-   - 商品状态使用标签显示，已上架显示为绿色（success），已下架显示为灰色（info），草稿显示为默认样式
-   - 在数据处理时，为每个库存项添加 `productStatus` 字段，从商品数据中获取 `status` 字段
-
-4. **列宽度调整** (`admin-frontend/src/views/inventory/Index.vue`)
-   - 库存价格列宽度从 `120` 调整为 `100`
-   - 库存价值列宽度从 `120` 调整为 `100`
-
-5. **重置功能** (`admin-frontend/src/views/inventory/Index.vue`)
-   - 重置搜索时，`productStatus` 保持默认值 `'上架'`
-
-### 功能说明
-- 列表默认每页显示10条记录，用户可以通过分页器选择其他每页显示数量
-- 支持按商品状态筛选，默认只显示已上架的商品
-- 列表中可以直观看到每个商品的上下架状态
-- 金额字段宽度优化，表格布局更紧凑
-
-### 相关文件
-- `admin-frontend/src/views/inventory/Index.vue`
-
----
-
-## 2026-01-10 - 修改价格显示文案逻辑：根据商品/SKU是否启用会员价判断
-
-### 需求说明
-修改商品详情页、购物车页、结算页的价格显示文案逻辑：
-- **之前的逻辑**：根据用户是否是会员来判断显示"会员价"还是"商品价格"
-- **新的逻辑**：根据商品或SKU是否启用会员价来判断
-  - 如果商品或SKU启用了会员价（enableMemberPrice === 1）→ 显示"会员价"
-  - 如果商品或SKU没有启用会员价（enableMemberPrice !== 1）→ 显示"商品价格"
-- **特别注意**：如果商品启用了SKU，需要根据SKU维度是否启用会员价来判断，而不是商品维度
+1. **重构uploadItem方法**：修改为同时调用两个接口
+   - 先上传普通商品资料（itemsku/upload）
+   - 再上传店铺商品资料（skumap/upload）
+   - 两个接口都成功才算整体成功
+
+2. **新增两个私有方法**：
+   - `uploadItemToItemsku()`：专门处理普通商品资料上传
+   - `uploadItemToSkumap()`：专门处理店铺商品资料上传
+
+3. **同步逻辑调整**：
+   - 单个商品上传时会生成两条同步日志记录
+   - 普通商品资料：`UPLOAD_ITEM`类型
+   - 店铺商品资料：`UPLOAD_SHOP_ITEM`类型
+
+## 修改文件列表
 
 ### 后端修改
+1. **新增文件**: `backend/src/main/java/com/shoppingmall/dto/JushuitanShopItemDTO.java`
+   - 创建了店铺商品资料上传DTO类，包含所有必要的字段映射
 
-1. **backend/src/main/java/com/shoppingmall/vo/CartVO.java**
-   - 添加 `enableMemberPrice` 字段（Integer类型）
-   - 注释说明：如果商品有SKU，则使用SKU的enableMemberPrice；否则使用商品的enableMemberPrice
+2. **修改文件**: `backend/src/main/java/com/shoppingmall/service/erp/JushuitanItemService.java`
+   - 添加了4个新的店铺商品资料上传方法：
+     - `uploadShopItem(Long productId)`
+     - `uploadShopItems(List<Long> productIds)`
+     - `uploadShopSku(Long skuId)`
+     - `uploadShopSkus(List<Long> skuIds)`
 
-2. **backend/src/main/java/com/shoppingmall/service/buyer/impl/CartServiceImpl.java**
-   - 在 `convertToVO` 方法中，设置 `enableMemberPrice` 字段
-   - 逻辑：优先使用SKU的 `enableMemberPrice`，如果没有SKU则使用商品的 `enableMemberPrice`
-   - 位置：在设置 `memberPrice` 之后，处理规格信息之前
+3. **修改文件**: `backend/src/main/java/com/shoppingmall/service/erp/impl/JushuitanItemServiceImpl.java`
+   - 实现了完整的店铺商品资料上传业务逻辑
+   - 添加了数据转换方法：`convertToJushuitanShopItem` 和 `convertToJushuitanShopItemWithSku`
+   - 支持批量上传，最多50个商品/SKU
+   - 使用同步日志记录上传结果
 
-### 前端修改
-
-1. **frontend/src/api/buyer/cart.ts**
-   - 在 `CartVO` 接口中添加 `enableMemberPrice?: number` 字段
-   - 注释说明：如果商品有SKU则使用SKU的，否则使用商品的
-
-2. **frontend/src/views/products/Detail.vue**
-   - 修改 `getPriceLabel()` 函数：
-     - 如果商品启用了SKU且有当前选中的SKU，优先检查SKU的 `enableMemberPrice`
-     - 如果没有SKU或SKU未启用会员价，检查商品的 `enableMemberPrice`
-     - 如果都没有启用会员价，显示"商品价格"
-   - 在 `product.value` 对象中添加 `enableMemberPrice` 字段映射
-
-3. **frontend/src/views/cart/Index.vue**
-   - 修改 `getPriceColumnTitle()` 函数：
-     - 从判断 `isMember` 改为判断购物车中是否有启用会员价的商品
-     - 如果至少有一个商品的 `enableMemberPrice === 1`，显示"会员价"
-     - 否则显示"商品价格"
-
-4. **frontend/src/views/cart/Checkout.vue**
-   - 修改 `getPriceColumnTitle()` 函数：
-     - 从判断 `isMember` 改为判断订单商品中是否有启用会员价的商品
-     - 如果至少有一个商品的 `enableMemberPrice === 1`，显示"会员价"
-     - 否则显示"商品价格"
-
-### 功能说明
-- **判断逻辑（优先级从高到低）**：
-  1. **优先判断用户是否是会员**：如果不是会员或未登录，统一显示"商品价格"（因为普通用户不能享有会员价）
-  2. **如果是会员，再判断商品或SKU是否启用会员价**：
-     - 如果商品启用了SKU且有选中的SKU，优先检查SKU的 `enableMemberPrice`
-     - 如果没有SKU或SKU未启用会员价，检查商品的 `enableMemberPrice`
-     - 如果启用了会员价，显示"会员价"；否则显示"商品价格"
-- **商品详情页**：根据用户会员状态和当前选中的SKU或商品本身的 `enableMemberPrice` 来判断
-- **购物车页**：如果用户是会员且购物车中有任何商品启用了会员价，价格列标题显示"会员价"，否则显示"商品价格"
-- **结算页**：如果用户是会员且订单中有任何商品启用了会员价，价格列标题显示"会员价"，否则显示"商品价格"
-- 后端在返回购物车数据时，会根据是否有SKU来设置 `enableMemberPrice` 字段（优先使用SKU的）
-
-### 相关文件
-- `backend/src/main/java/com/shoppingmall/vo/CartVO.java`
-- `backend/src/main/java/com/shoppingmall/service/buyer/impl/CartServiceImpl.java`
-- `frontend/src/api/buyer/cart.ts`
-- `frontend/src/views/products/Detail.vue`
-- `frontend/src/views/cart/Index.vue`
-- `frontend/src/views/cart/Checkout.vue`
-
----
-
-## 2026-01-10 - 修复编辑商品页面会员价不显示问题
-
-### 问题描述
-编辑商品页面（`http://localhost:3003/admin/product/list`）时，界面的会员价没有显示，但数据库中有保存会员价数据。
-
-### 问题原因
-1. **前端未加载会员价数据**：`loadProductMemberPrices` 函数中的代码被注释掉了，没有实际从后端返回的数据中加载会员价
-2. **数据未传递**：`handleEdit` 函数中，虽然后端返回了 `row.memberPrices`，但没有传递给 `loadProductMemberPrices` 函数
-
-### 修复内容
-
-1. **修改loadProductMemberPrices函数** (`admin-frontend/src/views/product/ProductManage.vue`)
-   - 添加 `memberPrices` 参数，接收后端返回的会员价数据
-   - 从 `memberPrices` 中加载会员价配置，填充到表格中
-   - 添加日志输出，便于调试
-
-2. **修改handleEdit函数** (`admin-frontend/src/views/product/ProductManage.vue`)
-   - 调用 `loadProductMemberPrices` 时，传入 `row.memberPrices` 参数
-
-3. **添加类型导入** (`admin-frontend/src/views/product/ProductManage.vue`)
-   - 导入 `ProductMemberPriceVO` 类型，用于类型检查
-
-### 修改后的效果
-- ✅ 编辑商品时，会员价配置能够正确显示
-- ✅ 从后端返回的 `memberPrices` 数据中加载会员价
-- ✅ 会员价表格能够正确填充已有的会员价数据
-
-### 相关文件
-- `admin-frontend/src/views/product/ProductManage.vue`
-
----
-
-## 2026-01-10 - 修复商品详情页未登录用户价格显示问题
-
-### 问题描述
-用户未登录状态下访问商品详情页（`http://localhost:3002/products/22`）时，商品价格行不显示。未登录用户应该和普通用户一样，能够看到商品的基础价格（basePrice）。
-
-### 问题原因
-商品详情页的价格行使用了 `v-if="userStore.isLoggedIn()"` 条件，导致只有登录用户才能看到价格信息。未登录用户无法看到商品价格。
-
-### 修复内容
-
-1. **移除登录条件** (`frontend/src/views/products/Detail.vue`)
-   - 移除价格行的 `v-if="userStore.isLoggedIn()"` 条件
-   - 让未登录用户也能看到价格信息
-
-2. **优化价格显示逻辑** (`frontend/src/views/products/Detail.vue`)
-   - 修改 `getDisplayPrice()` 函数，添加未登录用户的处理逻辑
-   - 未登录用户：显示基础价格（basePrice）
-     - 如果有SKU，显示SKU的 `price` 字段（SKU的基础价格）
-     - 如果没有SKU，显示商品的 `basePrice` 字段
-   - 普通用户：显示基础价格（basePrice）
-   - 会员用户：显示会员价（memberPrice）
-
-### 修改后的效果
-- ✅ 未登录用户可以看到商品价格，显示基础价格（basePrice）
-- ✅ 普通用户显示基础价格
-- ✅ 会员用户显示会员价
-- ✅ 价格标签根据用户类型显示："商品价格："（未登录/普通用户）或"会员价："（会员用户）
-
-### 相关文件
-- `frontend/src/views/products/Detail.vue`
-
----
-
-## 2026-01-08 - 修复收藏和缺货登记check接口未登录访问问题
-
-### 问题描述
-用户未登录状态下访问商品详情页面时，以下两个接口返回401错误：
-- `/api/buyer/favorites/check/{productId}` - 检查是否已收藏
-- `/api/buyer/stock-notification/check/{productId}` - 检查是否已登记缺货
-
-这两个接口在未登录状态下应该允许访问，并返回 `false`，而不是返回401错误。
-
-### 问题原因
-1. **JWT拦截器要求登录**：`JwtAuthenticationInterceptor` 拦截器将这两个接口视为需要登录的接口，未登录时会抛出401异常
-2. **Controller抛出异常**：`StockNotificationController.checkRegistered` 方法在未登录时会调用 `getUserIdFromRequest`，该方法会抛出401异常
-
-### 修复内容
-
-1. **修改JWT拦截器** (`backend/src/main/java/com/shoppingmall/common/security/JwtAuthenticationInterceptor.java`)
-   - 在可选认证列表中添加 `/favorites/check/` 和 `/stock-notification/check/` 路径
-   - 这两个接口现在支持可选认证：有token就验证并设置userId，没有token就允许通过（作为游客）
-
-2. **修改收藏检查接口** (`backend/src/main/java/com/shoppingmall/controller/buyer/FavoriteController.java`)
-   - 修改 `checkFavorite` 方法，添加 `HttpServletRequest` 参数
-   - 从request中获取userId，如果为null（未登录），直接返回 `false`
-   - 如果已登录，正常检查收藏状态
-
-3. **修改缺货登记检查接口** (`backend/src/main/java/com/shoppingmall/controller/user/StockNotificationController.java`)
-   - 修改 `checkRegistered` 方法，不再调用 `getUserIdFromRequest`（该方法会抛出异常）
-   - 直接从request中获取userId，如果为null（未登录），直接返回 `false`
-   - 如果已登录，正常检查登记状态
-
-### 修改后的效果
-- ✅ 未登录用户访问商品详情页时，这两个接口不再返回401错误
-- ✅ 未登录时返回 `false`，表示未收藏/未登记
-- ✅ 已登录用户正常检查收藏/登记状态
-- ✅ 用户体验更好：未登录状态下可以正常浏览商品详情页
-
-### 相关文件
-- `backend/src/main/java/com/shoppingmall/common/security/JwtAuthenticationInterceptor.java`
-- `backend/src/main/java/com/shoppingmall/controller/buyer/FavoriteController.java`
-- `backend/src/main/java/com/shoppingmall/controller/user/StockNotificationController.java`
-
----
-
-## 2026-01-08 - 完成SKU会员价弹窗设置功能
+4. **修改文件**: `backend/src/main/java/com/shoppingmall/controller/admin/ProductSyncController.java`
+   - 添加了4个新的API接口：
+     - `POST /api/admin/erp/product/sync-shop/{productId}`
+     - `POST /api/admin/erp/product/sync-shop/batch`
+     - `POST /api/admin/erp/product/sync-shop/sku/{skuId}`
+     - `POST /api/admin/erp/product/sync-shop/sku/batch`
+   - 更新了同步类型描述逻辑，区分普通商品和店铺商品资料上传
 
 ### 前端修改
+5. **修改文件**: `admin-frontend/src/views/erp/ProductSync.vue`
+   - 在同步类型下拉选择框中添加了新的选项：
+     - "上传店铺商品资料" (UPLOAD_SHOP_ITEM)
+     - "更新店铺商品资料" (UPDATE_SHOP_ITEM)
+   - 更新了 `getSyncTypeTagType` 函数，为新类型分配了不同的标签颜色
 
-1. **admin-frontend/src/views/product/ProductManage.vue**
-   - 修改SKU表格，将"启用会员价"和"会员价"列替换为"会员价状态"列，显示会员价设置状态
-   - 在SKU操作列添加"设置会员价"按钮
-   - 添加SKU会员价设置弹窗，支持按会员等级设置不同的会员价
-   - 添加相关响应式数据：`skuMemberPriceDialogVisible`、`currentSkuForMemberPrice`、`currentSkuIndex`、`skuMemberPriceTable`
-   - 添加函数：
-     - `openSkuMemberPriceDialog`: 打开SKU会员价设置弹窗
-     - `initSkuMemberPriceTable`: 初始化SKU会员价表格
-     - `handleSkuEnableMemberPriceChange`: 处理SKU启用会员价切换
-     - `saveSkuMemberPrice`: 保存SKU会员价设置
-   - 修改`handleEdit`函数，在加载SKU数据时加载`memberPrices`字段
-   - 修改`generateEditSkuList`函数，初始化SKU时添加`memberPrices`字段
-   - 修改保存逻辑，在提交SKU数据时包含`memberPrices`字段
+## 新增功能说明
 
-2. **admin-frontend/src/api/admin/product.ts**
-   - 添加`ProductMemberPriceVO`接口（用于接收后端数据）
-   - 在`ProductDTO`和`ProductVO`中添加`memberPrices`字段
-   - 添加`getProductById`导入
+### API接口
+- **店铺商品资料上传**: `https://openapi.jushuitan.com/open/jushuitan/skumap/upload`
+- **批量限制**: 单次最多上传50个商品
+- **站点类型要求**: 目标店铺必须为"商家自有商城"类型
 
-3. **admin-frontend/src/api/admin/sku.ts**
-   - 添加`ProductSkuMemberPriceVO`接口（用于接收后端数据）
-   - 在`ProductSkuDTO`和`ProductSkuVO`中添加`memberPrices`字段
+### 字段映射
+- `shop_id`: 从聚水潭配置中获取对应环境的店铺ID
+- `sku_id`: 使用SKU编码或商品编码+SKU ID
+- `shop_sku_id`: 线上店铺规格ID
+- `shop_i_id`: 线上店铺商品ID
+- `name`: 商品名称
+- `shop_properties_value`: 规格属性组合（如"颜色:蓝色;尺码:XL"）
 
-### 后端修改
+### 同步类型区分
+| 同步类型值 | 显示名称 | 说明 | 标签颜色 |
+|-----------|---------|------|---------|
+| UPLOAD_ITEM | 上传商品 | 普通商品资料上传(itemsku/upload) | primary(蓝色) |
+| UPDATE_ITEM | 更新商品 | 普通商品资料更新 | warning(橙色) |
+| UPLOAD_SHOP_ITEM | 上传店铺商品资料 | 店铺商品资料上传(skumap/upload) | success(绿色) |
+| UPDATE_SHOP_ITEM | 更新店铺商品资料 | 店铺商品资料更新 | info(灰色) |
 
-1. **backend/src/main/java/com/shoppingmall/vo/ProductVO.java**
-   - 添加`memberPrices`字段（`List<ProductMemberPriceVO>`）
-   - 添加`ProductMemberPriceVO`导入
+## 测试建议
+1. 重启后端服务
+2. 访问商品同步日志页面：`http://localhost:3003/admin/erp/product-sync`
+3. 验证新的同步类型选项是否正确显示
+4. 测试店铺商品资料上传功能（使用新的API接口）
+5. 检查同步日志是否正确记录了新的同步类型
 
-2. **backend/src/main/java/com/shoppingmall/vo/ProductSkuVO.java**
-   - 添加`memberPrices`字段（`List<ProductSkuMemberPriceVO>`）
-   - 添加`List`导入
+## 问题排查
 
-3. **backend/src/main/java/com/shoppingmall/vo/ProductMemberPriceVO.java**（新建）
-   - 创建商品会员价VO类，包含`memberLevelId`和`memberPrice`字段
+**当前问题**：调用了旧接口，但期望使用新接口
 
-4. **backend/src/main/java/com/shoppingmall/vo/ProductSkuMemberPriceVO.java**（新建）
-   - 创建SKU会员价VO类，包含`memberLevelId`和`memberPrice`字段
+**旧接口**（普通商品资料上传）：
+- URL: `POST http://localhost:3003/api/admin/erp/product/sync/{productId}`
+- API: `https://dev-api.jushuitan.com/open/jushuitan/itemsku/upload`
+- 同步类型: `UPLOAD_ITEM`
 
-5. **backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java**
-   - 修改`convertToVO`方法，在管理后台查询时（`userId == null`）加载商品会员价配置
-   - 查询`product_member_price`表，将数据转换为`ProductMemberPriceVO`列表并设置到`vo.memberPrices`
+**新接口**（店铺商品资料上传）：
+- URL: `POST http://localhost:3003/api/admin/erp/product/sync-shop/{productId}`
+- API: `https://dev-api.jushuitan.com/open/jushuitan/skumap/upload`
+- 同步类型: `UPLOAD_SHOP_ITEM`
 
-6. **backend/src/main/java/com/shoppingmall/service/sku/impl/ProductSkuServiceImpl.java**
-   - 修改`getSkusByProductId`方法，在管理后台查询时（`userId == null`）加载SKU会员价配置
-   - 查询`product_sku_member_price`表，将数据转换为`ProductSkuMemberPriceVO`列表并设置到`vo.memberPrices`
-   - 添加`ProductSkuMemberPriceVO`导入
+## 注意事项
+- 确保聚水潭配置已正确设置店铺ID
+- 测试环境和生产环境使用不同的API地址和配置
+- 批量上传有数量限制（最多50个）
 
-### 功能说明
+## 2025-01-14 第三次修改：完善商品同步自动化流程
 
-- 商品管理页面现在支持为每个SKU单独设置会员价
-- 点击SKU表格中的"设置会员价"按钮，会弹出会员价设置对话框
-- 在对话框中可以启用/禁用会员价，并为每个会员等级设置不同的会员价
-- 编辑商品时，会自动加载已有的会员价配置
-- 保存商品时，会将SKU的会员价配置一并提交到后端
-
-## 2026-01-08 - 创建系统操作手册文档
-
-### 功能说明
-根据系统功能创建了两份操作手册文档（用户端和管理后台），用于给客户使用的操作使用文档。
-
-### 创建内容
-
-**用户端操作手册**：
-1. **第一部分**：`docs/用户端操作手册-第一部分.md`
-   - 系统简介
-   - 登录与注册
-   - 商品浏览
-   - 购物车管理
-
-2. **第二部分**：`docs/用户端操作手册-第二部分.md`
-   - 订单管理
-   - 支付功能
-   - 会员中心（个人信息、收货地址、预存款、收藏、缺货登记、站内消息等）
-
-**管理后台操作手册**：
-1. **第一部分**：`docs/管理后台操作手册-第一部分.md`
-   - 系统简介
-   - 登录系统
-   - 首页概览
-   - 商品管理（商品列表、商品发布、商品分类、批量导入）
-
-2. **第二部分**：`docs/管理后台操作手册-第二部分.md`
-   - 订单管理（订单列表、订单详情、订单发货、订单统计）
-   - 库存管理（库存列表、库存调整、库存预警、库存统计）
-   - 采购者管理（采购者列表、会员等级管理）
-
-3. **第三部分**：`docs/管理后台操作手册-第三部分.md`
-   - 营销管理（促销活动、价格策略）
-   - 数据统计（销售统计、订单统计、商品统计、采购者统计）
-   - 系统设置（基础配置、支付配置、物流配置、通知设置）
-   - 权限管理（用户管理、角色管理、菜单管理）
-
-### 文档特点
-- 操作手册级别，适合客户使用
-- 包含详细的操作步骤说明
-- 图片位置已预留，供人工粘贴
-- 分批次输出，便于管理和维护
-
-### 相关文件
-- `docs/用户端操作手册-第一部分.md` (新建)
-- `docs/用户端操作手册-第二部分.md` (新建)
-- `docs/管理后台操作手册-第一部分.md` (新建)
-- `docs/管理后台操作手册-第二部分.md` (新建)
-- `docs/管理后台操作手册-第三部分.md` (新建)
-
----
-
-## 2026-01-08 - 导航菜单配置添加品牌类型选择功能
-
-### 功能说明
-在导航菜单配置中，当用户选择"品牌类型"时，自动加载品牌列表供用户选择。
+### 修改背景
+实现完整的商品资料同步自动化方案，包括自动同步、手动同步和定时全量同步。
 
 ### 修改内容
 
+<<<<<<< HEAD
 **前端修改：**
 
 1. **文件：** `admin-frontend/src/components/common/LinkSelector.vue`
@@ -2549,3 +2115,75 @@ if (product.value.enableSpec === 1 && productSkuList.value.length > 0) {
 2. ✅ `frontend/src/views/products/Detail.vue` - 修改规格变化处理逻辑，确保至少有一个SKU被选中
 >>>>>>> 37197a9018ecc9a4289c80acad62ae38e5452c70
 
+=======
+#### 1. 数据库修改
+- **新增文件**: `database/update-20260114-add-auto-sync-product.sql`
+  - 为`jushuitan_config`表添加`auto_sync_product`字段
+  - 用于控制是否开启商品自动同步功能
+
+- **新增文件**: `database/update-20260114-update-scheduled-task-description.sql`
+  - 更新聚水潭全量同步定时任务的描述
+  - 说明现在包含商品资料同步功能
+
+#### 2. 后端修改
+- **修改文件**: `backend/src/main/java/com/shoppingmall/entity/JushuitanConfig.java`
+  - 添加`autoSyncProduct`字段
+
+- **修改文件**: `backend/src/main/java/com/shoppingmall/dto/JushuitanConfigDTO.java`
+  - 添加`autoSyncProduct`字段
+
+- **修改文件**: `backend/src/main/java/com/shoppingmall/vo/JushuitanConfigVO.java`
+  - 添加`autoSyncProduct`字段
+
+- **修改文件**: `backend/src/main/java/com/shoppingmall/service/erp/impl/JushuitanConfigServiceImpl.java`
+  - 添加`autoSyncProduct`字段的更新逻辑
+  - 修复前端"自动同步商品"开关无法保存的问题
+
+- **修改文件**: `backend/src/main/java/com/shoppingmall/service/product/impl/ProductServiceImpl.java`
+  - 修改同步逻辑：每次商品保存都自动同步到ERP（所有状态）
+  - 重构`syncToJushuitan`方法，移除状态检查
+  - 移除`updateStatus`方法中的同步逻辑
+
+- **修改文件**: `backend/src/main/java/com/shoppingmall/task/JushuitanSyncTask.java`
+  - 保持定时任务执行时间为每天凌晨3点（与数据库配置保持一致）
+  - 添加商品全量同步功能框架（待完善具体实现）
+
+- **新增文件**: `backend/src/main/java/com/shoppingmall/event/ProductPublishedEvent.java`
+  - 商品保存事件类
+
+- **新增文件**: `backend/src/main/java/com/shoppingmall/listener/ProductPublishedEventListener.java`
+  - 商品保存事件监听器，处理自动同步逻辑
+
+#### 3. 前端修改
+- **修改文件**: `admin-frontend/src/views/erp/Config.vue`
+  - 添加"自动同步商品"开关控件
+  - 更新表单数据和验证规则
+  - 更新配置说明文档
+
+#### 4. 同步流程说明
+1. **自动同步**：商品保存时如果状态为"published"（上架），且开启了自动同步商品，自动同步到ERP
+2. **手动同步**：商品列表页面的【同步到ERP】按钮，支持同步所有状态的商品
+3. **定时全量同步**：每天零点执行全量商品同步（包括已上架、已下架、草稿状态）
+
+#### 5. 配置开关
+- **自动同步商品**：控制商品发布时是否自动同步（只同步上架商品）
+- **商品列表同步**：不受此开关控制，始终可以手动同步
+
+#### 6. 触发场景
+- **商品发布/编辑保存**：每次保存操作都自动同步到ERP（所有状态）
+- **商品列表上架操作**：不触发同步（只改变状态，不算编辑保存）
+- **手动同步按钮**：商品列表的【同步到ERP】按钮，随时可同步
+
+#### 6. 定时任务说明
+- **执行时间**：保持每天凌晨3点执行（与数据库中已配置的任务保持一致）
+- **任务分组**：ERP同步
+- **包含功能**：
+  - 物流信息拉取（原有功能）
+  - 商品资料全量同步（新增功能）
+- **配置方式**：通过定时任务管理页面 `http://localhost:3003/admin/system/scheduled-task` 配置
+
+#### 7. 注意事项
+- 定时任务已在数据库中预配置，代码中的cron表达式与数据库配置保持一致
+- 如果需要修改执行时间，请同时更新代码和数据库配置
+- 商品全量同步功能框架已实现，具体查询所有商品ID的逻辑待后续完善
+>>>>>>> 5f7334684a8ce49d6c9d3737770b0576ba8105f3

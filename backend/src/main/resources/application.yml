@@ -43,7 +43,7 @@ spring:
     host: smtp.qq.com
     port: 587
     username: 501360872@qq.com  # 请修改为实际的QQ邮箱地址
-    password: bokvnbgivdjwbjhb  # 请修改为QQ邮箱授权码（不是登录密码）
+    password: 1234444  # 请修改为QQ邮箱授权码（不是登录密码）
     default-encoding: UTF-8
     properties:
       mail:

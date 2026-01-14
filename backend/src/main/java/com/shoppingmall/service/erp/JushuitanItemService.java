@@ -41,4 +41,36 @@ public interface JushuitanItemService {
      * @return 成功数量
      */
     int uploadSkus(List<Long> skuIds);
+
+    /**
+     * 上传店铺商品资料到聚水潭
+     *
+     * @param productId 商品ID
+     * @return 是否成功
+     */
+    boolean uploadShopItem(Long productId);
+
+    /**
+     * 批量上传店铺商品资料到聚水潭
+     *
+     * @param productIds 商品ID列表（最多50个）
+     * @return 成功数量
+     */
+    int uploadShopItems(List<Long> productIds);
+
+    /**
+     * 上传SKU的店铺商品资料到聚水潭
+     *
+     * @param skuId SKU ID
+     * @return 是否成功
+     */
+    boolean uploadShopSku(Long skuId);
+
+    /**
+     * 批量上传SKU的店铺商品资料到聚水潭
+     *
+     * @param skuIds SKU ID列表（最多50个）
+     * @return 成功数量
+     */
+    int uploadShopSkus(List<Long> skuIds);
 }

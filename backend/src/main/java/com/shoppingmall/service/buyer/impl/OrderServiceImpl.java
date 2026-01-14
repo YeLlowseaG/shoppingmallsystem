@@ -58,6 +58,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import com.shoppingmall.dto.ShippingFeeCalculateDTO;
+import com.shoppingmall.service.erp.JushuitanConfigService;
+import com.shoppingmall.service.erp.JushuitanOrderService;
+import com.shoppingmall.vo.JushuitanConfigVO;
 
 /**
  * 订单服务实现类
@@ -91,6 +94,8 @@ public class OrderServiceImpl implements OrderService {
     private final ObjectMapper objectMapper;
     private final com.shoppingmall.service.logistics.ShippingService shippingService;
     private final com.shoppingmall.notification.service.NotificationService notificationService;
+    private final JushuitanConfigService jushuitanConfigService;
+    private final JushuitanOrderService jushuitanOrderService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -1070,6 +1075,7 @@ public class OrderServiceImpl implements OrderService {
             depositService.depositPayment(userId, order.getId(), orderNo, order.getActualAmount());
             
             // 2.3 更新订单状态
+            order.setPaymentMethod("PRE_DEPOSIT");
             order.setPaymentStatus(PaymentStatus.PAID); // 已支付
             order.setOrderStatus(OrderStatus.PAID_UNSHIPPED);
             order.setPayTime(LocalDateTime.now());
@@ -1103,6 +1109,29 @@ public class OrderServiceImpl implements OrderService {
             }
             
             log.info("预存款支付成功: orderNo={}, userId={}, amount={}", orderNo, userId, order.getActualAmount());
+            
+            // 自动推送订单到聚水潭ERP
+            try {
+                log.info("开始检查自动推送订单配置: orderId={}, orderNo={}", order.getId(), orderNo);
+                JushuitanConfigVO config = jushuitanConfigService.getEnabledConfig();
+                log.info("获取到的聚水潭配置: config={}, autoPushOrder={}",
+                    config != null ? "存在" : "null",
+                    config != null ? config.getAutoPushOrder() : "null");
+
+                if (config != null && config.getAutoPushOrder() == 1) {
+                    log.info("自动推送订单到聚水潭ERP: orderId={}, orderNo={}, envType={}, shopId={}",
+                        order.getId(), orderNo, config.getEnvType(), config.getShopId());
+                    jushuitanOrderService.pushOrder(order.getId());
+                    log.info("自动推送订单完成: orderId={}, orderNo={}", order.getId(), orderNo);
+                } else {
+                    log.info("跳过自动推送订单: config={}, autoPushOrder={}",
+                        config != null ? "存在" : "null",
+                        config != null ? config.getAutoPushOrder() : "null");
+                }
+            } catch (Exception e) {
+                log.error("自动推送订单到ERP失败: orderId={}, orderNo={}, error={}",
+                    order.getId(), orderNo, e.getMessage(), e);
+            }
             
             // 发送支付成功通知到企业微信
             notificationService.sendPaymentSuccessNotification(orderNo);
