@@ -13,10 +13,16 @@
           <el-input v-model="queryForm.productId" placeholder="请输入商品ID" clearable style="width: 200px" />
         </el-form-item>
 
+        <el-form-item label="商品编码">
+          <el-input v-model="queryForm.productCode" placeholder="请输入商品编码" clearable style="width: 200px" />
+        </el-form-item>
+
         <el-form-item label="同步类型">
           <el-select v-model="queryForm.syncType" placeholder="请选择" clearable style="width: 150px">
             <el-option label="上传商品" value="UPLOAD_ITEM" />
             <el-option label="更新商品" value="UPDATE_ITEM" />
+            <el-option label="上传店铺商品资料" value="UPLOAD_SHOP_ITEM" />
+            <el-option label="更新店铺商品资料" value="UPDATE_SHOP_ITEM" />
           </el-select>
         </el-form-item>
 
@@ -147,6 +153,7 @@ const queryForm = reactive({
   pageNum: 1,
   pageSize: 10,
   productId: undefined as number | undefined,
+  productCode: '',
   syncType: '',
   syncStatus: undefined as number | undefined,
   envType: ''
@@ -169,6 +176,7 @@ const loadData = async () => {
       pageNum: queryForm.pageNum,
       pageSize: queryForm.pageSize,
       productId: queryForm.productId || undefined,
+      productCode: queryForm.productCode || undefined,
       syncType: queryForm.syncType || undefined,
       syncStatus: queryForm.syncStatus,
       envType: queryForm.envType || undefined
@@ -195,6 +203,7 @@ const handleSearch = () => {
 // 重置
 const handleReset = () => {
   queryForm.productId = undefined
+  queryForm.productCode = ''
   queryForm.syncType = ''
   queryForm.syncStatus = undefined
   queryForm.envType = ''
@@ -215,6 +224,10 @@ const getSyncTypeTagType = (syncType: string) => {
       return 'primary'
     case 'UPDATE_ITEM':
       return 'warning'
+    case 'UPLOAD_SHOP_ITEM':
+      return 'success'
+    case 'UPDATE_SHOP_ITEM':
+      return 'info'
     default:
       return ''
   }

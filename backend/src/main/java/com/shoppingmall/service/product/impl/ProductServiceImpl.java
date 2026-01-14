@@ -29,6 +29,7 @@ import com.shoppingmall.service.product.ProductCategoryService;
 import com.shoppingmall.service.product.ProductService;
 import com.shoppingmall.service.sku.ProductSkuService;
 import com.shoppingmall.service.user.StockNotificationService;
+import com.shoppingmall.event.ProductPublishedEvent;
 import com.shoppingmall.vo.MemberLevelVO;
 import com.shoppingmall.vo.ProductVO;
 import lombok.RequiredArgsConstructor;
@@ -65,6 +66,7 @@ public class ProductServiceImpl implements ProductService {
     private final ProductSkuService productSkuService;
     private final ProductMemberPriceRepository productMemberPriceRepository;
     private final ProductSkuMemberPriceRepository productSkuMemberPriceRepository;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @Override
     public Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String brand,
@@ -234,6 +236,9 @@ public class ProductServiceImpl implements ProductService {
         // 保存商品会员价列表
         saveProductMemberPrices(product.getId(), productDTO.getMemberPrices());
 
+        // 新创建商品自动同步到聚水潭ERP
+        syncToJushuitan(product);
+
         log.info("创建商品成功: {}", product.getProductName());
         return product.getId();
     }
@@ -318,6 +323,9 @@ public class ProductServiceImpl implements ProductService {
 
         // 保存商品会员价列表
         saveProductMemberPrices(product.getId(), productDTO.getMemberPrices());
+
+        // 每次商品编辑保存都自动同步到聚水潭ERP
+        syncToJushuitan(product);
 
         log.info("更新商品成功: {}", product.getProductName());
     }
@@ -688,6 +696,29 @@ public class ProductServiceImpl implements ProductService {
                 }
             }
             log.info("保存商品{}会员价配置成功，共{}个等级", productId, memberPrices.size());
+        }
+    }
+
+    /**
+     * 同步商品到聚水潭ERP
+     * 通过发布事件的方式异步处理，避免循环依赖
+     */
+    private void syncToJushuitan(Product product) {
+        try {
+            log.info("商品{}保存操作，发布同步事件", product.getId());
+
+            // 发布商品保存事件，由事件监听器异步处理同步
+            ProductPublishedEvent event = new ProductPublishedEvent(
+                this,
+                product.getId(),
+                product.getProductCode(),
+                product.getProductName()
+            );
+            eventPublisher.publishEvent(event);
+
+        } catch (Exception e) {
+            log.error("发布商品{}同步事件失败", product.getId(), e);
+            // 不影响商品保存的主流程
         }
     }
 }

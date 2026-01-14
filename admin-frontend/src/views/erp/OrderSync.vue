@@ -14,6 +14,10 @@
           <el-input v-model="queryForm.orderId" placeholder="请输入订单ID" clearable style="width: 200px" />
         </el-form-item>
 
+        <el-form-item label="订单号">
+          <el-input v-model="queryForm.orderNo" placeholder="请输入订单号" clearable style="width: 200px" />
+        </el-form-item>
+
         <el-form-item label="同步类型">
           <el-select v-model="queryForm.syncType" placeholder="请选择" clearable style="width: 150px">
             <el-option label="订单推送" value="PUSH_ORDER" />
@@ -158,6 +162,7 @@ const queryForm = reactive({
   pageNum: 1,
   pageSize: 20,
   orderId: undefined,
+  orderNo: undefined,
   syncType: undefined,
   syncStatus: undefined,
   envType: undefined
@@ -189,6 +194,7 @@ const handleSearch = () => {
 // 重置
 const handleReset = () => {
   queryForm.orderId = undefined
+  queryForm.orderNo = undefined
   queryForm.syncType = undefined
   queryForm.syncStatus = undefined
   queryForm.pageNum = 1

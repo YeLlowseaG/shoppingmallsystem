@@ -188,6 +188,7 @@ export function getProductSyncLogs(params: {
   pageNum?: number
   pageSize?: number
   productId?: number
+  productCode?: string
   syncType?: string
   syncStatus?: number
   envType?: string

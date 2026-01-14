@@ -50,3 +50,9 @@ public class ProductSkuMemberPrice {
     private LocalDateTime updateTime;
 }
 
+
+
+
+
+
+

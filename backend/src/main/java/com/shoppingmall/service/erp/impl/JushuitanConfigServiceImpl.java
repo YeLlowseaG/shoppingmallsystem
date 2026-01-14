@@ -103,6 +103,9 @@ public class JushuitanConfigServiceImpl implements JushuitanConfigService {
             if (dto.getAutoPushOrder() != null) {
                 config.setAutoPushOrder(dto.getAutoPushOrder());
             }
+            if (dto.getAutoSyncProduct() != null) {
+                config.setAutoSyncProduct(dto.getAutoSyncProduct());
+            }
             if (dto.getAutoPullLogistics() != null) {
                 config.setAutoPullLogistics(dto.getAutoPullLogistics());
             }
@@ -194,7 +197,7 @@ public class JushuitanConfigServiceImpl implements JushuitanConfigService {
         // 根据环境类型，将对应环境的配置映射到主配置字段
         if ("test".equals(config.getEnvType())) {
             // 测试环境：使用test_*字段
-            vo.setApiUrl(config.getTestApiUrl());
+            vo.setApiUrl(config.getTestApiUrl() != null ? config.getTestApiUrl().trim() : null);
             vo.setAppKey(config.getTestAppKey());
             vo.setAppSecret(config.getTestAppSecret());
             vo.setAccessToken(config.getTestAccessToken());
@@ -202,7 +205,10 @@ public class JushuitanConfigServiceImpl implements JushuitanConfigService {
             vo.setCallbackUrl(config.getTestCallbackUrl());
         } else {
             // 生产环境：使用原有字段（默认）
-            // 已经通过BeanUtils.copyProperties复制了
+            // 已经通过BeanUtils.copyProperties复制了，需要去除api_url的空格
+            if (vo.getApiUrl() != null) {
+                vo.setApiUrl(vo.getApiUrl().trim());
+            }
         }
 
         return vo;

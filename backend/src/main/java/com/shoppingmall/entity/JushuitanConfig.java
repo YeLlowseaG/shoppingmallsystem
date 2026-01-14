@@ -102,6 +102,11 @@ public class JushuitanConfig {
     private Integer autoPushOrder;
 
     /**
+     * 是否自动同步商品（0-否，1-是）
+     */
+    private Integer autoSyncProduct;
+
+    /**
      * 是否自动拉取物流（0-否，1-是）
      */
     private Integer autoPullLogistics;

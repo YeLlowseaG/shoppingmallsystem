@@ -86,6 +86,11 @@
           <div class="form-tip">开启后，订单支付成功将自动推送到聚水潭</div>
         </el-form-item>
 
+        <el-form-item label="自动同步商品">
+          <el-switch v-model="form.autoSyncProduct" :active-value="1" :inactive-value="0" />
+          <div class="form-tip">开启后，商品上架发布时将自动同步到聚水潭ERP</div>
+        </el-form-item>
+
         <el-form-item label="自动拉取物流">
           <el-switch v-model="form.autoPullLogistics" :active-value="1" :inactive-value="0" />
           <div class="form-tip">开启后，系统将定时拉取物流信息</div>
@@ -130,8 +135,9 @@
         <h4>4. 功能说明</h4>
         <ul>
           <li><strong>自动推送订单：</strong>订单支付成功后自动推送到聚水潭，商家可在聚水潭后台处理发货</li>
+          <li><strong>自动同步商品：</strong>商品上架发布时自动同步商品资料到聚水潭ERP（同时同步普通商品资料和店铺商品资料）</li>
           <li><strong>自动拉取物流：</strong>定时从聚水潭拉取物流信息，自动更新订单发货状态</li>
-          <li><strong>手动操作：</strong>在订单列表页面可以手动推送订单或拉取物流信息</li>
+          <li><strong>手动操作：</strong>在商品列表和订单列表页面可以手动同步商品或推送订单</li>
         </ul>
 
         <h4>5. 物流同步回调地址</h4>
@@ -178,6 +184,7 @@ const form = reactive({
   callbackUrl: '',
   enabled: 0,
   autoPushOrder: 1,
+  autoSyncProduct: 0,
   autoPullLogistics: 1,
   pullInterval: 30
 })

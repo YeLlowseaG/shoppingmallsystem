@@ -168,9 +168,15 @@
                         </el-tooltip>
                       </td>
                       <td class="order-desc">
-                        <a href="#" class="order-link" @click.prevent="handleViewOrder(order.orderNo)">
-                          {{ order.description }}
-                        </a>
+                        <el-tooltip
+                          :content="order.description"
+                          placement="top"
+                          :disabled="!shouldShowDescTooltip(order)"
+                        >
+                          <a href="#" class="order-link" @click.prevent="handleViewOrder(order.orderNo)">
+                            {{ getOrderDescDisplayText(order) }}
+                          </a>
+                        </el-tooltip>
                       </td>
                       <td>{{ formatDateTime(order.orderDate) }}</td>
                       <td class="order-amount">¥{{ formatAmount(order.totalAmount) }}</td>
@@ -515,6 +521,22 @@ const shouldShowTooltip = (order: any) => {
   const address = order.recipientAddress || ''
   const fullText = `${name} ${address}`
   return fullText.length > 10
+}
+
+// 获取订单描述显示文本（超长用省略号）
+const getOrderDescDisplayText = (order: any) => {
+  const desc = order.description || ''
+  // 最多显示50个字符，超过则用省略号
+  if (desc.length > 50) {
+    return desc.substring(0, 50) + '...'
+  }
+  return desc
+}
+
+// 判断是否需要显示订单描述tooltip（如果内容超过50个字符则显示）
+const shouldShowDescTooltip = (order: any) => {
+  const desc = order.description || ''
+  return desc.length > 50
 }
 
 // 切换物流信息展开/收起
@@ -864,10 +886,16 @@ watch(() => route.query.status, (newStatus) => {
                   }
 
                   .order-desc {
-                    max-width: 300px;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
+                    max-width: 400px;
+                    
+                    .order-link {
+                      display: inline-block;
+                      max-width: 100%;
+                      overflow: hidden;
+                      text-overflow: ellipsis;
+                      white-space: nowrap;
+                      vertical-align: top;
+                    }
                   }
 
                   .order-amount {

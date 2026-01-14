@@ -140,6 +140,7 @@ public class ProductSyncController {
      * @param pageNum 页码
      * @param pageSize 每页大小
      * @param productId 商品ID（可选）
+     * @param productCode 商品编码（可选）
      * @param syncType 同步类型（可选）
      * @param syncStatus 同步状态（可选）
      * @param envType 环境类型（可选）
@@ -150,17 +151,21 @@ public class ProductSyncController {
             @RequestParam(defaultValue = "1") Long pageNum,
             @RequestParam(defaultValue = "10") Long pageSize,
             @RequestParam(required = false) Long productId,
+            @RequestParam(required = false) String productCode,
             @RequestParam(required = false) String syncType,
             @RequestParam(required = false) Integer syncStatus,
             @RequestParam(required = false) String envType) {
 
-        log.info("查询商品同步日志: pageNum={}, pageSize={}, productId={}, syncType={}, syncStatus={}, envType={}",
-                pageNum, pageSize, productId, syncType, syncStatus, envType);
+        log.info("查询商品同步日志: pageNum={}, pageSize={}, productId={}, productCode={}, syncType={}, syncStatus={}, envType={}",
+                pageNum, pageSize, productId, productCode, syncType, syncStatus, envType);
 
         // 构建查询条件
         QueryWrapper<ProductSyncLog> queryWrapper = new QueryWrapper<>();
         if (productId != null) {
             queryWrapper.eq("product_id", productId);
+        }
+        if (productCode != null && !productCode.isEmpty()) {
+            queryWrapper.eq("product_code", productCode);
         }
         if (syncType != null && !syncType.isEmpty()) {
             queryWrapper.eq("sync_type", syncType);
@@ -188,6 +193,10 @@ public class ProductSyncController {
                 vo.setSyncTypeDesc("上传商品");
             } else if ("UPDATE_ITEM".equals(log.getSyncType())) {
                 vo.setSyncTypeDesc("更新商品");
+            } else if ("UPLOAD_SHOP_ITEM".equals(log.getSyncType())) {
+                vo.setSyncTypeDesc("上传店铺商品资料");
+            } else if ("UPDATE_SHOP_ITEM".equals(log.getSyncType())) {
+                vo.setSyncTypeDesc("更新店铺商品资料");
             }
 
             // 设置同步状态描述
@@ -216,6 +225,106 @@ public class ProductSyncController {
     }
 
     /**
+     * 同步店铺商品资料到聚水潭
+     *
+     * @param productId 商品ID
+     * @return 同步结果
+     */
+    @PostMapping("/sync-shop/{productId}")
+    public Result<String> syncShopItem(@PathVariable Long productId) {
+        log.info("手动同步店铺商品资料到聚水潭: productId={}", productId);
+
+        boolean success = jushuitanItemService.uploadShopItem(productId);
+
+        if (success) {
+            return Result.success("店铺商品资料同步成功");
+        } else {
+            return Result.error("店铺商品资料同步失败，请查看日志");
+        }
+    }
+
+    /**
+     * 批量同步店铺商品资料到聚水潭
+     *
+     * @param productIds 商品ID列表（最多50个）
+     * @return 同步结果
+     */
+    @PostMapping("/sync-shop/batch")
+    public Result<Map<String, Object>> batchSyncShopItems(@RequestBody List<Long> productIds) {
+        log.info("批量同步店铺商品资料到聚水潭: count={}", productIds.size());
+
+        if (productIds == null || productIds.isEmpty()) {
+            return Result.error("商品列表不能为空");
+        }
+
+        if (productIds.size() > 50) {
+            return Result.error("单次最多同步50个店铺商品资料");
+        }
+
+        int successCount = jushuitanItemService.uploadShopItems(productIds);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("total", productIds.size());
+        result.put("success", successCount);
+        result.put("failed", productIds.size() - successCount);
+
+        String message = String.format("批量同步完成，成功%d个，失败%d个",
+            successCount, productIds.size() - successCount);
+
+        return Result.success(message, result);
+    }
+
+    /**
+     * 同步SKU的店铺商品资料到聚水潭
+     *
+     * @param skuId SKU ID
+     * @return 同步结果
+     */
+    @PostMapping("/sync-shop/sku/{skuId}")
+    public Result<String> syncShopSku(@PathVariable Long skuId) {
+        log.info("手动同步SKU的店铺商品资料到聚水潭: skuId={}", skuId);
+
+        boolean success = jushuitanItemService.uploadShopSku(skuId);
+
+        if (success) {
+            return Result.success("SKU店铺商品资料同步成功");
+        } else {
+            return Result.error("SKU店铺商品资料同步失败，请查看日志");
+        }
+    }
+
+    /**
+     * 批量同步SKU的店铺商品资料到聚水潭
+     *
+     * @param skuIds SKU ID列表（最多50个）
+     * @return 同步结果
+     */
+    @PostMapping("/sync-shop/sku/batch")
+    public Result<Map<String, Object>> batchSyncShopSkus(@RequestBody List<Long> skuIds) {
+        log.info("批量同步SKU的店铺商品资料到聚水潭: count={}", skuIds.size());
+
+        if (skuIds == null || skuIds.isEmpty()) {
+            return Result.error("SKU列表不能为空");
+        }
+
+        if (skuIds.size() > 50) {
+            return Result.error("单次最多同步50个SKU的店铺商品资料");
+        }
+
+        int successCount = jushuitanItemService.uploadShopSkus(skuIds);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("total", skuIds.size());
+        result.put("success", successCount);
+        result.put("failed", skuIds.size() - successCount);
+
+        String message = String.format("批量同步完成，成功%d个，失败%d个",
+            successCount, skuIds.size() - successCount);
+
+        return Result.success(message, result);
+    }
+
+    /**
      * 查询指定商品的同步日志
      *
      * @param productId 商品ID
@@ -241,6 +350,10 @@ public class ProductSyncController {
                 vo.setSyncTypeDesc("上传商品");
             } else if ("UPDATE_ITEM".equals(log.getSyncType())) {
                 vo.setSyncTypeDesc("更新商品");
+            } else if ("UPLOAD_SHOP_ITEM".equals(log.getSyncType())) {
+                vo.setSyncTypeDesc("上传店铺商品资料");
+            } else if ("UPDATE_SHOP_ITEM".equals(log.getSyncType())) {
+                vo.setSyncTypeDesc("更新店铺商品资料");
             }
 
             // 设置同步状态描述

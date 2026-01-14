@@ -58,6 +58,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import com.shoppingmall.dto.ShippingFeeCalculateDTO;
+import com.shoppingmall.service.erp.JushuitanConfigService;
+import com.shoppingmall.service.erp.JushuitanOrderService;
+import com.shoppingmall.vo.JushuitanConfigVO;
 
 /**
  * 订单服务实现类
@@ -91,6 +94,8 @@ public class OrderServiceImpl implements OrderService {
     private final ObjectMapper objectMapper;
     private final com.shoppingmall.service.logistics.ShippingService shippingService;
     private final com.shoppingmall.notification.service.NotificationService notificationService;
+    private final JushuitanConfigService jushuitanConfigService;
+    private final JushuitanOrderService jushuitanOrderService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -1070,6 +1075,7 @@ public class OrderServiceImpl implements OrderService {
             depositService.depositPayment(userId, order.getId(), orderNo, order.getActualAmount());
             
             // 2.3 更新订单状态
+            order.setPaymentMethod("PRE_DEPOSIT");
             order.setPaymentStatus(PaymentStatus.PAID); // 已支付
             order.setOrderStatus(OrderStatus.PAID_UNSHIPPED);
             order.setPayTime(LocalDateTime.now());
