@@ -1110,6 +1110,29 @@ public class OrderServiceImpl implements OrderService {
             
             log.info("预存款支付成功: orderNo={}, userId={}, amount={}", orderNo, userId, order.getActualAmount());
             
+            // 自动推送订单到聚水潭ERP
+            try {
+                log.info("开始检查自动推送订单配置: orderId={}, orderNo={}", order.getId(), orderNo);
+                JushuitanConfigVO config = jushuitanConfigService.getEnabledConfig();
+                log.info("获取到的聚水潭配置: config={}, autoPushOrder={}",
+                    config != null ? "存在" : "null",
+                    config != null ? config.getAutoPushOrder() : "null");
+
+                if (config != null && config.getAutoPushOrder() == 1) {
+                    log.info("自动推送订单到聚水潭ERP: orderId={}, orderNo={}, envType={}, shopId={}",
+                        order.getId(), orderNo, config.getEnvType(), config.getShopId());
+                    jushuitanOrderService.pushOrder(order.getId());
+                    log.info("自动推送订单完成: orderId={}, orderNo={}", order.getId(), orderNo);
+                } else {
+                    log.info("跳过自动推送订单: config={}, autoPushOrder={}",
+                        config != null ? "存在" : "null",
+                        config != null ? config.getAutoPushOrder() : "null");
+                }
+            } catch (Exception e) {
+                log.error("自动推送订单到ERP失败: orderId={}, orderNo={}, error={}",
+                    order.getId(), orderNo, e.getMessage(), e);
+            }
+            
             // 发送支付成功通知到企业微信
             notificationService.sendPaymentSuccessNotification(orderNo);
             
