@@ -7,10 +7,8 @@ import com.shoppingmall.common.util.StringUtil;
 import com.shoppingmall.dto.StockDTO;
 import com.shoppingmall.dto.StockQueryDTO;
 import com.shoppingmall.entity.Product;
-import com.shoppingmall.entity.ProductStock;
 import com.shoppingmall.entity.ProductSku;
 import com.shoppingmall.repository.product.ProductRepository;
-import com.shoppingmall.repository.product.ProductStockRepository;
 import com.shoppingmall.repository.sku.ProductSkuRepository;
 import com.shoppingmall.service.admin.StockService;
 import com.shoppingmall.vo.StockStatisticsVO;
@@ -28,6 +26,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import jakarta.annotation.Resource;
+import com.shoppingmall.service.erp.JushuitanInventoryService;
+import com.shoppingmall.service.erp.JushuitanConfigService;
+import com.shoppingmall.vo.JushuitanConfigVO;
+
 /**
  * 库存管理服务实现类（管理后台使用）
  *
@@ -39,10 +42,15 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class StockServiceImpl implements StockService {
 
-    private final ProductStockRepository stockRepository;
     private final ProductRepository productRepository;
     private final ProductSkuRepository productSkuRepository;
     private final ObjectMapper objectMapper;
+    
+    @Resource
+    private JushuitanInventoryService jushuitanInventoryService;
+    
+    @Resource
+    private JushuitanConfigService jushuitanConfigService;
 
     @Override
     public Page<StockVO> getStockPage(Long current, Long size, StockQueryDTO queryDTO) {
@@ -100,14 +108,7 @@ public class StockServiceImpl implements StockService {
         Map<Long, List<ProductSku>> skusByProduct = allSkus.stream()
                 .collect(Collectors.groupingBy(ProductSku::getProductId));
 
-        // 批量查询库存信息（用于没有SKU的商品）
-        LambdaQueryWrapper<ProductStock> stockWrapper = new LambdaQueryWrapper<>();
-        stockWrapper.in(ProductStock::getProductId, productIds);
-        List<ProductStock> stocks = stockRepository.selectList(stockWrapper);
-
-        // 创建库存Map，方便查找
-        Map<Long, ProductStock> stockMap = stocks.stream()
-                .collect(Collectors.toMap(ProductStock::getProductId, stock -> stock));
+        // 已移除product_stock表的查询，统一使用product.stock和product_sku.stock
         
         // 预警筛选（如果启用）
         List<Product> filteredProducts = products.getRecords();
@@ -128,15 +129,7 @@ public class StockServiceImpl implements StockService {
                             return totalStock <= warningStock;
                         }
 
-                        // 否则检查 product_stock 表
-                        ProductStock stock = stockMap.get(product.getId());
-                        if (stock != null) {
-                            Integer available = stock.getAvailableStock();
-                            Integer threshold = stock.getWarningThreshold();
-                            return available != null && threshold != null && available <= threshold;
-                        }
-
-                        // 最后检查商品表
+                        // 检查商品表的库存和预警阈值
                         Integer productStock = product.getStock();
                         Integer productWarning = product.getWarningStock();
                         if (productStock != null && productWarning != null) {
@@ -148,12 +141,11 @@ public class StockServiceImpl implements StockService {
                     .collect(Collectors.toList());
         }
         
-        // 转换为VO
+        // 转换为VO（不再使用product_stock表）
         List<StockVO> voList = filteredProducts.stream()
                 .map(product -> {
                     List<ProductSku> productSkus = skusByProduct.get(product.getId());
-                    ProductStock stock = stockMap.get(product.getId());
-                    return convertToVO(product, stock, productSkus);
+                    return convertToVO(product, productSkus);
                 })
                 .collect(Collectors.toList());
         
@@ -169,87 +161,80 @@ public class StockServiceImpl implements StockService {
 
     @Override
     public StockVO getStockByProductId(Long productId) {
-        LambdaQueryWrapper<ProductStock> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ProductStock::getProductId, productId);
-        ProductStock stock = stockRepository.selectOne(wrapper);
-        
-        if (stock == null) {
-            throw new BusinessException(404, "库存信息不存在");
+        // 查询商品信息
+        Product product = productRepository.selectById(productId);
+        if (product == null) {
+            throw new BusinessException(404, "商品不存在");
         }
         
-        return convertToVO(stock);
+        // 查询SKU信息
+        LambdaQueryWrapper<ProductSku> skuWrapper = new LambdaQueryWrapper<>();
+        skuWrapper.eq(ProductSku::getProductId, productId);
+        skuWrapper.eq(ProductSku::getStatus, 1);
+        List<ProductSku> skus = productSkuRepository.selectList(skuWrapper);
+        
+        return convertToVO(product, skus);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void adjustStock(StockDTO stockDTO) {
-        // 查询库存信息
-        LambdaQueryWrapper<ProductStock> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ProductStock::getProductId, stockDTO.getProductId());
-        ProductStock stock = stockRepository.selectOne(wrapper);
-
-        if (stock == null) {
-            // 如果库存记录不存在，创建新记录
-            stock = new ProductStock();
-            stock.setProductId(stockDTO.getProductId());
-            stock.setAvailableStock(0);
-            stock.setLockedStock(0);
-            stock.setTotalStock(0);
-            stock.setWarningThreshold(stockDTO.getWarningThreshold() != null ? stockDTO.getWarningThreshold() : 10);
+        // 查询商品信息
+        Product product = productRepository.selectById(stockDTO.getProductId());
+        if (product == null) {
+            throw new BusinessException(404, "商品不存在");
         }
 
+        // 获取当前库存（从product表）
+        int currentStock = product.getStock() != null ? product.getStock() : 0;
+        
         // 调整库存
-        int newTotalStock = stock.getTotalStock() + stockDTO.getAdjustQuantity();
+        int newTotalStock = currentStock + stockDTO.getAdjustQuantity();
         if (newTotalStock < 0) {
             throw new BusinessException(400, "调整后库存不能为负数");
         }
 
-        stock.setTotalStock(newTotalStock);
-        // 可用库存 = 总库存 - 锁定库存
-        stock.setAvailableStock(newTotalStock - stock.getLockedStock());
-
+        // 更新商品库存
+        product.setStock(newTotalStock);
+        
         // 更新预警阈值（如果提供了）
         boolean warningThresholdUpdated = false;
         if (stockDTO.getWarningThreshold() != null) {
-            stock.setWarningThreshold(stockDTO.getWarningThreshold());
+            product.setWarningStock(stockDTO.getWarningThreshold());
             warningThresholdUpdated = true;
         }
-
-        if (stock.getId() == null) {
-            stockRepository.insert(stock);
-        } else {
-            stockRepository.updateById(stock);
-        }
-
-        // 同步更新 product 表的 stock 字段
-        syncProductStock(stockDTO.getProductId(), newTotalStock);
         
-        // 如果更新了预警阈值，同步更新 product 表的 warning_stock 字段
-        if (warningThresholdUpdated) {
-            syncProductWarningStock(stockDTO.getProductId(), stock.getWarningThreshold());
-        }
+        productRepository.updateById(product);
 
         log.info("库存调整成功，商品ID: {}, 调整数量: {}, 原因: {}", 
                 stockDTO.getProductId(), stockDTO.getAdjustQuantity(), stockDTO.getReason());
+        
+        // 自动同步库存到聚水潭ERP
+        try {
+            JushuitanConfigVO config = jushuitanConfigService.getEnabledConfig();
+            if (config != null && config.getAutoSyncProduct() == 1) {
+                log.info("开始自动同步商品{}库存到聚水潭ERP", stockDTO.getProductId());
+                jushuitanInventoryService.syncInventory(stockDTO.getProductId());
+                log.info("商品{}库存自动同步到聚水潭ERP成功", stockDTO.getProductId());
+            }
+        } catch (Exception e) {
+            log.error("商品{}库存自动同步到聚水潭ERP失败: {}", stockDTO.getProductId(), e.getMessage(), e);
+            // 不影响库存调整的主流程
+        }
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateWarningThreshold(Long productId, Integer warningThreshold) {
-        LambdaQueryWrapper<ProductStock> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ProductStock::getProductId, productId);
-        ProductStock stock = stockRepository.selectOne(wrapper);
-
-        if (stock == null) {
-            throw new BusinessException(404, "库存信息不存在");
+        // 直接更新product表的warning_stock字段（不再使用product_stock表）
+        Product product = productRepository.selectById(productId);
+        if (product == null) {
+            throw new BusinessException(404, "商品不存在");
         }
-
-        stock.setWarningThreshold(warningThreshold);
-        stockRepository.updateById(stock);
         
-        // 同步更新 product 表的 warning_stock 字段
-        // 以 product_stock.warning_threshold 为权威数据源
-        syncProductWarningStock(productId, warningThreshold);
+        product.setWarningStock(warningThreshold);
+        productRepository.updateById(product);
+        log.info("更新商品预警阈值成功，商品ID: {}, 预警阈值: {}", productId, warningThreshold);
     }
 
     @Override
@@ -263,45 +248,53 @@ public class StockServiceImpl implements StockService {
     public StockStatisticsVO getStockStatistics() {
         StockStatisticsVO statistics = new StockStatisticsVO();
 
-        // 查询所有库存记录
-        List<ProductStock> allStocks = stockRepository.selectList(null);
+        // 查询所有商品（不再使用product_stock表）
+        List<Product> allProducts = productRepository.selectList(null);
 
-        // 统计总库存
-        long totalStock = allStocks.stream()
-                .mapToLong(stock -> stock.getTotalStock() != null ? stock.getTotalStock() : 0)
-                .sum();
+        // 统计总库存（从product表和product_sku表汇总）
+        long totalStock = 0;
+        long totalAvailableStock = 0;
+        long warningCount = 0;
+        long outOfStockCount = 0;
+        
+        for (Product product : allProducts) {
+            // 查询SKU
+            LambdaQueryWrapper<ProductSku> skuWrapper = new LambdaQueryWrapper<>();
+            skuWrapper.eq(ProductSku::getProductId, product.getId());
+            skuWrapper.eq(ProductSku::getStatus, 1);
+            List<ProductSku> skus = productSkuRepository.selectList(skuWrapper);
+            
+            int productStock = 0;
+            if (!skus.isEmpty()) {
+                // 有SKU，汇总SKU库存
+                productStock = skus.stream()
+                        .mapToInt(sku -> sku.getStock() != null ? sku.getStock() : 0)
+                        .sum();
+            } else {
+                // 无SKU，使用商品库存
+                productStock = product.getStock() != null ? product.getStock() : 0;
+            }
+            
+            totalStock += productStock;
+            totalAvailableStock += productStock; // 可用库存等于总库存（锁定库存通过订单状态计算）
+            
+            // 判断是否预警
+            int warningThreshold = product.getWarningStock() != null ? product.getWarningStock() : 10;
+            if (productStock <= warningThreshold) {
+                warningCount++;
+            }
+            
+            // 判断是否缺货
+            if (productStock == 0) {
+                outOfStockCount++;
+            }
+        }
 
-        // 统计可用库存
-        long totalAvailableStock = allStocks.stream()
-                .mapToLong(stock -> stock.getAvailableStock() != null ? stock.getAvailableStock() : 0)
-                .sum();
+        // 统计锁定库存（通过查询未支付订单计算）
+        // 注意：这里暂时设为0，如果需要显示锁定库存，需要注入StockUtil并调用相关方法
+        long totalLockedStock = 0;
 
-        // 统计锁定库存
-        long totalLockedStock = allStocks.stream()
-                .mapToLong(stock -> stock.getLockedStock() != null ? stock.getLockedStock() : 0)
-                .sum();
-
-        // 统计预警商品数量
-        long warningCount = allStocks.stream()
-                .filter(stock -> {
-                    Integer available = stock.getAvailableStock();
-                    Integer threshold = stock.getWarningThreshold();
-                    return available != null && threshold != null && available <= threshold;
-                })
-                .count();
-
-        // 统计缺货商品数量
-        long outOfStockCount = allStocks.stream()
-                .filter(stock -> {
-                    Integer available = stock.getAvailableStock();
-                    return available == null || available == 0;
-                })
-                .count();
-
-        // 统计商品总数（有库存记录的商品数）
-        long totalProducts = allStocks.size();
-
-        statistics.setTotalProducts(totalProducts);
+        statistics.setTotalProducts((long) allProducts.size());
         statistics.setTotalStock(totalStock);
         statistics.setTotalAvailableStock(totalAvailableStock);
         statistics.setTotalLockedStock(totalLockedStock);
@@ -313,8 +306,9 @@ public class StockServiceImpl implements StockService {
 
     /**
      * 转换为VO（支持SKU库存汇总和详情）
+     * 不再使用product_stock表，统一使用product.stock和product_sku.stock
      */
-    private StockVO convertToVO(Product product, ProductStock stock, List<ProductSku> productSkus) {
+    private StockVO convertToVO(Product product, List<ProductSku> productSkus) {
         StockVO vo = new StockVO();
 
         // 设置商品信息
@@ -339,9 +333,9 @@ public class StockServiceImpl implements StockService {
                     .min()
                     .orElse(10);
 
-            vo.setId(stock != null ? stock.getId() : null);
+            vo.setId(null); // 不再使用product_stock表的ID
             vo.setAvailableStock(totalStock);
-            vo.setLockedStock(0); // SKU没有锁定库存概念
+            vo.setLockedStock(0); // 锁定库存通过查询未支付订单计算，这里不显示
             vo.setTotalStock(totalStock);
             vo.setWarningThreshold(warningStock);
             vo.setUpdateTime(product.getUpdateTime());
@@ -363,38 +357,20 @@ public class StockServiceImpl implements StockService {
                 skuStockList.add(skuStockVO);
             }
             vo.setSkuStockList(skuStockList);
-        }
-        // 否则使用 product_stock 表的库存
-        else if (stock != null) {
-            vo.setEnableSpec(false);
-            vo.setId(stock.getId());
-            vo.setAvailableStock(stock.getAvailableStock() != null ? stock.getAvailableStock() : 0);
-            vo.setLockedStock(stock.getLockedStock() != null ? stock.getLockedStock() : 0);
-            vo.setTotalStock(stock.getTotalStock() != null ? stock.getTotalStock() : 0);
-            vo.setWarningThreshold(stock.getWarningThreshold() != null ? stock.getWarningThreshold() : 10);
-            vo.setUpdateTime(stock.getUpdateTime());
-
-            // 判断是否预警
-            if (stock.getAvailableStock() != null && stock.getWarningThreshold() != null) {
-                vo.setIsWarning(stock.getAvailableStock() <= stock.getWarningThreshold());
-            } else {
-                vo.setIsWarning(false);
-            }
-        }
-        // 都没有，使用商品表的库存
-        else {
+        } else {
+            // 无SKU商品，使用product表的库存
             vo.setEnableSpec(false);
             vo.setId(null);
-            vo.setAvailableStock(product.getStock() != null ? product.getStock() : 0);
-            vo.setLockedStock(0);
-            vo.setTotalStock(product.getStock() != null ? product.getStock() : 0);
+            int totalStock = product.getStock() != null ? product.getStock() : 0;
+            vo.setTotalStock(totalStock);
+            vo.setAvailableStock(totalStock); // 可用库存等于总库存（锁定库存通过订单状态计算）
+            vo.setLockedStock(0); // 锁定库存通过查询未支付订单计算，这里不显示
             vo.setWarningThreshold(product.getWarningStock() != null ? product.getWarningStock() : 10);
             vo.setUpdateTime(product.getUpdateTime());
 
             // 判断是否预警
-            int availableStock = product.getStock() != null ? product.getStock() : 0;
             int warningThreshold = product.getWarningStock() != null ? product.getWarningStock() : 10;
-            vo.setIsWarning(availableStock <= warningThreshold);
+            vo.setIsWarning(totalStock <= warningThreshold);
         }
 
         return vo;
@@ -420,144 +396,29 @@ public class StockServiceImpl implements StockService {
         }
     }
 
-    /**
-     * 转换为VO（旧方法，兼容性保留）
-     */
-    private StockVO convertToVO(Product product, ProductStock stock) {
-        return convertToVO(product, stock, null);
-    }
+    // 已移除convertToVO(ProductStock)方法，不再使用product_stock表
 
-    /**
-     * 转换为VO（兼容旧方法）
-     */
-    private StockVO convertToVO(ProductStock stock) {
-        StockVO vo = new StockVO();
-        vo.setId(stock.getId());
-        vo.setProductId(stock.getProductId());
-        vo.setAvailableStock(stock.getAvailableStock());
-        vo.setLockedStock(stock.getLockedStock());
-        vo.setTotalStock(stock.getTotalStock());
-        vo.setWarningThreshold(stock.getWarningThreshold());
-        vo.setUpdateTime(stock.getUpdateTime());
-
-        // 判断是否预警
-        if (stock.getAvailableStock() != null && stock.getWarningThreshold() != null) {
-            vo.setIsWarning(stock.getAvailableStock() <= stock.getWarningThreshold());
-        } else {
-            vo.setIsWarning(false);
-        }
-
-        // 查询商品信息
-        Product product = productRepository.selectById(stock.getProductId());
-        if (product != null) {
-            vo.setProductCode(product.getProductCode());
-            vo.setProductName(product.getProductName());
-            vo.setMainImage(product.getMainImage());
-            vo.setProductStatus(product.getStatus());
-        }
-
-        return vo;
-    }
-
-    /**
-     * 同步 product 表的库存字段
-     * 以 product_stock.total_stock 为权威数据源，同步更新 product.stock
-     * 
-     * @param productId 商品ID
-     * @param totalStock 总库存
-     */
-    private void syncProductStock(Long productId, Integer totalStock) {
-        try {
-            Product product = productRepository.selectById(productId);
-            if (product != null) {
-                product.setStock(totalStock);
-                productRepository.updateById(product);
-                log.debug("同步商品库存成功，商品ID: {}, 库存: {}", productId, totalStock);
-            }
-        } catch (Exception e) {
-            log.error("同步商品库存失败，商品ID: {}, 库存: {}", productId, totalStock, e);
-            // 不抛出异常，避免影响主业务流程
-        }
-    }
-
-    /**
-     * 同步 product 表的预警库存字段
-     * 以 product_stock.warning_threshold 为权威数据源，同步更新 product.warning_stock
-     * 
-     * @param productId 商品ID
-     * @param warningThreshold 预警阈值
-     */
-    private void syncProductWarningStock(Long productId, Integer warningThreshold) {
-        try {
-            Product product = productRepository.selectById(productId);
-            if (product != null) {
-                product.setWarningStock(warningThreshold);
-                productRepository.updateById(product);
-                log.debug("同步商品预警库存成功，商品ID: {}, 预警阈值: {}", productId, warningThreshold);
-            }
-        } catch (Exception e) {
-            log.error("同步商品预警库存失败，商品ID: {}, 预警阈值: {}", productId, warningThreshold, e);
-            // 不抛出异常，避免影响主业务流程
-        }
-    }
+    // 已移除syncProductStock和syncProductWarningStock方法，不再使用product_stock表
+    // 库存和预警阈值直接存储在product表中
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateProductTotalStock(Long productId, Integer totalStock) {
         try {
-            LambdaQueryWrapper<ProductStock> wrapper = new LambdaQueryWrapper<>();
-            wrapper.eq(ProductStock::getProductId, productId);
-            ProductStock stock = stockRepository.selectOne(wrapper);
-            
-            // 从商品表读取警戒库存值
+            // 直接更新product表的stock字段（不再使用product_stock表）
             Product product = productRepository.selectById(productId);
-            Integer warningThreshold = (product != null && product.getWarningStock() != null) 
-                ? product.getWarningStock() 
-                : 10; // 如果商品表中没有设置，使用默认值10
-            
-            if (stock == null) {
-                // 创建新的库存记录
-                stock = new ProductStock();
-                stock.setProductId(productId);
-                stock.setTotalStock(totalStock);
-                stock.setAvailableStock(totalStock);
-                stock.setLockedStock(0);
-                stock.setWarningThreshold(warningThreshold); // 使用商品的警戒库存值
-                stockRepository.insert(stock);
-                log.info("创建商品库存记录成功，商品ID: {}, 库存: {}, 预警阈值: {}", productId, totalStock, warningThreshold);
+            if (product != null) {
+                product.setStock(totalStock);
+                productRepository.updateById(product);
+                log.info("更新商品库存成功，商品ID: {}, 库存: {}", productId, totalStock);
             } else {
-                // 更新现有记录，保留锁定库存
-                int lockedStock = stock.getLockedStock() != null ? stock.getLockedStock() : 0;
-                
-                stock.setTotalStock(totalStock);
-                // 核心公式：可用库存 = 总库存 - 锁定库存
-                int availableStock = totalStock - lockedStock;
-                if (availableStock < 0) {
-                    availableStock = 0;
-                }
-                stock.setAvailableStock(availableStock);
-                
-                // 如果商品表的警戒库存有更新，同步更新库存表的预警阈值
-                if (product != null && product.getWarningStock() != null) {
-                    stock.setWarningThreshold(product.getWarningStock());
-                }
-                
-                stockRepository.updateById(stock);
-                log.info("更新商品库存记录成功，商品ID: {}, 总库存: {}, 锁定库存: {}, 可用库存: {}, 预警阈值: {}", 
-                        productId, totalStock, lockedStock, availableStock, stock.getWarningThreshold());
+                log.warn("商品不存在，无法更新库存: productId={}", productId);
             }
-            
-            // 同步更新Product表的库存字段（单向同步，避免冲突）
-            syncProductStock(productId, totalStock);
-            
-            // 同步预警阈值（从商品表同步到库存表已完成，这里不需要反向同步）
-            // 注意：这里不再需要同步，因为我们已经从商品表读取了值
             
             // 注意：不再同步SKU库存，因为：
             // 1. SKU库存应该由用户明确设置
             // 2. 商品总库存应该由所有SKU库存的总和计算得出（ProductSkuServiceImpl.updateProductTotalStock()）
             // 3. 不应该用商品总库存来覆盖用户设置的SKU库存
-            // syncProductSkuStock(productId, totalStock);
             
         } catch (Exception e) {
             log.error("更新商品库存失败，商品ID: {}, 库存: {}", productId, totalStock, e);

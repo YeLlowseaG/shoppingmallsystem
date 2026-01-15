@@ -72,7 +72,9 @@ export interface ProductVO {
   status: string
   createTime: string
   updateTime: string
+  enableSpec?: number // 是否启用规格（0-否，1-是）
   memberPrices?: ProductMemberPriceVO[]
+  displayStock?: number // 显示库存（前端计算字段，用于显示SKU汇总库存）
 }
 
 // 分页响应
@@ -146,6 +148,7 @@ export interface ProductImportResult {
     errorMessage: string
   }>
   warnings: string[]
+  successProductIds?: number[] // 成功导入的商品ID列表（用于ERP同步）
 }
 
 export const importProducts = (csvFile: File, imageZip?: File): Promise<ProductImportResult> => {

@@ -3,11 +3,9 @@ package com.shoppingmall.service.admin.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.shoppingmall.entity.Order;
 import com.shoppingmall.entity.Product;
-import com.shoppingmall.entity.ProductStock;
 import com.shoppingmall.entity.User;
 import com.shoppingmall.repository.order.OrderRepository;
 import com.shoppingmall.repository.product.ProductRepository;
-import com.shoppingmall.repository.product.ProductStockRepository;
 import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.service.admin.DashboardService;
 import com.shoppingmall.service.admin.StockService;
@@ -38,7 +36,6 @@ public class DashboardServiceImpl implements DashboardService {
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
-    private final ProductStockRepository productStockRepository;
     private final StockService stockService;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM-dd");

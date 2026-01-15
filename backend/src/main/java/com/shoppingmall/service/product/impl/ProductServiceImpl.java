@@ -14,12 +14,10 @@ import com.shoppingmall.dto.ProductMemberPriceDTO;
 import com.shoppingmall.entity.ProductMemberPrice;
 import com.shoppingmall.entity.ProductSku;
 import com.shoppingmall.entity.ProductSkuMemberPrice;
-import com.shoppingmall.entity.ProductStock;
 import com.shoppingmall.entity.User;
 import com.shoppingmall.repository.product.ProductCategoryRepository;
 import com.shoppingmall.repository.product.ProductMemberPriceRepository;
 import com.shoppingmall.repository.product.ProductRepository;
-import com.shoppingmall.repository.product.ProductStockRepository;
 import com.shoppingmall.repository.sku.ProductSkuMemberPriceRepository;
 import com.shoppingmall.repository.user.UserRepository;
 import com.shoppingmall.repository.website.BrandRepository;
@@ -57,7 +55,6 @@ public class ProductServiceImpl implements ProductService {
     private final ProductCategoryRepository categoryRepository;
     private final ProductCategoryService categoryService;
     private final BrandRepository brandRepository;
-    private final ProductStockRepository productStockRepository;
     private final ObjectMapper objectMapper;
     private final StockNotificationService stockNotificationService;
     private final StockService stockService;
@@ -236,8 +233,9 @@ public class ProductServiceImpl implements ProductService {
         // 保存商品会员价列表
         saveProductMemberPrices(product.getId(), productDTO.getMemberPrices());
 
-        // 新创建商品自动同步到聚水潭ERP
-        syncToJushuitan(product);
+        // 移除：新创建商品自动同步到聚水潭ERP
+        // 改为由前端统一通过 /api/admin/inventory/sync/{productId}/full 接口触发同步
+        // syncToJushuitan(product);
 
         log.info("创建商品成功: {}", product.getProductName());
         return product.getId();
@@ -324,8 +322,9 @@ public class ProductServiceImpl implements ProductService {
         // 保存商品会员价列表
         saveProductMemberPrices(product.getId(), productDTO.getMemberPrices());
 
-        // 每次商品编辑保存都自动同步到聚水潭ERP
-        syncToJushuitan(product);
+        // 移除：每次商品编辑保存都自动同步到聚水潭ERP
+        // 改为由前端统一通过 /api/admin/inventory/sync/{productId}/full 接口触发同步
+        // syncToJushuitan(product);
 
         log.info("更新商品成功: {}", product.getProductName());
     }

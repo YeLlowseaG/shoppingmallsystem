@@ -5,11 +5,11 @@ import com.shoppingmall.common.constant.OrderStatus;
 import com.shoppingmall.entity.Order;
 import com.shoppingmall.entity.OrderItem;
 import com.shoppingmall.entity.Product;
-import com.shoppingmall.entity.ProductStock;
+import com.shoppingmall.entity.ProductSku;
 import com.shoppingmall.repository.order.OrderItemRepository;
 import com.shoppingmall.repository.order.OrderRepository;
 import com.shoppingmall.repository.product.ProductRepository;
-import com.shoppingmall.repository.product.ProductStockRepository;
+import com.shoppingmall.repository.sku.ProductSkuRepository;
 import com.shoppingmall.service.buyer.OrderScheduledService;
 import com.shoppingmall.service.system.SystemConfigService;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +35,7 @@ public class OrderScheduledServiceImpl implements OrderScheduledService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final ProductRepository productRepository;
-    private final ProductStockRepository productStockRepository;
+    private final ProductSkuRepository productSkuRepository;
     private final SystemConfigService systemConfigService;
 
     /**
@@ -84,38 +84,33 @@ public class OrderScheduledServiceImpl implements OrderScheduledService {
             // 批量处理超时订单
             for (Order order : timeoutOrders) {
                 try {
-                    // 恢复库存
+                    // 超时订单都是待付款状态，创建订单时已经扣减了库存，取消时需要恢复库存
                     LambdaQueryWrapper<OrderItem> itemWrapper = new LambdaQueryWrapper<>();
                     itemWrapper.eq(OrderItem::getOrderId, order.getId());
                     List<OrderItem> orderItems = orderItemRepository.selectList(itemWrapper);
 
                     for (OrderItem orderItem : orderItems) {
-                        // 恢复product表的库存
-                        Product product = productRepository.selectById(orderItem.getProductId());
-                        if (product != null && product.getStock() != null) {
-                            product.setStock(product.getStock() + orderItem.getQuantity());
-                            productRepository.updateById(product);
-                        }
-
-                        // 恢复product_stock表的库存
-                        LambdaQueryWrapper<ProductStock> stockWrapper = new LambdaQueryWrapper<>();
-                        stockWrapper.eq(ProductStock::getProductId, orderItem.getProductId());
-                        ProductStock productStock = productStockRepository.selectOne(stockWrapper);
-
-                        if (productStock != null) {
-                            // 减少锁定库存
-                            int newLockedStock = (productStock.getLockedStock() != null ? productStock.getLockedStock() : 0) - orderItem.getQuantity();
-                            if (newLockedStock < 0) {
-                                newLockedStock = 0;
+                        if (orderItem.getSkuId() != null) {
+                            // 有SKU，恢复SKU库存
+                            ProductSku sku = productSkuRepository.selectById(orderItem.getSkuId());
+                            if (sku != null && sku.getStock() != null) {
+                                sku.setStock(sku.getStock() + orderItem.getQuantity());
+                                productSkuRepository.updateById(sku);
                             }
-                            productStock.setLockedStock(newLockedStock);
-
-                            // 增加可用库存
-                            int newAvailableStock = (productStock.getAvailableStock() != null ? productStock.getAvailableStock() : 0) + orderItem.getQuantity();
-                            productStock.setAvailableStock(newAvailableStock);
-                            productStockRepository.updateById(productStock);
+                            
+                            // 同步更新商品总库存（从所有SKU汇总）
+                            updateProductTotalStockFromSkus(orderItem.getProductId());
+                        } else {
+                            // 无SKU，恢复商品库存
+                            Product product = productRepository.selectById(orderItem.getProductId());
+                            if (product != null && product.getStock() != null) {
+                                product.setStock(product.getStock() + orderItem.getQuantity());
+                                productRepository.updateById(product);
+                            }
                         }
                     }
+                    
+                    log.info("超时订单取消，已恢复库存: orderNo={}", order.getOrderNo());
 
                     // 更新订单状态为已取消
                     order.setOrderStatus(OrderStatus.CANCELLED);
@@ -132,6 +127,33 @@ public class OrderScheduledServiceImpl implements OrderScheduledService {
         } catch (Exception e) {
             log.error("自动取消超时订单任务执行异常", e);
             // 定时任务异常不影响系统运行
+        }
+    }
+
+    /**
+     * 从SKU汇总更新商品总库存
+     */
+    private void updateProductTotalStockFromSkus(Long productId) {
+        try {
+            LambdaQueryWrapper<ProductSku> skuWrapper = new LambdaQueryWrapper<>();
+            skuWrapper.eq(ProductSku::getProductId, productId);
+            List<ProductSku> skus = productSkuRepository.selectList(skuWrapper);
+
+            if (!skus.isEmpty()) {
+                int totalStock = skus.stream()
+                        .mapToInt(sku -> sku.getStock() != null ? sku.getStock() : 0)
+                        .sum();
+
+                Product product = productRepository.selectById(productId);
+                if (product != null) {
+                    product.setStock(totalStock);
+                    productRepository.updateById(product);
+                    log.debug("从SKU汇总更新商品总库存: productId={}, 总库存={}", productId, totalStock);
+                }
+            }
+        } catch (Exception e) {
+            log.error("从SKU汇总更新商品总库存失败: productId={}", productId, e);
+            // 不影响主流程
         }
     }
 }

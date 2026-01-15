@@ -18,6 +18,7 @@ import com.shoppingmall.service.erp.JushuitanConfigService;
 import com.shoppingmall.service.erp.JushuitanOrderService;
 import com.shoppingmall.service.payment.PaymentLogService;
 import com.shoppingmall.vo.JushuitanConfigVO;
+import com.shoppingmall.service.buyer.OrderService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,6 +55,7 @@ public class PaymentNotifyController {
     private final JushuitanOrderService jushuitanOrderService;
     private final JushuitanConfigService jushuitanConfigService;
     private final com.shoppingmall.service.buyer.DepositService depositService;
+    private final OrderService orderService;
     private final com.shoppingmall.service.system.SystemConfigService systemConfigService;
     private final com.shoppingmall.notification.service.NotificationService notificationService;
 
@@ -385,6 +387,8 @@ public class PaymentNotifyController {
                 order.setOrderStatus(OrderStatus.PAID_UNSHIPPED);
                 order.setPayTime(LocalDateTime.now());
                 orderRepository.updateById(order);
+
+                // 注意：库存在创建订单时已经扣减，支付成功时不需要再次扣减
 
                 callbackSuccess = true;
 

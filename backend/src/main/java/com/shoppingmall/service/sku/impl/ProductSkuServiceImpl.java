@@ -9,9 +9,7 @@ import com.shoppingmall.entity.ProductSku;
 import com.shoppingmall.entity.ProductSkuMemberPrice;
 import com.shoppingmall.entity.ProductSpecKey;
 import com.shoppingmall.entity.ProductSpecValue;
-import com.shoppingmall.entity.ProductStock;
 import com.shoppingmall.repository.product.ProductRepository;
-import com.shoppingmall.repository.product.ProductStockRepository;
 import com.shoppingmall.repository.sku.ProductSkuMemberPriceRepository;
 import com.shoppingmall.repository.sku.ProductSkuRepository;
 import com.shoppingmall.vo.ProductSkuMemberPriceVO;
@@ -35,6 +33,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import jakarta.annotation.Resource;
+import com.shoppingmall.service.erp.JushuitanInventoryService;
+import com.shoppingmall.service.erp.JushuitanConfigService;
+import com.shoppingmall.vo.JushuitanConfigVO;
+
 /**
  * 商品SKU Service实现类
  */
@@ -47,7 +50,12 @@ public class ProductSkuServiceImpl implements ProductSkuService {
     private final ProductSpecKeyRepository specKeyRepository;
     private final ProductSpecValueRepository specValueRepository;
     private final ProductRepository productRepository;
-    private final ProductStockRepository productStockRepository;
+    
+    @Resource
+    private JushuitanInventoryService jushuitanInventoryService;
+    
+    @Resource
+    private JushuitanConfigService jushuitanConfigService;
     private final ProductSkuMemberPriceRepository productSkuMemberPriceRepository;
     private final ObjectMapper objectMapper;
     private final MemberLevelService memberLevelService;
@@ -275,6 +283,19 @@ public class ProductSkuServiceImpl implements ProductSkuService {
             log.info("更新SKU库存成功，SKU ID: {}, 库存: {}", skuId, stock);
             // 更新商品总库存
             updateProductTotalStock(sku.getProductId());
+            
+            // 自动同步库存到聚水潭ERP
+            try {
+                JushuitanConfigVO config = jushuitanConfigService.getEnabledConfig();
+                if (config != null && config.getAutoSyncProduct() == 1) {
+                    log.info("开始自动同步商品{}库存到聚水潭ERP", sku.getProductId());
+                    jushuitanInventoryService.syncInventory(sku.getProductId());
+                    log.info("商品{}库存自动同步到聚水潭ERP成功", sku.getProductId());
+                }
+            } catch (Exception e) {
+                log.error("商品{}库存自动同步到聚水潭ERP失败: {}", sku.getProductId(), e.getMessage(), e);
+                // 不影响库存更新的主流程
+            }
         }
         return result > 0;
     }
@@ -370,9 +391,8 @@ public class ProductSkuServiceImpl implements ProductSkuService {
 
     /**
      * 更新商品总库存
-     * 计算该商品所有SKU的库存总和，同步更新到product表和product_stock表
-     *
-     * 核心逻辑：可用库存 = 总库存 - 锁定库存
+     * 计算该商品所有SKU的库存总和，同步更新到product表
+     * 不再使用product_stock表
      */
     private void updateProductTotalStock(Long productId) {
         // 查询该商品的所有SKU
@@ -391,38 +411,8 @@ public class ProductSkuServiceImpl implements ProductSkuService {
             log.info("更新商品总库存成功：商品ID={}, 总库存={}", productId, totalStock);
         }
 
-        // 同步更新product_stock表
-        LambdaQueryWrapper<ProductStock> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ProductStock::getProductId, productId);
-        ProductStock productStock = productStockRepository.selectOne(wrapper);
-
-        if (productStock == null) {
-            // 创建新的库存记录
-            productStock = new ProductStock();
-            productStock.setProductId(productId);
-            productStock.setTotalStock(totalStock);
-            productStock.setLockedStock(0);
-            productStock.setAvailableStock(totalStock); // 总库存 - 锁定库存(0)
-            productStock.setWarningThreshold(10);
-            productStockRepository.insert(productStock);
-            log.info("创建商品库存记录成功：商品ID={}, 总库存={}, 可用库存={}",
-                    productId, totalStock, totalStock);
-        } else {
-            // 更新现有记录，保留锁定库存
-            int lockedStock = productStock.getLockedStock() != null ? productStock.getLockedStock() : 0;
-
-            productStock.setTotalStock(totalStock);
-            // 核心公式：可用库存 = 总库存 - 锁定库存
-            int availableStock = totalStock - lockedStock;
-            if (availableStock < 0) {
-                availableStock = 0;
-            }
-            productStock.setAvailableStock(availableStock);
-
-            productStockRepository.updateById(productStock);
-            log.info("同步更新product_stock表成功：商品ID={}, 总库存={}, 锁定库存={}, 可用库存={}",
-                    productId, totalStock, lockedStock, availableStock);
-        }
+        // 已移除product_stock表的同步逻辑，统一使用product.stock和product_sku.stock
+        log.info("SKU库存更新完成，商品总库存已同步到product表: productId={}, 总库存={}", productId, totalStock);
     }
 
     /**

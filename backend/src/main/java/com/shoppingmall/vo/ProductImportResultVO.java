@@ -21,6 +21,11 @@ public class ProductImportResultVO {
     
     private List<String> warnings = new ArrayList<>();
     
+    /**
+     * 成功导入的商品ID列表（用于ERP同步）
+     */
+    private List<Long> successProductIds = new ArrayList<>();
+    
     @Data
     public static class ImportError {
         
@@ -48,5 +53,14 @@ public class ProductImportResultVO {
     
     public void incrementSuccess() {
         this.successCount++;
+    }
+    
+    /**
+     * 添加成功导入的商品ID
+     */
+    public void addSuccessProductId(Long productId) {
+        if (productId != null) {
+            this.successProductIds.add(productId);
+        }
     }
 }
