@@ -3,7 +3,7 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>商品同步日志</span>
+          <span>商品和库存同步日志</span>
         </div>
       </template>
 
@@ -19,10 +19,9 @@
 
         <el-form-item label="同步类型">
           <el-select v-model="queryForm.syncType" placeholder="请选择" clearable style="width: 150px">
-            <el-option label="上传商品" value="UPLOAD_ITEM" />
-            <el-option label="更新商品" value="UPDATE_ITEM" />
+            <el-option label="普通商品资料上传" value="UPLOAD_ITEM" />
             <el-option label="上传店铺商品资料" value="UPLOAD_SHOP_ITEM" />
-            <el-option label="更新店铺商品资料" value="UPDATE_SHOP_ITEM" />
+            <el-option label="库存同步" value="INVENTORY_SYNC" />
           </el-select>
         </el-form-item>
 

@@ -86,9 +86,9 @@
           <div class="form-tip">开启后，订单支付成功将自动推送到聚水潭</div>
         </el-form-item>
 
-        <el-form-item label="自动同步商品">
+        <el-form-item label="自动同步商品和库存">
           <el-switch v-model="form.autoSyncProduct" :active-value="1" :inactive-value="0" />
-          <div class="form-tip">开启后，商品上架发布时将自动同步到聚水潭ERP</div>
+          <div class="form-tip">开启后，商品资料和库存将自动同步到聚水潭ERP</div>
         </el-form-item>
 
         <el-form-item label="自动拉取物流">

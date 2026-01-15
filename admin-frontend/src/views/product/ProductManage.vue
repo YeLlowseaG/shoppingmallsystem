@@ -152,7 +152,11 @@
             ¥{{ parseFloat(row.basePrice).toFixed(2) }}
           </template>
         </el-table-column>
-        <el-table-column prop="stock" label="库存" width="80" sortable="custom" />
+        <el-table-column prop="displayStock" label="库存" width="80" sortable="custom">
+          <template #default="{ row }">
+            {{ row.displayStock ?? row.stock }}
+          </template>
+        </el-table-column>
         <el-table-column prop="salesCount" label="销量" width="80" sortable="custom" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
@@ -1016,6 +1020,13 @@
             <div>总计: {{ importResult.totalCount }} 个商品</div>
             <div style="color: #67c23a">成功: {{ importResult.successCount }} 个</div>
             <div v-if="importResult.failCount > 0" style="color: #f56c6c">失败: {{ importResult.failCount }} 个</div>
+            <!-- 添加同步ERP按钮 -->
+            <div v-if="importResult.successCount > 0 && importResult.successProductIds && importResult.successProductIds.length > 0" style="margin-top: 15px;">
+              <el-button type="primary" @click="handleBatchSyncToErp" :loading="syncProgressLoading">
+                <el-icon><Upload /></el-icon>
+                导入成功的记录【执行同步ERP】
+              </el-button>
+            </div>
           </div>
         </template>
         <template #extra>
@@ -1054,14 +1065,85 @@
         <el-button type="primary" @click="handleResultClose">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- ERP同步进度弹窗 -->
+    <el-dialog
+      v-model="syncProgressVisible"
+      title="ERP同步进度"
+      width="500px"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      :show-close="!syncProgressLoading"
+    >
+      <div class="sync-progress-content">
+        <el-steps :active="syncProgressStep" direction="vertical" finish-status="success">
+          <el-step title="同步商品资料" :status="getStepStatus(0)">
+            <template #description>
+              <div v-if="syncProgressStep === 0 && syncProgressLoading" class="step-loading">
+                <el-icon class="is-loading"><Loading /></el-icon>
+                <span>正在同步商品资料到ERP...</span>
+              </div>
+              <div v-else-if="syncProgressStep > 0" class="step-success">
+                <el-icon><CircleCheck /></el-icon>
+                <span>商品资料同步成功</span>
+              </div>
+              <div v-else-if="syncProgressError && syncProgressStep === 0" class="step-error">
+                <el-icon><CircleClose /></el-icon>
+                <span>{{ syncProgressError }}</span>
+              </div>
+            </template>
+          </el-step>
+          
+          <el-step title="等待ERP处理" :status="getStepStatus(1)">
+            <template #description>
+              <div v-if="syncProgressStep === 1 && syncProgressLoading" class="step-loading">
+                <el-icon class="is-loading"><Loading /></el-icon>
+                <span>等待ERP系统处理商品资料（5秒）...</span>
+              </div>
+              <div v-else-if="syncProgressStep > 1" class="step-success">
+                <el-icon><CircleCheck /></el-icon>
+                <span>等待完成</span>
+              </div>
+            </template>
+          </el-step>
+          
+          <el-step title="同步库存" :status="getStepStatus(2)">
+            <template #description>
+              <div v-if="syncProgressStep === 2 && syncProgressLoading" class="step-loading">
+                <el-icon class="is-loading"><Loading /></el-icon>
+                <span>正在同步库存到ERP（尝试 {{ syncProgressRetryCount + 1 }}/4）...</span>
+              </div>
+              <div v-else-if="syncProgressStep > 2" class="step-success">
+                <el-icon><CircleCheck /></el-icon>
+                <span>库存同步成功</span>
+              </div>
+              <div v-else-if="syncProgressError && syncProgressStep === 2" class="step-error">
+                <el-icon><CircleClose /></el-icon>
+                <span>{{ syncProgressError }}</span>
+              </div>
+            </template>
+          </el-step>
+        </el-steps>
+      </div>
+      
+      <template #footer>
+        <el-button 
+          v-if="!syncProgressLoading" 
+          type="primary" 
+          @click="syncProgressVisible = false"
+        >
+          关闭
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadFile, type UploadUserFile } from 'element-plus'
-import { Plus, Delete, Upload, Search, ArrowUp, ArrowDown, Download } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, ElLoading, type FormInstance, type FormRules, type UploadFile, type UploadUserFile } from 'element-plus'
+import { Plus, Delete, Upload, Search, ArrowUp, ArrowDown, Download, Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import {
   getProductPage,
   getProductById,
@@ -1369,7 +1451,38 @@ const loadProductList = async () => {
       searchForm.value.sortBy
     )
     console.log('API返回数据:', res)
-    productList.value = res.records
+    
+    // 为每个商品计算显示库存（如果启用了SKU，则汇总SKU库存）
+    const productsWithStock = await Promise.all(
+      res.records.map(async (product: ProductVO) => {
+        // 如果启用了SKU，需要获取SKU列表并计算总库存
+        if (product.enableSpec === 1) {
+          try {
+            const skus = await getSkusByProductId(product.id)
+            const totalStock = skus.reduce((sum: number, sku: any) => sum + (sku.stock || 0), 0)
+            return {
+              ...product,
+              displayStock: totalStock
+            }
+          } catch (error) {
+            console.error(`获取商品 ${product.id} 的SKU信息失败:`, error)
+            // 如果获取SKU失败，使用商品本身的库存
+            return {
+              ...product,
+              displayStock: product.stock
+            }
+          }
+        } else {
+          // 没有启用SKU，直接使用商品库存
+          return {
+            ...product,
+            displayStock: product.stock
+          }
+        }
+      })
+    )
+    
+    productList.value = productsWithStock
     pagination.value.total = res.total
   } catch (error) {
     console.error('加载商品列表失败:', error)
@@ -1766,6 +1879,16 @@ const handleSubmit = async () => {
       console.log('=== 商品保存完成 ===')
 
       ElMessage.success('更新成功')
+      
+      // 同步到ERP（所有商品状态都同步）
+      // 显示进度条并等待同步完成
+      try {
+        await syncProductToErp(formData.value.id!)
+      } catch (syncError) {
+        // 同步失败不影响商品保存成功，只记录错误
+        console.error('ERP同步失败:', syncError)
+      }
+      
       dialogVisible.value = false
       loadProductList()
     } catch (error) {
@@ -1808,20 +1931,255 @@ const handleDelete = async (row: ProductVO) => {
   }
 }
 
-// 同步商品到ERP
-const handleSyncToErp = async (row: any) => {
-  try {
-    // 设置同步状态为加载中
-    row.syncing = true
+// ERP同步进度相关
+const syncProgressVisible = ref(false)
+const syncProgressLoading = ref(false)
+const syncProgressStep = ref(0) // 0-商品资料, 1-等待, 2-库存
+const syncProgressRetryCount = ref(0)
+const syncProgressError = ref('')
+let syncProgressInstance: ReturnType<typeof ElLoading.service> | null = null
 
-    await syncProductToErp(row.id)
-    ElMessage.success('商品同步成功')
+// 获取步骤状态
+const getStepStatus = (step: number) => {
+  if (syncProgressError.value && syncProgressStep.value === step) {
+    return 'error'
+  }
+  if (syncProgressStep.value > step) {
+    return 'success'
+  }
+  if (syncProgressStep.value === step && syncProgressLoading.value) {
+    return 'process'
+  }
+  return 'wait'
+}
+
+// 同步商品到ERP（完整流程：商品资料 + 库存）
+const handleSyncToErp = async (row: any) => {
+  // 重置进度状态
+  syncProgressVisible.value = true
+  syncProgressLoading.value = true
+  syncProgressStep.value = 0
+  syncProgressRetryCount.value = 0
+  syncProgressError.value = ''
+  row.syncing = true
+  
+  try {
+    // 显示全屏loading
+    syncProgressInstance = ElLoading.service({
+      lock: true,
+      text: '正在同步到ERP，请稍候...',
+      background: 'rgba(0, 0, 0, 0.7)'
+    })
+    
+    // 更新进度：步骤1 - 同步商品资料
+    syncProgressStep.value = 0
+    
+    // 使用定时器模拟进度更新（因为后端是同步接口，无法实时获取进度）
+    // 步骤1：同步商品资料（预计2-3秒）
+    let stepTimer1: ReturnType<typeof setTimeout> | null = null
+    let stepTimer2: ReturnType<typeof setTimeout> | null = null
+    
+    // 2秒后进入等待步骤（模拟商品资料同步完成）
+    stepTimer1 = setTimeout(() => {
+      if (syncProgressLoading.value && syncProgressStep.value === 0) {
+        syncProgressStep.value = 1 // 进入等待步骤
+      }
+    }, 2000)
+    
+    // 7秒后进入库存同步步骤（2秒商品资料 + 5秒等待）
+    stepTimer2 = setTimeout(() => {
+      if (syncProgressLoading.value && syncProgressStep.value === 1) {
+        syncProgressStep.value = 2 // 进入库存同步步骤
+      }
+    }, 7000)
+    
+    // 开始调用接口（使用完整同步接口）
+    const startTime = Date.now()
+    const response = await request.post(`/api/admin/inventory/sync/${row.id}/full`)
+    const elapsedTime = Date.now() - startTime
+    
+    // 清除定时器
+    if (stepTimer1) clearTimeout(stepTimer1)
+    if (stepTimer2) clearTimeout(stepTimer2)
+    
+    // 根据实际耗时更新进度
+    // 如果接口返回时还在步骤0，说明商品资料同步很快，直接跳到步骤1
+    if (syncProgressStep.value === 0 && elapsedTime < 2000) {
+      syncProgressStep.value = 1
+    }
+    // 如果接口返回时还在步骤1，说明等待时间还没到，直接跳到步骤2
+    if (syncProgressStep.value === 1 && elapsedTime < 7000) {
+      syncProgressStep.value = 2
+    }
+    
+    // 关闭全屏loading
+    if (syncProgressInstance) {
+      syncProgressInstance.close()
+      syncProgressInstance = null
+    }
+    
+    // 更新进度
+    syncProgressLoading.value = false
+    
+    // 检查同步结果
+    if (response && response.success) {
+      syncProgressStep.value = 3 // 全部完成
+      ElMessage.success('商品资料和库存同步成功')
+      // 刷新商品列表
+      await loadProductList()
+      // 2秒后自动关闭进度弹窗
+      setTimeout(() => {
+        syncProgressVisible.value = false
+      }, 2000)
+    } else {
+      // 根据失败步骤设置错误信息
+      const errorMsg = response?.message || '同步失败'
+      syncProgressError.value = errorMsg
+      
+      if (response?.step === 'ITEM_SYNC') {
+        syncProgressStep.value = 0
+      } else if (response?.step === 'INVENTORY_SYNC') {
+        syncProgressStep.value = 2
+        syncProgressRetryCount.value = response?.inventoryRetryCount || 0
+      }
+      
+      ElMessage.error({
+        message: errorMsg,
+        duration: 5000,
+        showClose: true
+      })
+    }
   } catch (error: any) {
-    console.error('同步失败:', error)
-    ElMessage.error(error.message || '商品同步失败，请查看日志')
+    console.error('同步到ERP失败:', error)
+    
+    // 关闭全屏loading
+    if (syncProgressInstance) {
+      syncProgressInstance.close()
+      syncProgressInstance = null
+    }
+    
+    syncProgressLoading.value = false
+    syncProgressError.value = error?.message || '同步失败'
+    
+    const errorMsg = error?.message || '同步失败'
+    if (!errorMsg.includes('请求失败')) {
+      ElMessage.error(errorMsg)
+    }
   } finally {
     // 恢复同步状态
     row.syncing = false
+  }
+}
+
+// 同步商品到ERP（用于编辑保存后调用）
+const syncProductToErp = async (productId: number) => {
+  // 重置进度状态
+  syncProgressVisible.value = true
+  syncProgressLoading.value = true
+  syncProgressStep.value = 0
+  syncProgressRetryCount.value = 0
+  syncProgressError.value = ''
+  
+  try {
+    // 显示全屏loading
+    syncProgressInstance = ElLoading.service({
+      lock: true,
+      text: '正在同步到ERP，请稍候...',
+      background: 'rgba(0, 0, 0, 0.7)'
+    })
+    
+    // 更新进度：步骤1 - 同步商品资料
+    syncProgressStep.value = 0
+    
+    // 使用定时器模拟进度更新（因为后端是同步接口，无法实时获取进度）
+    // 步骤1：同步商品资料（预计2-3秒）
+    let stepTimer1: ReturnType<typeof setTimeout> | null = null
+    let stepTimer2: ReturnType<typeof setTimeout> | null = null
+    
+    // 2秒后进入等待步骤（模拟商品资料同步完成）
+    stepTimer1 = setTimeout(() => {
+      if (syncProgressLoading.value && syncProgressStep.value === 0) {
+        syncProgressStep.value = 1 // 进入等待步骤
+      }
+    }, 2000)
+    
+    // 7秒后进入库存同步步骤（2秒商品资料 + 5秒等待）
+    stepTimer2 = setTimeout(() => {
+      if (syncProgressLoading.value && syncProgressStep.value === 1) {
+        syncProgressStep.value = 2 // 进入库存同步步骤
+      }
+    }, 7000)
+    
+    // 开始调用接口（使用完整同步接口）
+    const startTime = Date.now()
+    const response = await request.post(`/api/admin/inventory/sync/${productId}/full`)
+    const elapsedTime = Date.now() - startTime
+    
+    // 清除定时器
+    if (stepTimer1) clearTimeout(stepTimer1)
+    if (stepTimer2) clearTimeout(stepTimer2)
+    
+    // 根据实际耗时更新进度
+    // 如果接口返回时还在步骤0，说明商品资料同步很快，直接跳到步骤1
+    if (syncProgressStep.value === 0 && elapsedTime < 2000) {
+      syncProgressStep.value = 1
+    }
+    // 如果接口返回时还在步骤1，说明等待时间还没到，直接跳到步骤2
+    if (syncProgressStep.value === 1 && elapsedTime < 7000) {
+      syncProgressStep.value = 2
+    }
+    
+    // 关闭全屏loading
+    if (syncProgressInstance) {
+      syncProgressInstance.close()
+      syncProgressInstance = null
+    }
+    
+    // 更新进度
+    syncProgressLoading.value = false
+    
+    // 检查同步结果
+    if (response && response.success) {
+      syncProgressStep.value = 3 // 全部完成
+      ElMessage.success('商品资料和库存同步成功')
+      // 2秒后自动关闭进度弹窗
+      setTimeout(() => {
+        syncProgressVisible.value = false
+      }, 2000)
+    } else {
+      // 根据失败步骤设置错误信息
+      const errorMsg = response?.message || '同步失败'
+      syncProgressError.value = errorMsg
+      
+      if (response?.step === 'ITEM_SYNC') {
+        syncProgressStep.value = 0
+      } else if (response?.step === 'INVENTORY_SYNC') {
+        syncProgressStep.value = 2
+        syncProgressRetryCount.value = response?.inventoryRetryCount || 0
+      }
+      
+      ElMessage.error({
+        message: errorMsg,
+        duration: 5000,
+        showClose: true
+      })
+    }
+  } catch (error: any) {
+    console.error('同步到ERP失败:', error)
+    
+    // 关闭全屏loading
+    if (syncProgressInstance) {
+      syncProgressInstance.close()
+      syncProgressInstance = null
+    }
+    
+    syncProgressLoading.value = false
+    syncProgressError.value = error?.message || '同步失败'
+    
+    const errorMsg = error?.message || '同步失败'
+    if (!errorMsg.includes('请求失败')) {
+      ElMessage.error(errorMsg)
+    }
   }
 }
 
@@ -2145,6 +2503,7 @@ const handleImportSubmit = async () => {
     console.log('导入结果:', result)
     console.log('错误列表:', result.errors)
     console.log('警告列表:', result.warnings)
+    console.log('成功导入的商品ID列表:', result.successProductIds)
     importResult.value = result
 
     // 显示导入结果弹框
@@ -2152,10 +2511,14 @@ const handleImportSubmit = async () => {
 
     if (result.failCount === 0) {
       ElMessage.success('导入成功！')
-      loadProductList()
     } else {
       ElMessage.warning(`导入完成，但有 ${result.failCount} 条失败`)
     }
+    
+    await loadProductList()
+    
+    // 移除自动同步逻辑，改为手动触发
+    // 用户可以在导入结果弹窗中点击"执行同步ERP"按钮来触发同步
   } catch (error: any) {
     ElMessage.error(error.message || '导入失败')
   } finally {
@@ -2242,6 +2605,101 @@ const handleResultClose = () => {
   zipFile.value = null
   csvFileList.value = []
   zipFileList.value = []
+}
+
+// 批量同步导入成功的商品到ERP
+const handleBatchSyncToErp = async () => {
+  if (!importResult.value || !importResult.value.successProductIds || importResult.value.successProductIds.length === 0) {
+    ElMessage.warning('没有可同步的商品')
+    return
+  }
+
+  const productIds = importResult.value.successProductIds
+  const successCount = productIds.length
+  
+  console.log('开始批量同步商品到ERP，商品ID列表:', productIds)
+  
+  // 显示批量同步进度弹窗
+  syncProgressVisible.value = true
+  syncProgressLoading.value = true
+  syncProgressStep.value = 0
+  syncProgressRetryCount.value = 0
+  syncProgressError.value = ''
+  
+  // 显示全屏loading
+  syncProgressInstance = ElLoading.service({
+    lock: true,
+    text: `正在批量同步 ${successCount} 个商品到ERP，请稍候...`,
+    background: 'rgba(0, 0, 0, 0.7)'
+  })
+  
+  let successSyncCount = 0
+  let failSyncCount = 0
+  
+  try {
+    // 逐个同步商品（所有状态都同步）
+    for (let i = 0; i < productIds.length; i++) {
+      const productId = productIds[i]
+      if (productId) {
+        try {
+          // 重置单个商品的进度状态
+          syncProgressStep.value = 0
+          syncProgressRetryCount.value = 0
+          syncProgressError.value = ''
+          
+          // 同步单个商品
+          console.log(`开始同步商品ID ${productId} 到ERP`)
+          const response = await request.post(`/api/admin/inventory/sync/${productId}/full`)
+          console.log(`商品ID ${productId} 同步响应:`, response)
+          
+          if (response && response.success) {
+            successSyncCount++
+            console.log(`商品ID ${productId} 同步成功`)
+          } else {
+            failSyncCount++
+            console.error(`商品ID ${productId} 同步失败:`, response?.message || '未知错误')
+          }
+        } catch (error: any) {
+          failSyncCount++
+          console.error(`商品ID ${productId} 同步失败:`, error)
+        }
+      }
+    }
+    
+    // 关闭全屏loading
+    if (syncProgressInstance) {
+      syncProgressInstance.close()
+      syncProgressInstance = null
+    }
+    
+    syncProgressLoading.value = false
+    syncProgressStep.value = 3 // 全部完成
+    
+    if (failSyncCount === 0) {
+      ElMessage.success(`批量同步完成！成功同步 ${successSyncCount} 个商品到ERP`)
+    } else {
+      ElMessage.warning(`批量同步完成！成功 ${successSyncCount} 个，失败 ${failSyncCount} 个`)
+    }
+    
+    await loadProductList() // 刷新列表
+    
+    // 2秒后自动关闭进度弹窗
+    setTimeout(() => {
+      syncProgressVisible.value = false
+    }, 2000)
+  } catch (error: any) {
+    console.error('批量同步到ERP失败:', error)
+    
+    // 关闭全屏loading
+    if (syncProgressInstance) {
+      syncProgressInstance.close()
+      syncProgressInstance = null
+    }
+    
+    syncProgressLoading.value = false
+    syncProgressError.value = error?.message || '批量同步失败'
+    ElMessage.error(error?.message || '批量同步失败')
+  }
 }
 
 // 监听搜索表单中的状态变化，同步到tab
@@ -2846,6 +3304,44 @@ onMounted(() => {
   .el-dialog__body {
     max-height: 90vh;
     overflow-y: auto;
+  }
+}
+
+.sync-progress-content {
+  padding: 20px 0;
+  
+  .step-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #409eff;
+    
+    .el-icon {
+      animation: rotating 2s linear infinite;
+    }
+  }
+  
+  .step-success {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #67c23a;
+  }
+  
+  .step-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #f56c6c;
+  }
+}
+
+@keyframes rotating {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
   }
 }
 </style>

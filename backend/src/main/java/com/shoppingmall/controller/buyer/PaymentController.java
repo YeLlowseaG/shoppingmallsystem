@@ -14,6 +14,7 @@ import com.shoppingmall.service.erp.JushuitanConfigService;
 import com.shoppingmall.service.erp.JushuitanOrderService;
 import com.shoppingmall.vo.JushuitanConfigVO;
 import com.shoppingmall.notification.service.NotificationService;
+import com.shoppingmall.service.buyer.OrderService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +44,7 @@ public class PaymentController {
     private final JushuitanOrderService jushuitanOrderService;
     private final JushuitanConfigService jushuitanConfigService;
     private final NotificationService notificationService;
+    private final OrderService orderService;
 
     /**
      * 支付回调接口（模拟支付宝/微信支付回调）
@@ -144,6 +146,8 @@ public class PaymentController {
                 order.setOrderStatus(OrderStatus.PAID_UNSHIPPED);
                 order.setPayTime(LocalDateTime.now());
                 orderRepository.updateById(order);
+
+                // 注意：库存在创建订单时已经扣减，支付成功时不需要再次扣减
 
                 // 自动推送订单到聚水潭ERP
                 try {

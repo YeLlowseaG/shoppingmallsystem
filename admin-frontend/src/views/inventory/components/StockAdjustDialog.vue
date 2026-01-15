@@ -2,7 +2,7 @@
   <el-dialog
     v-model="visible"
     title="库存调整"
-    width="700px"
+    width="900px"
     @close="handleClose"
   >
     <el-form
@@ -28,6 +28,7 @@
       <!-- 有多个SKU时显示SKU列表 -->
       <el-form-item v-if="skuList.length > 0" label="SKU库存">
         <el-table :data="skuList" border size="small" class="sku-table">
+          <el-table-column prop="skuCode" label="SKU编码" width="150" />
           <el-table-column prop="specText" label="规格" min-width="120" />
           <el-table-column prop="stock" label="当前库存" width="100" align="center">
             <template #default="{ row }">

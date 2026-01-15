@@ -1147,8 +1147,8 @@ public class JushuitanItemServiceImpl implements JushuitanItemService {
         // i_id：ERP商品ID
         dto.setIId(product.getProductCode());
 
-        // sku_code：商品编码
-        dto.setSkuCode(product.getProductCode());
+        // sku_code：使用SKU编码（如果启用SKU）
+        dto.setSkuCode(skuId);
 
         // original_sku_id：原始规格ID，使用SKU ID
         dto.setOriginalSkuId(String.valueOf(sku.getId()));

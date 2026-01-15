@@ -197,6 +197,8 @@ public class ProductSyncController {
                 vo.setSyncTypeDesc("上传店铺商品资料");
             } else if ("UPDATE_SHOP_ITEM".equals(log.getSyncType())) {
                 vo.setSyncTypeDesc("更新店铺商品资料");
+            } else if ("INVENTORY_SYNC".equals(log.getSyncType())) {
+                vo.setSyncTypeDesc("库存同步");
             }
 
             // 设置同步状态描述

@@ -59,33 +59,16 @@
       </el-col>
     </el-row>
 
-    <!-- 库存状态分布图 -->
+    <!-- 库存状态分布 -->
     <el-card class="chart-card">
       <template #header>
         <div class="card-header">
           <span>库存状态分布</span>
-          <div class="header-actions">
-            <el-button-group size="small">
-              <el-button :type="chartType === 'chart' ? 'primary' : ''" @click="chartType = 'chart'">
-                <el-icon><TrendCharts /></el-icon>
-                图表
-              </el-button>
-              <el-button :type="chartType === 'normal' ? 'primary' : ''" @click="chartType = 'normal'">
-                <el-icon><List /></el-icon>
-                普通
-              </el-button>
-            </el-button-group>
-          </div>
         </div>
       </template>
       
-      <!-- 图表视图 -->
-      <div v-if="chartType === 'chart'" class="chart-container">
-        <div ref="pieChartRef" style="width: 100%; height: 300px;"></div>
-      </div>
-      
       <!-- 普通视图 -->
-      <div v-else class="status-overview">
+      <div class="status-overview">
         <div class="status-item">
           <div class="status-color normal-color"></div>
           <span class="status-label">正常库存</span>
@@ -94,12 +77,13 @@
         <div class="status-item">
           <div class="status-color low-color"></div>
           <span class="status-label">低库存</span>
-          <span class="status-count">{{ inventoryStats.lowStockCount }} 件</span>
+          <span class="status-count">{{ inventoryStats.lowStockQuantity }} 件</span>
         </div>
         <div class="status-item">
           <div class="status-color out-color"></div>
           <span class="status-label">缺货</span>
-          <span class="status-count">{{ inventoryStats.outOfStockCount }} 件</span>
+          <!-- 缺货商品显示商品数量，因为缺货商品的库存件数都是0 -->
+          <span class="status-count">{{ inventoryStats.outOfStockCount > 0 ? inventoryStats.outOfStockCount + ' 个商品' : inventoryStats.outOfStockQuantity + ' 件' }}</span>
         </div>
       </div>
     </el-card>
@@ -203,7 +187,7 @@
         <el-table-column prop="productName" label="商品信息" min-width="200">
           <template #default="{ row }">
             <div class="product-info">
-              <div class="product-name">{{ row.productName }}</div>
+              <div class="product-name" :title="row.productName">{{ row.productName }}</div>
               <div class="product-code">编码：{{ row.productCode }}</div>
               <div v-if="row.skuSpecs" class="product-specs">
                 {{ row.skuSpecs }}
@@ -247,15 +231,28 @@
             {{ formatDateTime(row.lastUpdateTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button 
-              type="primary" 
-              size="small" 
-              @click="handleStockAdjust(row)"
-            >
-              调整库存
-            </el-button>
+            <div style="display: flex; gap: 10px; justify-content: flex-start; align-items: center;">
+              <el-button 
+                type="primary" 
+                size="small" 
+                @click="handleStockAdjust(row)"
+                style="width: 80px;"
+              >
+                调整库存
+              </el-button>
+              <el-button 
+                type="success" 
+                size="small" 
+                @click="handleSyncToErp(row)"
+                :loading="syncLoading[row.id]"
+                style="width: 90px;"
+              >
+                <el-icon><RefreshRight /></el-icon>
+                同步ERP
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -287,12 +284,83 @@
       :selected-items="selectedItems"
       @success="handleBatchAdjustSuccess"
     />
+
+    <!-- ERP同步进度弹窗 -->
+    <el-dialog
+      v-model="syncProgressVisible"
+      title="ERP同步进度"
+      width="500px"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      :show-close="!syncProgressLoading"
+    >
+      <div class="sync-progress-content">
+        <el-steps :active="syncProgressStep" direction="vertical" finish-status="success">
+          <el-step title="同步商品资料" :status="getStepStatus(0)">
+            <template #description>
+              <div v-if="syncProgressStep === 0 && syncProgressLoading" class="step-loading">
+                <el-icon class="is-loading"><Loading /></el-icon>
+                <span>正在同步商品资料到ERP...</span>
+              </div>
+              <div v-else-if="syncProgressStep > 0" class="step-success">
+                <el-icon><CircleCheck /></el-icon>
+                <span>商品资料同步成功</span>
+              </div>
+              <div v-else-if="syncProgressError && syncProgressStep === 0" class="step-error">
+                <el-icon><CircleClose /></el-icon>
+                <span>{{ syncProgressError }}</span>
+              </div>
+            </template>
+          </el-step>
+          
+          <el-step title="等待ERP处理" :status="getStepStatus(1)">
+            <template #description>
+              <div v-if="syncProgressStep === 1 && syncProgressLoading" class="step-loading">
+                <el-icon class="is-loading"><Loading /></el-icon>
+                <span>等待ERP系统处理商品资料（5秒）...</span>
+              </div>
+              <div v-else-if="syncProgressStep > 1" class="step-success">
+                <el-icon><CircleCheck /></el-icon>
+                <span>等待完成</span>
+              </div>
+            </template>
+          </el-step>
+          
+          <el-step title="同步库存" :status="getStepStatus(2)">
+            <template #description>
+              <div v-if="syncProgressStep === 2 && syncProgressLoading" class="step-loading">
+                <el-icon class="is-loading"><Loading /></el-icon>
+                <span>正在同步库存到ERP（尝试 {{ syncProgressRetryCount + 1 }}/4）...</span>
+              </div>
+              <div v-else-if="syncProgressStep > 2" class="step-success">
+                <el-icon><CircleCheck /></el-icon>
+                <span>库存同步成功</span>
+              </div>
+              <div v-else-if="syncProgressError && syncProgressStep === 2" class="step-error">
+                <el-icon><CircleClose /></el-icon>
+                <span>{{ syncProgressError }}</span>
+              </div>
+            </template>
+          </el-step>
+        </el-steps>
+      </div>
+      
+      <template #footer>
+        <el-button 
+          v-if="!syncProgressLoading" 
+          type="primary" 
+          @click="syncProgressVisible = false"
+        >
+          关闭
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElLoading } from 'element-plus'
 import {
   Box,
   Warning,
@@ -302,7 +370,11 @@ import {
   List,
   Download,
   Edit,
-  Search
+  Search,
+  RefreshRight,
+  Loading,
+  CircleCheck,
+  CircleClose
 } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import request from '@/utils/request'
@@ -335,10 +407,12 @@ const pagination = ref({
 // 库存统计
 const inventoryStats = ref({
   totalValue: 807856.1,
-  lowStockCount: 23,
-  outOfStockCount: 0,
+  lowStockCount: 23, // 顶部统计：低库存商品数量（个）
+  outOfStockCount: 0, // 顶部统计：缺货商品数量（个）
   avgDays: 23,
-  normalCount: 1000
+  normalCount: 1000, // 库存状态分布：正常库存件数（件）
+  lowStockQuantity: 0, // 库存状态分布：低库存件数（件）
+  outOfStockQuantity: 0 // 库存状态分布：缺货件数（件）
 })
 
 // 数据列表
@@ -373,6 +447,31 @@ const flatCategories = computed(() => {
 const adjustDialogVisible = ref(false)
 const batchAdjustDialogVisible = ref(false)
 const currentStockItem = ref<any>(null)
+
+// 同步加载状态
+const syncLoading = ref<Record<number, boolean>>({})
+
+// ERP同步进度相关
+const syncProgressVisible = ref(false)
+const syncProgressLoading = ref(false)
+const syncProgressStep = ref(0) // 0-商品资料, 1-等待, 2-库存
+const syncProgressRetryCount = ref(0)
+const syncProgressError = ref('')
+let syncProgressInstance: ReturnType<typeof ElLoading.service> | null = null
+
+// 获取步骤状态
+const getStepStatus = (step: number) => {
+  if (syncProgressError.value && syncProgressStep.value === step) {
+    return 'error'
+  }
+  if (syncProgressStep.value > step) {
+    return 'success'
+  }
+  if (syncProgressStep.value === step && syncProgressLoading.value) {
+    return 'process'
+  }
+  return 'wait'
+}
 
 // 格式化数字
 const formatNumber = (num: number) => {
@@ -439,8 +538,8 @@ const initPieChart = () => {
         center: ['60%', '50%'],
         data: [
           { value: inventoryStats.value.normalCount, name: '正常库存', itemStyle: { color: '#67c23a' } },
-          { value: inventoryStats.value.lowStockCount, name: '低库存', itemStyle: { color: '#e6a23c' } },
-          { value: inventoryStats.value.outOfStockCount, name: '缺货', itemStyle: { color: '#f56c6c' } }
+          { value: inventoryStats.value.lowStockQuantity, name: '低库存', itemStyle: { color: '#e6a23c' } },
+          { value: inventoryStats.value.outOfStockQuantity, name: '缺货', itemStyle: { color: '#f56c6c' } }
         ],
         emphasis: {
           itemStyle: {
@@ -475,10 +574,11 @@ const loadInventoryList = async () => {
       ? searchForm.value.categoryId[searchForm.value.categoryId.length - 1]
       : searchForm.value.categoryId
     
-    // 调用商品列表API获取所有商品
+    // 先获取所有符合筛选条件的商品（不分页），用于筛选和统计
+    // 这样可以确保库存状态筛选和统计使用相同的数据源
     const productParams = {
-      current: pagination.value.current,
-      size: pagination.value.size,
+      current: 1,
+      size: 10000, // 使用较大的size获取所有数据
       keyword: searchForm.value.keyword,
       categoryId: categoryId,
       status: searchForm.value.productStatus || undefined // 传递商品状态参数
@@ -489,17 +589,14 @@ const loadInventoryList = async () => {
     console.log('商品API响应:', response)
     
     // 检查响应数据结构
-    let products, total
+    let products
     if (response.code === 200) {
       products = response.data.records || []
-      total = response.data.total || 0
     } else if (response.records) {
       // 直接返回分页对象的情况
       products = response.records || []
-      total = response.total || 0
     } else {
       products = []
-      total = 0
     }
     
     console.log('获取到商品数量:', products.length)
@@ -584,33 +681,39 @@ const loadInventoryList = async () => {
         }
       })
 
-      const inventoryResults = await Promise.all(inventoryPromises)
-      inventoryList.value = inventoryResults
+      const allInventoryResults = await Promise.all(inventoryPromises)
       
-      // 应用筛选条件
+      // 应用库存状态筛选（如果设置了）- 与统计函数使用相同的筛选逻辑
+      let filteredItems = allInventoryResults
       if (searchForm.value.stockStatus) {
-        inventoryList.value = inventoryList.value.filter(item => 
+        filteredItems = allInventoryResults.filter(item => 
           item.stockStatus === searchForm.value.stockStatus
         )
       }
       
       // 应用排序
       if (searchForm.value.sortBy === 'stock') {
-        inventoryList.value.sort((a, b) => a.currentStock - b.currentStock)
+        filteredItems.sort((a, b) => a.currentStock - b.currentStock)
       } else if (searchForm.value.sortBy === 'value') {
-        inventoryList.value.sort((a, b) => a.stockValue - b.stockValue)
+        filteredItems.sort((a, b) => a.stockValue - b.stockValue)
       } else if (searchForm.value.sortBy === 'time') {
-        inventoryList.value.sort((a, b) => 
+        filteredItems.sort((a, b) => 
           new Date(b.lastUpdateTime).getTime() - new Date(a.lastUpdateTime).getTime()
         )
       }
       
-      pagination.value.total = total
+      // 更新总数（筛选后的总数）
+      pagination.value.total = filteredItems.length
       
-      // 更新统计数据
-      updateInventoryStats()
+      // 前端分页：根据当前页和每页数量截取数据
+      const startIndex = (pagination.value.current - 1) * pagination.value.size
+      const endIndex = startIndex + pagination.value.size
+      inventoryList.value = filteredItems.slice(startIndex, endIndex)
       
-      console.log('库存列表处理完成，共', inventoryList.value.length, '条记录')
+      // 更新统计数据（基于筛选条件统计所有符合条件的数据）
+      loadInventoryStats()
+      
+      console.log('库存列表处理完成，筛选后总数:', filteredItems.length, '当前页显示:', inventoryList.value.length, '条记录')
   } catch (error) {
     console.error('加载库存列表失败:', error)
     ElMessage.error('加载库存列表失败')
@@ -636,26 +739,161 @@ const getStockStatus = (currentStock: number, warningStock: number) => {
   return 'normal'
 }
 
-// 更新库存统计数据
-const updateInventoryStats = () => {
-  const totalValue = inventoryList.value.reduce((sum, item) => sum + item.stockValue, 0)
-  const lowStockCount = inventoryList.value.filter(item => item.stockStatus === 'low').length
-  const outOfStockCount = inventoryList.value.filter(item => item.stockStatus === 'out').length
-  const normalCount = inventoryList.value.filter(item => item.stockStatus === 'normal').length
-  
-  inventoryStats.value = {
-    totalValue,
-    lowStockCount,
-    outOfStockCount,
-    normalCount,
-    avgDays: Math.round(totalValue / 1000) // 简单计算平均库存天数
+// 加载统计数据 - 基于筛选条件获取所有符合条件的数据进行统计
+const loadInventoryStats = async () => {
+  try {
+    // 处理级联选择器的值（如果是数组，取最后一个值）
+    const categoryId = Array.isArray(searchForm.value.categoryId)
+      ? searchForm.value.categoryId[searchForm.value.categoryId.length - 1]
+      : searchForm.value.categoryId
+    
+    // 获取所有符合筛选条件的商品（不分页，用于统计）
+    // 根据用户选择的商品状态进行统计
+    const productParams = {
+      current: 1,
+      size: 10000, // 使用较大的size获取所有数据用于统计
+      keyword: searchForm.value.keyword,
+      categoryId: categoryId,
+      status: searchForm.value.productStatus || undefined // 如果选择了商品状态，则按该状态查询；如果选择"全部"，则查询所有
+    }
+    
+    const response = await request.get('/api/admin/product/page', { params: productParams })
+    
+    // 检查响应数据结构
+    let products
+    if (response.code === 200) {
+      products = response.data.records || []
+    } else if (response.records) {
+      products = response.records || []
+    } else {
+      products = []
+    }
+    
+    // 并行获取每个商品的SKU信息
+    const inventoryPromises = products.map(async (product: any) => {
+      try {
+        // 获取商品的SKU列表
+        const skuResponse = await request.get(`/api/admin/product-sku/product/${product.id}`)
+        const skuList = Array.isArray(skuResponse) ? skuResponse : (skuResponse.data || skuResponse || [])
+
+        if (skuList.length > 0) {
+          // 有SKU的商品，汇总所有SKU的库存
+          const totalStock = skuList.reduce((sum: number, sku: any) => sum + (sku.stock || 0), 0)
+          const avgPrice = skuList.reduce((sum: number, sku: any) => sum + (sku.price || 0), 0) / skuList.length
+          const minWarningStock = Math.min(...skuList.map((sku: any) => sku.warningStock || 20))
+
+          return {
+            id: product.id,
+            productId: product.id,
+            productStatus: product.status || '草稿',
+            currentStock: totalStock,
+            warningStock: minWarningStock,
+            unitPrice: avgPrice || product.basePrice,
+            stockValue: totalStock * (avgPrice || product.basePrice),
+            stockStatus: getStockStatus(totalStock, minWarningStock)
+          }
+        } else {
+          // 没有SKU的商品，使用基础库存
+          return {
+            id: product.id,
+            productId: product.id,
+            productStatus: product.status || '草稿',
+            currentStock: product.stock || 0,
+            warningStock: product.warningStock || 20,
+            unitPrice: product.basePrice,
+            stockValue: (product.stock || 0) * product.basePrice,
+            stockStatus: getStockStatus(product.stock || 0, product.warningStock || 20)
+          }
+        }
+      } catch (error) {
+        console.error(`获取商品 ${product.id} 的SKU信息失败:`, error)
+        // 如果SKU获取失败，使用基础库存信息
+        return {
+          id: product.id,
+          productId: product.id,
+          productStatus: product.status || '草稿',
+          currentStock: product.stock || 0,
+          warningStock: product.warningStock || 20,
+          unitPrice: product.basePrice,
+          stockValue: (product.stock || 0) * product.basePrice,
+          stockStatus: getStockStatus(product.stock || 0, product.warningStock || 20)
+        }
+      }
+    })
+
+    const allInventoryItems = await Promise.all(inventoryPromises)
+    
+    // 应用库存状态筛选（如果设置了）
+    let filteredItems = allInventoryItems
+    if (searchForm.value.stockStatus) {
+      filteredItems = allInventoryItems.filter(item => item.stockStatus === searchForm.value.stockStatus)
+    }
+    
+    // 根据用户选择的商品状态进行统计
+    // 如果用户选择了商品状态，则只统计该状态的商品；如果选择"全部"（空值），则统计所有状态的商品
+    let statsItems = filteredItems
+    if (searchForm.value.productStatus) {
+      statsItems = filteredItems.filter(item => item.productStatus === searchForm.value.productStatus)
+    }
+    
+    const totalValue = statsItems.reduce((sum, item) => sum + item.stockValue, 0)
+    
+    // 顶部统计：统计商品数量（个）- 基于筛选条件
+    const lowStockProductCount = statsItems.filter(item => item.stockStatus === 'low').length
+    const outOfStockProductCount = statsItems.filter(item => item.stockStatus === 'out').length
+    
+    // 库存状态分布：统计库存件数（件）- 累加所有符合筛选条件商品的库存数量
+    const normalStockQuantity = statsItems
+      .filter(item => item.stockStatus === 'normal')
+      .reduce((sum, item) => sum + (item.currentStock || 0), 0)
+    const lowStockQuantity = statsItems
+      .filter(item => item.stockStatus === 'low')
+      .reduce((sum, item) => sum + (item.currentStock || 0), 0)
+    const outOfStockQuantity = statsItems
+      .filter(item => item.stockStatus === 'out')
+      .reduce((sum, item) => sum + (item.currentStock || 0), 0)
+    
+    // 调试日志：检查统计一致性
+    console.log('统计调试信息:', {
+      总商品数: statsItems.length,
+      低库存商品数: lowStockProductCount,
+      缺货商品数: outOfStockProductCount,
+      正常库存件数: normalStockQuantity,
+      低库存件数: lowStockQuantity,
+      缺货件数: outOfStockQuantity,
+      缺货商品详情: statsItems.filter(item => item.stockStatus === 'out').slice(0, 5).map(item => ({
+        id: item.id,
+        currentStock: item.currentStock,
+        stockStatus: item.stockStatus
+      }))
+    })
+    
+    inventoryStats.value = {
+      totalValue,
+      lowStockCount: lowStockProductCount, // 顶部统计：低库存商品数量（个）- 基于筛选条件
+      outOfStockCount: outOfStockProductCount, // 顶部统计：缺货商品数量（个）- 基于筛选条件
+      normalCount: normalStockQuantity, // 库存状态分布：正常库存件数（件）- 基于筛选条件
+      lowStockQuantity: lowStockQuantity, // 库存状态分布：低库存件数（件）- 基于筛选条件
+      outOfStockQuantity: outOfStockQuantity, // 库存状态分布：缺货件数（件）- 基于筛选条件
+      avgDays: Math.round(totalValue / 1000) // 简单计算平均库存天数
+    }
+  } catch (error) {
+    console.error('加载统计数据失败:', error)
+    // 如果统计失败，不影响列表显示，只记录错误
   }
+}
+
+// 更新库存统计数据（基于当前列表数据，已废弃，改用loadInventoryStats）
+const updateInventoryStats = () => {
+  // 此函数保留用于兼容，但实际统计使用loadInventoryStats
+  loadInventoryStats()
 }
 
 // 处理搜索
 const handleSearch = () => {
   pagination.value.current = 1
   loadInventoryList()
+  // 注意：loadInventoryList内部已经调用了loadInventoryStats，这里不需要重复调用
 }
 
 // 重置搜索
@@ -693,6 +931,127 @@ const handleBatchUpdate = () => {
 // 导出数据
 const handleExport = () => {
   ElMessage.success('导出功能开发中...')
+}
+
+// 同步到ERP（完整流程：商品资料 + 库存）
+const handleSyncToErp = async (row: any) => {
+  // 重置进度状态
+  syncProgressVisible.value = true
+  syncProgressLoading.value = true
+  syncProgressStep.value = 0
+  syncProgressRetryCount.value = 0
+  syncProgressError.value = ''
+  syncLoading.value[row.id] = true
+  
+  try {
+    // 显示全屏loading
+    syncProgressInstance = ElLoading.service({
+      lock: true,
+      text: '正在同步到ERP，请稍候...',
+      background: 'rgba(0, 0, 0, 0.7)'
+    })
+    
+    // 更新进度：步骤1 - 同步商品资料
+    syncProgressStep.value = 0
+    
+    // 使用定时器模拟进度更新（因为后端是同步接口，无法实时获取进度）
+    // 步骤1：同步商品资料（预计2-3秒）
+    let stepTimer1: ReturnType<typeof setTimeout> | null = null
+    let stepTimer2: ReturnType<typeof setTimeout> | null = null
+    
+    // 2秒后进入等待步骤（模拟商品资料同步完成）
+    stepTimer1 = setTimeout(() => {
+      if (syncProgressLoading.value && syncProgressStep.value === 0) {
+        syncProgressStep.value = 1 // 进入等待步骤
+      }
+    }, 2000)
+    
+    // 7秒后进入库存同步步骤（2秒商品资料 + 5秒等待）
+    stepTimer2 = setTimeout(() => {
+      if (syncProgressLoading.value && syncProgressStep.value === 1) {
+        syncProgressStep.value = 2 // 进入库存同步步骤
+      }
+    }, 7000)
+    
+    // 开始调用接口
+    const startTime = Date.now()
+    const response = await request.post(`/api/admin/inventory/sync/${row.productId}/full`)
+    const elapsedTime = Date.now() - startTime
+    
+    // 清除定时器
+    if (stepTimer1) clearTimeout(stepTimer1)
+    if (stepTimer2) clearTimeout(stepTimer2)
+    
+    // 根据实际耗时更新进度
+    // 如果接口返回时还在步骤0，说明商品资料同步很快，直接跳到步骤1
+    if (syncProgressStep.value === 0 && elapsedTime < 2000) {
+      syncProgressStep.value = 1
+    }
+    // 如果接口返回时还在步骤1，说明等待时间还没到，直接跳到步骤2
+    if (syncProgressStep.value === 1 && elapsedTime < 7000) {
+      syncProgressStep.value = 2
+    }
+    
+    // 关闭全屏loading
+    if (syncProgressInstance) {
+      syncProgressInstance.close()
+      syncProgressInstance = null
+    }
+    
+    // 更新进度
+    syncProgressLoading.value = false
+    
+    // 检查同步结果
+    if (response && response.success) {
+      syncProgressStep.value = 3 // 全部完成
+      ElMessage.success('商品资料和库存同步成功')
+      // 刷新库存列表
+      await loadInventoryList()
+      // 2秒后自动关闭进度弹窗
+      setTimeout(() => {
+        syncProgressVisible.value = false
+      }, 2000)
+    } else {
+      // 根据失败步骤设置错误信息
+      const errorMsg = response?.message || '同步失败'
+      syncProgressError.value = errorMsg
+      
+      if (response?.step === 'ITEM_SYNC') {
+        syncProgressStep.value = 0
+      } else if (response?.step === 'INVENTORY_SYNC') {
+        syncProgressStep.value = 2
+        syncProgressRetryCount.value = response?.inventoryRetryCount || 0
+      }
+      
+      ElMessage.error({
+        message: errorMsg,
+        duration: 5000,
+        showClose: true
+      })
+    }
+  } catch (error: any) {
+    console.error('同步到ERP失败:', error)
+    
+    // 清除可能的定时器
+    // clearInterval(progressTimer)
+    
+    // 关闭全屏loading
+    if (syncProgressInstance) {
+      syncProgressInstance.close()
+      syncProgressInstance = null
+    }
+    
+    syncProgressLoading.value = false
+    syncProgressError.value = error?.message || '同步失败'
+    
+    const errorMsg = error?.message || '同步失败'
+    if (!errorMsg.includes('请求失败')) {
+      ElMessage.error(errorMsg)
+    }
+  } finally {
+    // 取消加载状态
+    syncLoading.value[row.id] = false
+  }
 }
 
 // 调整成功回调
@@ -858,6 +1217,9 @@ onMounted(async () => {
       font-weight: 500;
       color: #303133;
       margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     
     .product-code {
@@ -895,6 +1257,44 @@ onMounted(async () => {
     margin-top: 20px;
     display: flex;
     justify-content: flex-end;
+  }
+  
+  .sync-progress-content {
+    padding: 20px 0;
+    
+    .step-loading {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #409eff;
+      
+      .el-icon {
+        animation: rotating 2s linear infinite;
+      }
+    }
+    
+    .step-success {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #67c23a;
+    }
+    
+    .step-error {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #f56c6c;
+    }
+  }
+}
+
+@keyframes rotating {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
   }
 }
 </style>

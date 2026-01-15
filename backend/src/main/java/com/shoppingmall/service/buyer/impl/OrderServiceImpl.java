@@ -22,7 +22,6 @@ import com.shoppingmall.repository.order.OrderRepository;
 import com.shoppingmall.repository.product.ProductMemberPriceRepository;
 import com.shoppingmall.repository.product.ProductPriceRepository;
 import com.shoppingmall.repository.product.ProductRepository;
-import com.shoppingmall.repository.product.ProductStockRepository;
 import com.shoppingmall.repository.sku.ProductSkuMemberPriceRepository;
 import com.shoppingmall.repository.sku.ProductSkuRepository;
 import com.shoppingmall.repository.user.UserAddressRepository;
@@ -32,6 +31,8 @@ import com.shoppingmall.service.buyer.OrderService;
 import com.shoppingmall.service.buyer.DepositService;
 import com.shoppingmall.payment.service.PaymentGatewayService;
 import com.shoppingmall.service.member.MemberLevelService;
+import com.shoppingmall.service.erp.JushuitanConfigService;
+import com.shoppingmall.service.erp.JushuitanOrderService;
 import com.shoppingmall.vo.MemberLevelVO;
 import com.shoppingmall.dto.OrderPaymentDTO;
 import com.shoppingmall.dto.PaymentRequestDTO;
@@ -58,9 +59,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import com.shoppingmall.dto.ShippingFeeCalculateDTO;
-import com.shoppingmall.service.erp.JushuitanConfigService;
-import com.shoppingmall.service.erp.JushuitanOrderService;
-import com.shoppingmall.vo.JushuitanConfigVO;
 
 /**
  * 订单服务实现类
@@ -82,7 +80,6 @@ public class OrderServiceImpl implements OrderService {
     private final CartRepository cartRepository;
     private final ProductRepository productRepository;
     private final ProductPriceRepository productPriceRepository;
-    private final ProductStockRepository productStockRepository;
     private final ProductSkuRepository productSkuRepository;
     private final ProductMemberPriceRepository productMemberPriceRepository;
     private final ProductSkuMemberPriceRepository productSkuMemberPriceRepository;
@@ -94,8 +91,8 @@ public class OrderServiceImpl implements OrderService {
     private final ObjectMapper objectMapper;
     private final com.shoppingmall.service.logistics.ShippingService shippingService;
     private final com.shoppingmall.notification.service.NotificationService notificationService;
-    private final JushuitanConfigService jushuitanConfigService;
     private final JushuitanOrderService jushuitanOrderService;
+    private final JushuitanConfigService jushuitanConfigService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -145,11 +142,6 @@ public class OrderServiceImpl implements OrderService {
             }
             if (product.getStatus() == null || product.getStatus() != 1) {
                 throw new BusinessException(400, "商品已下架: " + product.getProductName());
-            }
-            
-            // 验证库存
-            if (product.getStock() == null || product.getStock() < itemDTO.getQuantity()) {
-                throw new BusinessException(400, "商品库存不足: " + product.getProductName());
             }
             
             // 查询价格信息
@@ -203,6 +195,12 @@ public class OrderServiceImpl implements OrderService {
                     throw new BusinessException(400, "SKU价格未设置: productId=" + itemDTO.getProductId() + ", skuId=" + itemDTO.getSkuId());
                 }
                 
+                // 验证SKU库存
+                int skuTotalStock = sku.getStock() != null ? sku.getStock() : 0;
+                if (skuTotalStock < itemDTO.getQuantity()) {
+                    throw new BusinessException(400, "SKU库存不足: " + product.getProductName() + " (当前库存: " + skuTotalStock + ")");
+                }
+                
                 // 计算会员价格：优先使用SKU配置的会员价
                 memberPrice = calculateMemberPriceForSku(sku, salesPrice, userId);
             } else {
@@ -210,6 +208,12 @@ public class OrderServiceImpl implements OrderService {
                 salesPrice = product.getBasePrice();
                 if (salesPrice == null) {
                     throw new BusinessException(400, "商品价格未设置: " + product.getProductName());
+                }
+                
+                // 验证商品库存
+                int productTotalStock = product.getStock() != null ? product.getStock() : 0;
+                if (productTotalStock < itemDTO.getQuantity()) {
+                    throw new BusinessException(400, "商品库存不足: " + product.getProductName() + " (当前库存: " + productTotalStock + ")");
                 }
                 
                 // 计算会员价格：优先使用商品配置的会员价
@@ -285,45 +289,40 @@ public class OrderServiceImpl implements OrderService {
             orderItemRepository.insert(orderItem);
         }
 
-        // 8. 扣减库存
+        // 8. 创建订单时扣减库存（未支付订单取消时会恢复库存）
         for (CreateOrderDTO.OrderItemDTO itemDTO : orderItems) {
-            // 扣减product表的库存
+            // 查询商品信息（用于错误提示）
             Product product = productRepository.selectById(itemDTO.getProductId());
-            if (product != null && product.getStock() != null) {
-                int newStock = product.getStock() - itemDTO.getQuantity();
-                if (newStock < 0) {
-                    throw new BusinessException(400, "库存不足: " + product.getProductName());
+            String productName = product != null ? product.getProductName() : "商品ID:" + itemDTO.getProductId();
+            
+            if (itemDTO.getSkuId() != null) {
+                // 有SKU，扣减SKU库存
+                ProductSku sku = productSkuRepository.selectById(itemDTO.getSkuId());
+                if (sku != null && sku.getStock() != null) {
+                    int newStock = sku.getStock() - itemDTO.getQuantity();
+                    if (newStock < 0) {
+                        throw new BusinessException(400, "SKU库存不足: " + productName);
+                    }
+                    sku.setStock(newStock);
+                    productSkuRepository.updateById(sku);
+                    log.info("创建订单扣减SKU库存: skuId={}, 扣减数量={}, 剩余库存={}", 
+                            itemDTO.getSkuId(), itemDTO.getQuantity(), newStock);
                 }
-                product.setStock(newStock);
-                productRepository.updateById(product);
-            }
-            
-            // 扣减product_stock表的库存
-            LambdaQueryWrapper<ProductStock> stockWrapper = new LambdaQueryWrapper<>();
-            stockWrapper.eq(ProductStock::getProductId, itemDTO.getProductId());
-            ProductStock productStock = productStockRepository.selectOne(stockWrapper);
-            
-            if (productStock != null) {
-                // 增加锁定库存
-                int newLockedStock = (productStock.getLockedStock() != null ? productStock.getLockedStock() : 0) + itemDTO.getQuantity();
-                productStock.setLockedStock(newLockedStock);
                 
-                // 减少可用库存
-                int newAvailableStock = (productStock.getAvailableStock() != null ? productStock.getAvailableStock() : 0) - itemDTO.getQuantity();
-                if (newAvailableStock < 0) {
-                    throw new BusinessException(400, "可用库存不足: " + product.getProductName());
-                }
-                productStock.setAvailableStock(newAvailableStock);
-                productStockRepository.updateById(productStock);
+                // 同步更新商品总库存（从所有SKU汇总）
+                updateProductTotalStockFromSkus(itemDTO.getProductId());
             } else {
-                // 如果product_stock记录不存在，创建新记录
-                productStock = new ProductStock();
-                productStock.setProductId(itemDTO.getProductId());
-                productStock.setTotalStock(product != null && product.getStock() != null ? product.getStock() : 0);
-                productStock.setLockedStock(itemDTO.getQuantity());
-                productStock.setAvailableStock((productStock.getTotalStock() - productStock.getLockedStock()));
-                productStock.setWarningThreshold(10);
-                productStockRepository.insert(productStock);
+                // 无SKU，扣减商品库存
+                if (product != null && product.getStock() != null) {
+                    int newStock = product.getStock() - itemDTO.getQuantity();
+                    if (newStock < 0) {
+                        throw new BusinessException(400, "商品库存不足: " + productName);
+                    }
+                    product.setStock(newStock);
+                    productRepository.updateById(product);
+                    log.info("创建订单扣减商品库存: productId={}, 扣减数量={}, 剩余库存={}", 
+                            itemDTO.getProductId(), itemDTO.getQuantity(), newStock);
+                }
             }
         }
 
@@ -476,37 +475,41 @@ public class OrderServiceImpl implements OrderService {
             throw new BusinessException(400, "只有待付款订单可以取消");
         }
         
-        // 恢复库存
-        LambdaQueryWrapper<OrderItem> itemWrapper = new LambdaQueryWrapper<>();
-        itemWrapper.eq(OrderItem::getOrderId, order.getId());
-        List<OrderItem> orderItems = orderItemRepository.selectList(itemWrapper);
+        // 恢复库存：只有未支付的订单取消时才需要恢复库存
+        // 已支付的订单取消时不恢复库存（商品已经卖出，只是取消订单）
+        boolean needRestoreStock = OrderStatus.PENDING_PAYMENT.equals(order.getOrderStatus());
         
-        for (OrderItem orderItem : orderItems) {
-            // 恢复product表的库存
-            Product product = productRepository.selectById(orderItem.getProductId());
-            if (product != null && product.getStock() != null) {
-                product.setStock(product.getStock() + orderItem.getQuantity());
-                productRepository.updateById(product);
-            }
+        if (needRestoreStock) {
+            LambdaQueryWrapper<OrderItem> itemWrapper = new LambdaQueryWrapper<>();
+            itemWrapper.eq(OrderItem::getOrderId, order.getId());
+            List<OrderItem> orderItems = orderItemRepository.selectList(itemWrapper);
             
-            // 恢复product_stock表的库存
-            LambdaQueryWrapper<ProductStock> stockWrapper = new LambdaQueryWrapper<>();
-            stockWrapper.eq(ProductStock::getProductId, orderItem.getProductId());
-            ProductStock productStock = productStockRepository.selectOne(stockWrapper);
-            
-            if (productStock != null) {
-                // 减少锁定库存
-                int newLockedStock = (productStock.getLockedStock() != null ? productStock.getLockedStock() : 0) - orderItem.getQuantity();
-                if (newLockedStock < 0) {
-                    newLockedStock = 0;
+            for (OrderItem orderItem : orderItems) {
+                if (orderItem.getSkuId() != null) {
+                    // 有SKU，恢复SKU库存
+                    ProductSku sku = productSkuRepository.selectById(orderItem.getSkuId());
+                    if (sku != null && sku.getStock() != null) {
+                        sku.setStock(sku.getStock() + orderItem.getQuantity());
+                        productSkuRepository.updateById(sku);
+                        log.info("未支付订单取消恢复SKU库存: skuId={}, 恢复数量={}, 当前库存={}", 
+                                orderItem.getSkuId(), orderItem.getQuantity(), sku.getStock());
+                    }
+                    
+                    // 同步更新商品总库存（从所有SKU汇总）
+                    updateProductTotalStockFromSkus(orderItem.getProductId());
+                } else {
+                    // 无SKU，恢复商品库存
+                    Product product = productRepository.selectById(orderItem.getProductId());
+                    if (product != null && product.getStock() != null) {
+                        product.setStock(product.getStock() + orderItem.getQuantity());
+                        productRepository.updateById(product);
+                        log.info("未支付订单取消恢复商品库存: productId={}, 恢复数量={}, 当前库存={}", 
+                                orderItem.getProductId(), orderItem.getQuantity(), product.getStock());
+                    }
                 }
-                productStock.setLockedStock(newLockedStock);
-                
-                // 增加可用库存
-                int newAvailableStock = (productStock.getAvailableStock() != null ? productStock.getAvailableStock() : 0) + orderItem.getQuantity();
-                productStock.setAvailableStock(newAvailableStock);
-                productStockRepository.updateById(productStock);
             }
+        } else {
+            log.info("已支付订单取消，不恢复库存（商品已卖出）: orderNo={}", orderNo);
         }
         
         // 如果订单之前是已完成状态，需要扣减销量
@@ -521,6 +524,36 @@ public class OrderServiceImpl implements OrderService {
         cancelPaymentRecords(order.getId());
 
         log.info("取消订单成功: orderNo={}, userId={}", orderNo, userId);
+    }
+
+    // 已移除deductStockOnPaymentSuccess方法
+    // 库存在创建订单时已经扣减，支付成功时不需要再次扣减
+
+    /**
+     * 从SKU汇总更新商品总库存
+     */
+    private void updateProductTotalStockFromSkus(Long productId) {
+        try {
+            LambdaQueryWrapper<ProductSku> skuWrapper = new LambdaQueryWrapper<>();
+            skuWrapper.eq(ProductSku::getProductId, productId);
+            List<ProductSku> skus = productSkuRepository.selectList(skuWrapper);
+
+            if (!skus.isEmpty()) {
+                int totalStock = skus.stream()
+                        .mapToInt(sku -> sku.getStock() != null ? sku.getStock() : 0)
+                        .sum();
+
+                Product product = productRepository.selectById(productId);
+                if (product != null) {
+                    product.setStock(totalStock);
+                    productRepository.updateById(product);
+                    log.debug("从SKU汇总更新商品总库存: productId={}, 总库存={}", productId, totalStock);
+                }
+            }
+        } catch (Exception e) {
+            log.error("从SKU汇总更新商品总库存失败: productId={}", productId, e);
+            // 不影响主流程
+        }
     }
 
     @Override
@@ -1075,7 +1108,6 @@ public class OrderServiceImpl implements OrderService {
             depositService.depositPayment(userId, order.getId(), orderNo, order.getActualAmount());
             
             // 2.3 更新订单状态
-            order.setPaymentMethod("PRE_DEPOSIT");
             order.setPaymentStatus(PaymentStatus.PAID); // 已支付
             order.setOrderStatus(OrderStatus.PAID_UNSHIPPED);
             order.setPayTime(LocalDateTime.now());
@@ -1109,32 +1141,32 @@ public class OrderServiceImpl implements OrderService {
             }
             
             log.info("预存款支付成功: orderNo={}, userId={}, amount={}", orderNo, userId, order.getActualAmount());
-            
+
+            // 发送支付成功通知到企业微信
+            notificationService.sendPaymentSuccessNotification(orderNo);
+
             // 自动推送订单到聚水潭ERP
             try {
-                log.info("开始检查自动推送订单配置: orderId={}, orderNo={}", order.getId(), orderNo);
-                JushuitanConfigVO config = jushuitanConfigService.getEnabledConfig();
+                log.info("开始检查预存款支付订单自动推送配置: orderId={}, orderNo={}", order.getId(), orderNo);
+                com.shoppingmall.vo.JushuitanConfigVO config = jushuitanConfigService.getEnabledConfig();
                 log.info("获取到的聚水潭配置: config={}, autoPushOrder={}",
                     config != null ? "存在" : "null",
                     config != null ? config.getAutoPushOrder() : "null");
 
                 if (config != null && config.getAutoPushOrder() == 1) {
-                    log.info("自动推送订单到聚水潭ERP: orderId={}, orderNo={}, envType={}, shopId={}",
+                    log.info("自动推送预存款支付订单到聚水潭ERP: orderId={}, orderNo={}, envType={}, shopId={}",
                         order.getId(), orderNo, config.getEnvType(), config.getShopId());
                     jushuitanOrderService.pushOrder(order.getId());
-                    log.info("自动推送订单完成: orderId={}, orderNo={}", order.getId(), orderNo);
+                    log.info("自动推送预存款支付订单完成: orderId={}, orderNo={}", order.getId(), orderNo);
                 } else {
-                    log.info("跳过自动推送订单: config={}, autoPushOrder={}",
+                    log.info("跳过自动推送预存款支付订单: config={}, autoPushOrder={}",
                         config != null ? "存在" : "null",
                         config != null ? config.getAutoPushOrder() : "null");
                 }
             } catch (Exception e) {
-                log.error("自动推送订单到ERP失败: orderId={}, orderNo={}, error={}",
+                log.error("自动推送预存款支付订单到ERP失败: orderId={}, orderNo={}, error={}",
                     order.getId(), orderNo, e.getMessage(), e);
             }
-            
-            // 发送支付成功通知到企业微信
-            notificationService.sendPaymentSuccessNotification(orderNo);
             
         } else if ("ALIPAY".equals(paymentMethod) || "WECHAT".equals(paymentMethod)) {
             // 支付宝/微信支付

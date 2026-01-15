@@ -131,6 +131,9 @@ public class ProductImportServiceImpl implements ProductImportService {
             log.info("商品导入完成，成功: {}, 失败: {}", result.getSuccessCount(), result.getFailCount());
             log.info("错误列表大小: {}, 错误详情: {}", result.getErrors().size(), result.getErrors());
             log.info("警告列表大小: {}, 警告详情: {}", result.getWarnings().size(), result.getWarnings());
+            log.info("成功导入的商品ID列表大小: {}, 商品ID列表: {}", 
+                    result.getSuccessProductIds() != null ? result.getSuccessProductIds().size() : 0, 
+                    result.getSuccessProductIds());
 
         } finally {
             // 8. 清理临时目录
@@ -473,12 +476,38 @@ public class ProductImportServiceImpl implements ProductImportService {
         return groups;
     }
     
+    @Transactional(rollbackFor = Exception.class)
     private void importSingleProduct(List<ProductImportDTO> rows, String tempDir, ProductImportResultVO result, Set<String> missingCategories) throws Exception {
         ProductImportDTO firstRow = rows.get(0);
         String productCode = firstRow.getProductCode();
 
         // 1. 验证数据
         validateProductData(firstRow);
+        
+        // 1.1. 如果启用规格，先校验所有SKU编码（在创建商品之前校验，确保数据一致性）
+        if (firstRow.getEnableSpec() && rows.size() > 0) {
+            List<String> skuCodes = new ArrayList<>();
+            for (ProductImportDTO row : rows) {
+                if (row.getSkuCode() != null && !row.getSkuCode().trim().isEmpty()) {
+                    String skuCode = row.getSkuCode().trim();
+                    // 检查SKU编码是否重复（在当前导入数据中）
+                    if (skuCodes.contains(skuCode)) {
+                        throw new RuntimeException("SKU编码重复: " + skuCode + "（同一商品内不能有重复的SKU编码）");
+                    }
+                    skuCodes.add(skuCode);
+                    
+                    // 检查SKU编码是否已存在于数据库中
+                    if (skuService.existsBySkuCode(skuCode)) {
+                        throw new RuntimeException("SKU编码已存在: " + skuCode);
+                    }
+                }
+            }
+            
+            // 如果启用规格但没有SKU编码，抛出异常
+            if (skuCodes.isEmpty()) {
+                throw new RuntimeException("启用规格的商品必须至少有一个SKU编码");
+            }
+        }
 
         // 2. 查找或创建分类
         Long categoryId = findOrCreateCategory(firstRow.getCategoryName());
@@ -569,6 +598,9 @@ public class ProductImportServiceImpl implements ProductImportService {
             productDTO.setStock(0); // 启用规格时，总库存由SKU汇总
         }
         
+        // 设置启用规格标志（重要：确保ERP同步时能正确识别是否启用规格）
+        productDTO.setEnableSpec(firstRow.getEnableSpec() != null && firstRow.getEnableSpec() ? 1 : 0);
+        
         // 设置启用会员价
         productDTO.setEnableMemberPrice(firstRow.getEnableMemberPrice() != null && firstRow.getEnableMemberPrice() ? 1 : 0);
         
@@ -592,6 +624,9 @@ public class ProductImportServiceImpl implements ProductImportService {
         }
         
         Long productId = productService.createProduct(productDTO);
+        
+        // 记录成功导入的商品ID（用于ERP同步）
+        result.addSuccessProductId(productId);
         
         // 7. 创建SKU（如果启用规格）
         if (firstRow.getEnableSpec() && rows.size() > 0) {
@@ -640,7 +675,7 @@ public class ProductImportServiceImpl implements ProductImportService {
             }
         }
         
-        log.info("成功导入商品: {}", productCode);
+        log.info("成功导入商品: {}, 商品ID: {}", productCode, productId);
     }
     
     private void validateProductData(ProductImportDTO dto) {
