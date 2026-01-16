@@ -209,7 +209,6 @@ public class NotificationServiceImpl implements NotificationService {
         }
 
         sb.append("订单金额：¥").append(order.getTotalAmount()).append("\n");
-        sb.append("支付方式：").append(getPaymentMethodText(order.getPaymentMethod())).append("\n");
         sb.append("订单状态：待支付\n\n");
 
         // 商品清单
@@ -245,7 +244,6 @@ public class NotificationServiceImpl implements NotificationService {
         sb.append("【支付成功通知】\n\n");
         sb.append("订单号：").append(order.getOrderNo()).append("\n");
         sb.append("下单时间：").append(order.getCreateTime().format(DATE_TIME_FORMATTER)).append("\n");
-        sb.append("支付时间：").append(order.getPayTime() != null ? order.getPayTime().format(DATE_TIME_FORMATTER) : "未知").append("\n");
 
         if (user != null) {
             String displayName = user.getRealName() != null ? user.getRealName() : user.getUsername();
@@ -257,7 +255,6 @@ public class NotificationServiceImpl implements NotificationService {
         }
 
         sb.append("订单金额：¥").append(order.getTotalAmount()).append("\n");
-        sb.append("支付方式：").append(getPaymentMethodText(order.getPaymentMethod())).append("\n");
         sb.append("订单状态：已支付，待发货\n\n");
 
         // 商品清单
