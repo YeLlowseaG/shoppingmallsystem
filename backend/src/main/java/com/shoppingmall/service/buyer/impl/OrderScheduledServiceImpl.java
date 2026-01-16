@@ -12,6 +12,7 @@ import com.shoppingmall.repository.product.ProductRepository;
 import com.shoppingmall.repository.sku.ProductSkuRepository;
 import com.shoppingmall.service.buyer.OrderScheduledService;
 import com.shoppingmall.service.system.SystemConfigService;
+import com.shoppingmall.util.ScheduledTaskLogUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -37,6 +38,7 @@ public class OrderScheduledServiceImpl implements OrderScheduledService {
     private final ProductRepository productRepository;
     private final ProductSkuRepository productSkuRepository;
     private final SystemConfigService systemConfigService;
+    private final ScheduledTaskLogUtil scheduledTaskLogUtil;
 
     /**
      * 获取订单支付超时时间（小时），从数据库配置读取，默认4小时
@@ -62,6 +64,10 @@ public class OrderScheduledServiceImpl implements OrderScheduledService {
     @Scheduled(fixedRate = 60000) // 每分钟执行一次（60000毫秒）
     @Transactional(rollbackFor = Exception.class)
     public void cancelTimeoutOrders() {
+        LocalDateTime startTime = LocalDateTime.now();
+        String errorMessage = null;
+        boolean success = false;
+
         try {
             // 每次执行时读取最新配置
             Integer paymentTimeoutHours = getPaymentTimeoutHours();
@@ -76,6 +82,7 @@ public class OrderScheduledServiceImpl implements OrderScheduledService {
             );
 
             if (timeoutOrders.isEmpty()) {
+                success = true;
                 return;
             }
 
@@ -124,9 +131,25 @@ public class OrderScheduledServiceImpl implements OrderScheduledService {
             }
 
             log.info("自动取消超时订单任务完成，共处理{}个订单", timeoutOrders.size());
+            success = true;
         } catch (Exception e) {
+            errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.isEmpty()) {
+                errorMessage = e.getClass().getName();
+            }
             log.error("自动取消超时订单任务执行异常", e);
             // 定时任务异常不影响系统运行
+        } finally {
+            // 记录执行日志
+            scheduledTaskLogUtil.logAutoExecution(
+                "订单自动取消超时订单",
+                "订单管理",
+                "orderScheduledServiceImpl",
+                "cancelTimeoutOrders",
+                startTime,
+                success,
+                errorMessage
+            );
         }
     }
 

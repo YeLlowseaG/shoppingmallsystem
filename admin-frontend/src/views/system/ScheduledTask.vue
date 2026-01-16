@@ -75,6 +75,36 @@
 
       <!-- 日志对话框 -->
     <el-dialog v-model="logVisible" title="任务执行日志" width="80%">
+      <!-- 日志搜索表单 -->
+      <el-form :inline="true" :model="logQuery" class="search-form" style="margin-bottom: 20px;">
+        <el-form-item label="开始时间">
+          <el-date-picker
+            v-model="logQuery.startTime"
+            type="datetime"
+            placeholder="选择开始时间"
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            style="width: 200px"
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="结束时间">
+          <el-date-picker
+            v-model="logQuery.endTime"
+            type="datetime"
+            placeholder="选择结束时间"
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            style="width: 200px"
+            clearable
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleLogSearch">查询</el-button>
+          <el-button @click="handleLogReset">重置</el-button>
+        </el-form-item>
+      </el-form>
+
       <el-table :data="logData" v-loading="logLoading" border stripe>
         <el-table-column prop="id" label="日志ID" width="80" />
         <el-table-column prop="taskName" label="任务名称" width="200" />
@@ -133,10 +163,36 @@ const queryForm = reactive({
 const tableData = ref([])
 const total = ref(0)
 
+// 获取最近7天的开始时间和结束时间
+const getDefaultTimeRange = () => {
+  const end = new Date()
+  const start = new Date()
+  start.setTime(start.getTime() - 7 * 24 * 60 * 60 * 1000) // 7天前
+  
+  const formatDateTime = (date: Date) => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const seconds = String(date.getSeconds()).padStart(2, '0')
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  }
+  
+  return {
+    startTime: formatDateTime(start),
+    endTime: formatDateTime(end)
+  }
+}
+
+const defaultTimeRange = getDefaultTimeRange()
+
 const logQuery = reactive({
   pageNum: 1,
   pageSize: 20,
-  taskId: undefined
+  taskId: undefined,
+  startTime: defaultTimeRange.startTime,
+  endTime: defaultTimeRange.endTime
 })
 
 const logData = ref([])
@@ -227,7 +283,26 @@ const handleViewLog = (row: any) => {
   currentTaskId.value = row.id
   logQuery.taskId = row.id
   logQuery.pageNum = 1
+  // 重置为默认时间范围（最近7天）
+  const defaultTimeRange = getDefaultTimeRange()
+  logQuery.startTime = defaultTimeRange.startTime
+  logQuery.endTime = defaultTimeRange.endTime
   logVisible.value = true
+  loadLogData()
+}
+
+// 日志搜索
+const handleLogSearch = () => {
+  logQuery.pageNum = 1
+  loadLogData()
+}
+
+// 日志重置
+const handleLogReset = () => {
+  const defaultTimeRange = getDefaultTimeRange()
+  logQuery.startTime = defaultTimeRange.startTime
+  logQuery.endTime = defaultTimeRange.endTime
+  logQuery.pageNum = 1
   loadLogData()
 }
 

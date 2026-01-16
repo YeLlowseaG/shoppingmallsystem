@@ -4,6 +4,8 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 订单列表VO
@@ -113,6 +115,36 @@ public class OrderListVO {
          * 发货单号
          */
         private String trackingNo;
+
+        /**
+         * ERP内部订单号
+         */
+        private Integer erpInternalOrderId;
+
+        /**
+         * 运费
+         */
+        private Double freight;
+
+        /**
+         * 包裹重量（kg）
+         */
+        private Double weight;
+
+        /**
+         * 快递公司代码
+         */
+        private String logisticsCode;
+
+        /**
+         * 发货仓编码
+         */
+        private Integer wmsCoId;
+
+        /**
+         * 发货商品明细列表
+         */
+        private List<Map<String, Object>> items;
     }
 }
 

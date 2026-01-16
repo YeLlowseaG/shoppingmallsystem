@@ -69,6 +69,8 @@ export interface TaskLogQueryDTO {
   pageNum?: number
   pageSize?: number
   taskId?: number
+  startTime?: string
+  endTime?: string
 }
 
 /**

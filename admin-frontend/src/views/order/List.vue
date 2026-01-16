@@ -148,7 +148,7 @@
                   <el-dropdown-item @click="handlePushToErp(row)" v-if="row.erpSyncStatus !== 1">
                     推送到ERP
                   </el-dropdown-item>
-                  <el-dropdown-item @click="handlePullLogistics(row)" v-if="row.erpSyncStatus === 1 && row.status === 1">
+                  <el-dropdown-item @click="handlePullLogistics(row)" v-if="row.erpSyncStatus === 1 && (row.status === 1 || row.status === 2)">
                     拉取物流信息
                   </el-dropdown-item>
                 </el-dropdown-menu>
@@ -451,7 +451,7 @@
           row-key="id"
         >
           <el-table-column type="selection" width="55" :selectable="checkSelectable" />
-          <el-table-column label="图片" width="90">
+          <el-table-column label="图片" width="100">
             <template #default="{ row }">
               <el-image
                 :src="getImageUrl(row.image)"
@@ -476,7 +476,7 @@
               {{ row.skuCode || '-' }}
             </template>
           </el-table-column>
-          <el-table-column label="商品名称" min-width="180">
+          <el-table-column label="商品名称" min-width="210">
             <template #default="{ row }">
               <div>{{ row.name }}</div>
               <div v-if="formatSpecText(row.specCombination)" class="sku-spec-text">
@@ -484,22 +484,22 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="单价" width="70">
+          <el-table-column label="单价" width="90">
             <template #default="{ row }">
               ¥{{ row.price.toFixed(2) }}
             </template>
           </el-table-column>
-          <el-table-column label="订单数量" width="90" align="center">
+          <el-table-column label="订单数量" width="100" align="center">
             <template #default="{ row }">
               {{ row.quantity }}
             </template>
           </el-table-column>
-          <el-table-column label="已退款" width="70" align="center">
+          <el-table-column label="已退款" width="80" align="center">
             <template #default="{ row }">
               {{ row.refundedQuantity || 0 }}
             </template>
           </el-table-column>
-          <el-table-column label="可退款" width="70" align="center">
+          <el-table-column label="可退款" width="80" align="center">
             <template #default="{ row }">
               <span style="color: #409eff;">{{ row.availableRefundQuantity || 0 }}</span>
             </template>
@@ -541,7 +541,7 @@
     </el-dialog>
 
     <!-- 物流信息对话框 -->
-    <el-dialog v-model="logisticsDialogVisible" title="物流信息" width="600px">
+    <el-dialog v-model="logisticsDialogVisible" title="物流信息" width="900px">
       <div v-if="currentLogisticsOrder">
         <el-descriptions :column="1" border>
           <el-descriptions-item label="订单号">{{ currentLogisticsOrder.orderNo }}</el-descriptions-item>
@@ -550,9 +550,25 @@
         <el-divider />
         <div v-if="currentLogisticsOrder.logistics">
           <el-descriptions :column="1" border>
-            <el-descriptions-item label="承运公司">{{ currentLogisticsOrder.logistics.carrier }}</el-descriptions-item>
-            <el-descriptions-item label="发货日期">{{ currentLogisticsOrder.logistics.shipDate }}</el-descriptions-item>
-            <el-descriptions-item label="发货时间">{{ currentLogisticsOrder.logistics.shipTime }}</el-descriptions-item>
+            <el-descriptions-item label="快递公司">
+              {{ currentLogisticsOrder.logistics.carrier }}
+              <span v-if="currentLogisticsOrder.logistics.logisticsCode" 
+                    style="color: #909399; font-size: 12px; margin-left: 8px;">
+                ({{ currentLogisticsOrder.logistics.logisticsCode }})
+              </span>
+            </el-descriptions-item>
+            <el-descriptions-item label="发货时间">
+              <span v-if="currentLogisticsOrder.logistics.shipDate && currentLogisticsOrder.logistics.shipTime">
+                {{ currentLogisticsOrder.logistics.shipDate }} {{ currentLogisticsOrder.logistics.shipTime }}
+              </span>
+              <span v-else-if="currentLogisticsOrder.logistics.shipDate">
+                {{ currentLogisticsOrder.logistics.shipDate }}
+              </span>
+              <span v-else-if="currentLogisticsOrder.logistics.shipTime">
+                {{ currentLogisticsOrder.logistics.shipTime }}
+              </span>
+              <span v-else>-</span>
+            </el-descriptions-item>
             <el-descriptions-item label="物流单号">
               <span>{{ currentLogisticsOrder.logistics.trackingNo }}</span>
               <el-button
@@ -564,7 +580,41 @@
                 复制
               </el-button>
             </el-descriptions-item>
+            <el-descriptions-item v-if="currentLogisticsOrder.logistics.erpInternalOrderId" 
+                                  label="ERP内部订单号">
+              {{ currentLogisticsOrder.logistics.erpInternalOrderId }}
+            </el-descriptions-item>
+            <el-descriptions-item v-if="currentLogisticsOrder.logistics.wmsCoId !== undefined && currentLogisticsOrder.logistics.wmsCoId !== null" 
+                                  label="发货仓编码">
+              {{ currentLogisticsOrder.logistics.wmsCoId }}
+            </el-descriptions-item>
+            <el-descriptions-item v-if="currentLogisticsOrder.logistics.freight !== undefined && currentLogisticsOrder.logistics.freight !== null" 
+                                  label="运费">
+              ¥{{ currentLogisticsOrder.logistics.freight.toFixed(2) }}
+            </el-descriptions-item>
+            <el-descriptions-item v-if="currentLogisticsOrder.logistics.weight !== undefined && currentLogisticsOrder.logistics.weight !== null" 
+                                  label="包裹重量">
+              {{ currentLogisticsOrder.logistics.weight }} kg
+            </el-descriptions-item>
           </el-descriptions>
+          
+          <!-- 商品明细 -->
+          <el-divider v-if="currentLogisticsOrder.logistics.items && currentLogisticsOrder.logistics.items.length > 0" />
+          <div v-if="currentLogisticsOrder.logistics.items && currentLogisticsOrder.logistics.items.length > 0" style="margin-top: 20px;">
+            <div style="font-weight: bold; margin-bottom: 10px; color: #303133;">发货商品明细：</div>
+            <el-table :data="currentLogisticsOrder.logistics.items" border size="small">
+              <el-table-column prop="skuId" label="SKU编码" width="150" />
+              <el-table-column prop="qty" label="数量" width="80" align="center" />
+              <el-table-column prop="outerOiId" label="平台子订单号" width="150" />
+              <el-table-column prop="rawSoId" label="原始订单号" width="200" />
+              <el-table-column prop="refundStatus" label="退款状态" width="80">
+                <template #default="{ row }">
+                  <span v-if="row.refundStatus && row.refundStatus !== 'null' && row.refundStatus !== null">{{ row.refundStatus }}</span>
+                  <span v-else></span>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
         </div>
         <div v-else style="text-align: center; padding: 40px; color: #999;">
           暂无物流信息
@@ -1257,7 +1307,7 @@ const handlePushToErp = async (row: any) => {
     )
 
     // 由于响应拦截器的逻辑，成功时返回的是 data 字段的内容
-    const result = await pushOrderToErp(row.id)
+    const result = await pushOrderToErp(row.id) as unknown as string
     ElMessage.success(result || '推送成功')
     loadOrderList() // 重新加载订单列表
   } catch (error: any) {
@@ -1270,13 +1320,11 @@ const handlePushToErp = async (row: any) => {
 // 从ERP拉取物流信息
 const handlePullLogistics = async (row: any) => {
   try {
-    const res = await pullOrderLogistics(row.id)
-    if (res.code === 200) {
-      ElMessage.success(res.message || '物流信息拉取成功')
-      loadOrderList() // 重新加载订单列表
-    } else {
-      ElMessage.error(res.message || '拉取失败')
-    }
+    // 响应拦截器在成功时会直接返回 data 字段（字符串），而不是完整的响应对象
+    const result = await pullOrderLogistics(row.id) as unknown as string
+    // result 已经是 data 字段的值（字符串），直接显示即可
+    ElMessage.success(result || '物流信息拉取成功')
+    loadOrderList() // 重新加载订单列表
   } catch (error: any) {
     ElMessage.error(error.message || '拉取失败')
   }

@@ -182,22 +182,73 @@ public class JushuitanApiServiceImpl implements JushuitanApiService {
     @Override
     public List<JushuitanLogisticsDTO> batchQueryLogistics(List<String> soIds) {
         JushuitanConfigVO config = getEnabledConfigOrThrow();
+        
+        // 获取店铺ID（根据环境类型）
+        String shopIdStr = "test".equals(config.getEnvType()) 
+            ? config.getTestShopId() 
+            : config.getShopId();
+        
+        com.shoppingmall.dto.JushuitanLogisticsQueryResponseDTO responseDTO = batchQueryLogistics(soIds, shopIdStr);
+        return responseDTO.getLogisticsList();
+    }
+
+    /**
+     * 批量查询物流信息（带店铺ID参数）
+     *
+     * @param soIds 订单号列表
+     * @param shopId 店铺ID（可选）
+     * @return 物流查询响应（包含完整响应JSON和解析后的物流列表）
+     */
+    public com.shoppingmall.dto.JushuitanLogisticsQueryResponseDTO batchQueryLogistics(List<String> soIds, String shopId) {
+        JushuitanConfigVO config = getEnabledConfigOrThrow();
+
+        // 创建响应DTO
+        com.shoppingmall.dto.JushuitanLogisticsQueryResponseDTO responseDTO = new com.shoppingmall.dto.JushuitanLogisticsQueryResponseDTO();
 
         try {
             // 构建查询参数
+            // 根据文档，so_ids 应该是数组格式 Array<String>
             Map<String, Object> params = new HashMap<>();
-            params.put("so_ids", String.join(",", soIds));
+            params.put("so_ids", soIds);  // 直接使用List，ObjectMapper会序列化为JSON数组
+            
+            // 如果配置了店铺ID，添加到参数中（根据文档，shop_id 是可选参数，但建议传值）
+            if (shopId != null && !shopId.trim().isEmpty()) {
+                try {
+                    params.put("shop_id", Integer.parseInt(shopId));
+                } catch (NumberFormatException e) {
+                    log.warn("店铺ID格式错误，无法转换为Integer，跳过: {}", shopId);
+                }
+            }
+            
             String bizContent = objectMapper.writeValueAsString(params);
 
-            // 调用聚水潭物流查询接口
+            // 确定API地址（使用专用路径）
+            String apiUrl;
+            if ("test".equals(config.getEnvType())) {
+                apiUrl = "https://dev-api.jushuitan.com/open/logistic/query";
+            } else {
+                apiUrl = "https://openapi.jushuitan.com/open/logistic/query";
+            }
+
+            log.info("===== 聚水潭物流查询开始 =====");
+            log.info("订单号列表: {}", soIds);
+            log.info("API URL: {}", apiUrl);
+
+            // 调用聚水潭物流查询接口（使用专用路径，不需要method参数）
             String response = JushuitanHttpUtil.post(
-                config.getApiUrl(),
+                apiUrl,
                 config.getAppKey(),
                 config.getAppSecret(),
                 config.getAccessToken(),
-                "logistic.query",
+                null,  // 使用专用路径时，method参数传null
+                "biz",  // 参数名是biz
                 bizContent
             );
+
+            log.info("聚水潭API响应: {}", response);
+
+            // 保存完整响应JSON
+            responseDTO.setResponseJson(response);
 
             // 解析响应
             JsonNode jsonNode = objectMapper.readTree(response);
@@ -205,19 +256,35 @@ public class JushuitanApiServiceImpl implements JushuitanApiService {
 
             if (code != 0) {
                 String msg = jsonNode.has("msg") ? jsonNode.get("msg").asText() : "未知错误";
+                responseDTO.setSuccess(false);
+                responseDTO.setMessage(msg);
                 throw new RuntimeException("查询物流信息失败: " + msg);
             }
 
+            // 设置成功状态
+            responseDTO.setSuccess(true);
+            String msg = jsonNode.has("msg") ? jsonNode.get("msg").asText() : "执行成功";
+            responseDTO.setMessage(msg);
+
             // 解析物流数据
+            // 根据文档，返回的数据结构是 data.orders 数组
             List<JushuitanLogisticsDTO> logisticsList = new ArrayList<>();
             JsonNode data = jsonNode.get("data");
 
-            if (data != null && data.isArray()) {
-                for (JsonNode item : data) {
+            if (data != null && data.has("orders") && data.get("orders").isArray()) {
+                JsonNode ordersArray = data.get("orders");
+                for (JsonNode item : ordersArray) {
                     JushuitanLogisticsDTO dto = new JushuitanLogisticsDTO();
 
+                    // 基本字段
                     if (item.has("so_id")) {
                         dto.setSoId(item.get("so_id").asText());
+                    }
+                    if (item.has("o_id")) {
+                        dto.setOId(item.get("o_id").asInt());
+                    }
+                    if (item.has("shop_id")) {
+                        dto.setShopId(item.get("shop_id").asInt());
                     }
                     if (item.has("lc_id")) {
                         dto.setLogisticsCode(item.get("lc_id").asText());
@@ -231,14 +298,67 @@ public class JushuitanApiServiceImpl implements JushuitanApiService {
                     if (item.has("send_date")) {
                         dto.setSendDate(item.get("send_date").asText());
                     }
+                    if (item.has("freight")) {
+                        dto.setFreight(item.get("freight").asDouble());
+                    }
+                    if (item.has("weight")) {
+                        dto.setWeight(item.get("weight").asDouble());
+                    }
+                    if (item.has("wms_co_id")) {
+                        dto.setWmsCoId(item.get("wms_co_id").asInt());
+                    }
+                    if (item.has("as_id") && !item.get("as_id").isNull()) {
+                        dto.setAsId(item.get("as_id").asLong());
+                    }
+
+                    // 解析商品明细列表
+                    if (item.has("items") && item.get("items").isArray()) {
+                        List<Map<String, Object>> itemsList = new ArrayList<>();
+                        JsonNode itemsArray = item.get("items");
+                        for (JsonNode itemNode : itemsArray) {
+                            Map<String, Object> itemMap = new HashMap<>();
+                            if (itemNode.has("sku_id")) {
+                                itemMap.put("skuId", itemNode.get("sku_id").asText());
+                            }
+                            if (itemNode.has("qty")) {
+                                itemMap.put("qty", itemNode.get("qty").asInt());
+                            }
+                            if (itemNode.has("outer_oi_id")) {
+                                itemMap.put("outerOiId", itemNode.get("outer_oi_id").asText());
+                            }
+                            if (itemNode.has("raw_so_id")) {
+                                itemMap.put("rawSoId", itemNode.get("raw_so_id").asText());
+                            }
+                            if (itemNode.has("o_id")) {
+                                itemMap.put("oId", itemNode.get("o_id").asText());
+                            }
+                            if (itemNode.has("refund_status")) {
+                                itemMap.put("refundStatus", itemNode.get("refund_status").asText());
+                            }
+                            if (itemNode.has("sku_type")) {
+                                itemMap.put("skuType", itemNode.get("sku_type").asText());
+                            }
+                            itemsList.add(itemMap);
+                        }
+                        dto.setItems(itemsList);
+                    }
 
                     logisticsList.add(dto);
                 }
             }
 
-            return logisticsList;
+            // 设置解析后的物流列表
+            responseDTO.setLogisticsList(logisticsList);
+
+            log.info("物流查询完成，返回{}条记录", logisticsList.size());
+            return responseDTO;
         } catch (Exception e) {
             log.error("查询物流信息失败: {}", soIds, e);
+            if (responseDTO.getResponseJson() == null) {
+                responseDTO.setResponseJson("查询失败: " + e.getMessage());
+            }
+            responseDTO.setSuccess(false);
+            responseDTO.setMessage(e.getMessage());
             throw new RuntimeException("查询物流信息失败: " + e.getMessage(), e);
         }
     }

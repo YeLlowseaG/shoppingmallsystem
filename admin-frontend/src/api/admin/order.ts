@@ -22,6 +22,20 @@ export interface OrderListVO {
     shipTime: string
     carrier: string
     trackingNo: string
+    erpInternalOrderId?: number
+    freight?: number
+    weight?: number
+    logisticsCode?: string
+    wmsCoId?: number
+    items?: Array<{
+      skuId?: string
+      qty?: number
+      outerOiId?: string
+      rawSoId?: string
+      oId?: string
+      refundStatus?: string
+      skuType?: string
+    }>
   }
 }
 

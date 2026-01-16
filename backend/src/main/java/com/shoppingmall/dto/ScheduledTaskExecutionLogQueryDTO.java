@@ -24,6 +24,18 @@ public class ScheduledTaskExecutionLogQueryDTO {
      * 任务ID
      */
     private Long taskId;
+
+    /**
+     * 开始时间（查询开始执行时间 >= startTime 的记录）
+     * 格式：yyyy-MM-dd HH:mm:ss
+     */
+    private String startTime;
+
+    /**
+     * 结束时间（查询开始执行时间 <= endTime 的记录）
+     * 格式：yyyy-MM-dd HH:mm:ss
+     */
+    private String endTime;
 }
 
 

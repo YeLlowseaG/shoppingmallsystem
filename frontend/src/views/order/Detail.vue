@@ -200,6 +200,35 @@
                 </div>
               </div>
 
+              <!-- 物流信息 -->
+              <div v-if="orderDetail?.logistics" class="order-section">
+                <div class="section-title">物流信息</div>
+                <div class="logistics-info">
+                  <div class="info-left">
+                    <div class="info-item">
+                      <span class="info-label">快递公司:</span>
+                      <span class="info-value">
+                        {{ orderDetail.logistics.carrier || '-' }}
+                        <span v-if="orderDetail.logistics.logisticsCode" 
+                              style="color: #909399; font-size: 12px; margin-left: 8px;">
+                          ({{ orderDetail.logistics.logisticsCode }})
+                        </span>
+                      </span>
+                    </div>
+                    <div class="info-item">
+                      <span class="info-label">物流单号:</span>
+                      <span class="info-value">{{ orderDetail.logistics.trackingNo || '-' }}</span>
+                    </div>
+                  </div>
+                  <div class="info-right">
+                    <div class="info-item">
+                      <span class="info-label">发货时间:</span>
+                      <span class="info-value">{{ orderDetail.logistics.shipTime || '-' }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- 退款记录 -->
               <div v-if="refundList.length > 0" class="order-section">
                 <div class="section-title">退款记录</div>
@@ -1299,6 +1328,40 @@ onMounted(() => {
 
         // 收货人信息
         .recipient-info {
+          display: flex;
+          gap: 40px;
+          padding: 20px 0;
+
+          .info-left,
+          .info-right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+          }
+
+          .info-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 14px;
+            line-height: 1.8;
+
+            .info-label {
+              color: #333;
+              min-width: 100px;
+              flex-shrink: 0;
+            }
+
+            .info-value {
+              color: #666;
+              flex: 1;
+            }
+          }
+        }
+
+        // 物流信息
+        .logistics-info {
           display: flex;
           gap: 40px;
           padding: 20px 0;
