@@ -1,5 +1,6 @@
 package com.shoppingmall.service.admin.impl;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -1195,6 +1196,39 @@ public class OrderServiceImpl implements OrderService {
             }
             logisticsInfo.setCarrier(logistics.getLogisticsCompany());
             logisticsInfo.setTrackingNo(logistics.getLogisticsNo());
+
+            // 解析 tracking_info JSON，获取额外信息
+            if (logistics.getTrackingInfo() != null && !logistics.getTrackingInfo().isEmpty()) {
+                try {
+                    Map<String, Object> trackingInfo = objectMapper.readValue(
+                        logistics.getTrackingInfo(),
+                        new TypeReference<Map<String, Object>>() {}
+                    );
+                    if (trackingInfo.containsKey("erpInternalOrderId")) {
+                        logisticsInfo.setErpInternalOrderId(((Number) trackingInfo.get("erpInternalOrderId")).intValue());
+                    }
+                    if (trackingInfo.containsKey("freight")) {
+                        logisticsInfo.setFreight(((Number) trackingInfo.get("freight")).doubleValue());
+                    }
+                    if (trackingInfo.containsKey("weight")) {
+                        logisticsInfo.setWeight(((Number) trackingInfo.get("weight")).doubleValue());
+                    }
+                    if (trackingInfo.containsKey("logisticsCode")) {
+                        logisticsInfo.setLogisticsCode((String) trackingInfo.get("logisticsCode"));
+                    }
+                    if (trackingInfo.containsKey("wmsCoId")) {
+                        logisticsInfo.setWmsCoId(((Number) trackingInfo.get("wmsCoId")).intValue());
+                    }
+                    if (trackingInfo.containsKey("items")) {
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> logisticsItems = (List<Map<String, Object>>) trackingInfo.get("items");
+                        logisticsInfo.setItems(logisticsItems);
+                    }
+                } catch (Exception e) {
+                    log.warn("解析物流跟踪信息失败: orderId={}, trackingInfo={}", order.getId(), logistics.getTrackingInfo(), e);
+                }
+            }
+
             vo.setLogistics(logisticsInfo);
         }
 

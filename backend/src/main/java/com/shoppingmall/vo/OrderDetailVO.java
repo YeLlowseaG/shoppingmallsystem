@@ -112,6 +112,11 @@ public class OrderDetailVO {
     private List<OrderHistoryVO> orderHistory;
 
     /**
+     * 物流信息
+     */
+    private LogisticsInfo logistics;
+
+    /**
      * 订单商品VO
      */
     @Data
@@ -262,6 +267,32 @@ public class OrderDetailVO {
          * 操作描述
          */
         private String action;
+    }
+
+    /**
+     * 物流信息VO
+     */
+    @Data
+    public static class LogisticsInfo {
+        /**
+         * 发货时间（格式：2026-01-16 22:38:31）
+         */
+        private String shipTime;
+
+        /**
+         * 快递公司
+         */
+        private String carrier;
+
+        /**
+         * 物流单号
+         */
+        private String trackingNo;
+
+        /**
+         * 快递公司代码
+         */
+        private String logisticsCode;
     }
 }
 

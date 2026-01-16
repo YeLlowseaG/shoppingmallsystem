@@ -113,6 +113,12 @@ export interface OrderDetailVO {
     date: string
     action: string
   }>
+  logistics?: {
+    shipTime?: string
+    carrier?: string
+    trackingNo?: string
+    logisticsCode?: string
+  }
 }
 
 /**

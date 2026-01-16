@@ -344,6 +344,26 @@ public class SystemServiceImpl implements SystemService {
             wrapper.eq(ScheduledTaskExecutionLog::getTaskId, queryDTO.getTaskId());
         }
 
+        // 开始时间范围查询
+        if (queryDTO.getStartTime() != null && !queryDTO.getStartTime().trim().isEmpty()) {
+            try {
+                LocalDateTime startTime = LocalDateTime.parse(queryDTO.getStartTime(), 
+                    java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                wrapper.ge(ScheduledTaskExecutionLog::getStartTime, startTime);
+            } catch (Exception e) {
+                log.warn("开始时间格式错误，忽略该条件: {}", queryDTO.getStartTime(), e);
+            }
+        }
+        if (queryDTO.getEndTime() != null && !queryDTO.getEndTime().trim().isEmpty()) {
+            try {
+                LocalDateTime endTime = LocalDateTime.parse(queryDTO.getEndTime(), 
+                    java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                wrapper.le(ScheduledTaskExecutionLog::getStartTime, endTime);
+            } catch (Exception e) {
+                log.warn("结束时间格式错误，忽略该条件: {}", queryDTO.getEndTime(), e);
+            }
+        }
+
         // 按开始时间倒序
         wrapper.orderByDesc(ScheduledTaskExecutionLog::getStartTime);
 

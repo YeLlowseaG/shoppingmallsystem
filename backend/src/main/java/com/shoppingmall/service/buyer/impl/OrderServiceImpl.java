@@ -744,6 +744,39 @@ public class OrderServiceImpl implements OrderService {
             }
             logisticsInfo.setCarrier(logistics.getLogisticsCompany());
             logisticsInfo.setTrackingNo(logistics.getLogisticsNo());
+
+            // 解析 tracking_info JSON，获取额外信息
+            if (logistics.getTrackingInfo() != null && !logistics.getTrackingInfo().isEmpty()) {
+                try {
+                    Map<String, Object> trackingInfo = objectMapper.readValue(
+                        logistics.getTrackingInfo(),
+                        new TypeReference<Map<String, Object>>() {}
+                    );
+                    if (trackingInfo.containsKey("erpInternalOrderId")) {
+                        logisticsInfo.setErpInternalOrderId(((Number) trackingInfo.get("erpInternalOrderId")).intValue());
+                    }
+                    if (trackingInfo.containsKey("freight")) {
+                        logisticsInfo.setFreight(((Number) trackingInfo.get("freight")).doubleValue());
+                    }
+                    if (trackingInfo.containsKey("weight")) {
+                        logisticsInfo.setWeight(((Number) trackingInfo.get("weight")).doubleValue());
+                    }
+                    if (trackingInfo.containsKey("logisticsCode")) {
+                        logisticsInfo.setLogisticsCode((String) trackingInfo.get("logisticsCode"));
+                    }
+                    if (trackingInfo.containsKey("wmsCoId")) {
+                        logisticsInfo.setWmsCoId(((Number) trackingInfo.get("wmsCoId")).intValue());
+                    }
+                    if (trackingInfo.containsKey("items")) {
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> logisticsItems = (List<Map<String, Object>>) trackingInfo.get("items");
+                        logisticsInfo.setItems(logisticsItems);
+                    }
+                } catch (Exception e) {
+                    log.warn("解析物流跟踪信息失败: orderId={}, trackingInfo={}", order.getId(), logistics.getTrackingInfo(), e);
+                }
+            }
+
             vo.setLogistics(logisticsInfo);
         }
 
@@ -849,6 +882,41 @@ public class OrderServiceImpl implements OrderService {
 
         // TODO: 查询订单历史记录
         vo.setOrderHistory(new ArrayList<>());
+
+        // 查询物流信息
+        LambdaQueryWrapper<OrderLogistics> logisticsWrapper = new LambdaQueryWrapper<>();
+        logisticsWrapper.eq(OrderLogistics::getOrderId, order.getId());
+        OrderLogistics logistics = orderLogisticsRepository.selectOne(logisticsWrapper);
+
+        if (logistics != null) {
+            OrderDetailVO.LogisticsInfo logisticsInfo = new OrderDetailVO.LogisticsInfo();
+            
+            // 设置发货时间（格式：2026-01-16 22:38:31）
+            if (logistics.getShippingTime() != null) {
+                LocalDateTime shippingTime = logistics.getShippingTime();
+                logisticsInfo.setShipTime(shippingTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+            }
+            
+            logisticsInfo.setCarrier(logistics.getLogisticsCompany());
+            logisticsInfo.setTrackingNo(logistics.getLogisticsNo());
+
+            // 解析 tracking_info JSON，获取快递公司代码
+            if (logistics.getTrackingInfo() != null && !logistics.getTrackingInfo().isEmpty()) {
+                try {
+                    Map<String, Object> trackingInfo = objectMapper.readValue(
+                        logistics.getTrackingInfo(),
+                        new TypeReference<Map<String, Object>>() {}
+                    );
+                    if (trackingInfo.containsKey("logisticsCode")) {
+                        logisticsInfo.setLogisticsCode((String) trackingInfo.get("logisticsCode"));
+                    }
+                } catch (Exception e) {
+                    log.warn("解析物流跟踪信息失败: orderId={}, trackingInfo={}", order.getId(), logistics.getTrackingInfo(), e);
+                }
+            }
+
+            vo.setLogistics(logisticsInfo);
+        }
 
         return vo;
     }

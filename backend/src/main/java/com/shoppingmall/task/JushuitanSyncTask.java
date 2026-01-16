@@ -7,12 +7,14 @@ import com.shoppingmall.service.erp.JushuitanConfigService;
 import com.shoppingmall.service.erp.JushuitanInventoryService;
 import com.shoppingmall.service.erp.JushuitanItemService;
 import com.shoppingmall.service.erp.JushuitanLogisticsService;
+import com.shoppingmall.util.ScheduledTaskLogUtil;
 import com.shoppingmall.vo.JushuitanConfigVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.Resource;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -41,12 +43,20 @@ public class JushuitanSyncTask {
     @Resource
     private ProductRepository productRepository;
 
+    @Resource
+    private ScheduledTaskLogUtil scheduledTaskLogUtil;
+
     /**
      * 定时拉取物流信息
-     * 默认每30分钟执行一次
+     * 默认每10分钟执行一次（可根据配置调整）
+     * 由于聚水潭没有主动通知机制，需要平台主动轮询获取发货结果和物流信息
      */
-    @Scheduled(cron = "0 */30 * * * ?")
+    @Scheduled(cron = "0 */10 * * * ?")
     public void pullLogisticsTask() {
+        LocalDateTime startTime = LocalDateTime.now();
+        String errorMessage = null;
+        boolean success = false;
+
         try {
             // 检查ERP配置是否启用
             JushuitanConfigVO config = jushuitanConfigService.getEnabledConfig();
@@ -63,13 +73,30 @@ public class JushuitanSyncTask {
 
             log.info("开始执行聚水潭物流拉取定时任务");
 
-            // 拉取所有待发货订单的物流信息
+            // 拉取所有待发货和已发货订单的物流信息
+            // 包括：已付款未发货（状态1）和已发货（状态2）的订单
             int successCount = jushuitanLogisticsService.pullPendingLogistics();
 
             log.info("聚水潭物流拉取定时任务执行完成，成功拉取{}个订单的物流信息", successCount);
+            success = true;
 
         } catch (Exception e) {
+            errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.isEmpty()) {
+                errorMessage = e.getClass().getName();
+            }
             log.error("聚水潭物流拉取定时任务执行失败", e);
+        } finally {
+            // 记录执行日志
+            scheduledTaskLogUtil.logAutoExecution(
+                "聚水潭物流拉取",
+                "ERP同步",
+                "jushuitanSyncTask",
+                "pullLogisticsTask",
+                startTime,
+                success,
+                errorMessage
+            );
         }
     }
 
@@ -78,6 +105,10 @@ public class JushuitanSyncTask {
      */
     @Scheduled(cron = "0 0 1 * * ?")
     public void syncProductInfoTask() {
+        LocalDateTime startTime = LocalDateTime.now();
+        String errorMessage = null;
+        boolean success = false;
+
         try {
             // 检查ERP配置是否启用
             JushuitanConfigVO config = jushuitanConfigService.getEnabledConfig();
@@ -91,9 +122,25 @@ public class JushuitanSyncTask {
             // 全量同步商品资料
             int totalProducts = syncAllProducts();
             log.info("聚水潭商品资料全量同步定时任务执行完成，共处理{}个商品", totalProducts);
+            success = true;
 
         } catch (Exception e) {
+            errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.isEmpty()) {
+                errorMessage = e.getClass().getName();
+            }
             log.error("聚水潭商品资料全量同步定时任务执行失败", e);
+        } finally {
+            // 记录执行日志
+            scheduledTaskLogUtil.logAutoExecution(
+                "聚水潭商品资料全量同步",
+                "ERP同步",
+                "jushuitanSyncTask",
+                "syncProductInfoTask",
+                startTime,
+                success,
+                errorMessage
+            );
         }
     }
 
@@ -102,6 +149,10 @@ public class JushuitanSyncTask {
      */
     @Scheduled(cron = "0 0 2 * * ?")
     public void syncInventoryTask() {
+        LocalDateTime startTime = LocalDateTime.now();
+        String errorMessage = null;
+        boolean success = false;
+
         try {
             // 检查ERP配置是否启用
             JushuitanConfigVO config = jushuitanConfigService.getEnabledConfig();
@@ -115,9 +166,25 @@ public class JushuitanSyncTask {
             // 全量同步库存数据
             int totalProducts = syncAllInventories();
             log.info("聚水潭库存数据全量同步定时任务执行完成，共处理{}个商品", totalProducts);
+            success = true;
 
         } catch (Exception e) {
+            errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.isEmpty()) {
+                errorMessage = e.getClass().getName();
+            }
             log.error("聚水潭库存数据全量同步定时任务执行失败", e);
+        } finally {
+            // 记录执行日志
+            scheduledTaskLogUtil.logAutoExecution(
+                "聚水潭库存数据全量同步",
+                "ERP同步",
+                "jushuitanSyncTask",
+                "syncInventoryTask",
+                startTime,
+                success,
+                errorMessage
+            );
         }
     }
 
@@ -128,6 +195,10 @@ public class JushuitanSyncTask {
     @Deprecated
     @Scheduled(cron = "0 0 3 * * ?")
     public void fullSyncTask() {
+        LocalDateTime startTime = LocalDateTime.now();
+        String errorMessage = null;
+        boolean success = false;
+
         try {
             // 检查ERP配置是否启用
             JushuitanConfigVO config = jushuitanConfigService.getEnabledConfig();
@@ -155,9 +226,25 @@ public class JushuitanSyncTask {
             }
 
             log.info("聚水潭全量同步定时任务执行完成");
+            success = true;
 
         } catch (Exception e) {
+            errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.isEmpty()) {
+                errorMessage = e.getClass().getName();
+            }
             log.error("聚水潭全量同步定时任务执行失败", e);
+        } finally {
+            // 记录执行日志
+            scheduledTaskLogUtil.logAutoExecution(
+                "聚水潭全量同步",
+                "ERP同步",
+                "jushuitanSyncTask",
+                "fullSyncTask",
+                startTime,
+                success,
+                errorMessage
+            );
         }
     }
 

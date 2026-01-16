@@ -21,7 +21,10 @@ import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 聚水潭物流回传服务实现类
@@ -44,6 +47,9 @@ public class JushuitanLogisticsServiceImpl implements JushuitanLogisticsService 
 
     @Resource
     private JushuitanApiService jushuitanApiService;
+
+    @Resource
+    private com.shoppingmall.service.erp.JushuitanConfigService jushuitanConfigService;
 
     private final ObjectMapper objectMapper = new ObjectMapper()
             .setSerializationInclusion(JsonInclude.Include.NON_NULL);
@@ -71,20 +77,65 @@ public class JushuitanLogisticsServiceImpl implements JushuitanLogisticsService 
             return false;
         }
 
+        // 获取当前ERP配置的环境类型和店铺ID（参考订单上传逻辑）
+        String envType = "production"; // 默认生产环境
+        String shopId = null;
+        try {
+            com.shoppingmall.vo.JushuitanConfigVO currentConfig = jushuitanConfigService.getEnabledConfig();
+            if (currentConfig != null) {
+                if (currentConfig.getEnvType() != null) {
+                    envType = currentConfig.getEnvType();
+                }
+                // 根据环境类型获取对应的店铺ID
+                shopId = "test".equals(envType) 
+                    ? currentConfig.getTestShopId() 
+                    : currentConfig.getShopId();
+                // 空字符串转为 null，避免发送空值给聚水潭API
+                if (shopId != null && shopId.trim().isEmpty()) {
+                    shopId = null;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("获取ERP配置信息失败，使用默认值", e);
+        }
+
         // 记录同步日志
         OrderSyncLog syncLog = new OrderSyncLog();
         syncLog.setOrderId(orderId);
         syncLog.setOrderNo(order.getOrderNo());
+        syncLog.setEnvType(envType); // 记录环境类型
         syncLog.setSyncType("PULL_LOGISTICS");
         syncLog.setSyncStatus(2); // 处理中
         syncLog.setRetryCount(0);
 
         try {
-            // 从聚水潭查询物流信息
-            List<JushuitanLogisticsDTO> logisticsList = jushuitanApiService.queryLogistics(order.getOrderNo());
+            // 构建实际发送给聚水潭的完整请求参数
+            Map<String, Object> apiRequestParams = new HashMap<>();
+            apiRequestParams.put("so_ids", Arrays.asList(order.getOrderNo()));
+            
+            // 如果配置了店铺ID，添加到请求参数中
+            if (shopId != null && !shopId.trim().isEmpty()) {
+                try {
+                    apiRequestParams.put("shop_id", Integer.parseInt(shopId));
+                } catch (NumberFormatException e) {
+                    log.warn("店铺ID格式错误，无法转换为Integer: {}", shopId);
+                }
+            }
+            
+            // 记录完整的API请求参数到日志
+            syncLog.setRequestData(objectMapper.writeValueAsString(apiRequestParams));
 
-            // 记录响应数据
-            syncLog.setResponseData(objectMapper.writeValueAsString(logisticsList));
+            // 从聚水潭查询物流信息（传递店铺ID）
+            // 使用带店铺ID的方法获取完整响应
+            com.shoppingmall.dto.JushuitanLogisticsQueryResponseDTO responseDTO = 
+                ((com.shoppingmall.service.erp.impl.JushuitanApiServiceImpl) jushuitanApiService)
+                    .batchQueryLogistics(Arrays.asList(order.getOrderNo()), shopId);
+
+            // 保存完整响应JSON到日志（参考订单上传逻辑）
+            syncLog.setResponseData(responseDTO.getResponseJson());
+
+            // 获取解析后的物流列表
+            List<JushuitanLogisticsDTO> logisticsList = responseDTO.getLogisticsList();
 
             if (logisticsList == null || logisticsList.isEmpty()) {
                 log.info("订单暂无物流信息: orderId={}, orderNo={}", orderId, order.getOrderNo());
@@ -116,6 +167,38 @@ public class JushuitanLogisticsServiceImpl implements JushuitanLogisticsService 
                     }
                 }
 
+                // 构建完整的物流信息JSON对象，保存到 tracking_info 字段
+                Map<String, Object> trackingInfo = new HashMap<>();
+                if (logisticsDTO.getOId() != null) {
+                    trackingInfo.put("erpInternalOrderId", logisticsDTO.getOId());
+                }
+                if (logisticsDTO.getShopId() != null) {
+                    trackingInfo.put("shopId", logisticsDTO.getShopId());
+                }
+                if (logisticsDTO.getFreight() != null) {
+                    trackingInfo.put("freight", logisticsDTO.getFreight());
+                }
+                if (logisticsDTO.getWeight() != null) {
+                    trackingInfo.put("weight", logisticsDTO.getWeight());
+                }
+                if (logisticsDTO.getWmsCoId() != null) {
+                    trackingInfo.put("wmsCoId", logisticsDTO.getWmsCoId());
+                }
+                if (logisticsDTO.getLogisticsCode() != null) {
+                    trackingInfo.put("logisticsCode", logisticsDTO.getLogisticsCode());
+                }
+                if (logisticsDTO.getAsId() != null) {
+                    trackingInfo.put("asId", logisticsDTO.getAsId());
+                }
+                if (logisticsDTO.getItems() != null && !logisticsDTO.getItems().isEmpty()) {
+                    trackingInfo.put("items", logisticsDTO.getItems());
+                }
+
+                // 保存到 tracking_info 字段
+                if (!trackingInfo.isEmpty()) {
+                    logistics.setTrackingInfo(objectMapper.writeValueAsString(trackingInfo));
+                }
+
                 orderLogisticsMapper.insert(logistics);
 
                 // 更新订单状态为已发货
@@ -138,6 +221,38 @@ public class JushuitanLogisticsServiceImpl implements JushuitanLogisticsService 
                     } catch (Exception e) {
                         log.warn("解析发货时间失败: {}", logisticsDTO.getSendDate(), e);
                     }
+                }
+
+                // 构建完整的物流信息JSON对象，更新 tracking_info 字段
+                Map<String, Object> trackingInfo = new HashMap<>();
+                if (logisticsDTO.getOId() != null) {
+                    trackingInfo.put("erpInternalOrderId", logisticsDTO.getOId());
+                }
+                if (logisticsDTO.getShopId() != null) {
+                    trackingInfo.put("shopId", logisticsDTO.getShopId());
+                }
+                if (logisticsDTO.getFreight() != null) {
+                    trackingInfo.put("freight", logisticsDTO.getFreight());
+                }
+                if (logisticsDTO.getWeight() != null) {
+                    trackingInfo.put("weight", logisticsDTO.getWeight());
+                }
+                if (logisticsDTO.getWmsCoId() != null) {
+                    trackingInfo.put("wmsCoId", logisticsDTO.getWmsCoId());
+                }
+                if (logisticsDTO.getLogisticsCode() != null) {
+                    trackingInfo.put("logisticsCode", logisticsDTO.getLogisticsCode());
+                }
+                if (logisticsDTO.getAsId() != null) {
+                    trackingInfo.put("asId", logisticsDTO.getAsId());
+                }
+                if (logisticsDTO.getItems() != null && !logisticsDTO.getItems().isEmpty()) {
+                    trackingInfo.put("items", logisticsDTO.getItems());
+                }
+
+                // 更新 tracking_info 字段
+                if (!trackingInfo.isEmpty()) {
+                    existingLogistics.setTrackingInfo(objectMapper.writeValueAsString(trackingInfo));
                 }
 
                 orderLogisticsMapper.updateById(existingLogistics);
@@ -185,11 +300,13 @@ public class JushuitanLogisticsServiceImpl implements JushuitanLogisticsService 
 
     @Override
     public int pullPendingLogistics() {
-        // 查询所有已同步到ERP但未发货的订单
+        // 查询所有已同步到ERP且需要拉取物流的订单
+        // 包括：已付款未发货（状态1）和已发货（状态2）的订单
+        // 状态2的订单也需要查询，因为可能物流信息有更新（如换单号等）
         List<Order> pendingOrders = orderRepository.selectList(
             new QueryWrapper<Order>()
                 .eq("erp_sync_status", 1) // 已同步到ERP
-                .eq("order_status", 1)     // 已付款未发货
+                .in("order_status", Arrays.asList(1, 2))  // 已付款未发货 或 已发货
                 .eq("deleted", 0)
         );
 

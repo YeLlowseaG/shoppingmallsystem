@@ -19,6 +19,7 @@ import com.shoppingmall.service.erp.JushuitanConfigService;
 import com.shoppingmall.service.erp.JushuitanOrderService;
 import com.shoppingmall.service.payment.PaymentLogService;
 import com.shoppingmall.service.system.SystemConfigService;
+import com.shoppingmall.util.ScheduledTaskLogUtil;
 import com.shoppingmall.vo.JushuitanConfigVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +52,7 @@ public class PaymentSyncScheduledServiceImpl {
     private final JushuitanConfigService jushuitanConfigService;
     private final SystemConfigService systemConfigService;
     private final PaymentLogService paymentLogService;
+    private final ScheduledTaskLogUtil scheduledTaskLogUtil;
 
     /**
      * 获取支付结果查询时间窗口（分钟），只查询最近N分钟内的支付记录，默认30分钟
@@ -72,6 +74,10 @@ public class PaymentSyncScheduledServiceImpl {
     @Scheduled(fixedRate = 300000) // 每5分钟执行一次（300000毫秒 = 5分钟）
     @Transactional(rollbackFor = Exception.class)
     public void syncPaymentStatus() {
+        LocalDateTime startTime = LocalDateTime.now();
+        String errorMessage = null;
+        boolean success = false;
+
         try {
             // 每次执行时读取最新配置
             Integer timeWindowMinutes = getPaymentSyncTimeWindowMinutes();
@@ -129,7 +135,7 @@ public class PaymentSyncScheduledServiceImpl {
                     Map<String, String> orderStatus = null;
                     String tradeStatus = null;
                     String tradeNo = null;
-                    long startTime = System.currentTimeMillis();
+                    long apiStartTime = System.currentTimeMillis();
                     String apiUrl = null;
 
                     // 根据支付方式查询订单状态
@@ -187,7 +193,7 @@ public class PaymentSyncScheduledServiceImpl {
                             : "https://api.mch.weixin.qq.com/pay/orderquery";
                     }
 
-                    long executionTime = System.currentTimeMillis() - startTime;
+                    long executionTime = System.currentTimeMillis() - apiStartTime;
 
                     // 记录查询订单日志
                     try {
@@ -323,10 +329,26 @@ public class PaymentSyncScheduledServiceImpl {
 
             log.info("支付结果查询补单任务完成，成功：{}，失败：{}，跳过：{}，总计：{}", 
                     successCount, failCount, skipCount, payingRecords.size());
+            success = true;
 
         } catch (Exception e) {
+            errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.isEmpty()) {
+                errorMessage = e.getClass().getName();
+            }
             log.error("支付结果查询补单任务执行异常", e);
             // 定时任务异常不影响系统运行
+        } finally {
+            // 记录执行日志
+            scheduledTaskLogUtil.logAutoExecution(
+                "订单补单查询",
+                "支付管理",
+                "paymentSyncScheduledService",
+                "syncPaymentStatus",
+                startTime,
+                success,
+                errorMessage
+            );
         }
     }
 }
