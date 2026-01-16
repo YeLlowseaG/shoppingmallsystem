@@ -289,6 +289,7 @@ public class PaymentSyncScheduledServiceImpl {
                         // 更新订单状态
                         order.setPaymentStatus(PaymentStatus.PAID);
                         order.setOrderStatus(OrderStatus.PAID_UNSHIPPED);
+                        order.setPaymentMethod(paymentMethod); // 更新支付方式
                         order.setPayTime(LocalDateTime.now());
                         orderRepository.updateById(order);
 

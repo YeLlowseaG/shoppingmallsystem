@@ -49,8 +49,9 @@ public class CreateOrderDTO {
 
     /**
      * 支付方式（ALIPAY-支付宝，WECHAT-微信，PRE_DEPOSIT-预存款，OFFLINE-线下支付）
+     * 可选字段，创建订单时不设置，在支付页面选择
      */
-    @NotBlank(message = "支付方式不能为空")
+    // @NotBlank(message = "支付方式不能为空") // 已移除，支付方式在支付时设置
     private String paymentMethod;
 
     /**

@@ -2,6 +2,7 @@ package com.shoppingmall.service.erp;
 
 import com.shoppingmall.dto.JushuitanOrderDTO;
 import com.shoppingmall.dto.JushuitanLogisticsDTO;
+import com.shoppingmall.dto.JushuitanUploadOrderResponseDTO;
 
 import java.util.List;
 
@@ -17,9 +18,9 @@ public interface JushuitanApiService {
      * 上传订单到聚水潭
      *
      * @param orderDTO 订单数据
-     * @return 聚水潭订单ID
+     * @return 聚水潭订单上传响应信息（包含完整响应JSON、ERP订单ID、ERP内部订单号等）
      */
-    String uploadOrder(JushuitanOrderDTO orderDTO);
+    JushuitanUploadOrderResponseDTO uploadOrder(JushuitanOrderDTO orderDTO);
 
     /**
      * 查询订单状态
@@ -51,4 +52,14 @@ public interface JushuitanApiService {
      * @return 是否启用
      */
     boolean isEnabled();
+
+    /**
+     * 根据内部订单号取消订单
+     *
+     * @param oIds 内部订单号列表
+     * @param cancelType 取消类型（如"全额退款"）
+     * @param remark 取消备注（如退款原因）
+     * @return 响应JSON字符串
+     */
+    String cancelOrderByInternalId(List<Integer> oIds, String cancelType, String remark);
 }

@@ -57,4 +57,17 @@ public interface JushuitanOrderService {
      * @return 推送状态描述
      */
     String queryPushStatus(Long orderId);
+
+    /**
+     * 转换订单为聚水潭订单DTO
+     *
+     * @param order 订单
+     * @param orderItems 订单商品列表
+     * @return 聚水潭订单DTO
+     * @throws Exception 转换异常
+     */
+    com.shoppingmall.dto.JushuitanOrderDTO convertToJushuitanOrder(
+            com.shoppingmall.entity.Order order, 
+            java.util.List<com.shoppingmall.entity.OrderItem> orderItems
+    ) throws Exception;
 }

@@ -227,6 +227,12 @@ public class OrderSyncController {
                     case "SHIP_CALLBACK":
                         vo.setSyncTypeDesc("发货回调");
                         break;
+                    case "CANCEL_ORDER":
+                        vo.setSyncTypeDesc("订单取消");
+                        break;
+                    case "UPDATE_ORDER_REFUND":
+                        vo.setSyncTypeDesc("订单更新");
+                        break;
                     default:
                         vo.setSyncTypeDesc(log.getSyncType());
                 }
@@ -284,6 +290,12 @@ public class OrderSyncController {
                         break;
                     case "SHIP_CALLBACK":
                         vo.setSyncTypeDesc("发货回调");
+                        break;
+                    case "CANCEL_ORDER":
+                        vo.setSyncTypeDesc("订单取消");
+                        break;
+                    case "UPDATE_ORDER_REFUND":
+                        vo.setSyncTypeDesc("订单更新");
                         break;
                 }
             }

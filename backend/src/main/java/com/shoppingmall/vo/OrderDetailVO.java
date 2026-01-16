@@ -57,6 +57,21 @@ public class OrderDetailVO {
     private String statusText;
 
     /**
+     * ERP同步状态（0-未同步，1-已同步，2-同步失败）
+     */
+    private Integer erpSyncStatus;
+
+    /**
+     * ERP同步状态文本
+     */
+    private String erpSyncStatusText;
+
+    /**
+     * ERP内部订单号（聚水潭返回的o_id）
+     */
+    private String erpInternalOrderId;
+
+    /**
      * 订单商品列表
      */
     private List<OrderItemVO> items;

@@ -144,6 +144,12 @@ public class PaymentController {
                 // 更新订单状态
                 order.setPaymentStatus(PaymentStatus.PAID); // 已支付
                 order.setOrderStatus(OrderStatus.PAID_UNSHIPPED);
+                // 更新支付方式（优先使用回调数据中的paymentMethod，否则使用支付记录中的paymentMethod）
+                if (paymentMethod != null) {
+                    order.setPaymentMethod(paymentMethod.toUpperCase());
+                } else if (paymentRecord.getPaymentMethod() != null) {
+                    order.setPaymentMethod(paymentRecord.getPaymentMethod());
+                }
                 order.setPayTime(LocalDateTime.now());
                 orderRepository.updateById(order);
 

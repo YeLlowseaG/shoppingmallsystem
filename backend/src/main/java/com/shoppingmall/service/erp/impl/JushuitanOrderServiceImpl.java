@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shoppingmall.dto.JushuitanOrderDTO;
+import com.shoppingmall.dto.JushuitanUploadOrderResponseDTO;
 import com.shoppingmall.entity.Order;
 import com.shoppingmall.entity.OrderItem;
 import com.shoppingmall.entity.OrderSyncLog;
@@ -154,19 +155,26 @@ public class JushuitanOrderServiceImpl implements JushuitanOrderService {
             syncLog.setRequestData(objectMapper.writeValueAsString(orderDTO));
 
             // 推送订单到聚水潭
-            String erpOrderId = jushuitanApiService.uploadOrder(orderDTO);
+            JushuitanUploadOrderResponseDTO responseDTO = jushuitanApiService.uploadOrder(orderDTO);
+
+            // 保存完整响应到同步日志
+            syncLog.setResponseData(responseDTO.getResponseJson());
 
             // 更新订单ERP状态
             order.setErpSyncStatus(1); // 已同步
             order.setErpSyncTime(LocalDateTime.now());
-            order.setErpOrderId(erpOrderId);
+            order.setErpOrderId(responseDTO.getErpOrderId());
+            // 保存ERP内部订单号（o_id）
+            if (responseDTO.getErpInternalOrderId() != null && !responseDTO.getErpInternalOrderId().isEmpty()) {
+                order.setErpInternalOrderId(responseDTO.getErpInternalOrderId());
+            }
             orderRepository.updateById(order);
 
             // 更新同步日志为成功
             syncLog.setSyncStatus(1); // 成功
-            syncLog.setResponseData("订单推送成功，ERP订单ID: " + erpOrderId);
 
-            log.info("订单推送成功: orderId={}, orderNo={}, erpOrderId={}", orderId, order.getOrderNo(), erpOrderId);
+            log.info("订单推送成功: orderId={}, orderNo={}, erpOrderId={}, erpInternalOrderId={}", 
+                orderId, order.getOrderNo(), responseDTO.getErpOrderId(), responseDTO.getErpInternalOrderId());
             return true;
 
         } catch (Exception e) {
@@ -269,21 +277,27 @@ public class JushuitanOrderServiceImpl implements JushuitanOrderService {
             syncLog.setRequestData(objectMapper.writeValueAsString(orderDTO));
 
             // 推送订单到聚水潭
-            String erpOrderId = jushuitanApiService.uploadOrder(orderDTO);
+            JushuitanUploadOrderResponseDTO responseDTO = jushuitanApiService.uploadOrder(orderDTO);
+
+            // 保存完整响应到同步日志
+            syncLog.setResponseData(responseDTO.getResponseJson());
 
             // 更新订单ERP状态
             order.setErpSyncStatus(1); // 已同步
             order.setErpSyncTime(LocalDateTime.now());
-            order.setErpOrderId(erpOrderId);
+            order.setErpOrderId(responseDTO.getErpOrderId());
+            // 保存ERP内部订单号（o_id）
+            if (responseDTO.getErpInternalOrderId() != null && !responseDTO.getErpInternalOrderId().isEmpty()) {
+                order.setErpInternalOrderId(responseDTO.getErpInternalOrderId());
+            }
             orderRepository.updateById(order);
 
             // 更新同步日志为成功
             syncLog.setSyncStatus(1); // 成功
-            syncLog.setResponseData("订单推送成功，ERP订单ID: " + erpOrderId);
             orderSyncLogMapper.updateById(syncLog);
 
-            log.info("订单重试推送成功: orderId={}, orderNo={}, erpOrderId={}, retryCount={}",
-                orderId, order.getOrderNo(), erpOrderId, syncLog.getRetryCount());
+            log.info("订单重试推送成功: orderId={}, orderNo={}, erpOrderId={}, erpInternalOrderId={}, retryCount={}",
+                orderId, order.getOrderNo(), responseDTO.getErpOrderId(), responseDTO.getErpInternalOrderId(), syncLog.getRetryCount());
             return true;
 
         } catch (Exception e) {
@@ -416,20 +430,27 @@ public class JushuitanOrderServiceImpl implements JushuitanOrderService {
 
             // 推送订单
             logBuilder.append("[推送] 开始调用聚水潭API...\n");
-            String erpOrderId = jushuitanApiService.uploadOrder(orderDTO);
+            JushuitanUploadOrderResponseDTO responseDTO = jushuitanApiService.uploadOrder(orderDTO);
 
-            result.setErpOrderId(erpOrderId);
-            logBuilder.append("[成功] ERP订单ID: ").append(erpOrderId).append("\n");
+            result.setErpOrderId(responseDTO.getErpOrderId());
+            logBuilder.append("[成功] ERP订单ID: ").append(responseDTO.getErpOrderId()).append("\n");
+            if (responseDTO.getErpInternalOrderId() != null && !responseDTO.getErpInternalOrderId().isEmpty()) {
+                logBuilder.append("[成功] ERP内部订单号: ").append(responseDTO.getErpInternalOrderId()).append("\n");
+            }
 
             // 更新订单状态
             order.setErpSyncStatus(1);
             order.setErpSyncTime(LocalDateTime.now());
-            order.setErpOrderId(erpOrderId);
+            order.setErpOrderId(responseDTO.getErpOrderId());
+            // 保存ERP内部订单号（o_id）
+            if (responseDTO.getErpInternalOrderId() != null && !responseDTO.getErpInternalOrderId().isEmpty()) {
+                order.setErpInternalOrderId(responseDTO.getErpInternalOrderId());
+            }
             orderRepository.updateById(order);
 
             logBuilder.append("[信息] 订单状态已更新为'已同步'\n");
             result.setSuccess(true);
-            result.setResponseData("订单推送成功");
+            result.setResponseData(responseDTO.getResponseJson() != null ? responseDTO.getResponseJson() : "订单推送成功");
 
         } catch (Exception e) {
             logBuilder.append("\n[异常] 推送失败:\n");
@@ -565,27 +586,34 @@ public class JushuitanOrderServiceImpl implements JushuitanOrderService {
 
             // 推送订单
             logBuilder.append("[推送] 开始重试调用聚水潭API...\n");
-            String erpOrderId = jushuitanApiService.uploadOrder(orderDTO);
+            JushuitanUploadOrderResponseDTO responseDTO = jushuitanApiService.uploadOrder(orderDTO);
 
-            result.setErpOrderId(erpOrderId);
-            logBuilder.append("[成功] ERP订单ID: ").append(erpOrderId).append("\n");
+            result.setErpOrderId(responseDTO.getErpOrderId());
+            logBuilder.append("[成功] ERP订单ID: ").append(responseDTO.getErpOrderId()).append("\n");
+            if (responseDTO.getErpInternalOrderId() != null && !responseDTO.getErpInternalOrderId().isEmpty()) {
+                logBuilder.append("[成功] ERP内部订单号: ").append(responseDTO.getErpInternalOrderId()).append("\n");
+            }
 
             // 更新订单状态
             order.setErpSyncStatus(1);
             order.setErpSyncTime(LocalDateTime.now());
-            order.setErpOrderId(erpOrderId);
+            order.setErpOrderId(responseDTO.getErpOrderId());
+            // 保存ERP内部订单号（o_id）
+            if (responseDTO.getErpInternalOrderId() != null && !responseDTO.getErpInternalOrderId().isEmpty()) {
+                order.setErpInternalOrderId(responseDTO.getErpInternalOrderId());
+            }
             orderRepository.updateById(order);
 
             // 更新同步日志为成功
             syncLog.setSyncStatus(1); // 成功
-            syncLog.setResponseData("订单推送成功，ERP订单ID: " + erpOrderId);
+            syncLog.setResponseData(responseDTO.getResponseJson());
             syncLog.setErrorCode(null);
             orderSyncLogMapper.updateById(syncLog);
 
             logBuilder.append("[信息] 订单状态已更新为'已同步'\n");
             logBuilder.append("[信息] 同步日志已更新为成功状态\n");
             result.setSuccess(true);
-            result.setResponseData("订单重试推送成功");
+            result.setResponseData(responseDTO.getResponseJson() != null ? responseDTO.getResponseJson() : "订单重试推送成功");
 
         } catch (Exception e) {
             logBuilder.append("\n[异常] 重试推送失败:\n");
@@ -630,7 +658,7 @@ public class JushuitanOrderServiceImpl implements JushuitanOrderService {
     /**
      * 转换订单为聚水潭订单DTO
      */
-    private JushuitanOrderDTO convertToJushuitanOrder(Order order, List<OrderItem> orderItems) throws Exception {
+    public JushuitanOrderDTO convertToJushuitanOrder(Order order, List<OrderItem> orderItems) throws Exception {
         JushuitanOrderDTO dto = new JushuitanOrderDTO();
 
         // 基本信息
