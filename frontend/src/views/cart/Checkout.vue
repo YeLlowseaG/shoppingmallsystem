@@ -273,8 +273,8 @@
             </template>
           </el-dialog> -->
 
-          <!-- 选择支付方式 -->
-          <div class="checkout-section">
+          <!-- 选择支付方式（已屏蔽，支付方式在支付页面选择） -->
+          <!-- <div class="checkout-section">
             <div class="section-header">
               <h3 class="section-title">
                 选择支付方式
@@ -296,7 +296,6 @@
               </div>
             </div>
 
-            <!-- 支付方式选择列表（展开显示） -->
             <div v-if="showPaymentOptions" class="payment-methods-list">
               <div class="payment-radio-group">
                 <div
@@ -315,7 +314,7 @@
                 </div>
               </div>
             </div>
-          </div>
+          </div> -->
 
           <!-- 购买的商品 -->
           <div class="checkout-section">
@@ -999,14 +998,14 @@ const handlePlaceOrder = async () => {
   // 获取选中的购物车ID列表
   const cartIds = route.query.cartIds ? (route.query.cartIds as string).split(',').map(id => Number(id)) : []
   
-  // 转换支付方式
-  const paymentMethodMap: Record<string, string> = {
-    'alipay': 'ALIPAY',
-    'wechat': 'WECHAT',
-    'pre_deposit': 'PRE_DEPOSIT',
-    'offline': 'OFFLINE'
-  }
-  const backendPaymentMethod = paymentMethodMap[paymentMethod.value] || 'ALIPAY'
+  // 转换支付方式（已屏蔽，支付方式在支付页面选择）
+  // const paymentMethodMap: Record<string, string> = {
+  //   'alipay': 'ALIPAY',
+  //   'wechat': 'WECHAT',
+  //   'pre_deposit': 'PRE_DEPOSIT',
+  //   'offline': 'OFFLINE'
+  // }
+  // const backendPaymentMethod = paymentMethodMap[paymentMethod.value] || 'ALIPAY'
   
   // 转换配送日期和时间（已屏蔽，传undefined）
   // let deliveryDateValue: string | undefined = undefined
@@ -1027,7 +1026,7 @@ const handlePlaceOrder = async () => {
       // shippingMethod: selectedShippingMethod.value.name, // 已屏蔽配送方式
       // deliveryDate: deliveryDateValue, // 已屏蔽
       // deliveryTime: deliveryTimeValue, // 已屏蔽
-      paymentMethod: backendPaymentMethod,
+      // paymentMethod: backendPaymentMethod, // 已屏蔽，支付方式在支付页面选择
       orderRemark: orderRemarks.value || undefined
     })
     
@@ -1038,8 +1037,8 @@ const handlePlaceOrder = async () => {
       path: '/order/payment',
       query: {
         orderNumber: orderNo,
-        amount: totalAmount.value.toFixed(2),
-        paymentMethod: paymentMethod.value
+        amount: totalAmount.value.toFixed(2)
+        // paymentMethod: paymentMethod.value // 已移除，支付方式在支付页面选择
       }
     })
   } catch (error: any) {

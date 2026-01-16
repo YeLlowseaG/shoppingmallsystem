@@ -74,6 +74,11 @@ public class Order {
     private String erpOrderId;
 
     /**
+     * ERP内部订单号（聚水潭返回的o_id）
+     */
+    private String erpInternalOrderId;
+
+    /**
      * 卖家备注
      */
     private String sellerRemark;

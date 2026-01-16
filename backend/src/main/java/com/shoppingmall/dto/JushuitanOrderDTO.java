@@ -197,6 +197,18 @@ public class JushuitanOrderDTO {
          */
         @JsonProperty("outer_oi_id")
         private String outerOiId;
+
+        /**
+         * 退款数量（可更新）
+         */
+        @JsonProperty("refund_qty")
+        private Integer refundQty;
+
+        /**
+         * 退款状态（可更新，如"success"）
+         */
+        @JsonProperty("refund_status")
+        private String refundStatus;
     }
 
     /**

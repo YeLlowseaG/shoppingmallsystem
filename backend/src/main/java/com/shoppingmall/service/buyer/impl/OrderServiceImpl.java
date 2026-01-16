@@ -261,7 +261,7 @@ public class OrderServiceImpl implements OrderService {
         order.setUserId(userId);
         order.setOrderStatus(OrderStatus.PENDING_PAYMENT);
         order.setPaymentStatus(PaymentStatus.UNPAID);
-        order.setPaymentMethod(createOrderDTO.getPaymentMethod());
+        // order.setPaymentMethod(createOrderDTO.getPaymentMethod()); // 已屏蔽，支付方式在支付时设置
         order.setDeliveryDate(createOrderDTO.getDeliveryDate());
         order.setDeliveryTime(createOrderDTO.getDeliveryTime());
         order.setOrderRemark(createOrderDTO.getOrderRemark());
@@ -1110,6 +1110,7 @@ public class OrderServiceImpl implements OrderService {
             // 2.3 更新订单状态
             order.setPaymentStatus(PaymentStatus.PAID); // 已支付
             order.setOrderStatus(OrderStatus.PAID_UNSHIPPED);
+            order.setPaymentMethod(paymentMethod); // 更新支付方式
             order.setPayTime(LocalDateTime.now());
             orderRepository.updateById(order);
             

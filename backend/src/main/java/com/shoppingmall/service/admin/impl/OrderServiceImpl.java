@@ -41,6 +41,13 @@ import com.shoppingmall.service.payment.PaymentLogService;
 import com.shoppingmall.payment.util.AlipayUtil;
 import com.shoppingmall.service.admin.OrderService;
 import com.shoppingmall.service.buyer.DepositService;
+import com.shoppingmall.service.erp.JushuitanApiService;
+import com.shoppingmall.service.erp.JushuitanOrderService;
+import com.shoppingmall.service.erp.JushuitanConfigService;
+import com.shoppingmall.dto.JushuitanOrderDTO;
+import com.shoppingmall.mapper.OrderSyncLogMapper;
+import com.shoppingmall.entity.OrderSyncLog;
+import com.shoppingmall.vo.JushuitanConfigVO;
 import com.shoppingmall.vo.OrderDetailVO;
 import com.shoppingmall.vo.OrderListVO;
 import com.shoppingmall.vo.OrderRefundVO;
@@ -53,6 +60,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -82,6 +90,10 @@ public class OrderServiceImpl implements OrderService {
     private final PaymentConfigService paymentConfigService;
     private final PaymentLogService paymentLogService;
     private final ObjectMapper objectMapper;
+    private final JushuitanApiService jushuitanApiService;
+    private final JushuitanOrderService jushuitanOrderService;
+    private final JushuitanConfigService jushuitanConfigService;
+    private final OrderSyncLogMapper orderSyncLogMapper;
 
     @Override
     public IPage<OrderListVO> getOrderList(OrderQueryDTO orderQueryDTO) {
@@ -413,6 +425,15 @@ public class OrderServiceImpl implements OrderService {
                         orderItem.getProductName(), refundedQuantity, orderItem.getQuantity(), availableRefundQuantity));
             }
 
+            // 发货前（已付款未发货）：不允许部分退款，必须全部退款
+            if (OrderStatus.PAID_UNSHIPPED.equals(order.getOrderStatus())) {
+                if (refundItemDTO.getRefundQuantity() < availableRefundQuantity) {
+                    throw new BusinessException(400, 
+                        String.format("商品【%s】发货前不支持部分退款，可退款数量：%d，必须全部退款", 
+                            orderItem.getProductName(), availableRefundQuantity));
+                }
+            }
+
             // 计算退款金额
             BigDecimal refundSubtotal = orderItem.getPrice()
                     .multiply(BigDecimal.valueOf(refundItemDTO.getRefundQuantity()))
@@ -434,10 +455,53 @@ public class OrderServiceImpl implements OrderService {
         }
 
         // 6. 判断是部分退款还是全额退款
-        BigDecimal totalOrderAmount = order.getTotalAmount(); // 商品总金额（不含运费）
-        Integer refundType = totalRefundAmount.compareTo(totalOrderAmount) >= 0 
-                ? RefundType.FULL_REFUND 
-                : RefundType.PARTIAL_REFUND;
+        // 注意：部分退款是根据订单来判断的，而不是根据商品来判断的
+        // 一个订单里面可能有多个商品，如果只退了部分商品，那就是部分退款
+        // 只有当订单的所有商品都退款了，才是全额退款
+        
+        // 计算商品总金额（用于日志记录）
+        BigDecimal shippingFee = order.getShippingFee() != null ? order.getShippingFee() : BigDecimal.ZERO;
+        BigDecimal totalProductAmount = order.getTotalAmount().subtract(shippingFee);
+        
+        // 判断是否所有商品都已全部退款
+        // 构建本次退款的商品ID映射，方便查找
+        java.util.Map<Long, Integer> currentRefundQtyMap = refundItemList.stream()
+                .collect(Collectors.toMap(
+                    OrderRefundItem::getOrderItemId, 
+                    OrderRefundItem::getRefundQuantity
+                ));
+        
+        boolean areAllItemsFullyRefunded = true;
+        if (orderItems != null && !orderItems.isEmpty()) {
+            for (OrderItem item : orderItems) {
+                // 计算该商品当前的已退款数量（不包括本次退款）
+                int existingRefundedQty = calculateRefundedQuantity(item.getId());
+                
+                // 加上本次退款数量（如果有）
+                int currentRefundQty = currentRefundQtyMap.getOrDefault(item.getId(), 0);
+                int totalRefundedQty = existingRefundedQty + currentRefundQty;
+                
+                int itemQuantity = item.getQuantity() != null ? item.getQuantity() : 0;
+                if (totalRefundedQty < itemQuantity) {
+                    areAllItemsFullyRefunded = false;
+                    break;
+                }
+            }
+        } else {
+            areAllItemsFullyRefunded = false;
+        }
+        
+        // 判断退款类型：只有当所有商品都已全部退款时，才是全额退款
+        Integer refundType;
+        if (areAllItemsFullyRefunded) {
+            refundType = RefundType.FULL_REFUND;
+            log.info("订单所有商品已全部退款，判断为全额退款: orderNo={}, totalRefundAmount={}, totalProductAmount={}", 
+                    order.getOrderNo(), totalRefundAmount, totalProductAmount);
+        } else {
+            refundType = RefundType.PARTIAL_REFUND;
+            log.info("订单部分商品退款，判断为部分退款: orderNo={}, totalRefundAmount={}, totalProductAmount={}", 
+                    order.getOrderNo(), totalRefundAmount, totalProductAmount);
+        }
 
         // 7. 生成退款单号
         String refundNo = generateRefundNo();
@@ -715,17 +779,69 @@ public class OrderServiceImpl implements OrderService {
         paymentRecord.setRefundOperatorId(adminId);
         paymentRecord.setRefundOperatorName(adminName);
 
-        // 如果全额退款，更新支付状态
-        if (newRefundedAmount.compareTo(paymentRecord.getAmount()) >= 0) {
+        // 保存退款前的订单状态，用于判断是否需要触发ERP订单取消/更新
+        Integer originalOrderStatus = order.getOrderStatus();
+        boolean isFullRefund = RefundType.FULL_REFUND.equals(refundType);
+        boolean willBeFullRefund = isFullRefund || newRefundedAmount.compareTo(paymentRecord.getAmount()) >= 0;
+
+        // 退款成功后，同步到聚水潭（发货前退款场景）
+        // 注意：必须在更新订单状态之前调用，因为syncRefundToJushuitan需要检查订单状态是否为PAID_UNSHIPPED
+        try {
+            syncRefundToJushuitan(order, refundNo, refundType, totalRefundAmount, refundDTO.getRefundReason(), refundItemList);
+        } catch (Exception e) {
+            // 记录日志，但不影响退款主流程
+            log.error("退款同步到聚水潭失败: orderNo={}, refundNo={}", orderNo, refundNo, e);
+        }
+
+        // 如果全额退款（判断退款类型为全额退款），更新订单状态为"已退款"
+        if (RefundType.FULL_REFUND.equals(refundType)) {
+            log.info("订单全额退款，更新订单状态为已退款: orderNo={}, refundAmount={}, totalProductAmount={}", 
+                    order.getOrderNo(), totalRefundAmount, totalProductAmount);
             paymentRecord.setPaymentStatus(PaymentStatus.REFUNDED);
             order.setPaymentStatus(PaymentStatus.REFUNDED);
             order.setOrderStatus(OrderStatus.REFUNDED);
+        } else {
+            // 部分退款时，检查支付记录的退款金额是否已全额退款
+            boolean isPaymentFullyRefunded = newRefundedAmount.compareTo(paymentRecord.getAmount()) >= 0;
+            
+            // 检查所有订单商品是否都已全部退款
+            // 重新查询订单商品列表，获取最新的已退款数量（因为上面已经更新了）
+            LambdaQueryWrapper<OrderItem> checkItemWrapper = new LambdaQueryWrapper<>();
+            checkItemWrapper.eq(OrderItem::getOrderId, order.getId());
+            List<OrderItem> allOrderItemsAfterUpdate = orderItemRepository.selectList(checkItemWrapper);
+            
+            boolean allItemsRefundedAfterUpdate = true;
+            if (allOrderItemsAfterUpdate != null && !allOrderItemsAfterUpdate.isEmpty()) {
+                for (OrderItem item : allOrderItemsAfterUpdate) {
+                    int itemRefundedQty = item.getRefundedQuantity() != null ? item.getRefundedQuantity() : 0;
+                    int itemQuantity = item.getQuantity() != null ? item.getQuantity() : 0;
+                    if (itemRefundedQty < itemQuantity) {
+                        allItemsRefundedAfterUpdate = false;
+                        break;
+                    }
+                }
+            } else {
+                allItemsRefundedAfterUpdate = false;
+            }
+            
+            // 如果支付金额已全额退款，或者所有商品都已全部退款，则更新订单状态为已退款
+            if (isPaymentFullyRefunded || allItemsRefundedAfterUpdate) {
+                if (isPaymentFullyRefunded) {
+                    log.info("支付记录已全额退款，更新订单状态为已退款: orderNo={}, newRefundedAmount={}, paymentAmount={}", 
+                            order.getOrderNo(), newRefundedAmount, paymentRecord.getAmount());
+                } else {
+                    log.info("所有订单商品已全部退款，更新订单状态为已退款: orderNo={}", order.getOrderNo());
+                }
+                paymentRecord.setPaymentStatus(PaymentStatus.REFUNDED);
+                order.setPaymentStatus(PaymentStatus.REFUNDED);
+                order.setOrderStatus(OrderStatus.REFUNDED);
+            }
         }
         paymentRecordRepository.updateById(paymentRecord);
         orderRepository.updateById(order);
 
         // 14. 恢复库存（如果订单已完成，需要扣减销量）
-        if (OrderStatus.COMPLETED.equals(order.getOrderStatus())) {
+        if (OrderStatus.COMPLETED.equals(originalOrderStatus)) {
             updateProductSalesCount(order.getId(), false, refundItemList);
         }
         
@@ -826,10 +942,12 @@ public class OrderServiceImpl implements OrderService {
      * 计算订单商品的已退款数量
      */
     private int calculateRefundedQuantity(Long orderItemId) {
-        // 查询该订单商品的所有已审核通过的退款明细
+        // 查询该订单商品的所有退款明细
         LambdaQueryWrapper<OrderRefundItem> itemWrapper = new LambdaQueryWrapper<>();
         itemWrapper.eq(OrderRefundItem::getOrderItemId, orderItemId);
         List<OrderRefundItem> refundItems = orderRefundItemRepository.selectList(itemWrapper);
+        
+        log.debug("计算订单项已退款数量: orderItemId={}, 退款明细数量={}", orderItemId, refundItems.size());
         
         if (refundItems.isEmpty()) {
             return 0;
@@ -848,7 +966,11 @@ public class OrderServiceImpl implements OrderService {
                 RefundStatus.REFUND_SUCCESS);
         List<OrderRefund> approvedRefunds = orderRefundRepository.selectList(refundWrapper);
         
+        log.debug("订单项 {} 的有效退款记录数量: {}, 退款ID列表: {}", 
+                orderItemId, approvedRefunds.size(), refundIds);
+        
         if (approvedRefunds.isEmpty()) {
+            log.debug("订单项 {} 没有有效的退款记录", orderItemId);
             return 0;
         }
 
@@ -857,10 +979,15 @@ public class OrderServiceImpl implements OrderService {
                 .map(OrderRefund::getId)
                 .collect(Collectors.toList());
         
-        return refundItems.stream()
+        int totalRefunded = refundItems.stream()
                 .filter(item -> approvedRefundIds.contains(item.getRefundId()))
                 .mapToInt(OrderRefundItem::getRefundQuantity)
                 .sum();
+        
+        log.debug("订单项 {} 的已退款数量: {}, 已审核退款ID: {}", 
+                orderItemId, totalRefunded, approvedRefundIds);
+        
+        return totalRefunded;
     }
 
     /**
@@ -901,6 +1028,15 @@ public class OrderServiceImpl implements OrderService {
             itemVO.setProductName(item.getProductName());
             itemVO.setProductCode(item.getProductCode());
             itemVO.setSkuId(item.getSkuId());
+            
+            // 设置SKU编码
+            if (item.getSkuId() != null) {
+                ProductSku sku = productSkuRepository.selectById(item.getSkuId());
+                if (sku != null && sku.getSkuCode() != null && !sku.getSkuCode().trim().isEmpty()) {
+                    itemVO.setSkuCode(sku.getSkuCode());
+                }
+            }
+            
             itemVO.setSpecCombination(item.getSpecCombination());
             itemVO.setRefundQuantity(item.getRefundQuantity());
             itemVO.setRefundPrice(item.getRefundPrice());
@@ -1076,6 +1212,11 @@ public class OrderServiceImpl implements OrderService {
         vo.setStatus(order.getOrderStatus());
         vo.setStatusText(getStatusText(order.getOrderStatus()));
         vo.setOrderNotes(order.getOrderRemark());
+        
+        // 设置ERP相关字段
+        vo.setErpSyncStatus(order.getErpSyncStatus());
+        vo.setErpSyncStatusText(getErpSyncStatusText(order.getErpSyncStatus()));
+        vo.setErpInternalOrderId(order.getErpInternalOrderId());
 
         // 查询买家信息（用户信息）
         if (order.getUserId() != null) {
@@ -1275,6 +1416,25 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
+     * 获取ERP同步状态文本
+     */
+    private String getErpSyncStatusText(Integer status) {
+        if (status == null) {
+            return "未同步";
+        }
+        switch (status) {
+            case 0:
+                return "未同步";
+            case 1:
+                return "已同步";
+            case 2:
+                return "同步失败";
+            default:
+                return "未知";
+        }
+    }
+
+    /**
      * 取消订单时联动取消相关的支付记录状态
      *
      * @param orderId 订单ID
@@ -1333,6 +1493,228 @@ public class OrderServiceImpl implements OrderService {
         } catch (Exception e) {
             log.error("从SKU汇总更新商品总库存失败: productId={}", productId, e);
             // 不影响主流程
+        }
+    }
+
+    /**
+     * 退款同步到聚水潭（发货前场景）
+     * 
+     * @param order 订单
+     * @param refundNo 退款单号
+     * @param refundType 退款类型（1-部分退款，2-全额退款）
+     * @param refundAmount 退款金额
+     * @param refundReason 退款原因
+     * @param refundItemList 退款明细列表
+     */
+    private void syncRefundToJushuitan(Order order, String refundNo, Integer refundType, 
+                                       BigDecimal refundAmount, String refundReason,
+                                       List<OrderRefundItem> refundItemList) {
+        // 1. 检查ERP是否启用
+        if (!jushuitanApiService.isEnabled()) {
+            log.warn("聚水潭未启用，跳过退款同步: orderNo={}", order.getOrderNo());
+            return;
+        }
+        
+        // 2. 判断是否已同步到聚水潭
+        if (order.getErpSyncStatus() == null || order.getErpSyncStatus() != 1) {
+            log.warn("订单未同步到聚水潭，跳过退款同步: orderNo={}, erpSyncStatus={}", 
+                    order.getOrderNo(), order.getErpSyncStatus());
+            return;
+        }
+        
+        // 3. 判断发货前后（只处理发货前场景）
+        boolean isBeforeShipment = OrderStatus.PAID_UNSHIPPED.equals(order.getOrderStatus());
+        if (!isBeforeShipment) {
+            log.info("订单已发货，不在发货前退款场景处理范围: orderNo={}, orderStatus={}", 
+                    order.getOrderNo(), order.getOrderStatus());
+            return;
+        }
+        
+        // 4. 判断退款类型
+        boolean isFullRefund = RefundType.FULL_REFUND.equals(refundType);
+        
+        if (isFullRefund) {
+            // 场景：发货前全额退款 - 调用订单取消接口
+            cancelOrderInJushuitan(order, refundNo, refundReason);
+        } else {
+            // 场景：发货前部分退款 - 更新订单标记退款商品
+            updateOrderWithRefundItems(order, refundNo, refundItemList);
+        }
+    }
+
+    /**
+     * 发货前全额退款 - 调用订单取消接口
+     */
+    private void cancelOrderInJushuitan(Order order, String refundNo, String refundReason) {
+        String erpInternalOrderId = order.getErpInternalOrderId();
+        if (erpInternalOrderId == null || erpInternalOrderId.isEmpty()) {
+            log.warn("订单无内部订单号，无法取消: orderNo={}", order.getOrderNo());
+            return;
+        }
+        
+        // 获取环境类型
+        String envType = "production";
+        try {
+            JushuitanConfigVO config = jushuitanConfigService.getEnabledConfig();
+            if (config != null && config.getEnvType() != null) {
+                envType = config.getEnvType();
+            }
+        } catch (Exception e) {
+            log.warn("获取环境类型失败，使用默认值", e);
+        }
+        
+        // 创建同步日志
+        OrderSyncLog syncLog = new OrderSyncLog();
+        syncLog.setOrderId(order.getId());
+        syncLog.setOrderNo(order.getOrderNo());
+        syncLog.setEnvType(envType);
+        syncLog.setSyncType("CANCEL_ORDER");
+        syncLog.setSyncStatus(2); // 处理中
+        syncLog.setRetryCount(0);
+        
+        try {
+            Integer oId = Integer.parseInt(erpInternalOrderId);
+            
+            // 构建请求数据
+            Map<String, Object> requestData = new java.util.HashMap<>();
+            requestData.put("o_ids", Arrays.asList(oId));
+            requestData.put("cancel_type", "全额退款");
+            requestData.put("remark", refundReason != null ? refundReason : "订单全额退款");
+            syncLog.setRequestData(objectMapper.writeValueAsString(requestData));
+            
+            // 调用订单取消接口
+            String response = jushuitanApiService.cancelOrderByInternalId(
+                Arrays.asList(oId),
+                "全额退款",
+                refundReason != null ? refundReason : "订单全额退款"
+            );
+            
+            // 解析响应
+            com.fasterxml.jackson.databind.JsonNode jsonNode = objectMapper.readTree(response);
+            Integer code = jsonNode.get("code").asInt();
+            
+            if (code == 0) {
+                syncLog.setSyncStatus(1); // 成功
+                syncLog.setResponseData(response);
+                log.info("聚水潭订单取消成功: orderNo={}, oId={}, refundNo={}", 
+                        order.getOrderNo(), oId, refundNo);
+            } else {
+                syncLog.setSyncStatus(0); // 失败
+                String msg = jsonNode.has("msg") ? jsonNode.get("msg").asText() : "未知错误";
+                syncLog.setErrorCode(String.valueOf(code));
+                syncLog.setErrorMessage(msg);
+                syncLog.setResponseData(response);
+                log.error("聚水潭订单取消失败: orderNo={}, oId={}, code={}, msg={}", 
+                        order.getOrderNo(), oId, code, msg);
+                throw new RuntimeException("订单取消失败: " + msg);
+            }
+        } catch (NumberFormatException e) {
+            syncLog.setSyncStatus(0);
+            syncLog.setErrorCode("PARSE_ERROR");
+            syncLog.setErrorMessage("内部订单号格式错误: " + e.getMessage());
+            log.error("内部订单号格式错误: orderNo={}, erpInternalOrderId={}", 
+                    order.getOrderNo(), erpInternalOrderId, e);
+            return;
+        } catch (Exception e) {
+            syncLog.setSyncStatus(0);
+            syncLog.setErrorCode("CANCEL_ERROR");
+            syncLog.setErrorMessage(e.getMessage());
+            log.error("聚水潭订单取消失败: orderNo={}, refundNo={}", order.getOrderNo(), refundNo, e);
+            // 不再抛出异常，只记录日志
+        } finally {
+            // 保存同步日志
+            orderSyncLogMapper.insert(syncLog);
+        }
+    }
+
+    /**
+     * 发货前部分退款 - 更新订单标记退款商品
+     */
+    private void updateOrderWithRefundItems(Order order, String refundNo, List<OrderRefundItem> refundItemList) {
+        // 获取环境类型
+        String envType = "production";
+        try {
+            JushuitanConfigVO config = jushuitanConfigService.getEnabledConfig();
+            if (config != null && config.getEnvType() != null) {
+                envType = config.getEnvType();
+            }
+        } catch (Exception e) {
+            log.warn("获取环境类型失败，使用默认值", e);
+        }
+        
+        // 创建同步日志
+        OrderSyncLog syncLog = new OrderSyncLog();
+        syncLog.setOrderId(order.getId());
+        syncLog.setOrderNo(order.getOrderNo());
+        syncLog.setEnvType(envType);
+        syncLog.setSyncType("UPDATE_ORDER_REFUND");
+        syncLog.setSyncStatus(2); // 处理中
+        syncLog.setRetryCount(0);
+        
+        try {
+            // 查询订单商品
+            LambdaQueryWrapper<OrderItem> itemWrapper = new LambdaQueryWrapper<>();
+            itemWrapper.eq(OrderItem::getOrderId, order.getId());
+            List<OrderItem> orderItems = orderItemRepository.selectList(itemWrapper);
+            
+            if (orderItems == null || orderItems.isEmpty()) {
+                log.warn("订单商品为空，无法更新: orderNo={}", order.getOrderNo());
+                syncLog.setSyncStatus(0);
+                syncLog.setErrorCode("NO_ITEMS");
+                syncLog.setErrorMessage("订单商品为空");
+                orderSyncLogMapper.insert(syncLog);
+                return;
+            }
+            
+            // 构建退款商品映射
+            Map<Long, OrderRefundItem> refundItemMap = refundItemList.stream()
+                .collect(Collectors.toMap(OrderRefundItem::getOrderItemId, item -> item));
+            
+            // 转换为聚水潭订单DTO
+            JushuitanOrderDTO orderDTO = jushuitanOrderService.convertToJushuitanOrder(order, orderItems);
+            
+            // 设置店铺ID
+            try {
+                JushuitanConfigVO config = jushuitanConfigService.getEnabledConfig();
+                if (config != null && config.getShopId() != null && !config.getShopId().trim().isEmpty()) {
+                    orderDTO.setShopId(Integer.parseInt(config.getShopId()));
+                }
+            } catch (Exception e) {
+                log.warn("获取shop_id失败", e);
+            }
+            
+            // 标记退款商品
+            for (JushuitanOrderDTO.Item item : orderDTO.getItems()) {
+                Long orderItemId = Long.parseLong(item.getOuterOiId());
+                OrderRefundItem refundItem = refundItemMap.get(orderItemId);
+                if (refundItem != null) {
+                    item.setRefundQty(refundItem.getRefundQuantity());
+                    item.setRefundStatus("success");
+                    log.debug("标记退款商品: orderItemId={}, refundQty={}", orderItemId, refundItem.getRefundQuantity());
+                }
+            }
+            
+            // 记录请求数据
+            syncLog.setRequestData(objectMapper.writeValueAsString(orderDTO));
+            
+            // 调用订单更新接口
+            jushuitanApiService.uploadOrder(orderDTO);
+            
+            // 更新同步日志为成功
+            syncLog.setSyncStatus(1);
+            syncLog.setResponseData("订单更新成功（标记退款商品）");
+            log.info("聚水潭订单更新成功（标记退款商品）: orderNo={}, refundNo={}", order.getOrderNo(), refundNo);
+            
+        } catch (Exception e) {
+            syncLog.setSyncStatus(0);
+            syncLog.setErrorCode("UPDATE_ERROR");
+            syncLog.setErrorMessage(e.getMessage());
+            log.error("聚水潭订单更新失败（标记退款商品）: orderNo={}, refundNo={}", 
+                    order.getOrderNo(), refundNo, e);
+            // 不再抛出异常，只记录日志
+        } finally {
+            // 保存同步日志
+            orderSyncLogMapper.insert(syncLog);
         }
     }
 }

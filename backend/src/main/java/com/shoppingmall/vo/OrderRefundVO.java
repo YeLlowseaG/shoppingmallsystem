@@ -151,6 +151,11 @@ public class OrderRefundVO {
         private Long skuId;
 
         /**
+         * SKU编码
+         */
+        private String skuCode;
+
+        /**
          * SKU规格组合
          */
         private String specCombination;

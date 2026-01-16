@@ -145,11 +145,16 @@
         <el-divider>退款明细</el-divider>
         <el-table :data="currentRefund.refundItems" border style="margin-top: 20px">
           <el-table-column prop="productCode" label="商品编码" width="120" />
+          <el-table-column prop="skuCode" label="SKU编码" width="150">
+            <template #default="{ row }">
+              {{ row.skuCode || '-' }}
+            </template>
+          </el-table-column>
           <el-table-column label="商品名称" min-width="250">
             <template #default="{ row }">
               <div>{{ row.productName }}</div>
-              <div v-if="row.specCombination" class="sku-spec-text">
-                {{ row.specCombination }}
+              <div v-if="formatSpecText(row.specCombination)" class="sku-spec-text">
+                {{ formatSpecText(row.specCombination) }}
               </div>
             </template>
           </el-table-column>
@@ -280,6 +285,19 @@ const getPaymentMethodName = (paymentMethod?: string) => {
       return '线下支付'
     default:
       return paymentMethod
+  }
+}
+
+// 将规格组合JSON转换为可读文本
+const formatSpecText = (specCombination: string | undefined): string => {
+  if (!specCombination) return ''
+  try {
+    const specs = JSON.parse(specCombination)
+    return Object.entries(specs)
+      .map(([key, value]) => `${key}:${value}`)
+      .join(' / ')
+  } catch (e) {
+    return ''
   }
 }
 

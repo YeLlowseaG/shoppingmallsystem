@@ -24,6 +24,8 @@
             <el-option label="物流拉取" value="PULL_LOGISTICS" />
             <el-option label="订单查询" value="QUERY_ORDER" />
             <el-option label="发货回调" value="SHIP_CALLBACK" />
+            <el-option label="订单取消" value="CANCEL_ORDER" />
+            <el-option label="订单更新" value="UPDATE_ORDER_REFUND" />
           </el-select>
         </el-form-item>
 
@@ -284,7 +286,9 @@ const getSyncTypeTagType = (syncType: string) => {
     'PUSH_ORDER': 'primary',
     'PULL_LOGISTICS': 'success',
     'QUERY_ORDER': 'info',
-    'SHIP_CALLBACK': 'warning'
+    'SHIP_CALLBACK': 'warning',
+    'CANCEL_ORDER': 'danger',
+    'UPDATE_ORDER_REFUND': 'warning'
   }
   return typeMap[syncType] || ''
 }

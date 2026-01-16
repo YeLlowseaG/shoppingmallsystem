@@ -35,6 +35,9 @@ export interface OrderDetailVO {
   orderDate: string
   status: number
   statusText: string
+  erpSyncStatus?: number
+  erpSyncStatusText?: string
+  erpInternalOrderId?: string
   items: Array<{
     id: number
     productCode: string
@@ -46,6 +49,7 @@ export interface OrderDetailVO {
     specCombination?: string
     refundedQuantity?: number
     availableRefundQuantity?: number
+    skuCode?: string
   }>
   recipientInfo: {
     name: string

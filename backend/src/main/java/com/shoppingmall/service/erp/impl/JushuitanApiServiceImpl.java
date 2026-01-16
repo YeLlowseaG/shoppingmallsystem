@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shoppingmall.common.util.JushuitanHttpUtil;
 import com.shoppingmall.dto.JushuitanLogisticsDTO;
 import com.shoppingmall.dto.JushuitanOrderDTO;
+import com.shoppingmall.dto.JushuitanUploadOrderResponseDTO;
 import com.shoppingmall.service.erp.JushuitanApiService;
 import com.shoppingmall.service.erp.JushuitanConfigService;
 import com.shoppingmall.vo.JushuitanConfigVO;
@@ -36,7 +37,7 @@ public class JushuitanApiServiceImpl implements JushuitanApiService {
             .setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
     @Override
-    public String uploadOrder(JushuitanOrderDTO orderDTO) {
+    public JushuitanUploadOrderResponseDTO uploadOrder(JushuitanOrderDTO orderDTO) {
         JushuitanConfigVO config = getEnabledConfigOrThrow();
 
         try {
@@ -83,19 +84,46 @@ public class JushuitanApiServiceImpl implements JushuitanApiService {
             JsonNode jsonNode = objectMapper.readTree(response);
             Integer code = jsonNode.get("code").asInt();
 
+            // 创建响应DTO
+            JushuitanUploadOrderResponseDTO responseDTO = new JushuitanUploadOrderResponseDTO();
+            responseDTO.setResponseJson(response);
+            responseDTO.setSuccess(code == 0);
+
             if (code != 0) {
                 String msg = jsonNode.has("msg") ? jsonNode.get("msg").asText() : "未知错误";
                 log.error("订单推送失败 - code: {}, msg: {}, response: {}", code, msg, response);
+                responseDTO.setMessage(msg);
                 throw new RuntimeException("订单上传失败: " + msg);
             }
 
-            // 返回聚水潭订单ID
-            JsonNode data = jsonNode.get("data");
-            if (data != null && data.has("so_id")) {
-                return data.get("so_id").asText();
+            // 提取响应数据
+            JsonNode dataNode = jsonNode.get("data");
+            if (dataNode != null) {
+                // 处理响应格式：data.datas[0] 或 data.so_id
+                JsonNode datasArray = dataNode.get("datas");
+                if (datasArray != null && datasArray.isArray() && datasArray.size() > 0) {
+                    JsonNode firstData = datasArray.get(0);
+                    if (firstData.has("so_id")) {
+                        responseDTO.setErpOrderId(firstData.get("so_id").asText());
+                    }
+                    if (firstData.has("o_id")) {
+                        responseDTO.setErpInternalOrderId(String.valueOf(firstData.get("o_id").asLong()));
+                    }
+                    if (firstData.has("msg")) {
+                        responseDTO.setMessage(firstData.get("msg").asText());
+                    }
+                } else if (dataNode.has("so_id")) {
+                    // 兼容旧格式：直接有so_id
+                    responseDTO.setErpOrderId(dataNode.get("so_id").asText());
+                }
             }
 
-            return orderDTO.getSoId();
+            // 如果没有提取到ERP订单ID，使用原始订单号
+            if (responseDTO.getErpOrderId() == null || responseDTO.getErpOrderId().isEmpty()) {
+                responseDTO.setErpOrderId(orderDTO.getSoId());
+            }
+
+            return responseDTO;
         } catch (Exception e) {
             log.error("上传订单到聚水潭失败: {}", orderDTO.getSoId(), e);
             throw new RuntimeException("上传订单到聚水潭失败: " + e.getMessage(), e);
@@ -219,6 +247,66 @@ public class JushuitanApiServiceImpl implements JushuitanApiService {
     public boolean isEnabled() {
         JushuitanConfigVO config = jushuitanConfigService.getEnabledConfig();
         return config != null;
+    }
+
+    @Override
+    public String cancelOrderByInternalId(List<Integer> oIds, String cancelType, String remark) {
+        JushuitanConfigVO config = getEnabledConfigOrThrow();
+
+        try {
+            // 构建请求参数
+            Map<String, Object> params = new HashMap<>();
+            params.put("o_ids", oIds);
+            params.put("cancel_type", cancelType);
+            if (remark != null && !remark.isEmpty()) {
+                params.put("remark", remark);
+            }
+            String bizContent = objectMapper.writeValueAsString(params);
+
+            // 确定API地址
+            String apiUrl;
+            if ("test".equals(config.getEnvType())) {
+                apiUrl = "https://dev-api.jushuitan.com/open/jushuitan/orderbyoid/cancel";
+            } else {
+                apiUrl = "https://openapi.jushuitan.com/open/jushuitan/orderbyoid/cancel";
+            }
+
+            log.info("===== 聚水潭订单取消开始 =====");
+            log.info("内部订单号列表: {}", oIds);
+            log.info("取消类型: {}", cancelType);
+            log.info("备注: {}", remark);
+            log.info("API URL: {}", apiUrl);
+            log.info("业务数据(biz): {}", bizContent);
+
+            // 调用聚水潭订单取消接口（使用专用路径，不需要method参数）
+            String response = JushuitanHttpUtil.post(
+                apiUrl,
+                config.getAppKey(),
+                config.getAppSecret(),
+                config.getAccessToken(),
+                null,  // 使用专用路径时，method参数传null
+                "biz",  // 参数名是biz
+                bizContent
+            );
+
+            log.info("聚水潭订单取消API响应: {}", response);
+
+            // 解析响应
+            JsonNode jsonNode = objectMapper.readTree(response);
+            Integer code = jsonNode.get("code").asInt();
+
+            if (code != 0) {
+                String msg = jsonNode.has("msg") ? jsonNode.get("msg").asText() : "未知错误";
+                log.error("订单取消失败 - code: {}, msg: {}, response: {}", code, msg, response);
+                throw new RuntimeException("订单取消失败: " + msg);
+            }
+
+            log.info("订单取消成功: oIds={}", oIds);
+            return response;
+        } catch (Exception e) {
+            log.error("取消订单失败: oIds={}", oIds, e);
+            throw new RuntimeException("取消订单失败: " + e.getMessage(), e);
+        }
     }
 
     /**
