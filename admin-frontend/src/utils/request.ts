@@ -35,6 +35,32 @@ const paramsSerializer = (params: any): string => {
   return searchParams.toString()
 }
 
+// 全局标志，防止重复跳转和重复显示错误提示
+let isRedirectingToLogin = false
+
+// 判断是否为token相关错误
+const isTokenError = (code: number, message?: string): boolean => {
+  if (code !== 401) return false
+  if (!message) return false
+  const tokenErrorKeywords = ['Token已过期', 'Token无效', '未登录', '请先登录', '请重新登录']
+  return tokenErrorKeywords.some(keyword => message.includes(keyword))
+}
+
+// 处理token错误并跳转登录页（静默处理，不显示错误提示）
+const handleTokenError = () => {
+  // 防止重复跳转
+  if (isRedirectingToLogin) {
+    return
+  }
+  
+  isRedirectingToLogin = true
+  localStorage.removeItem('admin_token')
+  
+  // 使用 window.location.href 强制跳转，立即中断当前页面执行
+  // 这样可以避免业务代码继续执行并显示错误信息
+  window.location.href = '/admin/login'
+}
+
 // 创建axios实例
 const service: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '',
@@ -50,6 +76,11 @@ const service: AxiosInstance = axios.create({
 // 请求拦截器
 service.interceptors.request.use(
   (config: AxiosRequestConfig) => {
+    // 如果正在跳转到登录页，取消所有后续请求，避免死循环
+    if (isRedirectingToLogin) {
+      return Promise.reject(new Error('正在跳转到登录页，请求已取消'))
+    }
+    
     // 从localStorage获取token
     const token = localStorage.getItem('admin_token')
     if (token && config.headers) {
@@ -90,12 +121,14 @@ service.interceptors.response.use(
       // 返回data字段，这样API调用时可以直接使用返回的数据
       return res.data
     } else {
-      // 401未登录，特殊处理
-      if (res.code === 401) {
-        console.warn('未登录或登录已过期')
-        ElMessage.error('登录已过期，请重新登录')
-        localStorage.removeItem('admin_token')
-        return Promise.reject(new Error('未登录'))
+      // 如果是token相关错误，静默跳转登录页，不显示错误提示
+      if (isTokenError(res.code, res.message)) {
+        handleTokenError()
+        // 创建一个特殊的错误对象，标记为已处理
+        const error = new Error(res.message || 'Token已过期')
+        ;(error as any).__tokenError = true
+        ;(error as any).__messageShown = true
+        return Promise.reject(error)
       }
 
       // 其他状态码，显示错误信息
@@ -111,9 +144,19 @@ service.interceptors.response.use(
       
       switch (status) {
         case 401:
-          ElMessage.error('未授权，请重新登录')
-          localStorage.removeItem('admin_token')
-          router.push('/admin/login')
+          // 检查是否是token相关错误
+          if (isTokenError(status, data?.message)) {
+            // token相关错误，静默跳转登录页，不显示错误提示
+            handleTokenError()
+            // 标记为token错误，已处理
+            ;(error as any).__tokenError = true
+            ;(error as any).__messageShown = true
+          } else {
+            // 其他401错误，显示错误提示并跳转
+            ElMessage.error('未授权，请重新登录')
+            localStorage.removeItem('admin_token')
+            router.push('/admin/login')
+          }
           break
         case 403:
           ElMessage.error('拒绝访问')
