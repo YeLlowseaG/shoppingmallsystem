@@ -57,6 +57,22 @@ public class OrderScheduledServiceImpl implements OrderScheduledService {
     }
 
     /**
+     * 获取自动确认收货天数，从数据库配置读取，默认15天
+     * 每次执行定时任务时读取最新配置，确保配置修改后立即生效
+     *
+     * @return 自动确认收货天数
+     */
+    private Integer getAutoConfirmReceiptDays() {
+        String daysStr = systemConfigService.getConfigValue("order.auto-confirm-receipt-days", "15");
+        try {
+            return Integer.parseInt(daysStr);
+        } catch (NumberFormatException e) {
+            log.warn("自动确认收货天数配置格式错误，使用默认值15天: {}", daysStr);
+            return 15;
+        }
+    }
+
+    /**
      * 自动取消超时的待付款订单
      * 每分钟执行一次，检查超过指定时间未支付的订单
      */
@@ -150,6 +166,131 @@ public class OrderScheduledServiceImpl implements OrderScheduledService {
                 success,
                 errorMessage
             );
+        }
+    }
+
+    /**
+     * 自动确认收货
+     * 每天凌晨12点30分执行一次，对已发货超过指定天数的订单自动确认收货
+     */
+    @Override
+    @Scheduled(cron = "0 30 0 * * ?") // 每天凌晨12点30分执行
+    @Transactional(rollbackFor = Exception.class)
+    public void autoConfirmReceipt() {
+        LocalDateTime startTime = LocalDateTime.now();
+        String errorMessage = null;
+        boolean success = false;
+        int processedCount = 0;
+
+        try {
+            // 每次执行时读取最新配置
+            Integer autoConfirmDays = getAutoConfirmReceiptDays();
+            LocalDateTime thresholdTime = LocalDateTime.now().minusDays(autoConfirmDays);
+
+            // 查找已发货且发货时间超过指定天数的订单
+            List<Order> shippedOrders = orderRepository.selectList(
+                    new LambdaQueryWrapper<Order>()
+                            .eq(Order::getOrderStatus, OrderStatus.SHIPPED) // 已发货状态
+                            .isNotNull(Order::getShipTime) // 发货时间不为空
+                            .le(Order::getShipTime, thresholdTime) // 发货时间早于阈值时间
+            );
+
+            if (shippedOrders.isEmpty()) {
+                log.info("没有需要自动确认收货的订单");
+                success = true;
+                return;
+            }
+
+            log.info("发现{}个已发货超过{}天的订单，开始自动确认收货", shippedOrders.size(), autoConfirmDays);
+
+            // 批量处理订单
+            for (Order order : shippedOrders) {
+                try {
+                    // 更新订单状态为已完成
+                    order.setOrderStatus(OrderStatus.COMPLETED);
+                    order.setCompleteTime(LocalDateTime.now());
+                    
+                    // 添加备注（如果原备注不为空，追加新备注；否则直接设置）
+                    String remark = "系统自动确认收货";
+                    if (order.getOrderRemark() != null && !order.getOrderRemark().trim().isEmpty()) {
+                        order.setOrderRemark(order.getOrderRemark() + "\n" + remark);
+                    } else {
+                        order.setOrderRemark(remark);
+                    }
+                    
+                    orderRepository.updateById(order);
+
+                    // 增加商品销量（订单完成时）
+                    updateProductSalesCount(order.getId(), true);
+
+                    processedCount++;
+                    log.info("自动确认收货成功: orderNo={}, shipTime={}, autoConfirmDays={}", 
+                            order.getOrderNo(), order.getShipTime(), autoConfirmDays);
+                } catch (Exception e) {
+                    log.error("自动确认收货失败: orderNo={}", order.getOrderNo(), e);
+                    // 继续处理下一个订单，不中断整个任务
+                }
+            }
+
+            log.info("自动确认收货任务完成，共处理{}个订单", processedCount);
+            success = true;
+        } catch (Exception e) {
+            errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.isEmpty()) {
+                errorMessage = e.getClass().getName();
+            }
+            log.error("自动确认收货任务执行异常", e);
+            // 定时任务异常不影响系统运行
+        } finally {
+            // 记录执行日志
+            scheduledTaskLogUtil.logAutoExecution(
+                "订单自动确认收货",
+                "订单管理",
+                "orderScheduledServiceImpl",
+                "autoConfirmReceipt",
+                startTime,
+                success,
+                errorMessage
+            );
+        }
+    }
+
+    /**
+     * 更新商品销量
+     * 
+     * @param orderId 订单ID
+     * @param increase 是否增加销量（true-增加，false-扣减）
+     */
+    private void updateProductSalesCount(Long orderId, boolean increase) {
+        try {
+            // 查询订单商品
+            LambdaQueryWrapper<OrderItem> itemWrapper = new LambdaQueryWrapper<>();
+            itemWrapper.eq(OrderItem::getOrderId, orderId);
+            List<OrderItem> orderItems = orderItemRepository.selectList(itemWrapper);
+            
+            for (OrderItem orderItem : orderItems) {
+                Product product = productRepository.selectById(orderItem.getProductId());
+                if (product != null) {
+                    int currentSalesCount = product.getSalesCount() != null ? product.getSalesCount() : 0;
+                    int quantity = orderItem.getQuantity() != null ? orderItem.getQuantity() : 0;
+                    
+                    if (increase) {
+                        // 增加销量
+                        product.setSalesCount(currentSalesCount + quantity);
+                    } else {
+                        // 扣减销量（确保不为负数）
+                        int newSalesCount = currentSalesCount - quantity;
+                        product.setSalesCount(Math.max(0, newSalesCount));
+                    }
+                    
+                    productRepository.updateById(product);
+                    log.debug("更新商品销量: productId={}, increase={}, quantity={}, newSalesCount={}", 
+                            product.getId(), increase, quantity, product.getSalesCount());
+                }
+            }
+        } catch (Exception e) {
+            log.error("更新商品销量失败: orderId={}", orderId, e);
+            // 不影响主流程
         }
     }
 
