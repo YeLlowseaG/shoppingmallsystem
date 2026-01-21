@@ -54,6 +54,10 @@
             </div>
           </div>
         </div>
+        <!-- 版权信息 -->
+        <div class="copyright" v-if="copyright">
+          {{ copyright }}
+        </div>
       </div>
     </div>
   </footer>
@@ -80,24 +84,29 @@ const icpNumber = ref<string>('')
 const icpDeviceNetwork = ref<string>('')
 const icpDeviceManagement = ref<string>('')
 
+// 版权信息配置
+const copyright = ref<string>('')
+
 // 计算是否有备案号（至少有一个不为空）
 const hasIcpRecords = computed(() => {
   return !!(icpNumber.value || icpDeviceNetwork.value || icpDeviceManagement.value)
 })
 
-// 加载备案号配置
+// 加载备案号配置和版权信息
 const loadIcpConfigs = async () => {
   try {
     const configs = await getPublicConfigs()
     icpNumber.value = configs['site.icp.number'] || ''
     icpDeviceNetwork.value = configs['site.icp.device.network'] || ''
     icpDeviceManagement.value = configs['site.icp.device.management'] || ''
+    copyright.value = configs['site.copyright'] || ''
   } catch (error) {
-    console.error('加载备案号配置失败:', error)
-    // 失败时使用空值，不显示备案号
+    console.error('加载备案号和版权配置失败:', error)
+    // 失败时使用空值，不显示备案号和版权
     icpNumber.value = ''
     icpDeviceNetwork.value = ''
     icpDeviceManagement.value = ''
+    copyright.value = ''
   }
 }
 
@@ -269,7 +278,15 @@ onMounted(() => {
           }
         }
       }
+    }
 
+    .copyright {
+      text-align: center;
+      color: #999;
+      font-size: 12px;
+      padding-top: 20px;
+      border-top: 1px solid #444;
+      margin-top: 20px;
     }
   }
 }
