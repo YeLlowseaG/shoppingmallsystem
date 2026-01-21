@@ -62,9 +62,23 @@
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { getActiveBrands, type Brand } from '@/api/buyer/website'
 
 const router = useRouter()
+
+// 品牌列表（用于根据品牌ID查找品牌名称）
+const brands = ref<Brand[]>([])
+
+// 加载品牌列表
+const loadBrands = async () => {
+  try {
+    brands.value = await getActiveBrands()
+  } catch (error) {
+    console.error('加载品牌列表失败:', error)
+  }
+}
 
 interface Product {
   id: number
@@ -108,6 +122,16 @@ const goToAdTarget = () => {
       case 4: // 外部链接
         window.open(props.adLinkValue, '_blank')
         return
+      case 5: // 品牌类型
+        // 根据品牌ID查找品牌名称
+        const brandId = Number(props.adLinkValue)
+        const brand = brands.value.find(b => b.id === brandId)
+        if (brand) {
+          router.push(`/products?brand=${encodeURIComponent(brand.brandName)}`)
+        } else {
+          console.warn('未找到品牌ID:', brandId)
+        }
+        return
     }
   }
   
@@ -126,6 +150,11 @@ const goToCategory = () => {
 const goToProduct = (id: number) => {
   router.push(`/products/${id}`)
 }
+
+// 组件挂载时加载品牌列表
+onMounted(() => {
+  loadBrands()
+})
 </script>
 
 <style scoped lang="scss">
