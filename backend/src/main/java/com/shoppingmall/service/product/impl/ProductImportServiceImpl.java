@@ -42,6 +42,7 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -169,7 +170,9 @@ public class ProductImportServiceImpl implements ProductImportService {
                 dto.setRowNumber(rowNum);
                 
                 try {
-                    dto.setProductCode(record.get("商品编码"));
+                    // 对商品编码进行 trim 处理，避免空格导致的问题
+                    String rawProductCode = record.get("商品编码");
+                    dto.setProductCode(rawProductCode != null ? rawProductCode.trim() : null);
                     dto.setBarcode(getStringOrNull(record, "条码"));
                     dto.setUnit(getStringOrNull(record, "计量单位"));
                     dto.setProductName(record.get("商品名称"));
@@ -471,7 +474,11 @@ public class ProductImportServiceImpl implements ProductImportService {
     private Map<String, List<ProductImportDTO>> groupByProductCode(List<ProductImportDTO> dataList) {
         Map<String, List<ProductImportDTO>> groups = new LinkedHashMap<>();
         for (ProductImportDTO dto : dataList) {
-            groups.computeIfAbsent(dto.getProductCode(), k -> new ArrayList<>()).add(dto);
+            // 确保使用 trim 后的 productCode 进行分组，避免空格导致分组错误
+            String productCode = dto.getProductCode() != null ? dto.getProductCode().trim() : null;
+            if (productCode != null && !productCode.isEmpty()) {
+                groups.computeIfAbsent(productCode, k -> new ArrayList<>()).add(dto);
+            }
         }
         return groups;
     }
@@ -520,15 +527,23 @@ public class ProductImportServiceImpl implements ProductImportService {
         // 3. 查找品牌（可选，但如果填写了品牌名称，则必须存在）
         Long brandId = null;
         if (firstRow.getBrandName() != null && !firstRow.getBrandName().trim().isEmpty()) {
+            String trimmedBrandName = firstRow.getBrandName().trim();
             QueryWrapper<Brand> brandQuery = new QueryWrapper<>();
-            brandQuery.eq("brand_name", firstRow.getBrandName());
-            Brand brand = brandRepository.selectOne(brandQuery);
-            if (brand == null) {
-                throw new RuntimeException("品牌名称不存在: " + firstRow.getBrandName());
+            brandQuery.eq("brand_name", trimmedBrandName);
+            // 使用 selectCount 代替 selectOne，避免多条记录时抛出异常
+            Long brandCount = brandRepository.selectCount(brandQuery);
+            if (brandCount == 0) {
+                throw new RuntimeException("品牌名称不存在: " + trimmedBrandName);
             }
+            if (brandCount > 1) {
+                log.warn("发现重复的品牌名称: {}，共 {} 条记录", trimmedBrandName, brandCount);
+                List<Brand> brands = brandRepository.selectList(brandQuery);
+                throw new RuntimeException("品牌名称重复: " + trimmedBrandName + " (发现 " + brandCount + " 条记录)");
+            }
+            Brand brand = brandRepository.selectList(brandQuery).get(0);
             // 检查品牌是否启用
             if (brand.getStatus() == null || brand.getStatus() == 0) {
-                throw new RuntimeException("品牌已禁用: " + firstRow.getBrandName());
+                throw new RuntimeException("品牌已禁用: " + trimmedBrandName);
             }
             brandId = brand.getId();
         }
@@ -555,11 +570,32 @@ public class ProductImportServiceImpl implements ProductImportService {
         }
         
         // 5. 检查商品是否已存在
+        // 确保 productCode 去除空格后再查询，避免空格导致的问题
+        String trimmedProductCode = productCode != null ? productCode.trim() : null;
+        if (trimmedProductCode == null || trimmedProductCode.isEmpty()) {
+            throw new RuntimeException("商品编码不能为空");
+        }
+        
+        log.debug("检查商品编码是否存在: [{}] (原始: [{}], 长度: {}, Hex: {})", 
+                trimmedProductCode, productCode, 
+                productCode != null ? productCode.length() : 0,
+                productCode != null ? bytesToHex(productCode.getBytes(StandardCharsets.UTF_8)) : "null");
+        
         QueryWrapper<Product> productQuery = new QueryWrapper<>();
-        productQuery.eq("product_code", productCode);
-        Product existingProduct = productRepository.selectOne(productQuery);
-        if (existingProduct != null) {
-            throw new RuntimeException("商品编码已存在: " + productCode);
+        productQuery.eq("product_code", trimmedProductCode);
+        
+        // 使用 selectCount 代替 selectOne，避免多条记录时抛出异常
+        // MyBatis-Plus 的 @TableLogic 会自动添加 deleted = 0 条件
+        Long count = productRepository.selectCount(productQuery);
+        
+        if (count > 0) {
+            // 如果存在，查询详细信息用于日志
+            List<Product> existingProducts = productRepository.selectList(productQuery);
+            log.warn("商品编码已存在: {}，发现 {} 条记录，ID列表: {}, 编码列表: {}", 
+                    trimmedProductCode, count, 
+                    existingProducts.stream().map(Product::getId).collect(Collectors.toList()),
+                    existingProducts.stream().map(p -> "[" + p.getProductCode() + "]").collect(Collectors.toList()));
+            throw new RuntimeException("商品编码已存在: " + trimmedProductCode);
         }
         
         // 6. 创建商品
@@ -704,9 +740,26 @@ public class ProductImportServiceImpl implements ProductImportService {
     }
     
     private Long findOrCreateCategory(String categoryName) {
+        if (categoryName == null || categoryName.trim().isEmpty()) {
+            return null;
+        }
+        String trimmedCategoryName = categoryName.trim();
         QueryWrapper<ProductCategory> categoryQuery = new QueryWrapper<>();
-        categoryQuery.eq("category_name", categoryName);
-        ProductCategory category = categoryRepository.selectOne(categoryQuery);
+        categoryQuery.eq("category_name", trimmedCategoryName);
+        // 使用 selectCount 代替 selectOne，避免多条记录时抛出异常
+        Long count = categoryRepository.selectCount(categoryQuery);
+        if (count == 0) {
+            return null;
+        }
+        if (count > 1) {
+            log.warn("发现重复的分类名称: {}，共 {} 条记录", trimmedCategoryName, count);
+            List<ProductCategory> categories = categoryRepository.selectList(categoryQuery);
+            log.warn("重复分类的ID列表: {}", 
+                    categories.stream().map(ProductCategory::getId).collect(Collectors.toList()));
+            // 返回第一个分类的ID
+            return categories.get(0).getId();
+        }
+        ProductCategory category = categoryRepository.selectList(categoryQuery).get(0);
         return category != null ? category.getId() : null;
     }
     
@@ -867,5 +920,16 @@ public class ProductImportServiceImpl implements ProductImportService {
         
         // 返回原始错误信息
         return e.getMessage() != null ? e.getMessage() : "导入失败";
+    }
+    
+    /**
+     * 将字节数组转换为十六进制字符串（用于调试）
+     */
+    private String bytesToHex(byte[] bytes) {
+        StringBuilder result = new StringBuilder();
+        for (byte b : bytes) {
+            result.append(String.format("%02X", b));
+        }
+        return result.toString();
     }
 }
