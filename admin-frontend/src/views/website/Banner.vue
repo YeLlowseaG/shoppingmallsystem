@@ -136,10 +136,11 @@
             </div>
           </div>
         </el-form-item>
-        <!-- 使用通用链接选择器组件 -->
+        <!-- 使用通用链接选择器组件（排除促销活动） -->
         <LinkSelector
           v-model:model-link-type="formData.linkType"
           v-model:model-link-value="formData.linkValue"
+          :exclude-types="['3']"
         />
         <el-form-item label="排序" prop="sortOrder">
           <el-input-number v-model="formData.sortOrder" :min="0" />
@@ -235,7 +236,8 @@ const getLinkTypeText = (type: number) => {
     1: '商品分类',
     2: '商品详情',
     3: '促销活动',
-    4: '外部链接'
+    4: '外部链接',
+    5: '品牌类型'
   }
   return typeMap[type] || '未知'
 }

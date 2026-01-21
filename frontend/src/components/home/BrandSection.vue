@@ -89,6 +89,16 @@ const goToAdTarget = (ad: Advertisement) => {
     case 4: // 外部链接
       window.open(ad.linkValue, '_blank')
       break
+    case 5: // 品牌类型
+      // 根据品牌ID查找品牌名称（使用已加载的品牌列表）
+      const brandId = Number(ad.linkValue)
+      const brand = brands.value.find(b => b.id === brandId)
+      if (brand) {
+        router.push(`/products?brand=${encodeURIComponent(brand.brandName)}`)
+      } else {
+        console.warn('未找到品牌ID:', brandId)
+      }
+      break
   }
 }
 

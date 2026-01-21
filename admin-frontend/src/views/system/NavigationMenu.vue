@@ -98,11 +98,12 @@
         <el-form-item label="菜单名称" prop="menuName">
           <el-input v-model="formData.menuName" placeholder="请输入菜单名称" />
         </el-form-item>
-        <!-- 使用通用链接选择器组件（排除商品详情） -->
+        <!-- 使用通用链接选择器组件（排除商品详情，促销类型只保留新品专区） -->
         <LinkSelector
           v-model:model-link-type="linkType"
           v-model:model-link-value="linkValue"
           :exclude-types="['2']"
+          :promotion-types="['new']"
         />
         <el-form-item label="菜单图标">
           <el-input v-model="formData.icon" placeholder="请输入图标名称（可选）" />
