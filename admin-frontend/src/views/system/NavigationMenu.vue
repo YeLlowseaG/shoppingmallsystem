@@ -199,7 +199,7 @@ watch([linkType, linkValue], () => {
   formData.value.menuType = getLinkTypeString(linkType.value)
   formData.value.menuUrl = linkType.value === 4 ? linkValue.value : '/products'
   formData.value.menuParams = generateMenuParams(linkType.value, linkValue.value)
-})
+}, { immediate: false })
 
 // 将数字类型转换为字符串类型
 const getLinkTypeString = (type: number): string => {
@@ -220,7 +220,15 @@ const generateMenuParams = (type: number, value: string): string => {
   } else if (type === 3) { // 促销活动
     return JSON.stringify({ type: value })
   } else if (type === 5) { // 品牌类型
-    return JSON.stringify({ brand: value })
+    // 根据品牌ID查找品牌名称
+    const brandId = Number(value)
+    const brand = brandList.value.find(b => b.id?.toString() === brandId.toString())
+    if (brand && brand.brandName) {
+      return JSON.stringify({ brand: brand.brandName })
+    } else {
+      // 如果找不到品牌，可能是编辑时已经是品牌名称了，直接使用
+      return JSON.stringify({ brand: value })
+    }
   }
   return ''
 }
@@ -266,7 +274,7 @@ const getNumberLinkType = (typeString: string): number => {
 }
 
 // 解析参数用于编辑回显
-const parseMenuData = (menu: NavigationMenu) => {
+const parseMenuData = async (menu: NavigationMenu) => {
   // 设置链接类型
   linkType.value = getNumberLinkType(menu.menuType || 'link')
   
@@ -279,7 +287,26 @@ const parseMenuData = (menu: NavigationMenu) => {
       } else if (params.type) {
         linkValue.value = params.type
       } else if (params.brand) {
-        linkValue.value = params.brand
+        // 如果是品牌类型，需要将品牌名称转换为品牌ID（用于LinkSelector回显）
+        if (menu.menuType === 'brand') {
+          // 确保品牌列表已加载
+          if (brandList.value.length === 0) {
+            await loadBrandList()
+          }
+          // 尝试根据品牌名称查找品牌ID
+          const brand = brandList.value.find(b => 
+            b.brandName === params.brand || 
+            b.brandName.toLowerCase() === params.brand.toLowerCase()
+          )
+          if (brand && brand.id) {
+            linkValue.value = brand.id.toString()
+          } else {
+            // 如果找不到，可能是旧数据保存的是ID，直接使用
+            linkValue.value = params.brand
+          }
+        } else {
+          linkValue.value = params.brand
+        }
       }
     } catch (error) {
       console.error('解析菜单参数失败:', error)
@@ -376,9 +403,9 @@ const handleAdd = () => {
 }
 
 // 编辑菜单
-const handleEdit = (row: NavigationMenu) => {
+const handleEdit = async (row: NavigationMenu) => {
   formData.value = { ...row }
-  parseMenuData(row)
+  await parseMenuData(row)
   dialogVisible.value = true
 }
 
