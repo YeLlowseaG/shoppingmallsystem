@@ -16,12 +16,15 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getActiveBanners, type Banner } from '@/api/buyer/website'
+import { getActiveBanners, getActiveBrands, type Banner, type Brand } from '@/api/buyer/website'
 
 const router = useRouter()
 
 // 轮播图数据（从API获取）
 const banners = ref<Banner[]>([])
+
+// 品牌列表（用于根据品牌ID查找品牌名称）
+const brands = ref<Brand[]>([])
 
 // 加载轮播图
 const loadBanners = async () => {
@@ -29,6 +32,15 @@ const loadBanners = async () => {
     banners.value = await getActiveBanners()
   } catch (error) {
     console.error('加载轮播图失败:', error)
+  }
+}
+
+// 加载品牌列表
+const loadBrands = async () => {
+  try {
+    brands.value = await getActiveBrands()
+  } catch (error) {
+    console.error('加载品牌列表失败:', error)
   }
 }
 
@@ -49,11 +61,22 @@ const handleBannerClick = (banner: Banner) => {
     case 4: // 外部链接
       window.open(banner.linkValue, '_blank')
       break
+    case 5: // 品牌类型
+      // 根据品牌ID查找品牌名称
+      const brandId = Number(banner.linkValue)
+      const brand = brands.value.find(b => b.id === brandId)
+      if (brand) {
+        router.push(`/products?brand=${encodeURIComponent(brand.brandName)}`)
+      } else {
+        console.warn('未找到品牌ID:', brandId)
+      }
+      break
   }
 }
 
 onMounted(() => {
   loadBanners()
+  loadBrands() // 加载品牌列表，用于品牌类型跳转
 })
 </script>
 

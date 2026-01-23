@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-// App根组件
+// App根组件 - SEO设置已移至main.ts，在应用挂载前执行
 </script>
 
 <style>

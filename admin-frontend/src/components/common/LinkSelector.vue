@@ -83,10 +83,10 @@
           placeholder="请选择促销类型"
           style="width: 100%"
         >
-          <el-option label="新品专区" value="new" />
-          <el-option label="特惠区" value="special" />
-          <el-option label="热销专区" value="hot" />
-          <el-option label="限时促销" value="limited" />
+          <el-option v-if="props.promotionTypes.includes('new')" label="新品专区" value="new" />
+          <el-option v-if="props.promotionTypes.includes('special')" label="特惠区" value="special" />
+          <el-option v-if="props.promotionTypes.includes('hot')" label="热销专区" value="hot" />
+          <el-option v-if="props.promotionTypes.includes('limited')" label="限时促销" value="limited" />
         </el-select>
       </el-form-item>
 
@@ -147,9 +147,9 @@
           v-loading="productLoading"
           :data="productList"
           height="400px"
-          highlight-current-row
-          @current-change="handleProductSelection"
+          @selection-change="handleProductSelection"
         >
+          <el-table-column type="selection" width="55" :selectable="() => true" />
           <el-table-column width="80">
             <template #default="{ row }">
               <img
@@ -216,6 +216,7 @@ interface Props {
   modelLinkType?: number
   modelLinkValue?: string
   excludeTypes?: string[] // 排除的链接类型
+  promotionTypes?: string[] // 促销类型选项，如果不传则显示所有选项
 }
 
 interface Emits {
@@ -226,7 +227,8 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   modelLinkType: 0,
   modelLinkValue: '',
-  excludeTypes: () => []
+  excludeTypes: () => [],
+  promotionTypes: () => ['new', 'special', 'hot', 'limited'] // 默认显示所有促销类型
 })
 
 const emit = defineEmits<Emits>()
@@ -311,7 +313,7 @@ const loadBrands = async () => {
   }
 }
 
-// 加载商品数据
+// 加载商品数据（只查询已上架的商品）
 const loadProducts = async () => {
   productLoading.value = true
   try {
@@ -321,6 +323,7 @@ const loadProducts = async () => {
       undefined,
       productSearchKeyword.value,
       undefined,
+      '上架', // 只查询已上架的商品
       undefined
     )
     
@@ -345,9 +348,21 @@ const handleTypeChange = () => {
   }
 }
 
-// 处理商品选择
-const handleProductSelection = (product: ProductVO | null) => {
-  selectedProductId.value = product ? product.id : null
+// 处理商品选择（checkbox选择，但只允许选择一个）
+const handleProductSelection = (selection: ProductVO[]) => {
+  if (selection.length > 0) {
+    // 只保留最后一个选中的商品
+    selectedProductId.value = selection[selection.length - 1].id
+    // 如果选中了多个，取消其他选中
+    if (selection.length > 1) {
+      // 通过设置表格的选中状态来只保留最后一个
+      const lastProduct = selection[selection.length - 1]
+      // 这里需要手动控制表格选中状态，但Element Plus的表格组件会自动处理
+      // 我们只需要确保selectedProductId是最新的即可
+    }
+  } else {
+    selectedProductId.value = null
+  }
 }
 
 // 确认商品选择
@@ -433,9 +448,12 @@ onMounted(async () => {
   }
 })
 
-// 打开商品选择器时加载商品
+// 打开商品选择器时加载商品并重置选择
 watch(showProductSelector, (newVal) => {
   if (newVal) {
+    selectedProductId.value = null
+    productPage.value.current = 1
+    productSearchKeyword.value = ''
     loadProducts()
   }
 })

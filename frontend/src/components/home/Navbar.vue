@@ -117,6 +117,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { Menu, ArrowRight, Loading } from '@element-plus/icons-vue'
 import { getNavigationMenus, type NavigationMenu } from '@/api/buyer/navigationMenu'
 import { getCategoryTree, type ProductCategoryVO } from '@/api/buyer/productCategory'
+import { getActiveBrands, type Brand } from '@/api/buyer/website'
 
 const router = useRouter()
 const route = useRoute()
@@ -129,6 +130,9 @@ const navigationMenus = ref<NavigationMenu[]>([])
 // 商品分类数据
 const categories = ref<ProductCategoryVO[]>([])
 const loadingCategories = ref(false)
+
+// 品牌列表（用于将品牌ID转换为品牌名称）
+const brands = ref<Brand[]>([])
 
 const handleCategoryHover = (category: ProductCategoryVO) => {
   hoveredCategory.value = category
@@ -174,6 +178,21 @@ const generateMenuUrl = (menu: NavigationMenu) => {
   let params = {}
   try {
     params = menu.menuParams ? JSON.parse(menu.menuParams) : {}
+    
+    // 如果是品牌类型，确保使用品牌名称而不是ID
+    if (menu.menuType === 'brand' && params.brand) {
+      const brandValue = params.brand
+      // 如果brand是数字（旧数据可能是ID），需要转换为品牌名称
+      if (!isNaN(Number(brandValue)) && Number(brandValue).toString() === brandValue) {
+        const brandId = Number(brandValue)
+        const brand = brands.value.find(b => b.id === brandId)
+        if (brand) {
+          params.brand = brand.brandName
+        } else {
+          console.warn('未找到品牌ID对应的品牌名称:', brandId)
+        }
+      }
+    }
   } catch (error) {
     console.error('解析菜单参数失败:', error)
   }
@@ -212,10 +231,20 @@ const goToCategory = (categoryId: number) => {
   })
 }
 
-// 组件挂载时加载导航菜单和商品分类
+// 加载品牌列表（用于将品牌ID转换为品牌名称）
+const loadBrands = async () => {
+  try {
+    brands.value = await getActiveBrands()
+  } catch (error) {
+    console.error('加载品牌列表失败:', error)
+  }
+}
+
+// 组件挂载时加载导航菜单、商品分类和品牌列表
 onMounted(() => {
   loadNavigationMenus()
   loadCategories()
+  loadBrands() // 加载品牌列表，用于处理旧数据（品牌ID）
 })
 </script>
 

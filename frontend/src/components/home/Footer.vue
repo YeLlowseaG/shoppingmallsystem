@@ -45,14 +45,18 @@
               </a>
             </div>
             
-            <!-- 备案号（静态内容） -->
-            <div class="link-group">
+            <!-- 备案号（从配置读取） -->
+            <div v-if="hasIcpRecords" class="link-group">
               <h4>备案号</h4>
-              <a href="#">粤ICP备11098444号</a>
-              <a href="#">粤深械网备202005070014</a>
-              <a href="#">粤深食药监械经营备20151274号</a>
+              <a v-if="icpNumber" href="#">{{ icpNumber }}</a>
+              <a v-if="icpDeviceNetwork" href="#">{{ icpDeviceNetwork }}</a>
+              <a v-if="icpDeviceManagement" href="#">{{ icpDeviceManagement }}</a>
             </div>
           </div>
+        </div>
+        <!-- 版权信息 -->
+        <div class="copyright" v-if="copyright">
+          {{ copyright }}
         </div>
       </div>
     </div>
@@ -60,9 +64,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { getHelpCategories, getHelpArticlesByCategory, type HelpCategory, type HelpArticle } from '@/api/common/help'
+import { getPublicConfigs } from '@/api/buyer/systemConfig'
 
 const router = useRouter()
 
@@ -73,6 +78,37 @@ interface FooterCategory {
 }
 
 const footerCategories = ref<FooterCategory[]>([])
+
+// 备案号配置
+const icpNumber = ref<string>('')
+const icpDeviceNetwork = ref<string>('')
+const icpDeviceManagement = ref<string>('')
+
+// 版权信息配置
+const copyright = ref<string>('')
+
+// 计算是否有备案号（至少有一个不为空）
+const hasIcpRecords = computed(() => {
+  return !!(icpNumber.value || icpDeviceNetwork.value || icpDeviceManagement.value)
+})
+
+// 加载备案号配置和版权信息
+const loadIcpConfigs = async () => {
+  try {
+    const configs = await getPublicConfigs()
+    icpNumber.value = configs['site.icp.number'] || ''
+    icpDeviceNetwork.value = configs['site.icp.device.network'] || ''
+    icpDeviceManagement.value = configs['site.icp.device.management'] || ''
+    copyright.value = configs['site.copyright'] || ''
+  } catch (error) {
+    console.error('加载备案号和版权配置失败:', error)
+    // 失败时使用空值，不显示备案号和版权
+    icpNumber.value = ''
+    icpDeviceNetwork.value = ''
+    icpDeviceManagement.value = ''
+    copyright.value = ''
+  }
+}
 
 // 加载页脚数据
 const loadFooterData = async () => {
@@ -140,6 +176,7 @@ const goToArticle = (articleId: number) => {
 
 onMounted(() => {
   loadFooterData()
+  loadIcpConfigs()
 })
 </script>
 
@@ -241,7 +278,15 @@ onMounted(() => {
           }
         }
       }
+    }
 
+    .copyright {
+      text-align: center;
+      color: #999;
+      font-size: 12px;
+      padding-top: 20px;
+      border-top: 1px solid #444;
+      margin-top: 20px;
     }
   }
 }

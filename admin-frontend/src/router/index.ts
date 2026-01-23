@@ -230,16 +230,22 @@ router.beforeEach(async (to, _from, next) => {
     }
   }
   
-  // 设置页面标题
-  if (to.meta.title) {
-    getPageTitle(to.meta.title as string).then(title => {
-      document.title = title
-    })
-  } else {
-    // 如果没有页面标题，只显示网站名称+管理后台
-    getPageTitle().then(title => {
-      document.title = title
-    })
+  // 设置页面标题（只在非登录页时设置，避免token过期时的死循环）
+  if (to.path !== '/admin/login' && to.path !== '/login') {
+    if (to.meta.title) {
+      getPageTitle(to.meta.title as string).then(title => {
+        document.title = title
+      }).catch(() => {
+        // 如果获取标题失败（如token过期），静默处理
+      })
+    } else {
+      // 如果没有页面标题，只显示网站名称+管理后台
+      getPageTitle().then(title => {
+        document.title = title
+      }).catch(() => {
+        // 如果获取标题失败（如token过期），静默处理
+      })
+    }
   }
 
   // 调试日志：检查路由匹配情况
