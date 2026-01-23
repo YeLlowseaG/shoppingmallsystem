@@ -1,6 +1,149 @@
 # 2026-01-14 ERP同步日志查询功能增强记录
 
+<<<<<<< Updated upstream
 ## 功能增强内容
+=======
+## 2026-01-10 - 执行数据库脚本：创建商品会员价相关表
+
+### 执行内容
+执行数据库脚本 `update-20260108-add-product-member-price-tables.sql`，创建商品会员价相关表。
+
+### 执行步骤
+1. 使用 MySQL 客户端执行脚本
+2. 验证表是否创建成功
+
+### 脚本功能
+- 创建 `product_member_price` 表（商品会员价关联表）
+- 创建 `product_sku_member_price` 表（SKU会员价关联表）
+
+### 表结构说明
+
+**product_member_price（商品会员价关联表）**：
+- `id` - 主键ID
+- `product_id` - 商品ID
+- `member_level_id` - 会员等级ID
+- `member_price` - 会员价（decimal(10,2)）
+- `create_time` - 创建时间
+- `update_time` - 更新时间
+- 唯一索引：`uk_product_level` (product_id, member_level_id)
+
+**product_sku_member_price（SKU会员价关联表）**：
+- `id` - 主键ID
+- `sku_id` - SKU ID
+- `member_level_id` - 会员等级ID
+- `member_price` - 会员价（decimal(10,2)）
+- `create_time` - 创建时间
+- `update_time` - 更新时间
+- 唯一索引：`uk_sku_level` (sku_id, member_level_id)
+
+### 执行结果
+- ✅ 脚本执行成功
+- ✅ `product_member_price` 表已创建
+- ✅ `product_sku_member_price` 表已创建
+- ✅ 表结构验证通过
+
+### 数据库信息
+- 数据库名：`chengren_shopping_mall`
+- 执行时间：2026-01-10
+
+---
+
+## 2026-01-10 - 将 dev 分支代码合并到 feature/yellow-modules 分支
+
+### 执行内容
+将 dev 分支的最新代码合并到开发分支 `feature/yellow-modules`。
+
+### 执行步骤
+1. 暂存 dev 分支的 log.md 修改
+2. 切换到 feature/yellow-modules 分支
+3. 合并 dev 分支代码
+4. 恢复暂存的 log.md 修改
+
+### 合并结果
+- **合并方式**：Fast-forward（快进合并，无冲突）
+- **更新范围**：77 个文件变更，6161 行新增，675 行删除
+- **主要更新内容**：
+  - 后台商品模块：支持会员等级会员价设置
+  - 批量导入功能：支持等级会员价
+  - 库存管理：增加商品状态字段查询
+  - 用户端：商品详情、购物车、结算支持等级会员逻辑计算费用
+  - 新增数据库表：商品会员价表（product_member_price）、SKU会员价表（product_sku_member_price）
+  - 新增数据库脚本：update-20260108-add-product-member-price-tables.sql
+  - 新增操作手册文档（用户端和管理后台）
+  - 新增测试数据文件（商品导入测试数据）
+
+### 合并的主要文件
+- **前端（admin-frontend）**：
+  - `src/views/product/Add.vue` - 商品添加页面，支持会员价设置
+  - `src/views/product/ProductManage.vue` - 商品管理页面，支持会员价和状态查询
+  - `src/views/inventory/Index.vue` - 库存管理，增加商品状态字段查询
+  - `src/utils/siteConfig.ts` - 新增站点配置工具
+- **后端（backend）**：
+  - `ProductController.java` - 商品控制器，支持会员价相关接口
+  - `ProductServiceImpl.java` - 商品服务实现，会员价逻辑
+  - `ProductImportServiceImpl.java` - 商品导入服务，支持会员价导入
+  - `CartServiceImpl.java` - 购物车服务，支持会员价计算
+  - `OrderServiceImpl.java` - 订单服务，支持会员价计算
+  - 新增会员价相关的 Entity、Repository、DTO、VO
+- **前端（frontend）**：
+  - `src/views/products/Detail.vue` - 商品详情页，支持会员价显示
+  - `src/views/cart/Index.vue` - 购物车页面，支持会员价计算
+  - `src/views/cart/Checkout.vue` - 结算页面，支持会员价计算
+
+### 执行结果
+- ✅ 成功切换到 feature/yellow-modules 分支
+- ✅ 成功合并 dev 分支代码（无冲突）
+- ✅ 已恢复 log.md 修改
+- ✅ 当前分支领先 origin/feature/yellow-modules 11 个提交
+
+### 注意事项
+- 合并采用 Fast-forward 方式，说明 feature/yellow-modules 分支是基于 dev 分支的旧版本创建的
+- 所有更改已成功合并，无冲突
+- 可以继续在 feature/yellow-modules 分支上进行开发
+
+---
+
+## 2026-01-10 - 从 gitee dev 分支拉取最新代码
+
+### 执行内容
+从 gitee 远程仓库的 dev 分支拉取最新代码。
+
+### 执行步骤
+1. 暂存当前分支（feature/yellow-modules）的未提交更改
+2. 切换到 dev 分支
+3. 从 gitee/dev 分支拉取代码
+
+### 更新内容
+- **更新范围**：474 个文件变更，9677 行新增，9500 行删除
+- **主要更新**：
+  - 后台商品模块：支持会员等级会员价设置
+  - 批量导入功能：支持等级会员价
+  - 库存管理：增加商品状态字段查询
+  - 用户端：商品详情、购物车、结算支持等级会员逻辑计算费用
+  - 新增数据库表：商品会员价表（product_member_price）、SKU会员价表（product_sku_member_price）
+  - 新增数据库脚本：update-20260108-add-product-member-price-tables.sql
+  - 优化公告查询性能：添加复合索引
+  - 删除大量构建产物文件（dist-prod/assets/*）
+  - 更新前后端代码和文档
+
+### 最新提交
+- `3930aa67` - Merge branch 'basic' of https://gitee.com/lirenjie/shopping-mall-system into dev
+- `92cd82a1` - 1.后台商品模块修改会员价设置逻辑，支持会员等级会员价； 2.批量导入功能修改，支持等级会员价； 3.库存管理增加商品状态字段查询； 4.用户端，商品详情购物车结算，支持等级会员逻辑计算费用；
+
+### 执行结果
+- ✅ 成功切换到 dev 分支
+- ✅ 成功从 gitee/dev 拉取最新代码
+- ✅ 代码已更新到最新版本
+
+### 注意事项
+- 之前的未提交更改已暂存（stash），如需恢复可使用 `git stash pop`
+- 当前分支：dev
+- 本地 dev 分支领先 origin/dev 6 个提交
+
+---
+
+## 2026-01-10 - 生成新模板批量导入测试数据
+>>>>>>> Stashed changes
 
 ### 1. 订单同步日志页面增加订单号查询
 **需求描述**：订单同步日志查询页面增加订单号字段查询功能。
