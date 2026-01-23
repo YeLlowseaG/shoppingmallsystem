@@ -2,6 +2,7 @@ package com.shoppingmall.service.product.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shoppingmall.common.exception.BusinessException;
@@ -148,13 +149,17 @@ public class ProductServiceImpl implements ProductService {
 
         Page<Product> productPage = productRepository.selectPage(page, wrapper);
 
-        // 转换为VO
+        // 转换为VO（列表接口不返回description字段，提升性能）
         Page<ProductVO> voPage = new Page<>();
         voPage.setCurrent(productPage.getCurrent());
         voPage.setSize(productPage.getSize());
         voPage.setTotal(productPage.getTotal());
         voPage.setRecords(productPage.getRecords().stream()
-                .map(p -> convertToVO(p, userId))
+                .map(p -> {
+                    ProductVO vo = convertToVO(p, userId);
+                    vo.setDescription(null); // 列表接口不返回description字段
+                    return vo;
+                })
                 .toList());
 
         return voPage;
@@ -185,8 +190,17 @@ public class ProductServiceImpl implements ProductService {
             throw new BusinessException(400, "商品分类不存在");
         }
 
+        // 分离description字段，只有在明确传递且不为空时才处理
+        // 如果description为null或空字符串，说明前端没有传递或不需要更新description字段
+        String description = productDTO.getDescription();
+        // 如果description为空字符串，也视为null，不更新description字段
+        if (description != null && description.trim().isEmpty()) {
+            description = null;
+        }
+        productDTO.setDescription(null); // 临时移除description，避免同步保存大字段
+
         Product product = new Product();
-        BeanUtils.copyProperties(productDTO, product, "status", "weight", "stock", "warningStock");
+        BeanUtils.copyProperties(productDTO, product, "status", "weight", "stock", "warningStock", "description");
 
         // 状态映射：上架=1，下架=0，草稿=2
         product.setStatus(statusToInteger(productDTO.getStatus()));
@@ -218,6 +232,13 @@ public class ProductServiceImpl implements ProductService {
             product.setSalesCount(0);
         }
 
+        // 创建商品时，如果description不为空则设置，否则设置为null
+        if (description != null && !description.trim().isEmpty()) {
+            product.setDescription(description);
+        } else {
+            product.setDescription(null);
+        }
+        
         productRepository.insert(product);
 
         // 如果指定了库存，使用StockService统一管理
@@ -232,6 +253,14 @@ public class ProductServiceImpl implements ProductService {
 
         // 保存商品会员价列表
         saveProductMemberPrices(product.getId(), productDTO.getMemberPrices());
+
+        // 更新description字段（如果存在且不为空）
+        // 注意：只有当description字段明确传递且不为空时才更新，避免不必要的更新操作
+        if (description != null && !description.trim().isEmpty()) {
+            product.setDescription(description);
+            productRepository.updateById(product);
+            log.debug("商品{}的description字段已更新", product.getId());
+        }
 
         // 移除：新创建商品自动同步到聚水潭ERP
         // 改为由前端统一通过 /api/admin/inventory/sync/{productId}/full 接口触发同步
@@ -267,7 +296,16 @@ public class ProductServiceImpl implements ProductService {
         Integer oldStock = product.getStock();
         boolean wasOutOfStock = (oldStock == null || oldStock <= 0);
 
-        BeanUtils.copyProperties(productDTO, product, "id", "salesCount", "status", "weight", "stock");
+        // 分离description字段，只有在明确传递且不为空时才处理
+        // 如果description为null或空字符串，说明前端没有传递或不需要更新description字段
+        String description = productDTO.getDescription();
+        // 如果description为空字符串，也视为null，不更新description字段
+        if (description != null && description.trim().isEmpty()) {
+            description = null;
+        }
+        productDTO.setDescription(null); // 临时移除description，避免同步保存大字段
+
+        BeanUtils.copyProperties(productDTO, product, "id", "salesCount", "status", "weight", "stock", "description");
 
         // 状态映射：上架=1，下架=0，草稿=2
         product.setStatus(statusToInteger(productDTO.getStatus()));
@@ -295,7 +333,37 @@ public class ProductServiceImpl implements ProductService {
             product.setStock(calculatedStock);
         }
 
-        productRepository.updateById(product);
+        // 使用LambdaUpdateWrapper只更新指定字段
+        LambdaUpdateWrapper<Product> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(Product::getId, product.getId())
+                .set(Product::getProductCode, product.getProductCode())
+                .set(Product::getBarcode, product.getBarcode())
+                .set(Product::getUnit, product.getUnit())
+                .set(Product::getProductName, product.getProductName())
+                .set(Product::getCategoryId, product.getCategoryId())
+                .set(Product::getBrandId, product.getBrandId())
+                .set(Product::getShippingTemplateId, product.getShippingTemplateId())
+                .set(Product::getMainImage, product.getMainImage())
+                .set(Product::getImages, product.getImages())
+                .set(Product::getBasePrice, product.getBasePrice())
+                .set(Product::getSalePrice, product.getSalePrice())
+                .set(Product::getSuggestedRetailPrice, product.getSuggestedRetailPrice())
+                .set(Product::getMarketRetailPrice, product.getMarketRetailPrice())
+                .set(Product::getMemberPrice, product.getMemberPrice())
+                .set(Product::getEnableMemberPrice, product.getEnableMemberPrice())
+                .set(Product::getStock, product.getStock())
+                .set(Product::getWarningStock, product.getWarningStock())
+                .set(Product::getWeight, product.getWeight())
+                .set(Product::getStatus, product.getStatus())
+                .set(Product::getEnableSpec, product.getEnableSpec());
+        
+        // 只有当description不为null且不为空时，才更新description字段
+        // 这样SKU更新接口调用商品更新时，如果description为null，就不会触发description字段更新
+        if (description != null && !description.trim().isEmpty()) {
+            updateWrapper.set(Product::getDescription, description);
+        }
+        
+        productRepository.update(updateWrapper);
 
         // 如果更新了库存，使用StockService统一管理
         if (calculatedStock != null) {
@@ -365,9 +433,13 @@ public class ProductServiceImpl implements ProductService {
 
         Page<Product> productPage = productRepository.selectPage(page, wrapper);
 
-        // 转换为VO并返回List
+        // 转换为VO并返回List（列表接口不返回description字段，提升性能）
         return productPage.getRecords().stream()
-                .map(p -> convertToVO(p, userId))
+                .map(p -> {
+                    ProductVO vo = convertToVO(p, userId);
+                    vo.setDescription(null); // 列表接口不返回description字段
+                    return vo;
+                })
                 .toList();
     }
 
@@ -384,9 +456,13 @@ public class ProductServiceImpl implements ProductService {
 
         Page<Product> productPage = productRepository.selectPage(page, wrapper);
 
-        // 转换为VO并返回List
+        // 转换为VO并返回List（列表接口不返回description字段，提升性能）
         return productPage.getRecords().stream()
-                .map(p -> convertToVO(p, userId))
+                .map(p -> {
+                    ProductVO vo = convertToVO(p, userId);
+                    vo.setDescription(null); // 列表接口不返回description字段
+                    return vo;
+                })
                 .toList();
     }
 

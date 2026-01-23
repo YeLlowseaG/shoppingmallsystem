@@ -317,7 +317,7 @@
             <template #description>
               <div v-if="syncProgressStep === 1 && syncProgressLoading" class="step-loading">
                 <el-icon class="is-loading"><Loading /></el-icon>
-                <span>等待ERP系统处理商品资料（5秒）...</span>
+                <span>等待ERP系统处理商品资料（2秒）...</span>
               </div>
               <div v-else-if="syncProgressStep > 1" class="step-success">
                 <el-icon><CircleCheck /></el-icon>
@@ -574,11 +574,10 @@ const loadInventoryList = async () => {
       ? searchForm.value.categoryId[searchForm.value.categoryId.length - 1]
       : searchForm.value.categoryId
     
-    // 先获取所有符合筛选条件的商品（不分页），用于筛选和统计
-    // 这样可以确保库存状态筛选和统计使用相同的数据源
+    // 使用分页获取商品列表（默认10条，提升性能）
     const productParams = {
-      current: 1,
-      size: 10000, // 使用较大的size获取所有数据
+      current: pagination.value.current,
+      size: pagination.value.size, // 使用分页大小，默认10条
       keyword: searchForm.value.keyword,
       categoryId: categoryId,
       status: searchForm.value.productStatus || undefined // 传递商品状态参数
@@ -683,7 +682,7 @@ const loadInventoryList = async () => {
 
       const allInventoryResults = await Promise.all(inventoryPromises)
       
-      // 应用库存状态筛选（如果设置了）- 与统计函数使用相同的筛选逻辑
+      // 应用库存状态筛选（如果设置了）
       let filteredItems = allInventoryResults
       if (searchForm.value.stockStatus) {
         filteredItems = allInventoryResults.filter(item => 
@@ -702,13 +701,20 @@ const loadInventoryList = async () => {
         )
       }
       
-      // 更新总数（筛选后的总数）
-      pagination.value.total = filteredItems.length
+      // 直接使用当前页的数据（后端已分页）
+      inventoryList.value = filteredItems
       
-      // 前端分页：根据当前页和每页数量截取数据
-      const startIndex = (pagination.value.current - 1) * pagination.value.size
-      const endIndex = startIndex + pagination.value.size
-      inventoryList.value = filteredItems.slice(startIndex, endIndex)
+      // 更新总数：从后端响应中获取总数
+      if (response.code === 200 && response.data && response.data.total !== undefined) {
+        pagination.value.total = response.data.total
+      } else if (response.total !== undefined) {
+        pagination.value.total = response.total
+      } else {
+        // 如果后端没有返回总数，使用当前页数据量估算
+        pagination.value.total = filteredItems.length < pagination.value.size 
+          ? (pagination.value.current - 1) * pagination.value.size + filteredItems.length
+          : (pagination.value.current * pagination.value.size)
+      }
       
       // 更新统计数据（基于筛选条件统计所有符合条件的数据）
       loadInventoryStats()
@@ -747,11 +753,11 @@ const loadInventoryStats = async () => {
       ? searchForm.value.categoryId[searchForm.value.categoryId.length - 1]
       : searchForm.value.categoryId
     
-    // 获取所有符合筛选条件的商品（不分页，用于统计）
-    // 根据用户选择的商品状态进行统计
+    // 获取符合筛选条件的商品用于统计（限制为1000条，避免性能问题）
+    // 注意：统计功能需要所有数据，但为了性能考虑，限制为1000条
     const productParams = {
       current: 1,
-      size: 10000, // 使用较大的size获取所有数据用于统计
+      size: 1000, // 限制为1000条用于统计，避免性能问题
       keyword: searchForm.value.keyword,
       categoryId: categoryId,
       status: searchForm.value.productStatus || undefined // 如果选择了商品状态，则按该状态查询；如果选择"全部"，则查询所有
@@ -966,12 +972,12 @@ const handleSyncToErp = async (row: any) => {
       }
     }, 2000)
     
-    // 7秒后进入库存同步步骤（2秒商品资料 + 5秒等待）
+    // 4秒后进入库存同步步骤（2秒商品资料 + 2秒等待）
     stepTimer2 = setTimeout(() => {
       if (syncProgressLoading.value && syncProgressStep.value === 1) {
         syncProgressStep.value = 2 // 进入库存同步步骤
       }
-    }, 7000)
+    }, 4000)
     
     // 开始调用接口
     const startTime = Date.now()
@@ -988,7 +994,7 @@ const handleSyncToErp = async (row: any) => {
       syncProgressStep.value = 1
     }
     // 如果接口返回时还在步骤1，说明等待时间还没到，直接跳到步骤2
-    if (syncProgressStep.value === 1 && elapsedTime < 7000) {
+    if (syncProgressStep.value === 1 && elapsedTime < 4000) {
       syncProgressStep.value = 2
     }
     

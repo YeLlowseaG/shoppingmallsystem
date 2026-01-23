@@ -108,6 +108,13 @@ export const deleteSku = (id: number): Promise<string> => {
 }
 
 /**
+ * 批量删除SKU
+ */
+export const batchDeleteSkus = (ids: number[]): Promise<number> => {
+  return request.delete('/api/admin/product-sku/batch', { data: ids })
+}
+
+/**
  * 根据商品ID获取SKU列表
  */
 export const getSkusByProductId = (productId: number): Promise<ProductSkuVO[]> => {
