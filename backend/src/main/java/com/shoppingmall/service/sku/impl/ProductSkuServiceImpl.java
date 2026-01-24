@@ -1,10 +1,12 @@
 package com.shoppingmall.service.sku.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shoppingmall.dto.ProductSkuDTO;
 import com.shoppingmall.dto.ProductSkuMemberPriceDTO;
+import com.shoppingmall.entity.Product;
 import com.shoppingmall.entity.ProductSku;
 import com.shoppingmall.entity.ProductSkuMemberPrice;
 import com.shoppingmall.entity.ProductSpecKey;
@@ -192,6 +194,40 @@ public class ProductSkuServiceImpl implements ProductSkuService {
         updateProductTotalStock(productId);
 
         return result > 0;
+    }
+
+    @Override
+    @Transactional
+    public int batchDeleteSkus(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+
+        // 查询要删除的SKU，获取商品ID用于更新库存
+        List<ProductSku> skusToDelete = skuRepository.selectBatchIds(ids);
+        if (skusToDelete.isEmpty()) {
+            log.warn("批量删除SKU：没有找到要删除的SKU，IDs: {}", ids);
+            return 0;
+        }
+
+        // 按商品ID分组，用于后续更新库存
+        Map<Long, List<ProductSku>> skusByProduct = skusToDelete.stream()
+                .collect(Collectors.groupingBy(ProductSku::getProductId));
+
+        // 批量删除
+        int deletedCount = skuRepository.deleteBatchIds(ids);
+        log.info("批量删除SKU成功，共删除 {} 个SKU", deletedCount);
+
+        // 更新每个商品的总库存
+        for (Long productId : skusByProduct.keySet()) {
+            try {
+                updateProductTotalStock(productId);
+            } catch (Exception e) {
+                log.error("批量删除SKU后更新商品{}总库存失败", productId, e);
+            }
+        }
+
+        return deletedCount;
     }
     
     @Override
@@ -393,6 +429,7 @@ public class ProductSkuServiceImpl implements ProductSkuService {
      * 更新商品总库存
      * 计算该商品所有SKU的库存总和，同步更新到product表
      * 不再使用product_stock表
+     * 使用LambdaUpdateWrapper只更新stock字段，避免更新description等大字段
      */
     private void updateProductTotalStock(Long productId) {
         // 查询该商品的所有SKU
@@ -403,13 +440,13 @@ public class ProductSkuServiceImpl implements ProductSkuService {
                 .mapToInt(sku -> sku.getStock() != null ? sku.getStock() : 0)
                 .sum();
 
-        // 更新商品表的库存
-        var product = productRepository.selectById(productId);
-        if (product != null) {
-            product.setStock(totalStock);
-            productRepository.updateById(product);
-            log.info("更新商品总库存成功：商品ID={}, 总库存={}", productId, totalStock);
-        }
+        // 使用LambdaUpdateWrapper只更新stock字段，避免更新description等大字段
+        LambdaUpdateWrapper<Product> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(Product::getId, productId)
+                .set(Product::getStock, totalStock);
+        
+        productRepository.update(updateWrapper);
+        log.info("更新商品总库存成功：商品ID={}, 总库存={}", productId, totalStock);
 
         // 已移除product_stock表的同步逻辑，统一使用product.stock和product_sku.stock
         log.info("SKU库存更新完成，商品总库存已同步到product表: productId={}, 总库存={}", productId, totalStock);

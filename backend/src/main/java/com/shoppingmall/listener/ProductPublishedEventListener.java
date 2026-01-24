@@ -64,22 +64,22 @@ public class ProductPublishedEventListener {
                 return;
             }
 
-            // 检查最近30秒内是否已经同步过该商品（避免重复同步）
+            // 检查最近10秒内是否已经同步过该商品（避免重复同步）
             // 如果前端已经调用了同步接口，后端事件监听器就不需要再同步了
             // 注意：不仅检查成功的记录，也检查失败的记录，因为即使失败也说明已经尝试过同步
-            LocalDateTime thirtySecondsAgo = LocalDateTime.now().minusSeconds(30);
+            LocalDateTime thirtySecondsAgo = LocalDateTime.now().minusSeconds(10);
             QueryWrapper<ProductSyncLog> checkWrapper = new QueryWrapper<>();
             checkWrapper.eq("product_id", event.getProductId());
             checkWrapper.in("sync_type", "UPLOAD_ITEM", "UPLOAD_SHOP_ITEM", "INVENTORY_SYNC");
             // 不限制sync_status，检查所有同步记录（成功和失败都算）
-            checkWrapper.ge("create_time", thirtySecondsAgo); // 最近30秒内的记录
+            checkWrapper.ge("create_time", thirtySecondsAgo); // 最近10秒内的记录
             checkWrapper.orderByDesc("create_time");
             checkWrapper.last("LIMIT 1");
             
             List<ProductSyncLog> recentLogs = productSyncLogMapper.selectList(checkWrapper);
             if (recentLogs != null && !recentLogs.isEmpty()) {
                 ProductSyncLog recentLog = recentLogs.get(0);
-                log.info("商品{}在最近30秒内已经同步过（同步类型: {}, 同步状态: {}, 同步时间: {}），跳过自动同步，避免重复", 
+                log.info("商品{}在最近10秒内已经同步过（同步类型: {}, 同步状态: {}, 同步时间: {}），跳过自动同步，避免重复", 
                         event.getProductId(), recentLog.getSyncType(), 
                         recentLog.getSyncStatus() == 1 ? "成功" : "失败",
                         recentLog.getCreateTime());

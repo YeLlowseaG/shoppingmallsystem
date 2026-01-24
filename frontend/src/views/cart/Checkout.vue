@@ -386,8 +386,8 @@
               <span class="summary-value total-amount">¥{{ totalAmount.toFixed(2) }}</span>
             </div>
             <div class="action-buttons">
-              <el-button class="back-btn" @click="handleBackToCart">返回购物车</el-button>
-              <el-button type="warning" size="large" class="submit-btn" @click="handlePlaceOrder">
+              <el-button class="back-btn" @click="handleBackToCart" :disabled="loading">返回购物车</el-button>
+              <el-button type="warning" size="large" class="submit-btn" @click="handlePlaceOrder" :loading="loading" :disabled="loading">
                 确认无误,下订单
               </el-button>
             </div>
@@ -918,6 +918,11 @@ const handleBackToCart = () => {
 
 // 提交订单
 const handlePlaceOrder = async () => {
+  // 防止重复点击
+  if (loading.value) {
+    return
+  }
+  
   // 验证地址
   let addressId: number | null = null
   

@@ -44,6 +44,14 @@ public interface ProductSkuService {
     boolean deleteSku(Long id);
 
     /**
+     * 批量删除SKU
+     * 
+     * @param ids SKU ID列表
+     * @return 删除成功的数量
+     */
+    int batchDeleteSkus(List<Long> ids);
+
+    /**
      * 根据商品ID获取SKU列表
      * 
      * @param productId 商品ID
