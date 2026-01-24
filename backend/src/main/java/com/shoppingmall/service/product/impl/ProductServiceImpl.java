@@ -39,7 +39,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 商品服务实现类
@@ -69,6 +74,8 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public Page<ProductVO> getProductPage(Long current, Long size, Long categoryId, String keyword, String brand,
             String status, String sortBy, Long userId, Boolean includeDeleted) {
+        long startTime = System.currentTimeMillis();
+        
         Page<Product> page = new Page<>(current, size);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
@@ -147,20 +154,124 @@ public class ProductServiceImpl implements ProductService {
                    .orderByDesc(Product::getCreateTime);
         }
 
-        Page<Product> productPage = productRepository.selectPage(page, wrapper);
+        // 优化：排除 description 字段，提升查询性能（大字段）
+        wrapper.select(Product::getId, Product::getProductCode, Product::getBarcode, Product::getUnit,
+                Product::getProductName, Product::getCategoryId, Product::getBrandId,
+                Product::getShippingTemplateId, Product::getMainImage, Product::getImages,
+                Product::getBasePrice, Product::getSuggestedRetailPrice, Product::getMarketRetailPrice,
+                Product::getMemberPrice, Product::getEnableMemberPrice,
+                Product::getStock, Product::getWarningStock, Product::getWeight,
+                Product::getStatus, Product::getSalesCount, Product::getEnableSpec,
+                Product::getCreateTime, Product::getUpdateTime);
+        // 明确不包含 description 字段
 
-        // 转换为VO（列表接口不返回description字段，提升性能）
+        long queryStartTime = System.currentTimeMillis();
+        Page<Product> productPage = productRepository.selectPage(page, wrapper);
+        long queryTime = System.currentTimeMillis() - queryStartTime;
+        log.info("商品分页查询耗时: {}ms, 查询到{}条记录", queryTime, productPage.getRecords().size());
+
+        List<Product> products = productPage.getRecords();
+        if (products.isEmpty()) {
+            Page<ProductVO> emptyPage = new Page<>();
+            emptyPage.setCurrent(productPage.getCurrent());
+            emptyPage.setSize(productPage.getSize());
+            emptyPage.setTotal(productPage.getTotal());
+            emptyPage.setRecords(new ArrayList<>());
+            return emptyPage;
+        }
+
+        // 批量查询优化：解决 N+1 查询问题
+        long batchQueryStartTime = System.currentTimeMillis();
+        
+        // 1. 批量查询分类
+        Set<Long> categoryIds = products.stream()
+                .map(Product::getCategoryId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, ProductCategory> categoryMap = categoryIds.isEmpty() ? 
+                Collections.emptyMap() : 
+                categoryRepository.selectBatchIds(categoryIds)
+                        .stream()
+                        .collect(Collectors.toMap(ProductCategory::getId, c -> c, (a, b) -> a));
+
+        // 2. 批量查询品牌
+        Set<Long> brandIds = products.stream()
+                .map(Product::getBrandId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, Brand> brandMap = brandIds.isEmpty() ? 
+                Collections.emptyMap() : 
+                brandRepository.selectBatchIds(brandIds)
+                        .stream()
+                        .collect(Collectors.toMap(Brand::getId, b -> b, (a, b) -> a));
+
+        // 3. 查询用户信息（如果 userId 不为 null，只查询一次）
+        User user = null;
+        if (userId != null) {
+            user = userRepository.selectById(userId);
+        }
+        final User finalUser = user;
+
+        // 4. 批量查询商品会员价配置（仅管理后台需要，userId 为 null）
+        final Map<Long, List<ProductMemberPrice>> productMemberPriceMap;
+        if (userId == null) {
+            Set<Long> productIds = products.stream()
+                    .map(Product::getId)
+                    .collect(Collectors.toSet());
+            if (!productIds.isEmpty()) {
+                LambdaQueryWrapper<ProductMemberPrice> memberPriceWrapper = new LambdaQueryWrapper<>();
+                memberPriceWrapper.in(ProductMemberPrice::getProductId, productIds);
+                List<ProductMemberPrice> allMemberPrices = productMemberPriceRepository.selectList(memberPriceWrapper);
+                productMemberPriceMap = allMemberPrices.stream()
+                        .collect(Collectors.groupingBy(ProductMemberPrice::getProductId));
+            } else {
+                productMemberPriceMap = Collections.emptyMap();
+            }
+        } else {
+            productMemberPriceMap = Collections.emptyMap();
+        }
+
+        // 5. 批量查询 SKU（如果商品启用了规格）
+        Map<Long, List<ProductSku>> skuMap = Collections.emptyMap();
+        Set<Long> productsWithSpec = products.stream()
+                .filter(p -> p.getEnableSpec() != null && p.getEnableSpec() == 1)
+                .map(Product::getId)
+                .collect(Collectors.toSet());
+        if (!productsWithSpec.isEmpty()) {
+            // 通过 ProductSkuService 批量查询，但需要检查是否有批量查询方法
+            // 如果没有，需要添加批量查询方法或使用 repository
+            try {
+                // 这里暂时保持原有逻辑，后续可以进一步优化
+                // 由于 getSkusByProductId 内部可能还有复杂逻辑，先保持现状
+                skuMap = Collections.emptyMap(); // 暂时为空，在 convertToVOWithCache 中按需查询
+            } catch (Exception e) {
+                log.warn("批量查询SKU失败，将使用按需查询: {}", e.getMessage());
+            }
+        }
+
+        long batchQueryTime = System.currentTimeMillis() - batchQueryStartTime;
+        log.info("批量查询关联数据耗时: {}ms (分类: {}, 品牌: {}, 用户: {})", 
+                batchQueryTime, categoryMap.size(), brandMap.size(), finalUser != null ? 1 : 0);
+
+        // 转换为VO（使用批量查询的数据）
+        long convertStartTime = System.currentTimeMillis();
         Page<ProductVO> voPage = new Page<>();
         voPage.setCurrent(productPage.getCurrent());
         voPage.setSize(productPage.getSize());
         voPage.setTotal(productPage.getTotal());
-        voPage.setRecords(productPage.getRecords().stream()
+        voPage.setRecords(products.stream()
                 .map(p -> {
-                    ProductVO vo = convertToVO(p, userId);
-                    vo.setDescription(null); // 列表接口不返回description字段
+                    ProductVO vo = convertToVOWithCache(p, finalUser, categoryMap, brandMap, productMemberPriceMap);
+                    vo.setDescription(null); // 列表接口不返回description字段（双重保险）
                     return vo;
                 })
                 .toList());
+        long convertTime = System.currentTimeMillis() - convertStartTime;
+        log.info("VO转换耗时: {}ms", convertTime);
+
+        long totalTime = System.currentTimeMillis() - startTime;
+        log.info("商品分页查询总耗时: {}ms (查询: {}ms, 批量查询: {}ms, 转换: {}ms)", 
+                totalTime, queryTime, batchQueryTime, convertTime);
 
         return voPage;
     }
@@ -467,7 +578,117 @@ public class ProductServiceImpl implements ProductService {
     }
 
     /**
-     * 转换为VO
+     * 转换为VO（使用批量查询的缓存数据，优化性能）
+     */
+    private ProductVO convertToVOWithCache(Product product, User user,
+                                          Map<Long, ProductCategory> categoryMap,
+                                          Map<Long, Brand> brandMap,
+                                          Map<Long, List<ProductMemberPrice>> productMemberPriceMap) {
+        ProductVO vo = new ProductVO();
+        BeanUtils.copyProperties(product, vo, "status", "weight");
+
+        // 状态映射：1=上架，0=下架，2=草稿
+        vo.setStatus(statusToString(product.getStatus()));
+
+        // 手动处理 weight 字段：Integer 转 BigDecimal（单位：克）
+        if (product.getWeight() != null) {
+            vo.setWeight(BigDecimal.valueOf(product.getWeight()));
+        } else {
+            vo.setWeight(null);
+        }
+
+        // 使用缓存的分类数据（避免 N+1 查询）
+        ProductCategory category = categoryMap.get(product.getCategoryId());
+        if (category != null) {
+            vo.setCategoryName(category.getCategoryName());
+        }
+
+        // 使用缓存的品牌数据（避免 N+1 查询）
+        if (product.getBrandId() != null) {
+            Brand brand = brandMap.get(product.getBrandId());
+            if (brand != null) {
+                vo.setBrandName(brand.getBrandName());
+            }
+        }
+
+        // 解析图片JSON数组
+        if (StringUtil.isNotBlank(product.getImages())) {
+            try {
+                List<String> imageList = objectMapper.readValue(product.getImages(), List.class);
+                vo.setImageList(imageList);
+            } catch (Exception e) {
+                log.error("解析商品图片失败: productId={}", product.getId(), e);
+                vo.setImageList(new ArrayList<>());
+            }
+        } else {
+            vo.setImageList(new ArrayList<>());
+        }
+
+        // 使用缓存的用户信息（避免 N+1 查询）
+        Integer isMember = 0;
+        Long userId = user != null ? user.getId() : null;
+        if (user != null && user.getIsMember() != null && user.getIsMember() == 1) {
+            isMember = 1;
+        }
+        vo.setIsMember(isMember);
+
+        // 1. 计算商品会员价（参考购物车逻辑）
+        BigDecimal salesPrice = product.getBasePrice();
+        if (salesPrice == null) {
+            salesPrice = BigDecimal.ZERO;
+        }
+        BigDecimal memberPrice = calculateMemberPriceForProduct(product, salesPrice, userId);
+        vo.setMemberPrice(memberPrice);
+        vo.setUserLevelPrice(salesPrice);
+
+        // 1.1 加载商品会员价配置（管理后台编辑时使用，使用批量查询的数据）
+        if (userId == null) { // 管理后台查询时userId为null
+            try {
+                List<ProductMemberPrice> productMemberPrices = productMemberPriceMap.get(product.getId());
+                if (productMemberPrices != null && !productMemberPrices.isEmpty()) {
+                    List<com.shoppingmall.vo.ProductMemberPriceVO> memberPriceVOs = productMemberPrices.stream()
+                        .map(mp -> {
+                            com.shoppingmall.vo.ProductMemberPriceVO mpVO = new com.shoppingmall.vo.ProductMemberPriceVO();
+                            mpVO.setMemberLevelId(mp.getMemberLevelId());
+                            mpVO.setMemberPrice(mp.getMemberPrice());
+                            return mpVO;
+                        })
+                        .collect(Collectors.toList());
+                    vo.setMemberPrices(memberPriceVOs);
+                }
+            } catch (Exception e) {
+                log.error("加载商品会员价配置失败: productId={}", product.getId(), e);
+            }
+        }
+
+        // 2. 获取 SKU 列表并处理 SKU 层级的会员价
+        // 注意：SKU 查询仍然按需查询，因为可能涉及复杂的会员价计算逻辑
+        // 如果性能仍有问题，可以进一步优化为批量查询
+        try {
+            var skuList = productSkuService.getSkusByProductId(product.getId(), userId);
+            if (skuList != null) {
+                skuList.forEach(sku -> {
+                    // SKU会员价逻辑：如果启用会员价，根据会员等级从 product_sku_member_price 表查询
+                    BigDecimal skuSalesPrice = sku.getPrice();
+                    if (skuSalesPrice == null) {
+                        skuSalesPrice = BigDecimal.ZERO;
+                    }
+                    // 计算SKU会员价
+                    BigDecimal skuMemberPrice = calculateMemberPriceForSku(sku, skuSalesPrice, userId);
+                    sku.setMemberPrice(skuMemberPrice);
+                });
+            }
+            vo.setSkus(skuList);
+        } catch (Exception e) {
+            log.error("获取或计算 SKU 会员价失败: productId={}, userId={}", product.getId(), userId, e);
+            vo.setSkus(new ArrayList<>());
+        }
+
+        return vo;
+    }
+
+    /**
+     * 转换为VO（保留原方法，用于其他场景）
      */
     private ProductVO convertToVO(Product product, Long userId) {
         ProductVO vo = new ProductVO();
