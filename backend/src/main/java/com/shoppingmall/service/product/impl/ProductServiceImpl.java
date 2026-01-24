@@ -536,26 +536,113 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public List<ProductVO> getHotProducts(Long limit, Long userId) {
+        long startTime = System.currentTimeMillis();
+        
         Page<Product> page = new Page<>(1, limit);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Product::getStatus, 1) // 1=上架
                 .orderByDesc(Product::getSalesCount);
 
-        Page<Product> productPage = productRepository.selectPage(page, wrapper);
+        // 优化：排除 description 字段，提升查询性能（大字段）
+        wrapper.select(Product::getId, Product::getProductCode, Product::getBarcode, Product::getUnit,
+                Product::getProductName, Product::getCategoryId, Product::getBrandId,
+                Product::getShippingTemplateId, Product::getMainImage, Product::getImages,
+                Product::getBasePrice, Product::getSuggestedRetailPrice, Product::getMarketRetailPrice,
+                Product::getMemberPrice, Product::getEnableMemberPrice,
+                Product::getStock, Product::getWarningStock, Product::getWeight,
+                Product::getStatus, Product::getSalesCount, Product::getEnableSpec,
+                Product::getCreateTime, Product::getUpdateTime);
+        // 明确不包含 description 字段
 
-        // 转换为VO并返回List（列表接口不返回description字段，提升性能）
-        return productPage.getRecords().stream()
+        long queryStartTime = System.currentTimeMillis();
+        Page<Product> productPage = productRepository.selectPage(page, wrapper);
+        long queryTime = System.currentTimeMillis() - queryStartTime;
+        log.info("热门商品查询耗时: {}ms, 查询到{}条记录", queryTime, productPage.getRecords().size());
+
+        List<Product> products = productPage.getRecords();
+        if (products.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 批量查询优化：解决 N+1 查询问题
+        long batchQueryStartTime = System.currentTimeMillis();
+        
+        // 1. 批量查询分类
+        Set<Long> categoryIds = products.stream()
+                .map(Product::getCategoryId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, ProductCategory> categoryMap = categoryIds.isEmpty() ? 
+                Collections.emptyMap() : 
+                categoryRepository.selectBatchIds(categoryIds)
+                        .stream()
+                        .collect(Collectors.toMap(ProductCategory::getId, c -> c, (a, b) -> a));
+
+        // 2. 批量查询品牌
+        Set<Long> brandIds = products.stream()
+                .map(Product::getBrandId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, Brand> brandMap = brandIds.isEmpty() ? 
+                Collections.emptyMap() : 
+                brandRepository.selectBatchIds(brandIds)
+                        .stream()
+                        .collect(Collectors.toMap(Brand::getId, b -> b, (a, b) -> a));
+
+        // 3. 查询用户信息（如果 userId 不为 null，只查询一次）
+        User user = null;
+        if (userId != null) {
+            user = userRepository.selectById(userId);
+        }
+        final User finalUser = user;
+
+        // 4. 批量查询商品会员价配置（仅管理后台需要，userId 为 null）
+        final Map<Long, List<ProductMemberPrice>> productMemberPriceMap;
+        if (userId == null) {
+            Set<Long> productIds = products.stream()
+                    .map(Product::getId)
+                    .collect(Collectors.toSet());
+            if (!productIds.isEmpty()) {
+                LambdaQueryWrapper<ProductMemberPrice> memberPriceWrapper = new LambdaQueryWrapper<>();
+                memberPriceWrapper.in(ProductMemberPrice::getProductId, productIds);
+                List<ProductMemberPrice> allMemberPrices = productMemberPriceRepository.selectList(memberPriceWrapper);
+                productMemberPriceMap = allMemberPrices.stream()
+                        .collect(Collectors.groupingBy(ProductMemberPrice::getProductId));
+            } else {
+                productMemberPriceMap = Collections.emptyMap();
+            }
+        } else {
+            productMemberPriceMap = Collections.emptyMap();
+        }
+
+        long batchQueryTime = System.currentTimeMillis() - batchQueryStartTime;
+        log.info("热门商品批量查询关联数据耗时: {}ms (分类: {}, 品牌: {}, 用户: {})", 
+                batchQueryTime, categoryMap.size(), brandMap.size(), finalUser != null ? 1 : 0);
+
+        // 转换为VO（使用批量查询的数据）
+        long convertStartTime = System.currentTimeMillis();
+        List<ProductVO> result = products.stream()
                 .map(p -> {
-                    ProductVO vo = convertToVO(p, userId);
-                    vo.setDescription(null); // 列表接口不返回description字段
+                    ProductVO vo = convertToVOWithCache(p, finalUser, categoryMap, brandMap, productMemberPriceMap);
+                    vo.setDescription(null); // 列表接口不返回description字段（双重保险）
                     return vo;
                 })
                 .toList();
+        long convertTime = System.currentTimeMillis() - convertStartTime;
+        log.info("热门商品VO转换耗时: {}ms", convertTime);
+
+        long totalTime = System.currentTimeMillis() - startTime;
+        log.info("热门商品查询总耗时: {}ms (查询: {}ms, 批量查询: {}ms, 转换: {}ms)", 
+                totalTime, queryTime, batchQueryTime, convertTime);
+
+        return result;
     }
 
     @Override
     public List<ProductVO> getRecommendProducts(Long categoryId, Long limit, Long userId) {
+        long startTime = System.currentTimeMillis();
+        
         Page<Product> page = new Page<>(1, limit);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
@@ -565,16 +652,99 @@ public class ProductServiceImpl implements ProductService {
                 .eq(Product::getStatus, 1) // 1=上架
                 .orderByDesc(Product::getSalesCount);
 
-        Page<Product> productPage = productRepository.selectPage(page, wrapper);
+        // 优化：排除 description 字段，提升查询性能（大字段）
+        wrapper.select(Product::getId, Product::getProductCode, Product::getBarcode, Product::getUnit,
+                Product::getProductName, Product::getCategoryId, Product::getBrandId,
+                Product::getShippingTemplateId, Product::getMainImage, Product::getImages,
+                Product::getBasePrice, Product::getSuggestedRetailPrice, Product::getMarketRetailPrice,
+                Product::getMemberPrice, Product::getEnableMemberPrice,
+                Product::getStock, Product::getWarningStock, Product::getWeight,
+                Product::getStatus, Product::getSalesCount, Product::getEnableSpec,
+                Product::getCreateTime, Product::getUpdateTime);
+        // 明确不包含 description 字段
 
-        // 转换为VO并返回List（列表接口不返回description字段，提升性能）
-        return productPage.getRecords().stream()
+        long queryStartTime = System.currentTimeMillis();
+        Page<Product> productPage = productRepository.selectPage(page, wrapper);
+        long queryTime = System.currentTimeMillis() - queryStartTime;
+        log.info("推荐商品查询耗时: {}ms, 查询到{}条记录", queryTime, productPage.getRecords().size());
+
+        List<Product> products = productPage.getRecords();
+        if (products.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 批量查询优化：解决 N+1 查询问题
+        long batchQueryStartTime = System.currentTimeMillis();
+        
+        // 1. 批量查询分类
+        Set<Long> categoryIdsForMap = products.stream()
+                .map(Product::getCategoryId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, ProductCategory> categoryMap = categoryIdsForMap.isEmpty() ? 
+                Collections.emptyMap() : 
+                categoryRepository.selectBatchIds(categoryIdsForMap)
+                        .stream()
+                        .collect(Collectors.toMap(ProductCategory::getId, c -> c, (a, b) -> a));
+
+        // 2. 批量查询品牌
+        Set<Long> brandIds = products.stream()
+                .map(Product::getBrandId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, Brand> brandMap = brandIds.isEmpty() ? 
+                Collections.emptyMap() : 
+                brandRepository.selectBatchIds(brandIds)
+                        .stream()
+                        .collect(Collectors.toMap(Brand::getId, b -> b, (a, b) -> a));
+
+        // 3. 查询用户信息（如果 userId 不为 null，只查询一次）
+        User user = null;
+        if (userId != null) {
+            user = userRepository.selectById(userId);
+        }
+        final User finalUser = user;
+
+        // 4. 批量查询商品会员价配置（仅管理后台需要，userId 为 null）
+        final Map<Long, List<ProductMemberPrice>> productMemberPriceMap;
+        if (userId == null) {
+            Set<Long> productIds = products.stream()
+                    .map(Product::getId)
+                    .collect(Collectors.toSet());
+            if (!productIds.isEmpty()) {
+                LambdaQueryWrapper<ProductMemberPrice> memberPriceWrapper = new LambdaQueryWrapper<>();
+                memberPriceWrapper.in(ProductMemberPrice::getProductId, productIds);
+                List<ProductMemberPrice> allMemberPrices = productMemberPriceRepository.selectList(memberPriceWrapper);
+                productMemberPriceMap = allMemberPrices.stream()
+                        .collect(Collectors.groupingBy(ProductMemberPrice::getProductId));
+            } else {
+                productMemberPriceMap = Collections.emptyMap();
+            }
+        } else {
+            productMemberPriceMap = Collections.emptyMap();
+        }
+
+        long batchQueryTime = System.currentTimeMillis() - batchQueryStartTime;
+        log.info("推荐商品批量查询关联数据耗时: {}ms (分类: {}, 品牌: {}, 用户: {})", 
+                batchQueryTime, categoryMap.size(), brandMap.size(), finalUser != null ? 1 : 0);
+
+        // 转换为VO（使用批量查询的数据）
+        long convertStartTime = System.currentTimeMillis();
+        List<ProductVO> result = products.stream()
                 .map(p -> {
-                    ProductVO vo = convertToVO(p, userId);
-                    vo.setDescription(null); // 列表接口不返回description字段
+                    ProductVO vo = convertToVOWithCache(p, finalUser, categoryMap, brandMap, productMemberPriceMap);
+                    vo.setDescription(null); // 列表接口不返回description字段（双重保险）
                     return vo;
                 })
                 .toList();
+        long convertTime = System.currentTimeMillis() - convertStartTime;
+        log.info("推荐商品VO转换耗时: {}ms", convertTime);
+
+        long totalTime = System.currentTimeMillis() - startTime;
+        log.info("推荐商品查询总耗时: {}ms (查询: {}ms, 批量查询: {}ms, 转换: {}ms)", 
+                totalTime, queryTime, batchQueryTime, convertTime);
+
+        return result;
     }
 
     /**

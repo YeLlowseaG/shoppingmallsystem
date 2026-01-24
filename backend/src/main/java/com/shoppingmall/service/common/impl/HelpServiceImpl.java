@@ -54,16 +54,28 @@ public class HelpServiceImpl implements HelpService {
     @Override
     public List<HelpArticleVO> getArticlesByCategoryId(Long categoryId) {
         // 只查询启用的文章
-        List<HelpArticle> articles = articleRepository.selectList(
-                new LambdaQueryWrapper<HelpArticle>()
-                        .eq(HelpArticle::getCategoryId, categoryId)
-                        .eq(HelpArticle::getStatus, 1)
-                        .eq(HelpArticle::getDeleted, 0)
-                        .orderByAsc(HelpArticle::getSort)
-        );
+        // 优化：排除 content 字段，提升查询性能（大字段）
+        LambdaQueryWrapper<HelpArticle> wrapper = new LambdaQueryWrapper<HelpArticle>()
+                .eq(HelpArticle::getCategoryId, categoryId)
+                .eq(HelpArticle::getStatus, 1)
+                .eq(HelpArticle::getDeleted, 0)
+                .orderByAsc(HelpArticle::getSort);
+        
+        // 明确指定查询字段，排除 content 大字段
+        wrapper.select(HelpArticle::getId, HelpArticle::getCategoryId, HelpArticle::getTitle,
+                HelpArticle::getImages, HelpArticle::getSort, HelpArticle::getStatus,
+                HelpArticle::getCreateTime, HelpArticle::getUpdateTime);
+        // 明确不包含 content 字段
+        
+        List<HelpArticle> articles = articleRepository.selectList(wrapper);
 
+        // 转换为VO，列表接口不返回 content 字段
         return articles.stream()
-                .map(this::convertArticleToVO)
+                .map(article -> {
+                    HelpArticleVO vo = convertArticleToVO(article);
+                    vo.setContent(null); // 列表接口不返回 content 字段（双重保险）
+                    return vo;
+                })
                 .collect(Collectors.toList());
     }
 
