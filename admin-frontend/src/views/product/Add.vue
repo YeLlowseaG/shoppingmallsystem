@@ -573,7 +573,7 @@
             <template #description>
               <div v-if="syncProgressStep === 1 && syncProgressLoading" class="step-loading">
                 <el-icon class="is-loading"><Loading /></el-icon>
-                <span>等待ERP系统处理商品资料（5秒）...</span>
+                <span>等待ERP系统处理商品资料（2秒）...</span>
               </div>
               <div v-else-if="syncProgressStep > 1" class="step-success">
                 <el-icon><CircleCheck /></el-icon>
@@ -872,12 +872,12 @@ const syncProductToErp = async (productId: number) => {
       }
     }, 2000)
     
-    // 7秒后进入库存同步步骤（2秒商品资料 + 5秒等待）
+    // 4秒后进入库存同步步骤（2秒商品资料 + 2秒等待）
     stepTimer2 = setTimeout(() => {
       if (syncProgressLoading.value && syncProgressStep.value === 1) {
         syncProgressStep.value = 2 // 进入库存同步步骤
       }
-    }, 7000)
+    }, 4000)
     
     // 开始调用接口（使用完整同步接口）
     const startTime = Date.now()
@@ -894,7 +894,7 @@ const syncProductToErp = async (productId: number) => {
       syncProgressStep.value = 1
     }
     // 如果接口返回时还在步骤1，说明等待时间还没到，直接跳到步骤2
-    if (syncProgressStep.value === 1 && elapsedTime < 7000) {
+    if (syncProgressStep.value === 1 && elapsedTime < 4000) {
       syncProgressStep.value = 2
     }
     

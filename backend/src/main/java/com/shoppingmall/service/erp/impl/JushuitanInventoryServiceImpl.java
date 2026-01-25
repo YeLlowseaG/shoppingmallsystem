@@ -501,8 +501,8 @@ public class JushuitanInventoryServiceImpl implements JushuitanInventoryService 
         SyncResult result = new SyncResult();
         result.setProductId(productId);
         
-        // 防重复同步检查：检查最近30秒内是否有同步记录（无论成功失败）
-        LocalDateTime thirtySecondsAgo = LocalDateTime.now().minusSeconds(30);
+        // 防重复同步检查：检查最近10秒内是否有同步记录（无论成功失败）
+        LocalDateTime thirtySecondsAgo = LocalDateTime.now().minusSeconds(10);
         QueryWrapper<com.shoppingmall.entity.ProductSyncLog> checkWrapper = new QueryWrapper<>();
         checkWrapper.eq("product_id", productId);
         checkWrapper.in("sync_type", "UPLOAD_ITEM", "UPLOAD_SHOP_ITEM", "INVENTORY_SYNC");
@@ -514,12 +514,12 @@ public class JushuitanInventoryServiceImpl implements JushuitanInventoryService 
         List<com.shoppingmall.entity.ProductSyncLog> recentLogs = productSyncLogMapper.selectList(checkWrapper);
         if (recentLogs != null && !recentLogs.isEmpty()) {
             com.shoppingmall.entity.ProductSyncLog recentLog = recentLogs.get(0);
-            log.warn("商品{}在最近30秒内已经同步过（同步类型: {}, 同步状态: {}, 同步时间: {}），跳过重复同步", 
+            log.warn("商品{}在最近10秒内已经同步过（同步类型: {}, 同步状态: {}, 同步时间: {}），跳过重复同步", 
                     productId, recentLog.getSyncType(), 
                     recentLog.getSyncStatus() == 1 ? "成功" : "失败",
                     recentLog.getCreateTime());
             result.setSuccess(false);
-            result.setMessage("该商品在最近30秒内已经同步过，请勿重复同步");
+            result.setMessage("该商品在最近10秒内已经同步过，请勿重复同步");
             result.setItemSyncSuccess(recentLog.getSyncType().contains("ITEM") && recentLog.getSyncStatus() == 1);
             result.setInventorySyncSuccess("INVENTORY_SYNC".equals(recentLog.getSyncType()) && recentLog.getSyncStatus() == 1);
             return result;
@@ -554,10 +554,10 @@ public class JushuitanInventoryServiceImpl implements JushuitanInventoryService 
             log.info("商品资料同步成功: productId={}", productId);
             result.setItemSyncSuccess(true);
             
-            // 商品资料同步成功后，等待5秒，确保ERP系统已处理完商品资料
-            log.info("商品资料同步成功，等待5秒后开始同步库存: productId={}", productId);
+            // 商品资料同步成功后，等待2秒，确保ERP系统已处理完商品资料
+            log.info("商品资料同步成功，等待2秒后开始同步库存: productId={}", productId);
             try {
-                Thread.sleep(5000L); // 等待5秒
+                Thread.sleep(2000L); // 等待2秒
                 log.info("等待完成，开始同步库存: productId={}", productId);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

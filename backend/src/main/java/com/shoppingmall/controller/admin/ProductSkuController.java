@@ -79,6 +79,23 @@ public class ProductSkuController {
             return Result.error("删除SKU失败：" + e.getMessage());
         }
     }
+
+    /**
+     * 批量删除SKU
+     */
+    @DeleteMapping("/batch")
+    public Result<Integer> batchDeleteSkus(@RequestBody List<Long> ids) {
+        try {
+            if (ids == null || ids.isEmpty()) {
+                return Result.error("SKU ID列表不能为空");
+            }
+            int deletedCount = skuService.batchDeleteSkus(ids);
+            return Result.success("批量删除SKU完成，成功删除" + deletedCount + "个SKU", deletedCount);
+        } catch (Exception e) {
+            log.error("批量删除SKU失败: {}", e.getMessage(), e);
+            return Result.error("批量删除SKU失败：" + e.getMessage());
+        }
+    }
     
     /**
      * 根据商品ID获取SKU列表

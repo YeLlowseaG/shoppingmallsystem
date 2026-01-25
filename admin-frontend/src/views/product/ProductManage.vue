@@ -131,6 +131,10 @@
         :data="productList" 
         border 
         style="width: 100%"
+        v-loading="listLoading"
+        element-loading-text="加载中..."
+        element-loading-spinner="el-icon-loading"
+        element-loading-background="rgba(255, 255, 255, 0.8)"
         @sort-change="handleTableSortChange"
       >
         <el-table-column prop="id" label="ID" width="50" />
@@ -194,6 +198,7 @@
         v-model:page-size="pagination.size"
         :total="pagination.total"
         :page-sizes="[10, 20, 50, 100]"
+        :default-page-size="10"
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="loadProductList"
         @current-change="loadProductList"
@@ -1098,7 +1103,7 @@
             <template #description>
               <div v-if="syncProgressStep === 1 && syncProgressLoading" class="step-loading">
                 <el-icon class="is-loading"><Loading /></el-icon>
-                <span>等待ERP系统处理商品资料（5秒）...</span>
+                <span>等待ERP系统处理商品资料（2秒）...</span>
               </div>
               <div v-else-if="syncProgressStep > 1" class="step-success">
                 <el-icon><CircleCheck /></el-icon>
@@ -1160,6 +1165,7 @@ import { getBrandOptions } from '@/api/admin/brand'
 import {
   getSkusByProductId,
   batchCreateSkus,
+  batchDeleteSkus,
   updateSku,
   deleteSku,
   getSpecKeysByProductId,
@@ -1195,15 +1201,18 @@ const searchForm = ref({
   sortBy: 'create_time_desc'
 })
 
-// 分页
+// 分页（确保默认值为10，避免性能问题）
 const pagination = ref({
   current: 1,
-  size: 10,
+  size: 10, // 默认10条，提升性能
   total: 0
 })
 
 // 商品列表
 const productList = ref<ProductVO[]>([])
+
+// 列表加载状态
+const listLoading = ref(false)
 
 // 分类列表
 const categoryTree = ref<ProductCategoryVO[]>([])
@@ -1434,6 +1443,7 @@ const handleTabChange = (value: string | undefined) => {
 
 // 加载商品列表
 const loadProductList = async () => {
+  listLoading.value = true
   try {
     console.log('排序参数:', searchForm.value.sortBy)
     // 处理级联选择器的值（如果是数组，取最后一个值）
@@ -1441,9 +1451,12 @@ const loadProductList = async () => {
       ? searchForm.value.categoryId[searchForm.value.categoryId.length - 1]
       : searchForm.value.categoryId
     
+    // 确保分页大小在合理范围内（最大100，默认10）
+    const pageSize = pagination.value.size > 100 ? 10 : (pagination.value.size || 10)
+    
     const res = await getProductPage(
       pagination.value.current,
-      pagination.value.size,
+      pageSize,
       categoryId,
       searchForm.value.keyword,
       undefined, // brand 参数
@@ -1487,6 +1500,10 @@ const loadProductList = async () => {
   } catch (error) {
     console.error('加载商品列表失败:', error)
     ElMessage.error('加载商品列表失败')
+    productList.value = []
+    pagination.value.total = 0
+  } finally {
+    listLoading.value = false
   }
 }
 
@@ -1616,34 +1633,44 @@ const handleEdit = async (row: ProductVO) => {
 
   console.log('已重置：editSpecKeys, editSkuList, currentSkuList')
 
+  // 由于列表接口不返回description字段，需要调用详情接口获取完整数据
+  let productDetail: ProductVO = row
+  try {
+    productDetail = await getProductById(row.id)
+    console.log('获取商品详情成功，包含description字段')
+  } catch (error) {
+    console.error('获取商品详情失败，使用列表数据:', error)
+    // 如果获取详情失败，使用列表数据（description可能为空）
+  }
+
   formData.value = {
-    id: row.id,
-    productCode: row.productCode,
-    barcode: row.barcode || '',
-    unit: row.unit || '',
-    productName: row.productName,
-    categoryId: row.categoryId,
-    brandId: row.brandId || null,
-    shippingTemplateId: row.shippingTemplateId || null,
-    basePrice: row.basePrice,
-    suggestedRetailPrice: row.suggestedRetailPrice || 0,
-    marketRetailPrice: row.marketRetailPrice || 0,
-    memberPrice: row.memberPrice || 0,
-    enableMemberPrice: row.enableMemberPrice || 0,
+    id: productDetail.id,
+    productCode: productDetail.productCode,
+    barcode: productDetail.barcode || '',
+    unit: productDetail.unit || '',
+    productName: productDetail.productName,
+    categoryId: productDetail.categoryId,
+    brandId: productDetail.brandId || null,
+    shippingTemplateId: productDetail.shippingTemplateId || null,
+    basePrice: productDetail.basePrice,
+    suggestedRetailPrice: productDetail.suggestedRetailPrice || 0,
+    marketRetailPrice: productDetail.marketRetailPrice || 0,
+    memberPrice: productDetail.memberPrice || 0,
+    enableMemberPrice: productDetail.enableMemberPrice || 0,
     memberPrices: [] as ProductMemberPriceDTO[],
-    stock: row.stock,
-    warningStock: row.warningStock || 10,
-    weight: row.weight || 0,
-    mainImage: row.mainImage,
-    images: JSON.stringify(row.imageList),
-    description: row.description,
-    status: row.status,
+    stock: productDetail.stock,
+    warningStock: productDetail.warningStock || 10,
+    weight: productDetail.weight || 0,
+    mainImage: productDetail.mainImage,
+    images: JSON.stringify(productDetail.imageList || []),
+    description: productDetail.description || '', // 从详情接口获取description字段
+    status: productDetail.status,
     enableSpec: false  // 默认关闭，稍后根据SKU数据设置
   }
 
   // 初始化详情图片列表
-  if (row.imageList && row.imageList.length > 0) {
-    detailImageList.value = row.imageList.map((url, index) => ({
+  if (productDetail.imageList && productDetail.imageList.length > 0) {
+    detailImageList.value = productDetail.imageList.map((url, index) => ({
       name: `image-${index}`,
       url: url
     }))
@@ -1651,8 +1678,8 @@ const handleEdit = async (row: ProductVO) => {
     detailImageList.value = []
   }
 
-  // 加载商品会员价配置（从row.memberPrices中加载）
-  await loadProductMemberPrices(row.id, row.memberPrices)
+  // 加载商品会员价配置（从productDetail.memberPrices中加载）
+  await loadProductMemberPrices(productDetail.id, productDetail.memberPrices)
 
   // 加载SKU数据
   try {
@@ -1769,29 +1796,16 @@ const handleSubmit = async () => {
         console.log('✓ SKU数据校验通过')
       }
 
-      // 先保存SKU数据
+      // 先保存SKU数据（增量更新优化）
       if (editSkuList.value.length > 0) {
-        console.log('检测到SKU数据,开始保存SKU')
+        console.log('检测到SKU数据,开始增量更新SKU')
 
-        // 重新从数据库查询该商品的所有SKU，确保删除的是最新数据
-        console.log('重新查询商品ID:', formData.value.id, '的所有SKU')
-        const latestSkus = await getSkusByProductId(formData.value.id!)
+        // 查询数据库中的现有SKU
+        const existingSkus = await getSkusByProductId(formData.value.id!)
+        console.log('现有SKU数量:', existingSkus?.length || 0)
 
-        if (latestSkus && latestSkus.length > 0) {
-          console.log('查询到最新SKU:', latestSkus.length, '个')
-          console.log('要删除的SKU列表:', latestSkus.map(s => ({id: s.id, productId: s.productId, spec: s.specCombination})))
-          for (const sku of latestSkus) {
-            console.log('正在删除SKU - ID:', sku.id, 'ProductID:', sku.productId, '规格:', sku.specCombination)
-            await deleteSku(sku.id)
-          }
-          console.log('所有旧SKU删除完成')
-        } else {
-          console.log('该商品没有旧SKU，直接创建新SKU')
-        }
-
-        // 批量创建新SKU
-        // 确保stock值正确：如果stock是null、undefined或NaN，则使用0
-        const skuDTOs: ProductSkuDTO[] = editSkuList.value.map(sku => {
+        // 准备新SKU数据
+        const newSkuDTOs: ProductSkuDTO[] = editSkuList.value.map(sku => {
           const stock = (sku.stock !== null && sku.stock !== undefined && !isNaN(Number(sku.stock)))
             ? Number(sku.stock)
             : 0;
@@ -1804,7 +1818,7 @@ const handleSubmit = async () => {
             marketRetailPrice: sku.marketRetailPrice || 0,
             memberPrice: sku.memberPrice || 0,
             enableMemberPrice: sku.enableMemberPrice || 0,
-            memberPrices: sku.memberPrices || [], // 添加memberPrices
+            memberPrices: sku.memberPrices || [],
             stock: stock,
             warningStock: sku.warningStock || 0,
             weight: sku.weight || 0,
@@ -1812,27 +1826,98 @@ const handleSubmit = async () => {
           };
         })
 
-        console.log('!!! CRITICAL: 即将创建的SKU数据，商品ID为:', formData.value.id)
-        console.log('准备批量创建SKU:', skuDTOs)
-        console.log('SKU库存详情:', skuDTOs.map(s => ({ spec: s.specCombination, stock: s.stock })))
-        await batchCreateSkus(skuDTOs)
-        console.log('SKU保存成功')
+        // 按specCombination建立映射，用于匹配新旧SKU
+        const existingSkuMap = new Map<string, ProductSkuVO>()
+        if (existingSkus && existingSkus.length > 0) {
+          existingSkus.forEach(sku => {
+            existingSkuMap.set(sku.specCombination, sku)
+          })
+        }
+
+        const newSkuMap = new Map<string, ProductSkuDTO>()
+        newSkuDTOs.forEach(sku => {
+          newSkuMap.set(sku.specCombination, sku)
+        })
+
+        // 找出需要删除的SKU（存在于数据库但不在新SKU列表中）
+        const skusToDelete: number[] = []
+        if (existingSkus && existingSkus.length > 0) {
+          existingSkus.forEach(sku => {
+            if (!newSkuMap.has(sku.specCombination)) {
+              skusToDelete.push(sku.id)
+            }
+          })
+        }
+
+        // 找出需要创建的SKU（在新SKU列表中但不存在于数据库）
+        const skusToCreate: ProductSkuDTO[] = []
+        // 找出需要更新的SKU（存在于数据库且在新SKU列表中，但数据有变化）
+        const skusToUpdate: Array<{ id: number; dto: ProductSkuDTO }> = []
+
+        newSkuDTOs.forEach(newSku => {
+          const existingSku = existingSkuMap.get(newSku.specCombination)
+          if (!existingSku) {
+            // 新SKU，需要创建
+            skusToCreate.push(newSku)
+          } else {
+            // 已存在的SKU，检查是否有变化
+            const hasChanges = 
+              existingSku.skuCode !== newSku.skuCode ||
+              existingSku.price !== newSku.price ||
+              existingSku.suggestedRetailPrice !== (newSku.suggestedRetailPrice || 0) ||
+              existingSku.marketRetailPrice !== (newSku.marketRetailPrice || 0) ||
+              existingSku.memberPrice !== (newSku.memberPrice || 0) ||
+              existingSku.enableMemberPrice !== (newSku.enableMemberPrice || 0) ||
+              existingSku.stock !== newSku.stock ||
+              existingSku.warningStock !== (newSku.warningStock || 0) ||
+              existingSku.weight !== (newSku.weight || 0) ||
+              existingSku.status !== (newSku.status || 1)
+            
+            if (hasChanges) {
+              skusToUpdate.push({ id: existingSku.id, dto: newSku })
+            }
+          }
+        })
+
+        console.log('SKU增量更新分析:')
+        console.log('  需要删除:', skusToDelete.length, '个')
+        console.log('  需要创建:', skusToCreate.length, '个')
+        console.log('  需要更新:', skusToUpdate.length, '个')
+
+        // 批量删除不需要的SKU
+        if (skusToDelete.length > 0) {
+          console.log('批量删除SKU:', skusToDelete)
+          await batchDeleteSkus(skusToDelete)
+          console.log('批量删除SKU完成')
+        }
+
+        // 批量创建新SKU
+        if (skusToCreate.length > 0) {
+          console.log('批量创建SKU:', skusToCreate.length, '个')
+          await batchCreateSkus(skusToCreate)
+          console.log('批量创建SKU完成')
+        }
+
+        // 更新有变化的SKU
+        if (skusToUpdate.length > 0) {
+          console.log('更新SKU:', skusToUpdate.length, '个')
+          for (const { id, dto } of skusToUpdate) {
+            await updateSku(id, dto)
+          }
+          console.log('更新SKU完成')
+        }
 
         // 更新商品的启用规格状态
         formData.value.enableSpec = true
       } else {
         console.log('没有SKU数据,设置enableSpec为false')
 
-        // 重新从数据库查询该商品的所有SKU，确保删除的是最新数据
-        console.log('重新查询商品ID:', formData.value.id, '的所有SKU并删除')
-        const latestSkus = await getSkusByProductId(formData.value.id!)
-
-        if (latestSkus && latestSkus.length > 0) {
-          console.log('删除所有旧SKU:', latestSkus.length, '个')
-          for (const sku of latestSkus) {
-            console.log('正在删除SKU - ID:', sku.id, '规格:', sku.specCombination)
-            await deleteSku(sku.id)
-          }
+        // 查询并删除所有现有SKU
+        const existingSkus = await getSkusByProductId(formData.value.id!)
+        if (existingSkus && existingSkus.length > 0) {
+          const skuIdsToDelete = existingSkus.map(sku => sku.id)
+          console.log('批量删除所有SKU:', skuIdsToDelete.length, '个')
+          await batchDeleteSkus(skuIdsToDelete)
           console.log('所有SKU删除完成')
         } else {
           console.log('该商品没有SKU，无需删除')
@@ -1869,7 +1954,8 @@ const handleSubmit = async () => {
       }
 
       // 转换 enableSpec 为 0 或 1
-      const submitData = {
+      // 注意：description字段需要传递，因为用户可能修改了商品描述
+      const submitData: any = {
         ...formData.value,
         categoryId: categoryId,
         enableSpec: formData.value.enableSpec ? 1 : 0
@@ -1986,12 +2072,12 @@ const handleSyncToErp = async (row: any) => {
       }
     }, 2000)
     
-    // 7秒后进入库存同步步骤（2秒商品资料 + 5秒等待）
+    // 4秒后进入库存同步步骤（2秒商品资料 + 2秒等待）
     stepTimer2 = setTimeout(() => {
       if (syncProgressLoading.value && syncProgressStep.value === 1) {
         syncProgressStep.value = 2 // 进入库存同步步骤
       }
-    }, 7000)
+    }, 4000)
     
     // 开始调用接口（使用完整同步接口）
     const startTime = Date.now()
@@ -2008,7 +2094,7 @@ const handleSyncToErp = async (row: any) => {
       syncProgressStep.value = 1
     }
     // 如果接口返回时还在步骤1，说明等待时间还没到，直接跳到步骤2
-    if (syncProgressStep.value === 1 && elapsedTime < 7000) {
+    if (syncProgressStep.value === 1 && elapsedTime < 4000) {
       syncProgressStep.value = 2
     }
     
@@ -2103,12 +2189,12 @@ const syncProductToErp = async (productId: number) => {
       }
     }, 2000)
     
-    // 7秒后进入库存同步步骤（2秒商品资料 + 5秒等待）
+    // 4秒后进入库存同步步骤（2秒商品资料 + 2秒等待）
     stepTimer2 = setTimeout(() => {
       if (syncProgressLoading.value && syncProgressStep.value === 1) {
         syncProgressStep.value = 2 // 进入库存同步步骤
       }
-    }, 7000)
+    }, 4000)
     
     // 开始调用接口（使用完整同步接口）
     const startTime = Date.now()
@@ -2125,7 +2211,7 @@ const syncProductToErp = async (productId: number) => {
       syncProgressStep.value = 1
     }
     // 如果接口返回时还在步骤1，说明等待时间还没到，直接跳到步骤2
-    if (syncProgressStep.value === 1 && elapsedTime < 7000) {
+    if (syncProgressStep.value === 1 && elapsedTime < 4000) {
       syncProgressStep.value = 2
     }
     
@@ -2535,13 +2621,8 @@ const handleImportCancel = () => {
 
 const saveSkuChanges = async () => {
   try {
-    // 删除原有SKU
-    for (const sku of currentSkuList.value) {
-      await deleteSku(sku.id)
-    }
-    
-    // 批量创建新SKU
-    const skuDTOs: ProductSkuDTO[] = skuManageList.value.map(sku => ({
+    // 准备新SKU数据
+    const newSkuDTOs: ProductSkuDTO[] = skuManageList.value.map(sku => ({
       productId: formData.value.id!,
       skuCode: sku.skuCode,
       specCombination: sku.specCombination,
@@ -2551,18 +2632,84 @@ const saveSkuChanges = async () => {
       weight: sku.weight || 0,
       status: sku.status
     }))
-    
-    console.log('准备保存SKU:', skuDTOs)
-    const result = await batchCreateSkus(skuDTOs)
-    console.log('SKU保存结果:', result)
+
+    // 按specCombination建立映射，用于匹配新旧SKU
+    const existingSkuMap = new Map<string, ProductSkuVO>()
+    currentSkuList.value.forEach(sku => {
+      existingSkuMap.set(sku.specCombination, sku)
+    })
+
+    const newSkuMap = new Map<string, ProductSkuDTO>()
+    newSkuDTOs.forEach(sku => {
+      newSkuMap.set(sku.specCombination, sku)
+    })
+
+    // 找出需要删除的SKU
+    const skusToDelete: number[] = []
+    currentSkuList.value.forEach(sku => {
+      if (!newSkuMap.has(sku.specCombination)) {
+        skusToDelete.push(sku.id)
+      }
+    })
+
+    // 找出需要创建的SKU
+    const skusToCreate: ProductSkuDTO[] = []
+    // 找出需要更新的SKU
+    const skusToUpdate: Array<{ id: number; dto: ProductSkuDTO }> = []
+
+    newSkuDTOs.forEach(newSku => {
+      const existingSku = existingSkuMap.get(newSku.specCombination)
+      if (!existingSku) {
+        skusToCreate.push(newSku)
+      } else {
+        // 检查是否有变化
+        const hasChanges = 
+          existingSku.skuCode !== newSku.skuCode ||
+          existingSku.price !== newSku.price ||
+          existingSku.stock !== newSku.stock ||
+          existingSku.warningStock !== (newSku.warningStock || 0) ||
+          existingSku.weight !== (newSku.weight || 0) ||
+          existingSku.status !== (newSku.status || 1)
+        
+        if (hasChanges) {
+          skusToUpdate.push({ id: existingSku.id, dto: newSku })
+        }
+      }
+    })
+
+    console.log('SKU增量更新分析:')
+    console.log('  需要删除:', skusToDelete.length, '个')
+    console.log('  需要创建:', skusToCreate.length, '个')
+    console.log('  需要更新:', skusToUpdate.length, '个')
+
+    // 批量删除不需要的SKU
+    if (skusToDelete.length > 0) {
+      await batchDeleteSkus(skusToDelete)
+    }
+
+    // 批量创建新SKU
+    if (skusToCreate.length > 0) {
+      await batchCreateSkus(skusToCreate)
+    }
+
+    // 更新有变化的SKU
+    if (skusToUpdate.length > 0) {
+      for (const { id, dto } of skusToUpdate) {
+        await updateSku(id, dto)
+      }
+    }
     
     // 同步更新商品的启用规格状态
-    const hasSkus = skuDTOs.length > 0
-    await updateProduct({
-      ...formData.value,
+    // 注意：只更新enableSpec字段，不传递description等大字段，避免触发不必要的更新
+    const hasSkus = newSkuDTOs.length > 0
+    const { description, ...productDataWithoutDescription } = formData.value
+    const updateData: any = {
+      ...productDataWithoutDescription,
       enableSpec: hasSkus
-    })
-    console.log('更新商品启用规格状态为:', hasSkus)
+    }
+    // 确保description字段不存在于updateData中（双重保险）
+    delete updateData.description
+    await updateProduct(updateData)
     
     // 更新本地数据
     formData.value.enableSpec = hasSkus
@@ -2833,6 +2980,10 @@ const saveSkuMemberPrice = () => {
 }
 
 onMounted(() => {
+  // 确保分页大小正确初始化（防止被意外修改为10000）
+  if (pagination.value.size > 100) {
+    pagination.value.size = 10
+  }
   loadCategoryTree()
   loadBrands()
   loadShippingTemplates()
